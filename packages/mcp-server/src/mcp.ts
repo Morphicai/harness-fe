@@ -20,6 +20,8 @@ import {
     waitForArgsSchema,
 } from '@morphixai/harnessa-fe.protocol';
 import type { IBridge } from './bridge.js';
+import type { Bridge } from './bridge.js';
+import type { IStore } from './store/index.js';
 
 const SERVER_NAME = 'harnessa-fe';
 const tabIdParam = z
@@ -34,6 +36,10 @@ export async function startMcpStdioServer(bridge: IBridge): Promise<McpServer> {
     });
 
     registerTools(server, bridge);
+
+    // Register store tools if bridge has a store
+    const store = (bridge as Bridge).store;
+    if (store) registerStoreTools(server, store);
 
     const transport = new StdioServerTransport();
     await server.connect(transport);
@@ -350,6 +356,148 @@ function registerTools(server: McpServer, bridge: IBridge): void {
                 throw new Error(`tasks.resolve: no task with id "${taskId}"`);
             }
             return ok({ ok: true, task });
+        },
+    );
+}
+
+// ─── Store tools (session history, timeline, notes) ───────────────────────────
+
+function registerStoreTools(server: McpServer, store: IStore): void {
+    server.registerTool(
+        'session.list',
+        {
+            description: 'List recent sessions for a project. Returns session IDs, start times, and status.',
+            inputSchema: {
+                projectId: z.string().describe('Project ID (package.json name)'),
+                limit: z.number().int().positive().default(10).optional(),
+            },
+        },
+        async ({ projectId, limit }) => {
+            const sessions = store.listSessions(projectId, limit ?? 10);
+            return ok(sessions);
+        },
+    );
+
+    server.registerTool(
+        'session.summary',
+        {
+            description: 'Get a summary of a session: event counts, last error, active tabs.',
+            inputSchema: {
+                sessionId: z.string().describe('Session ID from session.list'),
+            },
+        },
+        async ({ sessionId }) => {
+            const summary = store.summary(sessionId);
+            return ok(summary);
+        },
+    );
+
+    server.registerTool(
+        'session.tail',
+        {
+            description: 'Read the last N events from a session timeline. Optionally filter by event type.',
+            inputSchema: {
+                sessionId: z.string(),
+                n: z.number().int().positive().default(50).optional(),
+                type: z.union([z.string(), z.array(z.string())]).optional()
+                    .describe('Filter by event type(s): log, err, req, res, cmd, resp, hmr, task, node:log, node:err'),
+                tabId: z.string().optional().describe('If provided, reads from the tab timeline instead of session timeline'),
+                since: z.number().optional().describe('Only events after this Unix timestamp (ms)'),
+                until: z.number().optional().describe('Only events before this Unix timestamp (ms)'),
+            },
+        },
+        async ({ sessionId, n, type, tabId, since, until }) => {
+            const events = store.tail(
+                sessionId,
+                { n: n ?? 50, type: type as string | string[] | undefined, since, until },
+                tabId,
+            );
+            return ok(events);
+        },
+    );
+
+    server.registerTool(
+        'session.search',
+        {
+            description: 'Search events in a session timeline by substring match.',
+            inputSchema: {
+                sessionId: z.string(),
+                query: z.string().describe('Substring to search for in event payloads'),
+                type: z.union([z.string(), z.array(z.string())]).optional(),
+                limit: z.number().int().positive().default(50).optional(),
+                tabId: z.string().optional(),
+            },
+        },
+        async ({ sessionId, query, type, limit, tabId }) => {
+            const events = store.search(
+                sessionId,
+                query,
+                { type: type as string | string[] | undefined, limit: limit ?? 50 },
+                tabId,
+            );
+            return ok(events);
+        },
+    );
+
+    server.registerTool(
+        'project.sessions',
+        {
+            description: 'List all projects with their most recent session info.',
+            inputSchema: {},
+        },
+        async () => {
+            const projects = store.listProjects();
+            const result = projects.map((p) => ({
+                ...p,
+                recentSessions: store.listSessions(p.id, 3),
+            }));
+            return ok(result);
+        },
+    );
+
+    server.registerTool(
+        'project.note',
+        {
+            description: 'Write a persistent note for a project (cross-session knowledge for the agent).',
+            inputSchema: {
+                projectId: z.string(),
+                key: z.string().describe('Note key, e.g. "known_issues", "architecture", "agent_context"'),
+                value: z.string().describe('Note content (plain text or JSON string)'),
+            },
+        },
+        async ({ projectId, key, value }) => {
+            store.writeNote(projectId, key, value);
+            return ok({ ok: true, projectId, key });
+        },
+    );
+
+    server.registerTool(
+        'project.notes',
+        {
+            description: 'Read all persistent notes for a project.',
+            inputSchema: {
+                projectId: z.string(),
+            },
+        },
+        async ({ projectId }) => {
+            const notes = store.listNotes(projectId);
+            return ok(notes);
+        },
+    );
+
+    server.registerTool(
+        'session.purge',
+        {
+            description: 'Delete old sessions and recordings to free disk space.',
+            inputSchema: {
+                maxAgeDays: z.number().int().positive().default(7).optional(),
+                maxSessionsPerProject: z.number().int().positive().default(20).optional(),
+                recordingRetentionDays: z.number().int().positive().default(3).optional(),
+            },
+        },
+        async ({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays }) => {
+            const result = store.purge({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays });
+            return ok(result);
         },
     );
 }
