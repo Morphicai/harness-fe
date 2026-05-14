@@ -12,3 +12,4 @@
 
 export { unplugin, unpluginFactory, type HarnessaFEOptions } from './core.js';
 export { transformJsx, type ComponentMap, type ComponentLocation, type TransformResult } from './transform.js';
+export { transformVueSFC, type VueTransformResult } from './vue-transform.js';

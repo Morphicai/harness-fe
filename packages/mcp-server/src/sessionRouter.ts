@@ -58,7 +58,9 @@ export class SessionRouter {
     }
 
     findVitePlugin(projectId?: string): PeerSession | undefined {
-        const candidates = [...this.peers.values()].filter((p) => p.role === 'vite-plugin');
+        const candidates = [...this.peers.values()].filter(
+            (p) => p.role === 'vite-plugin' || p.role === 'webpack-plugin',
+        );
         if (!candidates.length) return undefined;
         if (projectId) return candidates.find((c) => c.projectId === projectId);
         // No projectId filter — return the most recent.
@@ -101,7 +103,7 @@ export class SessionRouter {
     listProjects(): string[] {
         const ids = new Set<string>();
         for (const p of this.peers.values()) {
-            if (p.role === 'vite-plugin') ids.add(p.projectId);
+            if (p.role === 'vite-plugin' || p.role === 'webpack-plugin') ids.add(p.projectId);
         }
         return [...ids];
     }

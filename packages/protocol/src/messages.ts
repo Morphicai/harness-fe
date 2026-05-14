@@ -10,7 +10,7 @@ import { returnSizeSchema, selectorSchema } from './selectors.js';
 
 // ─── Identity ───────────────────────────────────────────────────────────────
 
-export const peerRoleSchema = z.enum(['vite-plugin', 'runtime-client']);
+export const peerRoleSchema = z.enum(['vite-plugin', 'webpack-plugin', 'runtime-client']);
 export type PeerRole = z.infer<typeof peerRoleSchema>;
 
 export const helloFrameSchema = z.object({
