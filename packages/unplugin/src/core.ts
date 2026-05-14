@@ -11,8 +11,11 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { relative, resolve } from 'node:path';
 import { createUnplugin, type UnpluginFactory } from 'unplugin';
+
+const require = createRequire(import.meta.url);
 import { WebSocket } from 'ws';
 import {
     COMMAND,
@@ -25,6 +28,7 @@ import {
     frameSchema,
 } from '@morphixai/harnessa-fe.protocol';
 import { transformJsx, type ComponentMap } from './transform.js';
+import { transformVueSFC } from './vue-transform.js';
 
 export interface HarnessaFEOptions {
     /** Override projectId (defaults to package.json `name`). */
@@ -57,6 +61,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
     let ws: WebSocket | undefined;
     let isActive = false;
     let projectRoot = process.cwd();
+    let peerRole: 'vite-plugin' | 'webpack-plugin' = 'vite-plugin';
     const componentMap: ComponentMap = new Map();
 
     function send(frame: EventFrame | HelloFrame | ResponseFrame): void {
@@ -129,7 +134,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
                 const hello: HelloFrame = {
                     type: 'hello',
                     id: newId(),
-                    role: 'vite-plugin',
+                    role: peerRole,
                     projectId,
                 };
                 send(hello);
@@ -204,7 +209,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
         transformInclude(id: string) {
             if (options.disabled) return false;
-            if (!/\.[jt]sx$/.test(id)) return false;
+            if (!/\.([jt]sx|vue)$/.test(id)) return false;
             if (id.includes('/node_modules/') || id.includes('\\node_modules\\')) return false;
             return true;
         },
@@ -212,6 +217,11 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
         transform(code: string, id: string) {
             if (options.disabled) return null;
             const rel = relative(projectRoot, id);
+            if (id.endsWith('.vue')) {
+                const out = transformVueSFC(code, rel, componentMap);
+                if (!out) return null;
+                return { code: out.code, map: out.map as any };
+            }
             const out = transformJsx(code, rel, componentMap);
             if (!out) return null;
             return { code: out.code, map: out.map as any };
@@ -260,6 +270,9 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
         // Webpack-specific hooks
         webpack(compiler: any) {
             if (options.disabled) return;
+
+            // Set role for webpack
+            peerRole = 'webpack-plugin';
 
             // Resolve project root from webpack context
             projectRoot = compiler.options?.context ?? process.cwd();
