@@ -14,7 +14,10 @@ import {
     PROTOCOL_VERSION,
     clickArgsSchema,
     evaluateArgsSchema,
+    navigateArgsSchema,
+    reloadArgsSchema,
     screenshotArgsSchema,
+    scrollArgsSchema,
     selectorSchema,
     typeArgsSchema,
     waitForArgsSchema,
@@ -165,6 +168,121 @@ function registerTools(server: McpServer, bridge: IBridge): void {
                 { selector, limit },
                 { tabId },
             );
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.PAGE_SCROLL,
+        {
+            description:
+                'Scroll the page or a specific element. Omit selector to scroll the whole page.',
+            inputSchema: {
+                selector: selectorSchema.optional(),
+                x: z.number().optional().describe('Pixels to scroll on the x-axis. Default 0.'),
+                y: z.number().optional().describe('Pixels to scroll on the y-axis. Default 0.'),
+                behavior: z.enum(['smooth', 'instant']).optional().describe('Default smooth.'),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ selector, x, y, behavior, tabId }) => {
+            const args = scrollArgsSchema.parse({ selector, x, y, behavior });
+            const out = await bridge.sendCommand(COMMAND.PAGE_SCROLL, args, { tabId });
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.PAGE_NAVIGATE,
+        {
+            description:
+                "Navigate to a URL or path. Use method='href' for a full page load (default), 'push' or 'replace' for SPA soft navigation without a full reload.",
+            inputSchema: {
+                url: z.string().describe("Target URL or path, e.g. '/dashboard' or 'https://example.com'."),
+                method: z
+                    .enum(['href', 'push', 'replace'])
+                    .optional()
+                    .describe("'href' = full load (default). 'push'/'replace' = history API + popstate, no reload."),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ url, method, tabId }) => {
+            const args = navigateArgsSchema.parse({ url, method });
+            const out = await bridge.sendCommand(COMMAND.PAGE_NAVIGATE, args, { tabId });
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.PAGE_RELOAD,
+        {
+            description: 'Reload the current page. Use hard=true to bypass the browser cache.',
+            inputSchema: {
+                hard: z.boolean().optional().describe('Bypass browser cache. Default false.'),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ hard, tabId }) => {
+            const args = reloadArgsSchema.parse({ hard });
+            const out = await bridge.sendCommand(COMMAND.PAGE_RELOAD, args, { tabId });
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.PAGE_SCROLL,
+        {
+            description:
+                'Scroll the page or scroll a specific element into view. Omit selector to scroll the window to an absolute position.',
+            inputSchema: {
+                selector: selectorSchema.optional().describe(
+                    'If provided, scrolls this element into view (ignores x/y).',
+                ),
+                x: z.number().optional().describe('Horizontal scroll position in pixels (window scroll only).'),
+                y: z.number().optional().describe('Vertical scroll position in pixels (window scroll only).'),
+                behavior: z.enum(['smooth', 'instant']).optional().describe('Default: smooth.'),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ selector, x, y, behavior, tabId }) => {
+            const args = scrollArgsSchema.parse({ selector, x, y, behavior });
+            const out = await bridge.sendCommand(COMMAND.PAGE_SCROLL, args, { tabId });
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.PAGE_NAVIGATE,
+        {
+            description:
+                'Navigate the page to a URL. Use method="href" for full page loads, "push"/"replace" for SPA in-app navigation without reload.',
+            inputSchema: {
+                url: z.string().describe('Target URL or path, e.g. "/dashboard" or "https://example.com".'),
+                method: z.enum(['href', 'push', 'replace']).optional().describe(
+                    '"href" (default) = full page load; "push" = history.pushState; "replace" = history.replaceState.',
+                ),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ url, method, tabId }) => {
+            const args = navigateArgsSchema.parse({ url, method });
+            const out = await bridge.sendCommand(COMMAND.PAGE_NAVIGATE, args, { tabId });
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.PAGE_RELOAD,
+        {
+            description: 'Reload the current page. Use hard=true to bypass the browser cache.',
+            inputSchema: {
+                hard: z.boolean().optional().describe('Force a hard reload bypassing cache. Default false.'),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ hard, tabId }) => {
+            const args = reloadArgsSchema.parse({ hard });
+            const out = await bridge.sendCommand(COMMAND.PAGE_RELOAD, args, { tabId });
             return ok(out);
         },
     );

@@ -142,6 +142,8 @@ export const COMMAND = {
     PAGE_CLICK: 'page.click',
     PAGE_TYPE: 'page.type',
     PAGE_SCROLL: 'page.scroll',
+    PAGE_NAVIGATE: 'page.navigate',
+    PAGE_RELOAD: 'page.reload',
     PAGE_EVALUATE: 'page.evaluate',
     PAGE_WAIT_FOR: 'page.wait_for',
     PAGE_SCREENSHOT: 'page.screenshot',
@@ -255,3 +257,34 @@ export const screenshotArgsSchema = z.object({
     maxWidth: z.number().int().positive().optional(),
 });
 export type ScreenshotArgs = z.infer<typeof screenshotArgsSchema>;
+
+export const scrollArgsSchema = z.object({
+    /** Scroll the whole page when omitted; scroll a specific element when provided. */
+    selector: selectorSchema.optional(),
+    /** Pixels to scroll on the x-axis. Default 0. */
+    x: z.number().optional(),
+    /** Pixels to scroll on the y-axis. Default 0. */
+    y: z.number().optional(),
+    /** Scroll behaviour. Default 'smooth'. */
+    behavior: z.enum(['smooth', 'instant']).optional(),
+});
+export type ScrollArgs = z.infer<typeof scrollArgsSchema>;
+
+export const navigateArgsSchema = z.object({
+    /** Target URL or path (e.g. '/dashboard', 'https://example.com'). */
+    url: z.string(),
+    /**
+     * Navigation method:
+     * - 'href'    — full page load via location.href (default)
+     * - 'push'    — history.pushState + popstate event (SPA soft nav)
+     * - 'replace' — history.replaceState + popstate event (SPA soft nav, no history entry)
+     */
+    method: z.enum(['href', 'push', 'replace']).optional(),
+});
+export type NavigateArgs = z.infer<typeof navigateArgsSchema>;
+
+export const reloadArgsSchema = z.object({
+    /** When true, bypasses the browser cache (equivalent to Ctrl+Shift+R). Default false. */
+    hard: z.boolean().optional(),
+});
+export type ReloadArgs = z.infer<typeof reloadArgsSchema>;
