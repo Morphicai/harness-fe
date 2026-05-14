@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6C5CE7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00D2D3;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#grad)" />
+  <!-- Abstract "H" letterform representing Harnessa -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Left vertical -->
+    <line x1="40" y1="36" x2="40" y2="92" />
+    <!-- Right vertical -->
+    <line x1="88" y1="36" x2="88" y2="92" />
+    <!-- Horizontal bridge (the "harness" connection) -->
+    <path d="M40 64 C52 52, 76 76, 88 64" />
+  </g>
+  <!-- Small diamond accent -->
+  <polygon points="64,28 70,34 64,40 58,34" fill="#00D2D3" opacity="0.9" />
+</svg>

@@ -1,0 +1,199 @@
+/**
+ * Built-in command handlers run in the page. Each receives parsed args and
+ * returns a serializable result that gets shipped back in a ResponseFrame.
+ */
+
+import {
+    COMMAND,
+    type ClickArgs,
+    type EvaluateArgs,
+    type ScreenshotArgs,
+    type Selector,
+    type TypeArgs,
+    type WaitForArgs,
+} from '@morphixai/harnessa-fe.protocol';
+import { snapdom } from '@zumer/snapdom';
+import { resolveSelector } from './selectors.js';
+import type { CaptureStore } from './capture.js';
+
+export interface CommandContext {
+    capture: CaptureStore;
+}
+
+export type CommandHandler = (args: unknown, ctx: CommandContext) => Promise<unknown>;
+
+const HTML_TRUNCATE = 4000;
+
+function describeNoMatch(selector: Selector): string {
+    const fields = Object.entries(selector)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+        .join(' ');
+    return `no element matched selector: ${fields}`;
+}
+
+export const commandHandlers: Record<string, CommandHandler> = {
+    [COMMAND.PAGE_CLICK]: async (raw) => {
+        const args = raw as ClickArgs;
+        const result = resolveSelector(args.selector);
+        if (!result.element) throw new Error(describeNoMatch(args.selector));
+        const target = result.element as HTMLElement;
+        target.click();
+        return { via: result.via, tag: target.tagName.toLowerCase() };
+    },
+
+    [COMMAND.PAGE_TYPE]: async (raw) => {
+        const args = raw as TypeArgs;
+        const result = resolveSelector(args.selector);
+        if (!result.element) throw new Error(describeNoMatch(args.selector));
+        const target = result.element as HTMLInputElement | HTMLTextAreaElement;
+        if (typeof target.value !== 'string') {
+            throw new Error('page.type: target element does not support .value');
+        }
+        // React (and Vue's controlled inputs) install setters/trackers on
+        // input.value. Setting `.value = '...'` directly bypasses them, so
+        // their state never updates. Use the native prototype setter so the
+        // framework's tracker registers the change, then dispatch a bubbling
+        // 'input' + 'change' event.
+        const proto =
+            target instanceof HTMLInputElement
+                ? HTMLInputElement.prototype
+                : HTMLTextAreaElement.prototype;
+        const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        const next = args.clear !== false ? args.value : target.value + args.value;
+        if (nativeSetter) nativeSetter.call(target, next);
+        else target.value = next;
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+        return { via: result.via, value: target.value };
+    },
+
+    [COMMAND.PAGE_EVALUATE]: async (raw) => {
+        const args = raw as EvaluateArgs;
+        // eslint-disable-next-line no-new-func
+        const fn = new Function(`return (async () => { return (${args.expr}); })();`) as () => Promise<unknown>;
+        const value = await fn();
+        return { value: safeJson(value) };
+    },
+
+    [COMMAND.PAGE_WAIT_FOR]: async (raw) => {
+        const args = raw as WaitForArgs;
+        const timeoutMs = args.timeoutMs ?? 10_000;
+        const deadline = Date.now() + timeoutMs;
+        const isBuiltin = args.predicate === 'network.idle' || args.predicate === 'dom.ready';
+        // eslint-disable-next-line no-new-func
+        const probe = !isBuiltin
+            ? (new Function(`return Boolean(${args.predicate})`) as () => boolean)
+            : undefined;
+
+        while (Date.now() < deadline) {
+            if (args.predicate === 'dom.ready' && document.readyState === 'complete') {
+                return { ok: true, after: Date.now() };
+            }
+            if (args.predicate === 'network.idle') {
+                // Crude heuristic — we don't have a real idle tracker yet.
+                await new Promise((r) => setTimeout(r, 200));
+                return { ok: true, after: Date.now() };
+            }
+            if (probe && probe()) return { ok: true, after: Date.now() };
+            await new Promise((r) => setTimeout(r, 50));
+        }
+        throw new Error(`page.wait_for: predicate "${args.predicate}" did not become truthy in ${timeoutMs}ms`);
+    },
+
+    [COMMAND.PAGE_SCREENSHOT]: async (raw) => {
+        const args = raw as ScreenshotArgs;
+        const format = args.format ?? 'webp';
+        const maxWidth = args.maxWidth ?? 1280;
+
+        let target: Element;
+        let via = 'document';
+        if (args.selector) {
+            const result = resolveSelector(args.selector);
+            if (!result.element) throw new Error(describeNoMatch(args.selector));
+            target = result.element;
+            via = result.via;
+        } else {
+            target = document.documentElement;
+        }
+
+        const rect = target.getBoundingClientRect();
+        const naturalWidth = Math.max(1, Math.round(rect.width || target.clientWidth || window.innerWidth));
+        const naturalHeight = Math.max(1, Math.round(rect.height || target.clientHeight || window.innerHeight));
+        const width = naturalWidth > maxWidth ? maxWidth : naturalWidth;
+
+        const result = await snapdom(target as HTMLElement, {
+            fast: true,
+            width,
+            backgroundColor: format === 'jpeg' ? '#fff' : undefined,
+        });
+        const canvas = await result.toCanvas();
+        const mime = format === 'jpeg' ? 'image/jpeg' : `image/${format}`;
+        const quality = format === 'png' ? undefined : 0.85;
+        const dataUrl = canvas.toDataURL(mime, quality);
+        return {
+            via,
+            format,
+            width: canvas.width,
+            height: canvas.height,
+            dataUrl,
+        };
+    },
+
+    [COMMAND.PAGE_DOM_QUERY]: async (raw) => {
+        const args = raw as { selector: Selector; limit?: number };
+        const limit = args.limit ?? 5;
+        const matches: Array<{ html: string; tag: string; via: string }> = [];
+        // Try each selector field independently — we want all matches up to limit.
+        if (args.selector.css) {
+            const list = document.querySelectorAll(args.selector.css);
+            for (let i = 0; i < list.length && matches.length < limit; i++) {
+                matches.push({
+                    html: truncate((list[i] as Element).outerHTML, HTML_TRUNCATE),
+                    tag: (list[i] as Element).tagName.toLowerCase(),
+                    via: 'css',
+                });
+            }
+        }
+        if (matches.length < limit) {
+            const result = resolveSelector(args.selector);
+            if (result.element) {
+                matches.push({
+                    html: truncate(result.element.outerHTML, HTML_TRUNCATE),
+                    tag: result.element.tagName.toLowerCase(),
+                    via: result.via,
+                });
+            }
+        }
+        return { matches };
+    },
+
+    [COMMAND.CONSOLE_TAIL]: async (raw, ctx) => {
+        const args = raw as { n: number };
+        return { entries: ctx.capture.console.tail(args.n) };
+    },
+
+    [COMMAND.NETWORK_TAIL]: async (raw, ctx) => {
+        const args = raw as { n: number };
+        return { entries: ctx.capture.network.tail(args.n) };
+    },
+
+    [COMMAND.ERRORS_TAIL]: async (raw, ctx) => {
+        const args = raw as { n: number };
+        return { entries: ctx.capture.errors.tail(args.n) };
+    },
+};
+
+function truncate(s: string, n: number): string {
+    if (s.length <= n) return s;
+    return `${s.slice(0, n)}… (truncated, total ${s.length} chars)`;
+}
+
+function safeJson(value: unknown): unknown {
+    if (value === undefined) return null;
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch {
+        return String(value);
+    }
+}
