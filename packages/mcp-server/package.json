@@ -31,6 +31,8 @@
     ],
     "scripts": {
         "build": "tsc",
+        "dev": "tsc --watch --preserveWatchOutput",
+        "watch": "tsc --watch --preserveWatchOutput",
         "start": "tsx src/cli.ts",
         "typecheck": "tsc --noEmit",
         "test": "vitest run"

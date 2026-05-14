@@ -2,6 +2,7 @@
     "name": "harnessa-fe",
     "version": "0.0.1",
     "private": true,
+    "packageManager": "pnpm@9.15.0",
     "description": "The frontend harness for AI agents. Source-aware Vite plugin + MCP daemon + runtime client — lets agents drive any page in the user's real browser with full-stack understanding.",
     "type": "module",
     "license": "MIT",
@@ -14,18 +15,19 @@
         "url": "https://github.com/morphixai/harnessa-fe/issues"
     },
     "scripts": {
-        "build": "pnpm -r --filter './packages/*' build",
-        "typecheck": "pnpm -r --filter './packages/*' typecheck",
-        "test": "pnpm -r --filter './packages/*' test",
-        "dev": "pnpm --filter harnessa-fe-react-demo dev",
+        "build": "turbo build",
+        "typecheck": "turbo typecheck",
+        "test": "turbo test",
+        "dev": "turbo dev --filter=./packages/* --filter=harnessa-fe-react-demo",
         "start:mcp": "pnpm --filter @morphixai/harnessa-fe.mcp-server start",
         "restart:mcp": "bash scripts/restart-mcp.sh",
-        "demo": "pnpm build && pnpm dev",
+        "demo": "pnpm build && pnpm --filter harnessa-fe-react-demo dev",
         "e2e": "pnpm --filter harnessa-fe-react-demo e2e"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",
         "happy-dom": "^20.9.0",
+        "turbo": "^2.9.12",
         "typescript": "^5.6.0"
     }
 }
