@@ -327,7 +327,206 @@ pending → claimed → resolved
 
 ---
 
-## Adding a New Build Plugin
+## Data Collection Pipeline
+
+### Collection Points
+
+| Data | Collection Point | Transport |
+|------|-----------------|-----------|
+| `log` (console) | `CaptureStore.installConsole()` in runtime-client | event frame → Bridge |
+| `req` (network) | `CaptureStore.installFetch/Xhr()` in runtime-client | event frame → Bridge |
+| `err` (JS error) | `CaptureStore.installErrors()` in runtime-client | event frame → Bridge |
+| `hmr` | `handleHotUpdate` hook in unplugin (Vite) / `compiler.hooks.done` (Webpack) | event frame → Bridge |
+| `node:log` | Intercept `process.stdout` in unplugin `configureServer` / `afterEnvironment` | event frame → Bridge |
+| `node:err` | Intercept `process.stderr` in unplugin | event frame → Bridge |
+| `cmd` | `Bridge.sendCommand()` — before dispatching to peer | direct → Store |
+| `resp` | `Bridge.sendCommand()` — on response received | direct → Store |
+| `task` | Runtime-client annotation overlay → `event { name: "task.submit" }` | event frame → Bridge |
+| `task:claim` | `Bridge.claimTask()` | direct → Store |
+| `task:resolve` | `Bridge.resolveTask()` | direct → Store |
+| `rrweb` | Runtime-client rrweb recorder (future) | event frame → Bridge |
+
+### Data Flow
+
+```
+Browser (runtime-client)
+  CaptureStore.installConsole()  ──→ sendEvent("console", entry)  ──→ WebSocket
+  CaptureStore.installFetch()    ──→ sendEvent("network", entry)  ──→ WebSocket
+  CaptureStore.installErrors()   ──→ sendEvent("error", entry)    ──→ WebSocket
+  annotation overlay             ──→ sendEvent("task.submit", ...) ──→ WebSocket
+
+Build Plugin (unplugin)
+  handleHotUpdate / done hook    ──→ sendEvent("hmr", ...)        ──→ WebSocket
+  stdout/stderr intercept        ──→ sendEvent("node:log", ...)   ──→ WebSocket
+
+MCP Server (bridge)
+  handleFrame("event")           ──→ store.append(sessionId, event, tabId)
+  sendCommand()                  ──→ store.append(sessionId, {t:"cmd",...})
+                                 ──→ store.append(sessionId, {t:"resp",...})
+  claimTask() / resolveTask()    ──→ store.append(sessionId, {t:"task:claim",...})
+                                 ──→ taskStore.claim(id)
+```
+
+---
+
+## Write Ordering Guarantees
+
+### Problem
+
+Events are generated in the browser with client-side timestamps (`ts`). Due to network jitter, events may arrive at the MCP server out of timestamp order:
+
+```
+Arrival order:  console(ts=100) → network(ts=98) → error(ts=102)
+Timeline order: network(ts=98)  → console(ts=100) → error(ts=102)
+```
+
+Additionally, multiple WebSocket messages may be processed in the same Node.js event loop tick, creating potential write interleaving.
+
+### Solution: Sequence Numbers + Write Queue
+
+**1. Monotonic sequence number (`seq`)**
+
+Every event written to the store gets a server-assigned `seq` number that is strictly monotonically increasing within a session. This is independent of the client-side `ts`.
+
+```jsonl
+{"seq":1,"ts":1715700000100,"t":"log","tab":"tab-1","d":{"level":"info","args":["app started"]}}
+{"seq":2,"ts":1715700000098,"t":"req","tab":"tab-1","d":{"method":"GET","url":"/api/user"}}
+{"seq":3,"ts":1715700000102,"t":"err","tab":"tab-1","d":{"message":"TypeError: x is null"}}
+```
+
+- `seq` reflects **arrival order** (causal order from the server's perspective)
+- `ts` reflects **event generation time** (client clock, may be slightly out of order)
+- Agents can use `seq` to understand what happened in what order, and `ts` for wall-clock timing
+
+**2. Synchronous write queue**
+
+All writes to a session's timeline go through a per-session `WriteQueue` that serializes writes:
+
+```typescript
+class WriteQueue {
+    private queue: Array<() => void> = [];
+    private flushing = false;
+
+    enqueue(fn: () => void): void {
+        this.queue.push(fn);
+        if (!this.flushing) this.flush();
+    }
+
+    private flush(): void {
+        this.flushing = true;
+        while (this.queue.length > 0) {
+            const fn = this.queue.shift()!;
+            fn(); // synchronous appendFileSync — guaranteed order
+        }
+        this.flushing = false;
+    }
+}
+```
+
+Since `appendFileSync` is synchronous and Node.js is single-threaded, the write queue ensures:
+- No two writes to the same file interleave
+- `seq` numbers are assigned in strict arrival order
+- File contents always reflect a consistent, ordered timeline
+
+**3. Batch writes for high-frequency events**
+
+For high-frequency events (e.g., console logs during a test run), the store buffers events for up to 16ms and flushes as a batch:
+
+```typescript
+// Instead of one appendFileSync per event:
+appendFileSync(path, JSON.stringify(event) + '\n')
+
+// Buffer and flush together:
+appendFileSync(path, events.map(e => JSON.stringify(e)).join('\n') + '\n')
+```
+
+This reduces I/O syscalls while maintaining order within the batch (events are ordered by arrival within the buffer).
+
+### Read-time Ordering
+
+When reading events via `session.tail` or `session.search`:
+- Default sort: by `seq` (arrival order — preserves causality)
+- Optional sort: by `ts` (wall-clock order — useful for correlating with external logs)
+- The `seq` field is always included in query results so agents can detect gaps or reordering
+
+---
+
+## Store Interface
+
+### Write Interface (internal, called by Bridge)
+
+```typescript
+interface IStore {
+    // Session lifecycle
+    openSession(projectId: string, meta: SessionMeta): string;   // returns sessionId
+    closeSession(sessionId: string): void;
+    openTab(sessionId: string, tab: TabMeta): void;
+    closeTab(sessionId: string, tabId: string): void;
+
+    // Event stream (append-only, ordered by seq)
+    append(sessionId: string, event: StoreEvent, tabId?: string): void;
+    appendBatch(sessionId: string, events: StoreEvent[], tabId?: string): void;
+    appendRecording(sessionId: string, tabId: string, rrwebEvents: unknown[]): void;
+
+    // Read
+    tail(sessionId: string, opts?: TailOptions, tabId?: string): StoreEvent[];
+    search(sessionId: string, query: string, opts?: SearchOptions): StoreEvent[];
+    summary(sessionId: string): SessionSummary;
+    listSessions(projectId: string, limit?: number): SessionMeta[];
+    listProjects(): ProjectMeta[];
+
+    // Maintenance
+    purge(policy?: RetentionPolicy): PurgeResult;
+    close(): void;
+}
+```
+
+### Task Store Interface (internal, called by Bridge)
+
+```typescript
+interface ITaskStore {
+    save(task: Task): void;
+    get(id: string): Task | undefined;
+    list(filter?: { projectId?: string; status?: TaskStatus | 'all'; limit?: number }): Task[];
+    claim(id: string): Task | undefined;
+    resolve(id: string, note?: string): Task | undefined;
+    purge(opts?: { maxAgeDays?: number }): number;
+}
+```
+
+### Memory Store Interface (internal, called by Bridge)
+
+```typescript
+interface IMemoryStore {
+    set(projectId: string, key: string, value: string): MemoryEntry;
+    get(projectId: string, key: string): MemoryEntry | undefined;
+    list(projectId: string): MemoryEntry[];
+    delete(projectId: string, key: string): boolean;
+}
+```
+
+### MCP Tool Interface (external, called by Agent)
+
+All MCP tools are read-only from the agent's perspective for runtime data. Write operations are limited to tasks and memory:
+
+```
+READ  session.list        → IStore.listSessions()
+READ  session.summary     → IStore.summary()
+READ  session.tail        → IStore.tail()
+READ  session.search      → IStore.search()
+READ  project.sessions    → IStore.listProjects() + listSessions()
+
+READ  tasks.pending       → ITaskStore.list()
+WRITE tasks.claim         → ITaskStore.claim()
+WRITE tasks.resolve       → ITaskStore.resolve()
+
+READ  project.memory.list → IMemoryStore.list()
+READ  project.memory.get  → IMemoryStore.get()
+WRITE project.memory.set  → IMemoryStore.set()
+WRITE project.memory.delete → IMemoryStore.delete()
+
+WRITE session.purge       → IStore.purge()
+```
 
 To add support for a new bundler (e.g., Rspack, esbuild):
 
