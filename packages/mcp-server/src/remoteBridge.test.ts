@@ -5,7 +5,7 @@ import { RemoteBridge } from './remoteBridge.js';
 import type { Frame, HelloAckFrame, ResponseFrame } from '@morphixai/harnessa-fe.protocol';
 
 async function spawnLeader(): Promise<Bridge> {
-    const bridge = new Bridge({ port: 0, host: '127.0.0.1', tasksFile: '' });
+    const bridge = new Bridge({ port: 0, host: '127.0.0.1', tasksFile: '', store: null });
     await bridge.start();
     return bridge;
 }

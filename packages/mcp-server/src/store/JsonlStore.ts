@@ -1,7 +1,7 @@
 /**
  * JsonlStore — JSONL-based persistence layer.
  *
- * All writes are synchronous append operations (O(1), no seek).
+ * Timeline writes are async-batched via WriteQueue (non-blocking).
  * Reads use a simple tail-from-end approach for recent events,
  * and full-file scan for search/filter operations.
  *
@@ -28,6 +28,7 @@ import {
     unlinkSync,
     writeFileSync,
 } from 'node:fs';
+import { WriteQueue } from './WriteQueue.js';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
@@ -44,7 +45,7 @@ import type {
     TailOptions,
 } from './types.js';
 
-const DEFAULT_DATA_DIR = join(homedir(), '.harnessa-fe', 'data');
+const DEFAULT_DATA_DIR = join(homedir(), '.harnessa', 'data');
 const DEFAULT_RETENTION: Required<RetentionPolicy> = {
     maxAgeDays: 7,
     maxSessionsPerProject: 20,
@@ -71,11 +72,6 @@ function readJson<T>(path: string): T | undefined {
 
 function appendJsonl(path: string, obj: unknown): void {
     appendFileSync(path, JSON.stringify(obj) + '\n', 'utf-8');
-}
-
-function appendJsonlBatch(path: string, objs: unknown[]): void {
-    if (!objs.length) return;
-    appendFileSync(path, objs.map((o) => JSON.stringify(o)).join('\n') + '\n', 'utf-8');
 }
 
 /**
@@ -169,10 +165,67 @@ function rmrf(dir: string): void {
 
 export class JsonlStore implements IStore {
     private readonly dataDir: string;
+    private readonly writeQueue = new WriteQueue();
 
     constructor(dataDir?: string) {
+        const serverStartTimestamp = Date.now();
         this.dataDir = resolve(dataDir ?? DEFAULT_DATA_DIR);
         ensureDir(this.dataDir);
+
+        // Startup recovery: rebuild sessionIndex from disk and mark orphaned sessions
+        this._recoverSessions(serverStartTimestamp);
+    }
+
+    /**
+     * Scan all project directories and their sessions on disk.
+     * Rebuilds the in-memory sessionIndex and marks any session that lacks
+     * `endedAt` as orphaned (crashed) by setting endedAt = serverStartTimestamp.
+     */
+    private _recoverSessions(serverStartTimestamp: number): void {
+        if (!existsSync(this.dataDir)) return;
+
+        let projectEntries: import('node:fs').Dirent[];
+        try {
+            projectEntries = readdirSync(this.dataDir, { withFileTypes: true }) as import('node:fs').Dirent[];
+        } catch {
+            return;
+        }
+
+        for (const projEntry of projectEntries) {
+            if (!projEntry.isDirectory()) continue;
+            const sessionsDir = join(this.dataDir, String(projEntry.name), 'sessions');
+            if (!existsSync(sessionsDir)) continue;
+
+            let sessionEntries: import('node:fs').Dirent[];
+            try {
+                sessionEntries = readdirSync(sessionsDir, { withFileTypes: true }) as import('node:fs').Dirent[];
+            } catch {
+                continue;
+            }
+
+            for (const sessEntry of sessionEntries) {
+                if (!sessEntry.isDirectory()) continue;
+                const metaPath = join(sessionsDir, String(sessEntry.name), 'meta.json');
+                const meta = readJson<SessionMeta>(metaPath);
+                if (!meta || !meta.id || !meta.projectId) continue;
+
+                // Rebuild the in-memory index
+                this.sessionIndex.set(meta.id, meta.projectId);
+
+                // Mark orphaned sessions (no endedAt = crashed/unclean shutdown)
+                if (meta.endedAt === undefined) {
+                    meta.endedAt = serverStartTimestamp;
+                    try {
+                        writeJson(metaPath, meta);
+                    } catch (err) {
+                        console.error(
+                            `[JsonlStore] startup recovery: failed to write endedAt for session ${meta.id}:`,
+                            err,
+                        );
+                    }
+                }
+            }
+        }
     }
 
     // ── Path helpers ──────────────────────────────────────────────────────
@@ -244,13 +297,13 @@ export class JsonlStore implements IStore {
         return sessionId;
     }
 
-    closeSession(sessionId: string): void {
+    closeSession(sessionId: string, closedAt?: number): void {
         const projectId = this.resolveProject(sessionId);
         if (!projectId) return;
         const metaPath = join(this.sessionDir(projectId, sessionId), 'meta.json');
         const meta = readJson<SessionMeta>(metaPath);
         if (!meta) return;
-        meta.endedAt = Date.now();
+        meta.endedAt = closedAt ?? Date.now();
         writeJson(metaPath, meta);
     }
 
@@ -284,13 +337,21 @@ export class JsonlStore implements IStore {
         if (!projectId) return;
 
         // Always write to session timeline
-        appendJsonl(this.sessionTimeline(projectId, sessionId), event);
+        this.writeQueue.enqueue(
+            this.sessionTimeline(projectId, sessionId),
+            sessionId,
+            JSON.stringify(event),
+        );
 
         // Also write to tab timeline if tabId provided
         if (tabId) {
             const tabDir = this.tabDir(projectId, sessionId, tabId);
             ensureDir(tabDir);
-            appendJsonl(this.tabTimeline(projectId, sessionId, tabId), event);
+            this.writeQueue.enqueue(
+                this.tabTimeline(projectId, sessionId, tabId),
+                sessionId,
+                JSON.stringify(event),
+            );
         }
     }
 
@@ -299,12 +360,25 @@ export class JsonlStore implements IStore {
         const projectId = this.resolveProject(sessionId);
         if (!projectId) return;
 
-        appendJsonlBatch(this.sessionTimeline(projectId, sessionId), events);
+        // Enqueue each event individually — WriteQueue handles batching
+        for (const event of events) {
+            this.writeQueue.enqueue(
+                this.sessionTimeline(projectId, sessionId),
+                sessionId,
+                JSON.stringify(event),
+            );
+        }
 
         if (tabId) {
             const tabDir = this.tabDir(projectId, sessionId, tabId);
             ensureDir(tabDir);
-            appendJsonlBatch(this.tabTimeline(projectId, sessionId, tabId), events);
+            for (const event of events) {
+                this.writeQueue.enqueue(
+                    this.tabTimeline(projectId, sessionId, tabId),
+                    sessionId,
+                    JSON.stringify(event),
+                );
+            }
         }
     }
 
@@ -314,10 +388,12 @@ export class JsonlStore implements IStore {
         const tabDir = this.tabDir(projectId, sessionId, tabId);
         ensureDir(tabDir);
         // Each chunk is one line: { ts, events: [...] }
-        appendJsonl(this.tabRecording(projectId, sessionId, tabId), {
-            ts: Date.now(),
-            events,
-        });
+        // Write ONLY to recording.jsonl — NOT to session or tab timeline
+        this.writeQueue.enqueue(
+            this.tabRecording(projectId, sessionId, tabId),
+            sessionId,
+            JSON.stringify({ ts: Date.now(), events }),
+        );
     }
 
     writeNote(projectId: string, key: string, value: string): void {
@@ -557,14 +633,27 @@ export class JsonlStore implements IStore {
         return { sessionsDeleted, recordingsDeleted, bytesFreed };
     }
 
-    close(): void {
-        // No file handles to close (all writes are synchronous one-shot appends)
+    /**
+     * Flush all pending Write_Queue entries to disk.
+     * Call this in tests before reading back events via tail()/search().
+     */
+    async flush(): Promise<void> {
+        await this.writeQueue.drain();
+    }
+
+    async close(): Promise<void> {
+        // Drain the Write_Queue to ensure all pending events are flushed to disk
+        try {
+            await this.writeQueue.drain();
+        } catch (err) {
+            console.error('[JsonlStore] close: drain failed:', err);
+        }
     }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Sanitize a string for use as a directory name. */
-function sanitizeId(id: string): string {
+export function sanitizeId(id: string): string {
     return id.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 64);
 }

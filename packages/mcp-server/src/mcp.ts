@@ -21,7 +21,7 @@ import {
 } from '@morphixai/harnessa-fe.protocol';
 import type { IBridge } from './bridge.js';
 import type { Bridge } from './bridge.js';
-import type { IStore } from './store/index.js';
+import type { IStore, IMemoryStore } from './store/index.js';
 
 const SERVER_NAME = 'harnessa-fe';
 const tabIdParam = z
@@ -39,7 +39,8 @@ export async function startMcpStdioServer(bridge: IBridge): Promise<McpServer> {
 
     // Register store tools if bridge has a store
     const store = (bridge as Bridge).store;
-    if (store) registerStoreTools(server, store);
+    const memoryStore = bridge.getMemoryStore();
+    if (store) registerStoreTools(server, store, memoryStore);
 
     const transport = new StdioServerTransport();
     await server.connect(transport);
@@ -360,9 +361,9 @@ function registerTools(server: McpServer, bridge: IBridge): void {
     );
 }
 
-// ─── Store tools (session history, timeline, notes) ───────────────────────────
+// ─── Store tools (session history, timeline, memory) ──────────────────────────
 
-function registerStoreTools(server: McpServer, store: IStore): void {
+function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemoryStore): void {
     server.registerTool(
         'session.list',
         {
@@ -407,12 +408,20 @@ function registerStoreTools(server: McpServer, store: IStore): void {
             },
         },
         async ({ sessionId, n, type, tabId, since, until }) => {
-            const events = store.tail(
-                sessionId,
-                { n: n ?? 50, type: type as string | string[] | undefined, since, until },
-                tabId,
-            );
-            return ok(events);
+            try {
+                const session = store.getSession(sessionId);
+                if (!session) {
+                    return ok({ error: 'session not found', sessionId });
+                }
+                const events = store.tail(
+                    sessionId,
+                    { n: n ?? 50, type: type as string | string[] | undefined, since, until },
+                    tabId,
+                );
+                return ok(events);
+            } catch {
+                return ok({ error: 'session not found', sessionId });
+            }
         },
     );
 
@@ -429,13 +438,21 @@ function registerStoreTools(server: McpServer, store: IStore): void {
             },
         },
         async ({ sessionId, query, type, limit, tabId }) => {
-            const events = store.search(
-                sessionId,
-                query,
-                { type: type as string | string[] | undefined, limit: limit ?? 50 },
-                tabId,
-            );
-            return ok(events);
+            try {
+                const session = store.getSession(sessionId);
+                if (!session) {
+                    return ok({ error: 'session not found', sessionId });
+                }
+                const events = store.search(
+                    sessionId,
+                    query,
+                    { type: type as string | string[] | undefined, limit: limit ?? 50 },
+                    tabId,
+                );
+                return ok(events);
+            } catch {
+                return ok({ error: 'session not found', sessionId });
+            }
         },
     );
 
@@ -456,32 +473,65 @@ function registerStoreTools(server: McpServer, store: IStore): void {
     );
 
     server.registerTool(
-        'project.note',
+        'project.memory.set',
         {
-            description: 'Write a persistent note for a project (cross-session knowledge for the agent).',
+            description: 'Write or update a persistent memory entry for a project (cross-session knowledge for the agent).',
             inputSchema: {
                 projectId: z.string(),
-                key: z.string().describe('Note key, e.g. "known_issues", "architecture", "agent_context"'),
-                value: z.string().describe('Note content (plain text or JSON string)'),
+                key: z.string().min(1).describe('Memory key, e.g. "known_issues", "architecture", "agent_context"'),
+                value: z.string().describe('Memory value (plain text or JSON string)'),
             },
         },
         async ({ projectId, key, value }) => {
-            store.writeNote(projectId, key, value);
-            return ok({ ok: true, projectId, key });
+            const entry = memoryStore.set(projectId, key, value);
+            return ok({ ok: true, key: entry.key, updatedAt: entry.updatedAt });
         },
     );
 
     server.registerTool(
-        'project.notes',
+        'project.memory.get',
         {
-            description: 'Read all persistent notes for a project.',
+            description: 'Read a persistent memory entry for a project by key.',
+            inputSchema: {
+                projectId: z.string(),
+                key: z.string().describe('Memory key to retrieve'),
+            },
+        },
+        async ({ projectId, key }) => {
+            const entry = memoryStore.get(projectId, key);
+            if (!entry) {
+                return ok({ found: false, key });
+            }
+            return ok({ found: true, key: entry.key, value: entry.value, updatedAt: entry.updatedAt });
+        },
+    );
+
+    server.registerTool(
+        'project.memory.list',
+        {
+            description: 'List all persistent memory entries for a project, sorted by most recently updated.',
             inputSchema: {
                 projectId: z.string(),
             },
         },
         async ({ projectId }) => {
-            const notes = store.listNotes(projectId);
-            return ok(notes);
+            const entries = memoryStore.list(projectId);
+            return ok(entries);
+        },
+    );
+
+    server.registerTool(
+        'project.memory.delete',
+        {
+            description: 'Delete a persistent memory entry for a project by key.',
+            inputSchema: {
+                projectId: z.string(),
+                key: z.string().describe('Memory key to delete'),
+            },
+        },
+        async ({ projectId, key }) => {
+            const deleted = memoryStore.delete(projectId, key);
+            return ok({ deleted, key });
         },
     );
 
@@ -497,7 +547,11 @@ function registerStoreTools(server: McpServer, store: IStore): void {
         },
         async ({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays }) => {
             const result = store.purge({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays });
-            return ok(result);
+            return ok({
+                sessionsDeleted: result.sessionsDeleted,
+                recordingsDeleted: result.recordingsDeleted,
+                bytesFreed: result.bytesFreed,
+            });
         },
     );
 }

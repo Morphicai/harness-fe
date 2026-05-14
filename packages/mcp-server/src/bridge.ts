@@ -13,9 +13,8 @@
 
 import { WebSocket, WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname, resolve as resolvePath } from 'node:path';
-import { tmpdir } from 'node:os';
+import { join as joinPath } from 'node:path';
+import { homedir } from 'node:os';
 import {
     DEFAULT_WS_PORT,
     EVENT_NAME,
@@ -33,7 +32,14 @@ import {
     frameSchema,
 } from '@morphixai/harnessa-fe.protocol';
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
-import { JsonlStore, type IStore } from './store/index.js';
+import {
+    JsonlStore,
+    JsonTaskStore,
+    JsonMemoryStore,
+    type IStore,
+    type ITaskStore,
+    type IMemoryStore,
+} from './store/index.js';
 
 /**
  * Surface used by the stdio MCP layer. Same shape whether the underlying
@@ -52,6 +58,7 @@ export interface IBridge {
     listTasks(filter?: { status?: TaskStatus | 'all'; limit?: number }): Promise<Task[]>;
     claimTask(id: string): Promise<Task | undefined>;
     resolveTask(id: string, note?: string): Promise<Task | undefined>;
+    getMemoryStore(): IMemoryStore;
 }
 
 export interface SendCommandOptions {
@@ -64,6 +71,9 @@ export interface SendCommandOptions {
 const COMMAND_TIMEOUT_MS = 30_000;
 const TASK_QUEUE_CAP = 200;
 
+/** Default data directory for all persistence stores. */
+const DEFAULT_DATA_DIR = joinPath(homedir(), '.harnessa', 'data');
+
 interface PendingCommand {
     resolve(payload: unknown): void;
     reject(err: Error): void;
@@ -75,70 +85,109 @@ export interface BridgeOptions {
     /** Bind address. Default 127.0.0.1 (no remote exposure). */
     host?: string;
     /**
-     * File to persist the task queue across daemon restarts. Defaults to
-     * `$MORPHIX_DEV_BRIDGE_TASKS_FILE` or `<tmpdir>/morphix-dev-bridge-tasks.json`.
-     * Pass an empty string to disable persistence (useful in tests).
-     */
-    tasksFile?: string;
-    /**
      * Store instance for JSONL persistence. If omitted, a default JsonlStore
-     * is created at ~/.harnessa-fe/data. Pass null to disable persistence.
+     * is created at ~/.harnessa/data. Pass null to disable persistence.
      */
     store?: IStore | null;
+    /**
+     * Task store instance for JSON task persistence. If omitted, a default
+     * JsonTaskStore is created at ~/.harnessa/data. Pass null to disable
+     * task persistence (useful in tests).
+     */
+    taskStore?: ITaskStore | null;
+    /**
+     * Memory store instance for agent memory persistence. If omitted, a default
+     * JsonMemoryStore is created at ~/.harnessa/data. Pass null to disable
+     * memory persistence (useful in tests).
+     */
+    memoryStore?: IMemoryStore | null;
 }
-
-const DEFAULT_TASKS_FILE = resolvePath(tmpdir(), 'morphix-dev-bridge-tasks.json');
 
 export type EventListener = (event: EventFrame, session: PeerSession) => void;
 
 export class Bridge implements IBridge {
     readonly router = new SessionRouter();
     readonly store: IStore | null;
+    readonly taskStore: ITaskStore | null;
+    readonly memoryStore: IMemoryStore;
     private wss?: WebSocketServer;
     private sockets = new Map<string, WebSocket>();
     private pending = new Map<string, PendingCommand>();
     private eventListeners = new Set<EventListener>();
     private tasks = new Map<string, Task>();
-    private opts: Required<Omit<BridgeOptions, 'store'>>;
+    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore'>>;
     /** Map from connectionId → sessionId in the store */
     private connToStoreSession = new Map<string, string>();
+    /**
+     * Grace period timers: projectId → timer handle.
+     * When a build plugin disconnects, a 30-second timer is started.
+     * If the same project reconnects within that window, the timer is cancelled.
+     */
+    private graceTimers = new Map<string, NodeJS.Timeout>();
+    /**
+     * Pending session end info: projectId → { sessionId, closedAt }.
+     * Tracks sessions waiting for the grace period to expire.
+     */
+    private pendingEndSession = new Map<string, { sessionId: string; closedAt: number }>();
 
     constructor(opts: BridgeOptions = {}) {
-        const envFile = process.env.MORPHIX_DEV_BRIDGE_TASKS_FILE;
         this.store = opts.store === null ? null : (opts.store ?? new JsonlStore());
+        this.taskStore = opts.taskStore === null ? null : (opts.taskStore ?? new JsonTaskStore(DEFAULT_DATA_DIR));
+        this.memoryStore = opts.memoryStore === null
+            ? new JsonMemoryStore(DEFAULT_DATA_DIR)
+            : (opts.memoryStore ?? new JsonMemoryStore(DEFAULT_DATA_DIR));
         this.opts = {
             port: opts.port ?? DEFAULT_WS_PORT,
             host: opts.host ?? '127.0.0.1',
-            tasksFile: opts.tasksFile ?? envFile ?? DEFAULT_TASKS_FILE,
         };
         this.loadTasks();
     }
 
+    /**
+     * Returns the memory store instance for use by mcp.ts and other callers.
+     */
+    getMemoryStore(): IMemoryStore {
+        return this.memoryStore;
+    }
+
     private loadTasks(): void {
-        const file = this.opts.tasksFile;
-        if (!file || !existsSync(file)) return;
-        try {
-            const raw = readFileSync(file, 'utf-8');
-            const parsed = JSON.parse(raw) as { tasks?: Task[] };
-            for (const task of parsed.tasks ?? []) {
-                if (task && typeof task.id === 'string') this.tasks.set(task.id, task);
+        // Tasks are loaded lazily per-project when a project connects.
+        // See loadTasksForProject() which is called in handleFrame on hello.
+    }
+
+    private persistTasks(projectId?: string): void {
+        if (!this.taskStore) return;
+        if (projectId) {
+            // Save only the tasks for the given project
+            const projectTasks = Array.from(this.tasks.values()).filter(
+                (t) => t.projectId === projectId,
+            );
+            this.taskStore.saveTasks(projectId, projectTasks);
+        } else {
+            // Group all tasks by projectId and save each group
+            const byProject = new Map<string, Task[]>();
+            for (const task of this.tasks.values()) {
+                const pid = task.projectId;
+                if (!byProject.has(pid)) byProject.set(pid, []);
+                byProject.get(pid)!.push(task);
             }
-        } catch {
-            /* corrupt file — ignore, will be overwritten on next persist */
+            for (const [pid, projectTasks] of byProject) {
+                this.taskStore.saveTasks(pid, projectTasks);
+            }
         }
     }
 
-    private persistTasks(): void {
-        const file = this.opts.tasksFile;
-        if (!file) return;
-        try {
-            mkdirSync(dirname(file), { recursive: true });
-            const payload = JSON.stringify({ tasks: Array.from(this.tasks.values()) });
-            const tmp = `${file}.tmp`;
-            writeFileSync(tmp, payload, 'utf-8');
-            renameSync(tmp, file);
-        } catch {
-            /* best-effort — losing one persist is not fatal */
+    /**
+     * Load tasks for a specific project from the task store into the in-memory map.
+     * Called when a project connects so its tasks are available immediately.
+     */
+    private loadTasksForProject(projectId: string): void {
+        if (!this.taskStore) return;
+        const projectTasks = this.taskStore.loadTasks(projectId);
+        for (const task of projectTasks) {
+            if (task && typeof task.id === 'string') {
+                this.tasks.set(task.id, task);
+            }
         }
     }
 
@@ -201,6 +250,8 @@ export class Bridge implements IBridge {
         task.status = 'claimed';
         task.claimedAt = Date.now();
         this.persistTasks();
+        // Persist status change to store
+        this.persistTaskEvent(task, 'task:claim');
         return task;
     }
 
@@ -211,7 +262,22 @@ export class Bridge implements IBridge {
         task.resolvedAt = Date.now();
         if (note !== undefined) task.note = note;
         this.persistTasks();
+        // Persist status change to store
+        this.persistTaskEvent(task, 'task:resolve');
         return task;
+    }
+
+    private persistTaskEvent(task: Task, eventType: string): void {
+        if (!this.store) return;
+        // Find the store session for this task's project
+        const sessions = this.store.listSessions(task.projectId, 1);
+        const storeSessionId = sessions[0]?.id;
+        if (!storeSessionId) return;
+        this.store.append(
+            storeSessionId,
+            { ts: Date.now(), t: eventType, tab: task.tabId, d: { id: task.id, status: task.status, question: task.question, note: task.note } },
+            task.tabId,
+        );
     }
 
     private recordTask(frame: EventFrame, peer: PeerSession): void {
@@ -282,6 +348,7 @@ export class Bridge implements IBridge {
         }
 
         const id = randomUUID();
+        const cmdTs = Date.now();
         const frame: CommandFrame = {
             type: 'command',
             id,
@@ -289,13 +356,57 @@ export class Bridge implements IBridge {
             command,
             args,
         };
+
+        // Persist command to store
+        const storeSessionId = this.connToStoreSession.get(session.connectionId);
+        if (this.store && storeSessionId) {
+            this.store.append(
+                storeSessionId,
+                { ts: cmdTs, t: 'cmd', tab: session.tabId, d: { id, command, args, target } },
+                session.tabId,
+            );
+        }
+
         const timeoutMs = opts.timeoutMs ?? COMMAND_TIMEOUT_MS;
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pending.delete(id);
+                // Persist timeout as failed response
+                if (this.store && storeSessionId) {
+                    this.store.append(
+                        storeSessionId,
+                        { ts: Date.now(), t: 'resp', tab: session.tabId, d: { id, ok: false, error: `timeout after ${timeoutMs}ms`, durationMs: timeoutMs } },
+                        session.tabId,
+                    );
+                }
                 reject(new Error(`bridge: command "${command}" timed out after ${timeoutMs}ms`));
             }, timeoutMs);
-            this.pending.set(id, { resolve, reject, timer });
+            this.pending.set(id, {
+                resolve: (result) => {
+                    // Persist successful response (strip screenshot dataUrl to save space)
+                    if (this.store && storeSessionId) {
+                        const safeResult = stripLargePayloads(result);
+                        this.store.append(
+                            storeSessionId,
+                            { ts: Date.now(), t: 'resp', tab: session.tabId, d: { id, ok: true, result: safeResult, durationMs: Date.now() - cmdTs } },
+                            session.tabId,
+                        );
+                    }
+                    resolve(result);
+                },
+                reject: (err) => {
+                    // Persist error response
+                    if (this.store && storeSessionId) {
+                        this.store.append(
+                            storeSessionId,
+                            { ts: Date.now(), t: 'resp', tab: session.tabId, d: { id, ok: false, error: err.message, durationMs: Date.now() - cmdTs } },
+                            session.tabId,
+                        );
+                    }
+                    reject(err);
+                },
+                timer,
+            });
             try {
                 socket.send(JSON.stringify(frame));
             } catch (err) {
@@ -304,6 +415,29 @@ export class Bridge implements IBridge {
                 reject(err as Error);
             }
         });
+    }
+
+    /**
+     * Returns true if there is an active (non-ended) session for the given projectId.
+     * Checks both in-memory grace period sessions and the store.
+     */
+    private hasActiveSession(projectId: string): boolean {
+        // Check if there's a session in the grace period (still considered active)
+        if (this.pendingEndSession.has(projectId)) return true;
+        // Check if any connection currently maps to a session for this project
+        for (const [connId] of this.connToStoreSession) {
+            const peer = this.router.getByConnectionId(connId);
+            if (peer?.projectId === projectId && (peer.role === 'vite-plugin' || peer.role === 'webpack-plugin')) {
+                return true;
+            }
+        }
+        // Fall back to store: check if there's a session without endedAt
+        if (this.store) {
+            const sessions = this.store.listSessions(projectId, 1);
+            const latest = sessions[0];
+            if (latest && latest.endedAt === undefined) return true;
+        }
+        return false;
     }
 
     private onConnection(ws: WebSocket): void {
@@ -330,10 +464,28 @@ export class Bridge implements IBridge {
                 const peer = this.router.getByConnectionId(connectionId);
                 if (peer?.role === 'runtime-client' && peer.tabId) {
                     this.store.closeTab(storeSessionId, peer.tabId);
+                    this.connToStoreSession.delete(connectionId);
                 } else if (peer?.role === 'vite-plugin' || peer?.role === 'webpack-plugin') {
-                    this.store.closeSession(storeSessionId);
+                    // Start grace period instead of closing session immediately
+                    const projectId = peer.projectId;
+                    if (projectId) {
+                        const closedAt = Date.now();
+                        this.pendingEndSession.set(projectId, { sessionId: storeSessionId, closedAt });
+                        const timer = setTimeout(() => {
+                            this.graceTimers.delete(projectId);
+                            const pending = this.pendingEndSession.get(projectId);
+                            if (pending && pending.sessionId === storeSessionId) {
+                                this.pendingEndSession.delete(projectId);
+                                this.store?.closeSession(storeSessionId, pending.closedAt);
+                            }
+                        }, 30_000);
+                        this.graceTimers.set(projectId, timer);
+                    } else {
+                        // No projectId — close session immediately
+                        this.store.closeSession(storeSessionId);
+                    }
+                    this.connToStoreSession.delete(connectionId);
                 }
-                this.connToStoreSession.delete(connectionId);
             }
             this.router.unregister(connectionId);
         });
@@ -346,6 +498,22 @@ export class Bridge implements IBridge {
     private handleFrame(connectionId: string, ws: WebSocket, frame: Frame): void {
         switch (frame.type) {
             case 'hello': {
+                // For runtime-client: check if an active session exists before registering.
+                // Only enforced when the store is active (persistence enabled).
+                if (frame.role === 'runtime-client' && this.store) {
+                    const hasActiveSession = this.hasActiveSession(frame.projectId);
+                    if (!hasActiveSession) {
+                        const errorAck: HelloAckFrame = {
+                            type: 'hello.ack',
+                            id: frame.id,
+                            serverVersion: PROTOCOL_VERSION,
+                            error: `no active session for projectId="${frame.projectId}"; start the dev server first`,
+                        };
+                        ws.send(JSON.stringify(errorAck));
+                        return;
+                    }
+                }
+
                 const session = this.router.register({
                     role: frame.role,
                     projectId: frame.projectId,
@@ -356,11 +524,24 @@ export class Bridge implements IBridge {
                 // Persist to store
                 if (this.store) {
                     if (frame.role === 'vite-plugin' || frame.role === 'webpack-plugin') {
-                        const storeSessionId = this.store.openSession(frame.projectId, {
-                            peerRole: frame.role,
-                            metadata: { role: frame.role },
-                        });
-                        this.connToStoreSession.set(connectionId, storeSessionId);
+                        const projectId = frame.projectId;
+                        // Check if there's a pending grace period for this project
+                        const pendingTimer = projectId ? this.graceTimers.get(projectId) : undefined;
+                        const pendingSession = projectId ? this.pendingEndSession.get(projectId) : undefined;
+                        if (pendingTimer !== undefined && pendingSession !== undefined && projectId) {
+                            // Reconnect within grace period — cancel timer and reuse existing session
+                            clearTimeout(pendingTimer);
+                            this.graceTimers.delete(projectId);
+                            this.pendingEndSession.delete(projectId);
+                            this.connToStoreSession.set(connectionId, pendingSession.sessionId);
+                        } else {
+                            // New session
+                            const storeSessionId = this.store.openSession(frame.projectId, {
+                                peerRole: frame.role,
+                                metadata: { role: frame.role },
+                            });
+                            this.connToStoreSession.set(connectionId, storeSessionId);
+                        }
                     } else if (frame.role === 'runtime-client' && frame.tabId) {
                         // Find the store session for this project
                         const sessions = this.store.listSessions(frame.projectId, 1);
@@ -375,6 +556,11 @@ export class Bridge implements IBridge {
                             });
                         }
                     }
+                }
+                // If store is null but taskStore is available, still load tasks for build plugins
+                if (!this.store && this.taskStore && (frame.role === 'vite-plugin' || frame.role === 'webpack-plugin')) {
+                    const projectId = frame.projectId;
+                    if (projectId) this.loadTasksForProject(projectId);
                 }
                 const ack: HelloAckFrame = {
                     type: 'hello.ack',
@@ -486,4 +672,22 @@ export class Bridge implements IBridge {
             }
         }
     }
+}
+
+/**
+ * Strip large binary payloads (e.g. screenshot dataUrls) from command results
+ * before persisting to the store, to avoid bloating timeline files.
+ */
+function stripLargePayloads(value: unknown): unknown {
+    if (typeof value === 'string' && value.startsWith('data:') && value.length > 1024) {
+        return '[large data url omitted]';
+    }
+    if (value !== null && typeof value === 'object') {
+        const result: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+            result[k] = stripLargePayloads(v);
+        }
+        return result;
+    }
+    return value;
 }
