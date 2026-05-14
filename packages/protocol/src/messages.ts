@@ -144,6 +144,8 @@ export const COMMAND = {
     PAGE_SCROLL: 'page.scroll',
     PAGE_NAVIGATE: 'page.navigate',
     PAGE_RELOAD: 'page.reload',
+    PAGE_SET_HTML: 'page.set_html',
+    PAGE_SET_STYLE: 'page.set_style',
     PAGE_EVALUATE: 'page.evaluate',
     PAGE_WAIT_FOR: 'page.wait_for',
     PAGE_SCREENSHOT: 'page.screenshot',
@@ -288,3 +290,32 @@ export const reloadArgsSchema = z.object({
     hard: z.boolean().optional(),
 });
 export type ReloadArgs = z.infer<typeof reloadArgsSchema>;
+
+export const setHtmlArgsSchema = z.object({
+    selector: selectorSchema,
+    html: z.string().describe('HTML string to inject.'),
+    /**
+     * - 'innerHTML' (default) — replace the element's inner content, keeping the element itself
+     * - 'outerHTML' — replace the element and its tag entirely
+     */
+    target: z.enum(['innerHTML', 'outerHTML']).optional(),
+});
+export type SetHtmlArgs = z.infer<typeof setHtmlArgsSchema>;
+
+export const setStyleArgsSchema = z.object({
+    selector: selectorSchema.optional().describe(
+        'Target element. Omit to inject a global <style> rule instead.',
+    ),
+    /**
+     * When selector is provided: CSS property/value pairs applied as inline styles.
+     * When selector is omitted: a raw CSS rule string injected into a <style> tag, e.g.
+     *   ".btn { background: red; font-size: 14px; }"
+     */
+    styles: z.record(z.string(), z.string()).describe(
+        'Key-value map of CSS properties (camelCase or kebab-case) to values when targeting an element, ' +
+        'or a single-entry map { "rule": "<raw css>" } for global injection.',
+    ),
+    /** When true, merge with existing inline styles instead of replacing them. Default true. */
+    merge: z.boolean().optional(),
+});
+export type SetStyleArgs = z.infer<typeof setStyleArgsSchema>;

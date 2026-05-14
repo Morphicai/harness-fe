@@ -18,6 +18,8 @@ import {
     reloadArgsSchema,
     screenshotArgsSchema,
     scrollArgsSchema,
+    setHtmlArgsSchema,
+    setStyleArgsSchema,
     selectorSchema,
     typeArgsSchema,
     waitForArgsSchema,
@@ -283,6 +285,54 @@ function registerTools(server: McpServer, bridge: IBridge): void {
         async ({ hard, tabId }) => {
             const args = reloadArgsSchema.parse({ hard });
             const out = await bridge.sendCommand(COMMAND.PAGE_RELOAD, args, { tabId });
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.PAGE_SET_HTML,
+        {
+            description:
+                'Replace the innerHTML or outerHTML of a DOM element. Use this to patch structure or content in the live page for visual debugging — changes are in-memory only and reset on reload.',
+            inputSchema: {
+                selector: selectorSchema,
+                html: z.string().describe('HTML string to inject.'),
+                target: z.enum(['innerHTML', 'outerHTML']).optional().describe(
+                    '"innerHTML" (default) replaces inner content; "outerHTML" replaces the element itself.',
+                ),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ selector, html, target, tabId }) => {
+            const args = setHtmlArgsSchema.parse({ selector, html, target });
+            const out = await bridge.sendCommand(COMMAND.PAGE_SET_HTML, args, { tabId });
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.PAGE_SET_STYLE,
+        {
+            description:
+                'Apply CSS styles to a DOM element (inline style) or inject a global <style> rule into the page. ' +
+                'Use for live visual debugging — changes are in-memory only and reset on reload.',
+            inputSchema: {
+                selector: selectorSchema.optional().describe(
+                    'Target element for inline styles. Omit to inject a global CSS rule.',
+                ),
+                styles: z.record(z.string(), z.string()).describe(
+                    'For element mode: CSS property→value map, e.g. { "background": "red", "fontSize": "14px" }. ' +
+                    'For global mode (no selector): { "rule": ".btn { color: red; }" }.',
+                ),
+                merge: z.boolean().optional().describe(
+                    'Merge with existing inline styles (default true). Set false to replace all inline styles.',
+                ),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ selector, styles, merge, tabId }) => {
+            const args = setStyleArgsSchema.parse({ selector, styles, merge });
+            const out = await bridge.sendCommand(COMMAND.PAGE_SET_STYLE, args, { tabId });
             return ok(out);
         },
     );

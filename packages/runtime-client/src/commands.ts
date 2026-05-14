@@ -11,6 +11,8 @@ import {
     type ReloadArgs,
     type ScreenshotArgs,
     type ScrollArgs,
+    type SetHtmlArgs,
+    type SetStyleArgs,
     type Selector,
     type TypeArgs,
     type WaitForArgs,
@@ -211,6 +213,57 @@ export const commandHandlers: Record<string, CommandHandler> = {
             location.reload();
         }
         return { reloading: true };
+    },
+
+    [COMMAND.PAGE_SET_HTML]: async (raw) => {
+        const args = raw as SetHtmlArgs;
+        const result = resolveSelector(args.selector);
+        if (!result.element) throw new Error(describeNoMatch(args.selector));
+        const el = result.element as HTMLElement;
+        const target = args.target ?? 'innerHTML';
+        const before = target === 'innerHTML' ? el.innerHTML : el.outerHTML;
+        if (target === 'innerHTML') {
+            el.innerHTML = args.html;
+            return { via: result.via, target, before: truncate(before, 500) };
+        }
+        // outerHTML replacement — the element is removed from the DOM; return the new element tag
+        const tag = el.tagName.toLowerCase();
+        el.outerHTML = args.html;
+        return { via: result.via, target, replacedTag: tag, before: truncate(before, 500) };
+    },
+
+    [COMMAND.PAGE_SET_STYLE]: async (raw) => {
+        const args = raw as SetStyleArgs;
+
+        // Global injection mode: { rule: "<raw css>" }
+        if (!args.selector) {
+            const rule = args.styles['rule'];
+            if (!rule) throw new Error('page.set_style: pass { rule: "<css>" } when no selector is provided');
+            const styleId = '__hfe_injected_style__';
+            let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = styleId;
+                document.head.appendChild(styleEl);
+            }
+            styleEl.textContent += `\n${rule}`;
+            return { injected: true, rule };
+        }
+
+        // Element inline-style mode
+        const result = resolveSelector(args.selector);
+        if (!result.element) throw new Error(describeNoMatch(args.selector));
+        const el = result.element as HTMLElement;
+        const merge = args.merge !== false; // default true
+        if (!merge) el.removeAttribute('style');
+        const applied: Record<string, string> = {};
+        for (const [prop, value] of Object.entries(args.styles)) {
+            // Accept both camelCase and kebab-case
+            const camel = prop.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+            (el.style as unknown as Record<string, string>)[camel] = value;
+            applied[camel] = value;
+        }
+        return { via: result.via, applied, currentStyle: el.getAttribute('style') };
     },
 
     [COMMAND.CONSOLE_TAIL]: async (raw, ctx) => {
