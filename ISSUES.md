@@ -1,67 +1,374 @@
-# morphix-dev-bridge — Known Issues
+# Harnessa-FE Bug Report
 
-闭环测试中发现的待修复项。每条记录：现象 / 复现 / 根因猜测 / 期望行为。
-
----
-
-## ISSUE-1 · `page_screenshot` 仍是 Phase A stub ✅ 2026-05-14
-
-- **现象**：调用返回 `{ note: "page.screenshot is stubbed in Phase A. Wires snapdom in Phase C." }`，不产出图像。
-- **复现**：连接任意 tab，调 `mcp__morphix-dev-bridge__page_screenshot`。
-- **根因**：runtime 客户端里 `page.screenshot` 处理器只占位，未接 snapdom。
-- **修复**：runtime-client 引入 `@zumer/snapdom@^2.12`，selector 命中元素或 `document.documentElement` 全屏 → `snapdom().toCanvas() → canvas.toDataURL()`；返回 `{ via, format, width, height, dataUrl }`。`maxWidth` 默认 1280，jpeg/webp 质量 0.85。
-- **优先级**：P1（视觉反馈是闭环里最直观的一环）。
+**版本**: 0.0.1  
+**测试日期**: 2026-05-14  
+**测试环境**: macOS, Node.js, Kiro IDE (MCP follower 模式)  
+**测试项目**: `examples/react-demo` (Vite + React + React Router)
 
 ---
 
-## ISSUE-2 · `project_module_graph` / `project_where_is` 只识别顶层组件声明 ✅ 2026-05-14
+## Bug #1 — 多标签页命令超时（WebSocket 端口不一致）
 
-- **现象**：`react-demo` 里页面上明明能用 selector `{component: "IncrementBtn"}` / `EchoInput` 命中，但
-  - `project_module_graph` 只返回 `App`（`totalFiles: 1`）。
-  - `project_where_is({component: "IncrementBtn"})` 直接报 `not found`。
-- **复现**：
-  ```ts
-  page_dom_query({css: "button"})            // 可以看到 data-morphix-comp="IncrementBtn"
-  project_where_is({component: "IncrementBtn"}) // not found
-  ```
-- **根因**：Vite 插件 AST 扫描只识别 `function FooBar()` / `const FooBar = ...` 这类顶层组件声明，没有把源码里出现的 `data-morphix-comp="..."` 标签也收进 component map。运行时 selector（DOM 端）和静态 where_is（AST 端）目前是两套来源、口径不一致。
-- **修复**：`transformJsx` 新增 `getStringAttribute` helper，扫到 JSX 上手写的 `data-morphix-comp="X"` 时同步把 `X` 注册进 componentMap（保留 enclosing 组件注册）。现在 `IncrementBtn / ResetBtn / EchoInput / EchoDisplay / CounterValue` 都能被 `project_where_is` 命中。
-- **优先级**：P1（动态 selector 与静态定位失配，会让 AI 在"我能点到 → 我能跳到源码"之间断链）。
+**严重程度**: 🔴 高  
+**状态**: 根因已确认
+
+### 现象
+
+`tab.list` 返回 3 个已连接标签页，但其中 2 个对所有命令均超时 30 秒：
+
+```
+MCP Tool Error Response: remote-bridge: "sendCommand" timed out after 30000ms
+```
+
+### 根本原因
+
+**端口配置存在两条独立路径，互不感知。**
+
+**路径 A — MCP 服务器进程**（`cli.ts`）：
+```typescript
+// packages/mcp-server/src/cli.ts
+const port = Number(process.env.HARNESSA_FE_PORT ?? DEFAULT_WS_PORT);
+```
+`.kiro/settings/mcp.json` 通过环境变量将端口设为 `9999`：
+```json
+"env": { "HARNESSA_FE_PORT": "9999" }
+```
+→ MCP bridge 监听 `ws://127.0.0.1:9999`
+
+**路径 B — Vite 插件**（`unplugin/core.ts`）：
+```typescript
+// packages/unplugin/src/core.ts:83
+const mcpUrl = options.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+//                                                   ↑ DEFAULT_WS_PORT = 47729
+```
+`vite.config.ts` 没有传入 `mcpUrl`：
+```typescript
+// examples/react-demo/vite.config.ts
+harnessaFE({ projectId: 'react-demo' })  // 无 mcpUrl
+```
+→ Vite 插件连接 `ws://127.0.0.1:47729`
+
+**路径 C — 浏览器 runtime client**：
+Vite 插件在 HTML 中注入：
+```typescript
+// packages/unplugin/src/core.ts:248
+window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
+```
+`mcpUrl` 的值来自路径 B，即 `ws://127.0.0.1:47729`。
+
+**结果**：
+- MCP 服务器（Kiro 调用的那个）监听 `:9999`
+- Vite 插件和浏览器 runtime client 连接到 `:47729`（一个不同的 bridge 实例，或根本不存在）
+- `tab.list` 返回的标签页是注册在 `:47729` bridge 上的，但 Kiro 的命令通过 `:9999` bridge 发出，永远找不到对应的 runtime client → 超时
+
+### 涉及文件
+
+| 文件 | 行号 | 问题 |
+|------|------|------|
+| `packages/unplugin/src/core.ts` | 83 | `mcpUrl` 硬编码 `DEFAULT_WS_PORT`，不读取环境变量 |
+| `examples/react-demo/vite.config.ts` | 4 | 未传入 `mcpUrl` |
+| `.kiro/settings/mcp.json` | 8 | `HARNESSA_FE_PORT=9999` 只传给 MCP 进程，不传给 Vite |
+
+### 修复方案
+
+在 `unplugin/core.ts` 中让插件读取同一个环境变量：
+
+```typescript
+// packages/unplugin/src/core.ts
+const mcpUrl = options.mcpUrl
+    ?? (process.env.HARNESSA_FE_PORT
+        ? `ws://${process.env.HARNESSA_FE_HOST ?? '127.0.0.1'}:${process.env.HARNESSA_FE_PORT}`
+        : `ws://127.0.0.1:${DEFAULT_WS_PORT}`);
+```
 
 ---
 
-## ISSUE-3 · 页面标注 → Agent 认领闭环（已实现 MVP，跟踪后续打磨）
+## Bug #2 — Follower 模式下 Store 工具完全不可用
 
-- **现状**：runtime-client 注入 Shadow DOM 浮标，picker 选元素 + 输入问题 → daemon `tasks` Map 排队 → 新增 `tasks_pending / tasks_claim / tasks_resolve` 三个 MCP 工具。
-- **MVP 范围内已覆盖**：
-  - 右下角 FAB 唤起 / ESC 取消
-  - 鼠标 hover 蓝色描边 + click 锁定
-  - 复用 `data-morphix-comp` / `data-morphix-loc`，提交时同时附 CSS 路径回退
-  - element.outerHTML 截 2KB，rect 一并附带
-- **待补 / 已知限制**：
-  1. ~~没有元素截图（依赖 ISSUE-1 接 snapdom）~~ ✅ ISSUE-1 已修，runtime 端 selector 截图已可用
-  2. ~~daemon 重启即丢任务~~ ✅ 2026-05-14：Bridge 新增 `tasksFile`（默认 `<tmpdir>/morphix-dev-bridge-tasks.json`，可由 `MORPHIX_DEV_BRIDGE_TASKS_FILE` 覆盖；空字符串禁用），每次 record/claim/resolve 落盘，启动时加载
-  3. ✅ 按设计如此：MCP 是 pull 模型，不做反向推送。runtime 把标注塞进持久化队列即可，用户在 Claude Code 主动说一句"看看任务" → Agent 用 `tasks_pending / tasks_claim / tasks_resolve` 自取自结。
-  4. ✅ 2026-05-14：`buildCssPath` 深度上限 6 → 12（遇 `id` 仍然短路提前停）；新增 shadow DOM 穿透——遇 ShadowRoot 边界时关闭当前段、从 `shadowRoot.host` 继续，段间用 ` >>> ` 标记（非合法 CSS 组合子，作为给 Agent 的边界提示）。覆盖 4 条单测（happy-dom env）。
-  5. ~~同一 tab 多次提交没去重~~ ✅ 2026-05-14：dedup key = `tabId::(loc∨comp∨css)::question.trim()`，同 key 的 pending 任务只刷新 timestamp/element，不创建新条目
-- **优先级**：P2（功能已通，体验/可靠性慢慢打磨）。**全部小项已收口**。
+**严重程度**: 🟠 中  
+**状态**: 根因已确认
+
+### 现象
+
+当 Kiro 以 follower 模式连接时，以下 10 个工具在工具列表中完全不存在：
+`session.list` / `session.summary` / `session.tail` / `session.search` / `session.purge` / `project.sessions` / `project.memory.set` / `project.memory.get` / `project.memory.list` / `project.memory.delete`
+
+### 根本原因
+
+**三层缺失，环环相扣。**
+
+**第一层 — 注册条件判断**（`mcp.ts:46-50`）：
+```typescript
+const store = (bridge as Bridge).store;
+if (store != null) {
+    registerStoreTools(server, store, memoryStore);
+}
+```
+`RemoteBridge` 没有 `.store` 属性，`(bridge as Bridge).store` 返回 `undefined`。  
+JavaScript 中 `undefined != null` 为 `false`（宽松不等），所以 `registerStoreTools` **永远不被调用**。
+
+**第二层 — RemoteBridge 不支持 store 操作**（`remoteBridge.ts`）：
+```typescript
+getMemoryStore(): IMemoryStore {
+    throw new Error('remote-bridge: getMemoryStore() is not available in follower mode');
+}
+```
+即使绕过第一层，调用 `bridge.getMemoryStore()` 也会直接抛出异常。
+
+**第三层 — 协议层没有 store 方法**（`messages.ts:97-103`）：
+```typescript
+export const mcpMethodSchema = z.enum([
+    'sendCommand',
+    'listTabs',
+    'listTasks',
+    'claimTask',
+    'resolveTask',
+    // store 相关方法完全缺失
+]);
+```
+`mcp.call` / `mcp.return` 控制通道只定义了 5 个方法，没有任何 store 操作，所以即使想通过 follower→leader 代理也无法实现。
+
+### 涉及文件
+
+| 文件 | 行号 | 问题 |
+|------|------|------|
+| `packages/mcp-server/src/mcp.ts` | 46-50 | `store != null` 判断对 `undefined` 失效 |
+| `packages/mcp-server/src/remoteBridge.ts` | `getMemoryStore()` | 直接抛出，无代理实现 |
+| `packages/protocol/src/messages.ts` | 97-103 | `mcpMethodSchema` 缺少所有 store 方法 |
+
+### 修复方案
+
+在 `messages.ts` 中扩展协议，在 `RemoteBridge` 中实现代理，在 `Bridge` 中处理这些调用：
+
+```typescript
+// packages/protocol/src/messages.ts
+export const mcpMethodSchema = z.enum([
+    'sendCommand', 'listTabs', 'listTasks', 'claimTask', 'resolveTask',
+    // 新增：
+    'storeListProjects', 'storeListSessions', 'storeSummary',
+    'storeTail', 'storeSearch', 'storePurge',
+    'memorySet', 'memoryGet', 'memoryList', 'memoryDelete',
+]);
+```
 
 ---
 
-## 测试覆盖快照（2026-05-14 闭环跑通）
+## Bug #3 — 5 个页面工具在 Kiro 中不可见
 
-| 工具 | 状态 |
-|---|---|
-| tab_list | ✅ |
-| console_tail | ✅ |
-| errors_tail | ✅ |
-| network_tail | ✅ |
-| page_click | ✅ |
-| page_type | ✅ |
-| page_dom_query | ✅ |
-| page_evaluate | ✅ |
-| page_wait_for | ✅（`dom.ready` 内建谓词） |
-| page_screenshot | ✅ snapdom (ISSUE-1 ✓) |
-| project_source | ✅ |
-| project_module_graph | ✅ 含手写 comp 标签 (ISSUE-2 ✓) |
-| project_where_is | ✅ 含手写 comp 标签 (ISSUE-2 ✓) |
+**严重程度**: 🟡 低  
+**状态**: 根因已确认
+
+### 现象
+
+`page.scroll`、`page.navigate`、`page.reload`、`page.set_html`、`page.set_style` 在 `mcp.ts` 中已完整注册并实现，但 Kiro 的工具列表中不存在这些工具。
+
+### 根本原因
+
+`.kiro/settings/mcp.json` 的 `autoApprove` 列表缺少这 5 个工具名：
+
+```json
+"autoApprove": [
+    "*",              ← 通配符存在，但 Kiro 不将其解释为"批准所有"
+    "tab.list",
+    "page.screenshot", "project.source", "project.module_graph",
+    "page.click", "project.where_is", "page.evaluate",
+    "console.tail", "page.dom_query", "page.wait_for",
+    "page.type",
+    "page.type"       ← 重复项
+    // 缺失：page.scroll, page.navigate, page.reload, page.set_html, page.set_style
+    // 缺失：network.tail, errors.tail, tasks.*, session.*, project.memory.*
+]
+```
+
+Kiro 的 MCP 集成在工具发现阶段会过滤 `autoApprove` 列表，`"*"` 通配符不被识别为"全部批准"，导致未列出的工具对 agent 不可见。服务器端注册完全正确，问题纯粹在客户端配置。
+
+### 涉及文件
+
+| 文件 | 问题 |
+|------|------|
+| `.kiro/settings/mcp.json` | `autoApprove` 缺少 5 个工具，`page.type` 重复 |
+
+### 修复方案
+
+```json
+"autoApprove": [
+    "tab.list",
+    "page.click", "page.type", "page.evaluate", "page.wait_for",
+    "page.screenshot", "page.dom_query", "page.scroll",
+    "page.navigate", "page.reload", "page.set_html", "page.set_style",
+    "console.tail", "network.tail", "errors.tail",
+    "project.source", "project.module_graph", "project.where_is",
+    "tasks.pending", "tasks.claim", "tasks.resolve"
+]
+```
+
+---
+
+## Bug #4 — `text` 选择器点击无法触发 React Router 导航
+
+**严重程度**: 🟡 低  
+**状态**: 根因已确认
+
+### 现象
+
+```typescript
+// 失败：点击成功（返回 { via: "role-text", tag: "a" }）但路由不切换
+page.click({ selector: { text: "Counter" } })
+
+// 成功：路由正常切换
+page.click({ selector: { css: "a[href='/counter']" } })
+```
+
+### 根本原因
+
+**两个问题叠加。**
+
+**问题 A — `matchByRoleText` 返回错误的元素**（`selectors.ts:57-70`）：
+
+```typescript
+function matchByRoleText(role?: string, text?: string): Element[] {
+    const all = Array.from(document.querySelectorAll<HTMLElement>('*'));
+    return all.filter((el) => {
+        // ...
+        if (text) {
+            const elText = (el.textContent ?? '').trim();
+            if (elText !== text && !elText.includes(text)) return false;
+        }
+        return true;
+    });
+}
+```
+
+`textContent` 是**累积的**——父元素的 `textContent` 包含所有子元素的文本。对于导航结构：
+```html
+<nav>
+  <a href="/counter">Counter</a>
+  <a href="/forms">Forms</a>
+</nav>
+```
+`<nav>` 的 `textContent` 是 `"Counter Forms"`，包含 `"Counter"`，所以 `<nav>` 也会被匹配。`matchByRoleText` 返回的候选列表中，`<nav>` 排在 `<a>` 之前（DOM 顺序），`nth=0` 取到的是 `<nav>` 而非 `<a>`。
+
+**问题 B — `target.click()` 不触发 React Router 的事件处理**（`commands.ts:27-31`）：
+
+```typescript
+[COMMAND.PAGE_CLICK]: async (raw) => {
+    const args = raw as ClickArgs;
+    const result = resolveSelector(args.selector);
+    if (!result.element) throw new Error(describeNoMatch(args.selector));
+    const target = result.element as HTMLElement;
+    target.click();  // ← 问题所在
+    return { via: result.via, tag: target.tagName.toLowerCase() };
+},
+```
+
+`HTMLElement.click()` 触发的是一个**合成点击事件**，其 `isTrusted = false`。React Router v6 的 `<Link>` 组件在 `onClick` 处理器中会检查：
+```typescript
+// React Router 内部
+if (event.defaultPrevented) return;
+if (event.button !== 0) return;  // 只处理左键
+if (event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
+```
+
+当目标是 `<nav>` 而非 `<a>` 时，点击事件冒泡到 `<a>` 上，但 React Router 的 `onClick` 是绑定在 `<a>` 上的，冒泡上来的事件 `target` 是 `<nav>`，React Router 的内部逻辑可能因此跳过处理。
+
+### 涉及文件
+
+| 文件 | 行号 | 问题 |
+|------|------|------|
+| `packages/runtime-client/src/selectors.ts` | 57-70 | `matchByRoleText` 用 `textContent.includes()` 导致父元素误匹配 |
+| `packages/runtime-client/src/commands.ts` | 27-31 | `target.click()` 不保证触发框架路由 |
+
+### 修复方案
+
+**修复 A**：在 `matchByRoleText` 中改用 `innerText` 或只匹配叶子节点的直接文本：
+
+```typescript
+// packages/runtime-client/src/selectors.ts
+if (text) {
+    // 只匹配元素自身的直接文本，不包含子元素
+    const directText = Array.from(el.childNodes)
+        .filter(n => n.nodeType === Node.TEXT_NODE)
+        .map(n => n.textContent ?? '')
+        .join('')
+        .trim();
+    const fullText = (el.textContent ?? '').trim();
+    if (directText !== text && fullText !== text) return false;
+}
+```
+
+**修复 B**：在 `PAGE_CLICK` 中向上查找最近的 `<a>` 祖先，并派发完整的 `MouseEvent`：
+
+```typescript
+// packages/runtime-client/src/commands.ts
+let clickTarget: HTMLElement = target;
+if (target.tagName !== 'A') {
+    const anchor = target.closest('a');
+    if (anchor) clickTarget = anchor as HTMLElement;
+}
+clickTarget.dispatchEvent(new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+}));
+```
+
+---
+
+## Bug #5 — `naturalHeight` 变量声明但未使用
+
+**严重程度**: ⚪ 极低（代码质量）  
+**状态**: 根因已确认
+
+### 现象
+
+TypeScript 编译器报告：
+```
+已声明"naturalHeight"，但从未读取其值。
+```
+
+### 根本原因
+
+`commands.ts` 的 `PAGE_SCREENSHOT` handler 中：
+
+```typescript
+// packages/runtime-client/src/commands.ts
+const naturalWidth  = Math.max(1, Math.round(rect.width  || target.clientWidth  || window.innerWidth));
+const naturalHeight = Math.max(1, Math.round(rect.height || target.clientHeight || window.innerHeight));
+//    ^^^^^^^^^^^^^ 计算了但从未使用
+const width = naturalWidth > maxWidth ? maxWidth : naturalWidth;
+
+const result = await snapdom(target as HTMLElement, {
+    fast: true,
+    width,           // ← 只传了 width
+    // height 未传，snapdom 自动计算
+    backgroundColor: format === 'jpeg' ? '#fff' : undefined,
+});
+```
+
+`naturalHeight` 被计算出来但没有传给 `snapdom`，也没有用于任何其他逻辑。这是一个遗留的未完成实现——原本可能打算限制截图高度，但最终没有实现。
+
+### 涉及文件
+
+| 文件 | 行号 | 问题 |
+|------|------|------|
+| `packages/runtime-client/src/commands.ts` | `PAGE_SCREENSHOT` handler | `naturalHeight` 声明但未使用 |
+
+### 修复方案
+
+```typescript
+// 删除未使用的变量
+const naturalWidth = Math.max(1, Math.round(rect.width || target.clientWidth || window.innerWidth));
+const width = naturalWidth > maxWidth ? maxWidth : naturalWidth;
+```
+
+---
+
+## 汇总
+
+| # | 标题 | 严重程度 | 根因文件 | 修复复杂度 |
+|---|------|----------|----------|------------|
+| 1 | 多标签页命令超时（端口不一致） | 🔴 高 | `unplugin/core.ts:83` | 小 — 读取环境变量 |
+| 2 | Follower 模式 Store 工具不可用 | 🟠 中 | `mcp.ts:46` + `remoteBridge.ts` + `messages.ts:97` | 中 — 扩展协议 + 代理 |
+| 3 | 5 个页面工具在 Kiro 不可见 | 🟡 低 | `.kiro/settings/mcp.json` | 极小 — 补全 JSON 列表 |
+| 4 | `text` 选择器点击不触发 React Router | 🟡 低 | `selectors.ts:57` + `commands.ts:31` | 小 — 修选择器 + 事件派发 |
+| 5 | `naturalHeight` 未使用变量 | ⚪ 极低 | `commands.ts` PAGE_SCREENSHOT | 极小 — 删一行 |

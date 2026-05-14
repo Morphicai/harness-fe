@@ -66,8 +66,21 @@ function matchByRoleText(role?: string, text?: string): Element[] {
             if (elRole !== role) return false;
         }
         if (text) {
-            const elText = (el.textContent ?? '').trim();
-            if (elText !== text && !elText.includes(text)) return false;
+            // Use the element's own direct text (child text nodes only) for an
+            // exact match first, then fall back to full textContent for a
+            // contains-match. This prevents parent elements (e.g. <nav>,
+            // <ul>) from being returned ahead of the actual target element
+            // just because their textContent happens to include the search
+            // string via a descendant.
+            const directText = Array.from(el.childNodes)
+                .filter((n) => n.nodeType === Node.TEXT_NODE)
+                .map((n) => n.textContent ?? '')
+                .join('')
+                .trim();
+            const fullText = (el.textContent ?? '').trim();
+            const exactMatch = directText === text || fullText === text;
+            const containsMatch = directText.includes(text) || fullText.includes(text);
+            if (!exactMatch && !containsMatch) return false;
         }
         return true;
     });

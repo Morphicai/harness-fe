@@ -670,6 +670,62 @@ export class Bridge implements IBridge {
                 const a = args as { id: string; note?: string };
                 return this.resolveTask(a.id, a.note);
             }
+            // ─── Store methods (proxied from follower) ─────────────────────
+            case 'storeListProjects': {
+                if (!this.store) throw new Error('bridge: store is not enabled');
+                return this.store.listProjects();
+            }
+            case 'storeListSessions': {
+                if (!this.store) throw new Error('bridge: store is not enabled');
+                const a = args as { projectId: string; limit?: number };
+                return this.store.listSessions(a.projectId, a.limit);
+            }
+            case 'storeSummary': {
+                if (!this.store) throw new Error('bridge: store is not enabled');
+                const a = args as { sessionId: string };
+                return this.store.summary(a.sessionId);
+            }
+            case 'storeTail': {
+                if (!this.store) throw new Error('bridge: store is not enabled');
+                const a = args as {
+                    sessionId: string;
+                    opts?: import('./store/index.js').TailOptions;
+                    tabId?: string;
+                };
+                return this.store.tail(a.sessionId, a.opts, a.tabId);
+            }
+            case 'storeSearch': {
+                if (!this.store) throw new Error('bridge: store is not enabled');
+                const a = args as {
+                    sessionId: string;
+                    query: string;
+                    opts?: import('./store/index.js').SearchOptions;
+                    tabId?: string;
+                };
+                return this.store.search(a.sessionId, a.query, a.opts, a.tabId);
+            }
+            case 'storePurge': {
+                if (!this.store) throw new Error('bridge: store is not enabled');
+                const a = (args ?? {}) as import('./store/index.js').RetentionPolicy;
+                return this.store.purge(a);
+            }
+            // ─── Memory methods (proxied from follower) ────────────────────
+            case 'memorySet': {
+                const a = args as { projectId: string; key: string; value: string };
+                return this.memoryStore.set(a.projectId, a.key, a.value);
+            }
+            case 'memoryGet': {
+                const a = args as { projectId: string; key: string };
+                return this.memoryStore.get(a.projectId, a.key);
+            }
+            case 'memoryList': {
+                const a = args as { projectId: string };
+                return this.memoryStore.list(a.projectId);
+            }
+            case 'memoryDelete': {
+                const a = args as { projectId: string; key: string };
+                return this.memoryStore.delete(a.projectId, a.key);
+            }
         }
     }
 }

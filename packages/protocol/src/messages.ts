@@ -100,6 +100,17 @@ export const mcpMethodSchema = z.enum([
     'listTasks',
     'claimTask',
     'resolveTask',
+    // Store / memory methods — proxied from follower to leader via mcp.call channel.
+    'storeListProjects',
+    'storeListSessions',
+    'storeSummary',
+    'storeTail',
+    'storeSearch',
+    'storePurge',
+    'memorySet',
+    'memoryGet',
+    'memoryList',
+    'memoryDelete',
 ]);
 export type McpMethod = z.infer<typeof mcpMethodSchema>;
 

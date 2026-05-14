@@ -26,6 +26,7 @@ import {
 } from '@morphixai/harnessa-fe.protocol';
 import type { IBridge } from './bridge.js';
 import type { Bridge } from './bridge.js';
+import { RemoteBridge } from './remoteBridge.js';
 import type { IStore, IMemoryStore } from './store/index.js';
 
 const SERVER_NAME = 'harnessa-fe';
@@ -42,10 +43,17 @@ export async function startMcpStdioServer(bridge: IBridge): Promise<McpServer> {
 
     registerTools(server, bridge);
 
-    // Register store tools if bridge has a store
-    const store = (bridge as Bridge).store;
-    const memoryStore = bridge.getMemoryStore();
-    if (store) registerStoreTools(server, store, memoryStore);
+    // Register store tools for both leader (direct store access) and follower
+    // (proxied via RemoteBridge → mcp.call channel to the leader).
+    const leaderStore = (bridge as Bridge).store;
+    if (leaderStore != null) {
+        // Leader: direct in-process access
+        const memoryStore = bridge.getMemoryStore();
+        registerStoreTools(server, leaderStore, memoryStore);
+    } else if (bridge instanceof RemoteBridge) {
+        // Follower: proxy store/memory operations to the leader
+        registerRemoteStoreTools(server, bridge);
+    }
 
     const transport = new StdioServerTransport();
     await server.connect(transport);
@@ -221,64 +229,6 @@ function registerTools(server: McpServer, bridge: IBridge): void {
             description: 'Reload the current page. Use hard=true to bypass the browser cache.',
             inputSchema: {
                 hard: z.boolean().optional().describe('Bypass browser cache. Default false.'),
-                tabId: tabIdParam,
-            },
-        },
-        async ({ hard, tabId }) => {
-            const args = reloadArgsSchema.parse({ hard });
-            const out = await bridge.sendCommand(COMMAND.PAGE_RELOAD, args, { tabId });
-            return ok(out);
-        },
-    );
-
-    server.registerTool(
-        COMMAND.PAGE_SCROLL,
-        {
-            description:
-                'Scroll the page or scroll a specific element into view. Omit selector to scroll the window to an absolute position.',
-            inputSchema: {
-                selector: selectorSchema.optional().describe(
-                    'If provided, scrolls this element into view (ignores x/y).',
-                ),
-                x: z.number().optional().describe('Horizontal scroll position in pixels (window scroll only).'),
-                y: z.number().optional().describe('Vertical scroll position in pixels (window scroll only).'),
-                behavior: z.enum(['smooth', 'instant']).optional().describe('Default: smooth.'),
-                tabId: tabIdParam,
-            },
-        },
-        async ({ selector, x, y, behavior, tabId }) => {
-            const args = scrollArgsSchema.parse({ selector, x, y, behavior });
-            const out = await bridge.sendCommand(COMMAND.PAGE_SCROLL, args, { tabId });
-            return ok(out);
-        },
-    );
-
-    server.registerTool(
-        COMMAND.PAGE_NAVIGATE,
-        {
-            description:
-                'Navigate the page to a URL. Use method="href" for full page loads, "push"/"replace" for SPA in-app navigation without reload.',
-            inputSchema: {
-                url: z.string().describe('Target URL or path, e.g. "/dashboard" or "https://example.com".'),
-                method: z.enum(['href', 'push', 'replace']).optional().describe(
-                    '"href" (default) = full page load; "push" = history.pushState; "replace" = history.replaceState.',
-                ),
-                tabId: tabIdParam,
-            },
-        },
-        async ({ url, method, tabId }) => {
-            const args = navigateArgsSchema.parse({ url, method });
-            const out = await bridge.sendCommand(COMMAND.PAGE_NAVIGATE, args, { tabId });
-            return ok(out);
-        },
-    );
-
-    server.registerTool(
-        COMMAND.PAGE_RELOAD,
-        {
-            description: 'Reload the current page. Use hard=true to bypass the browser cache.',
-            inputSchema: {
-                hard: z.boolean().optional().describe('Force a hard reload bypassing cache. Default false.'),
                 tabId: tabIdParam,
             },
         },
@@ -720,6 +670,202 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
                 recordingsDeleted: result.recordingsDeleted,
                 bytesFreed: result.bytesFreed,
             });
+        },
+    );
+}
+
+// ─── Remote store tools (follower mode) ───────────────────────────────────────
+//
+// When running as a follower, store/memory operations are proxied to the leader
+// via the mcp.call channel. The async variants on RemoteStore / RemoteMemoryStore
+// are used directly inside the tool handlers.
+
+function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void {
+    const remoteStore = bridge.getStore() as ReturnType<RemoteBridge['getStore']> & {
+        listProjectsAsync(): Promise<unknown>;
+        listSessionsAsync(projectId: string, limit?: number): Promise<unknown>;
+        summaryAsync(sessionId: string): Promise<unknown>;
+        tailAsync(sessionId: string, opts?: unknown, tabId?: string): Promise<unknown>;
+        searchAsync(sessionId: string, query: string, opts?: unknown, tabId?: string): Promise<unknown>;
+        purgeAsync(policy?: unknown): Promise<unknown>;
+    };
+    const remoteMem = bridge.getMemoryStore() as ReturnType<RemoteBridge['getMemoryStore']> & {
+        setAsync(projectId: string, key: string, value: string): Promise<unknown>;
+        getAsync(projectId: string, key: string): Promise<unknown>;
+        listAsync(projectId: string): Promise<unknown>;
+        deleteAsync(projectId: string, key: string): Promise<unknown>;
+    };
+
+    server.registerTool(
+        'session.list',
+        {
+            description: 'List recent sessions for a project. Returns session IDs, start times, and status.',
+            inputSchema: {
+                projectId: z.string().describe('Project ID (package.json name)'),
+                limit: z.number().int().positive().default(10).optional(),
+            },
+        },
+        async ({ projectId, limit }) => {
+            const sessions = await remoteStore.listSessionsAsync(projectId, limit ?? 10);
+            return ok(sessions);
+        },
+    );
+
+    server.registerTool(
+        'session.summary',
+        {
+            description: 'Get a summary of a session: event counts, last error, active tabs.',
+            inputSchema: {
+                sessionId: z.string().describe('Session ID from session.list'),
+            },
+        },
+        async ({ sessionId }) => {
+            const summary = await remoteStore.summaryAsync(sessionId);
+            return ok(summary);
+        },
+    );
+
+    server.registerTool(
+        'session.tail',
+        {
+            description: 'Read the last N events from a session timeline. Optionally filter by event type.',
+            inputSchema: {
+                sessionId: z.string(),
+                n: z.number().int().positive().default(50).optional(),
+                type: z.union([z.string(), z.array(z.string())]).optional()
+                    .describe('Filter by event type(s): log, err, req, res, cmd, resp, hmr, task, node:log, node:err'),
+                tabId: z.string().optional().describe('If provided, reads from the tab timeline instead of session timeline'),
+                since: z.number().optional().describe('Only events after this Unix timestamp (ms)'),
+                until: z.number().optional().describe('Only events before this Unix timestamp (ms)'),
+            },
+        },
+        async ({ sessionId, n, type, tabId, since, until }) => {
+            const events = await remoteStore.tailAsync(
+                sessionId,
+                { n: n ?? 50, type: type as string | string[] | undefined, since, until },
+                tabId,
+            );
+            return ok(events);
+        },
+    );
+
+    server.registerTool(
+        'session.search',
+        {
+            description: 'Search events in a session timeline by substring match.',
+            inputSchema: {
+                sessionId: z.string(),
+                query: z.string().describe('Substring to search for in event payloads'),
+                type: z.union([z.string(), z.array(z.string())]).optional(),
+                limit: z.number().int().positive().default(50).optional(),
+                tabId: z.string().optional(),
+            },
+        },
+        async ({ sessionId, query, type, limit, tabId }) => {
+            const events = await remoteStore.searchAsync(
+                sessionId,
+                query,
+                { type: type as string | string[] | undefined, limit: limit ?? 50 },
+                tabId,
+            );
+            return ok(events);
+        },
+    );
+
+    server.registerTool(
+        'project.sessions',
+        {
+            description: 'List all projects with their most recent session info.',
+            inputSchema: {},
+        },
+        async () => {
+            const projects = await remoteStore.listProjectsAsync() as Array<{ id: string }>;
+            const result = await Promise.all(
+                projects.map(async (p) => ({
+                    ...p,
+                    recentSessions: await remoteStore.listSessionsAsync(p.id, 3),
+                })),
+            );
+            return ok(result);
+        },
+    );
+
+    server.registerTool(
+        'project.memory.set',
+        {
+            description: 'Write or update a persistent memory entry for a project (cross-session knowledge for the agent).',
+            inputSchema: {
+                projectId: z.string(),
+                key: z.string().min(1).describe('Memory key, e.g. "known_issues", "architecture", "agent_context"'),
+                value: z.string().describe('Memory value (plain text or JSON string)'),
+            },
+        },
+        async ({ projectId, key, value }) => {
+            const entry = await remoteMem.setAsync(projectId, key, value);
+            return ok(entry);
+        },
+    );
+
+    server.registerTool(
+        'project.memory.get',
+        {
+            description: 'Read a persistent memory entry for a project by key.',
+            inputSchema: {
+                projectId: z.string(),
+                key: z.string().describe('Memory key to retrieve'),
+            },
+        },
+        async ({ projectId, key }) => {
+            const entry = await remoteMem.getAsync(projectId, key);
+            if (!entry) {
+                return ok({ found: false, key });
+            }
+            return ok({ found: true, ...(entry as object) });
+        },
+    );
+
+    server.registerTool(
+        'project.memory.list',
+        {
+            description: 'List all persistent memory entries for a project, sorted by most recently updated.',
+            inputSchema: {
+                projectId: z.string(),
+            },
+        },
+        async ({ projectId }) => {
+            const entries = await remoteMem.listAsync(projectId);
+            return ok(entries);
+        },
+    );
+
+    server.registerTool(
+        'project.memory.delete',
+        {
+            description: 'Delete a persistent memory entry for a project by key.',
+            inputSchema: {
+                projectId: z.string(),
+                key: z.string().describe('Memory key to delete'),
+            },
+        },
+        async ({ projectId, key }) => {
+            const deleted = await remoteMem.deleteAsync(projectId, key);
+            return ok({ deleted, key });
+        },
+    );
+
+    server.registerTool(
+        'session.purge',
+        {
+            description: 'Delete old sessions and recordings to free disk space.',
+            inputSchema: {
+                maxAgeDays: z.number().int().positive().default(7).optional(),
+                maxSessionsPerProject: z.number().int().positive().default(20).optional(),
+                recordingRetentionDays: z.number().int().positive().default(3).optional(),
+            },
+        },
+        async ({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays }) => {
+            const result = await remoteStore.purgeAsync({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays });
+            return ok(result);
         },
     );
 }

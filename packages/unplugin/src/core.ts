@@ -81,7 +81,14 @@ function installNodeLogCapture(emitEvent: (name: string, payload: unknown) => vo
 
 export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (options = {}) => {
     let projectId = options.projectId ?? 'unknown-project';
-    const mcpUrl = options.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+    // Resolve mcpUrl: explicit option > env vars (HARNESSA_FE_PORT / HARNESSA_FE_HOST) > default port.
+    // The env vars are the same ones read by cli.ts, so the plugin and the MCP server always
+    // agree on which port to use even when mcp.json overrides the default.
+    const mcpUrl =
+        options.mcpUrl ??
+        (process.env.HARNESSA_FE_PORT
+            ? `ws://${process.env.HARNESSA_FE_HOST ?? '127.0.0.1'}:${process.env.HARNESSA_FE_PORT}`
+            : `ws://127.0.0.1:${DEFAULT_WS_PORT}`);
     let ws: WebSocket | undefined;
     let isActive = false;
     let projectRoot = process.cwd();
