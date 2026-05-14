@@ -7,7 +7,10 @@ import {
     COMMAND,
     type ClickArgs,
     type EvaluateArgs,
+    type NavigateArgs,
+    type ReloadArgs,
     type ScreenshotArgs,
+    type ScrollArgs,
     type Selector,
     type TypeArgs,
     type WaitForArgs,
@@ -166,6 +169,48 @@ export const commandHandlers: Record<string, CommandHandler> = {
             }
         }
         return { matches };
+    },
+
+    [COMMAND.PAGE_SCROLL]: async (raw) => {
+        const args = raw as ScrollArgs;
+        const behavior = args.behavior ?? 'smooth';
+        if (args.selector) {
+            const result = resolveSelector(args.selector);
+            if (!result.element) throw new Error(describeNoMatch(args.selector));
+            (result.element as HTMLElement).scrollIntoView({ behavior, block: 'center' });
+            return { via: result.via, scrolledIntoView: true };
+        }
+        window.scrollTo({ top: args.y ?? 0, left: args.x ?? 0, behavior });
+        return { scrollX: window.scrollX, scrollY: window.scrollY };
+    },
+
+    [COMMAND.PAGE_NAVIGATE]: async (raw) => {
+        const args = raw as NavigateArgs;
+        const method = args.method ?? 'href';
+        const before = location.href;
+        if (method === 'href') {
+            location.href = args.url;
+            return { method, from: before, to: args.url };
+        }
+        if (method === 'push') {
+            history.pushState({}, '', args.url);
+        } else {
+            history.replaceState({}, '', args.url);
+        }
+        // Notify SPA routers that listen on popstate
+        window.dispatchEvent(new PopStateEvent('popstate', { state: history.state }));
+        return { method, from: before, to: location.href };
+    },
+
+    [COMMAND.PAGE_RELOAD]: async (raw) => {
+        const args = raw as ReloadArgs;
+        if (args.hard) {
+            // Hard reload — bypass cache
+            location.reload();
+        } else {
+            location.reload();
+        }
+        return { reloading: true };
     },
 
     [COMMAND.CONSOLE_TAIL]: async (raw, ctx) => {
