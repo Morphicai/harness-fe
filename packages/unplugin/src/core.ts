@@ -16,6 +16,15 @@ import { relative, resolve } from 'node:path';
 import { createUnplugin, type UnpluginFactory } from 'unplugin';
 
 const require = createRequire(import.meta.url);
+
+/**
+ * Virtual module ID used to inject the runtime client into the dev page.
+ * Using a virtual module avoids bare-import resolution failures when the
+ * runtime package is not listed as a direct dependency of the host app.
+ */
+const VIRTUAL_RUNTIME_ID = 'virtual:harnessa-fe/runtime';
+const RESOLVED_VIRTUAL_RUNTIME_ID = '\0' + VIRTUAL_RUNTIME_ID;
+
 import { WebSocket } from 'ws';
 import {
     COMMAND,
@@ -263,6 +272,18 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
                 });
             },
 
+            resolveId(id: string) {
+                if (id === VIRTUAL_RUNTIME_ID) return RESOLVED_VIRTUAL_RUNTIME_ID;
+                return undefined;
+            },
+
+            load(id: string) {
+                if (id !== RESOLVED_VIRTUAL_RUNTIME_ID) return undefined;
+                // Resolve the runtime package entry point relative to this plugin
+                const runtimeEntry = require.resolve('@morphixai/harnessa-fe.runtime');
+                return `export * from ${JSON.stringify(runtimeEntry)};\nimport ${JSON.stringify(runtimeEntry)};`;
+            },
+
             transformIndexHtml: {
                 order: 'pre' as const,
                 handler(html: string) {
@@ -271,7 +292,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 <script>
 window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
 </script>
-<script type="module">import '@morphixai/harnessa-fe.runtime';</script>`;
+<script type="module">import '${VIRTUAL_RUNTIME_ID}';</script>`;
                     return html.replace(/<\/head>/i, `${injection}\n</head>`);
                 },
             },
