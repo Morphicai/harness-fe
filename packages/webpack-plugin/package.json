@@ -1,0 +1,42 @@
+{
+    "name": "@morphixai/harnessa-fe.webpack",
+    "version": "0.0.1",
+    "private": true,
+    "description": "Webpack plugin for Harnessa-FE: source-aware transforms, runtime injection, and MCP bridge.",
+    "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/morphixai/harnessa-fe.git",
+        "directory": "packages/webpack-plugin"
+    },
+    "homepage": "https://github.com/morphixai/harnessa-fe#readme",
+    "bugs": {
+        "url": "https://github.com/morphixai/harnessa-fe/issues"
+    },
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "files": ["dist", "src"],
+    "scripts": {
+        "build": "tsc",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run --passWithNoTests"
+    },
+    "dependencies": {
+        "@morphixai/harnessa-fe.unplugin": "workspace:*"
+    },
+    "peerDependencies": {
+        "webpack": "^5.0.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.6.0",
+        "vitest": "^2.1.9",
+        "webpack": "^5.99.0"
+    }
+}

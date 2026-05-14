@@ -1,0 +1,39 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+.vite
+
+# Logs
+*.log
+
+# IDE / Editor
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Local dev tool configs (contain machine-specific paths & permissions)
+.claude/
+.kiro/
+.mcp.json
+
+# Lock files (optional — uncomment if you want contributors to use their own)
+# pnpm-lock.yaml
+
+# Test artifacts
+coverage
+.nyc_output
+playwright-report
+test-results
