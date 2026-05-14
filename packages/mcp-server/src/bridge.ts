@@ -33,6 +33,7 @@ import {
     frameSchema,
 } from '@morphixai/harnessa-fe.protocol';
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
+import { JsonlStore, type IStore } from './store/index.js';
 
 /**
  * Surface used by the stdio MCP layer. Same shape whether the underlying
@@ -79,6 +80,11 @@ export interface BridgeOptions {
      * Pass an empty string to disable persistence (useful in tests).
      */
     tasksFile?: string;
+    /**
+     * Store instance for JSONL persistence. If omitted, a default JsonlStore
+     * is created at ~/.harnessa-fe/data. Pass null to disable persistence.
+     */
+    store?: IStore | null;
 }
 
 const DEFAULT_TASKS_FILE = resolvePath(tmpdir(), 'morphix-dev-bridge-tasks.json');
@@ -87,15 +93,19 @@ export type EventListener = (event: EventFrame, session: PeerSession) => void;
 
 export class Bridge implements IBridge {
     readonly router = new SessionRouter();
+    readonly store: IStore | null;
     private wss?: WebSocketServer;
     private sockets = new Map<string, WebSocket>();
     private pending = new Map<string, PendingCommand>();
     private eventListeners = new Set<EventListener>();
     private tasks = new Map<string, Task>();
-    private opts: Required<BridgeOptions>;
+    private opts: Required<Omit<BridgeOptions, 'store'>>;
+    /** Map from connectionId → sessionId in the store */
+    private connToStoreSession = new Map<string, string>();
 
     constructor(opts: BridgeOptions = {}) {
         const envFile = process.env.MORPHIX_DEV_BRIDGE_TASKS_FILE;
+        this.store = opts.store === null ? null : (opts.store ?? new JsonlStore());
         this.opts = {
             port: opts.port ?? DEFAULT_WS_PORT,
             host: opts.host ?? '127.0.0.1',
@@ -314,10 +324,18 @@ export class Bridge implements IBridge {
 
         ws.on('close', () => {
             this.sockets.delete(connectionId);
+            // Close store session/tab if applicable
+            const storeSessionId = this.connToStoreSession.get(connectionId);
+            if (storeSessionId && this.store) {
+                const peer = this.router.getByConnectionId(connectionId);
+                if (peer?.role === 'runtime-client' && peer.tabId) {
+                    this.store.closeTab(storeSessionId, peer.tabId);
+                } else if (peer?.role === 'vite-plugin' || peer?.role === 'webpack-plugin') {
+                    this.store.closeSession(storeSessionId);
+                }
+                this.connToStoreSession.delete(connectionId);
+            }
             this.router.unregister(connectionId);
-            // Reject any pending commands targeting this socket — we can't
-            // track which were aimed at it, so leave them to timeout. The
-            // timeout handler already cleans up.
         });
 
         ws.on('error', () => {
@@ -335,6 +353,29 @@ export class Bridge implements IBridge {
                     connectionId,
                     page: frame.page,
                 });
+                // Persist to store
+                if (this.store) {
+                    if (frame.role === 'vite-plugin' || frame.role === 'webpack-plugin') {
+                        const storeSessionId = this.store.openSession(frame.projectId, {
+                            peerRole: frame.role,
+                            metadata: { role: frame.role },
+                        });
+                        this.connToStoreSession.set(connectionId, storeSessionId);
+                    } else if (frame.role === 'runtime-client' && frame.tabId) {
+                        // Find the store session for this project
+                        const sessions = this.store.listSessions(frame.projectId, 1);
+                        const storeSessionId = sessions[0]?.id;
+                        if (storeSessionId) {
+                            this.connToStoreSession.set(connectionId, storeSessionId);
+                            this.store.openTab(storeSessionId, {
+                                id: frame.tabId,
+                                url: frame.page?.url,
+                                title: frame.page?.title,
+                                userAgent: frame.page?.userAgent,
+                            });
+                        }
+                    }
+                }
                 const ack: HelloAckFrame = {
                     type: 'hello.ack',
                     id: frame.id,
@@ -362,6 +403,22 @@ export class Bridge implements IBridge {
                 if (!peer) return;
                 if (frame.name === EVENT_NAME.TASK_SUBMIT) {
                     this.recordTask(frame, peer);
+                }
+                // Persist to store
+                if (this.store) {
+                    const storeSessionId = this.connToStoreSession.get(connectionId);
+                    if (storeSessionId) {
+                        this.store.append(
+                            storeSessionId,
+                            {
+                                ts: frame.ts ?? Date.now(),
+                                t: frame.name as string,
+                                tab: frame.tabId ?? peer.tabId,
+                                d: frame.payload,
+                            },
+                            frame.tabId ?? peer.tabId,
+                        );
+                    }
                 }
                 for (const listener of this.eventListeners) {
                     try {
