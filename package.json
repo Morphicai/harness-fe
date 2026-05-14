@@ -19,6 +19,7 @@
         "test": "pnpm -r --filter './packages/*' test",
         "dev": "pnpm --filter harnessa-fe-react-demo dev",
         "start:mcp": "pnpm --filter @morphixai/harnessa-fe.mcp-server start",
+        "restart:mcp": "bash scripts/restart-mcp.sh",
         "demo": "pnpm build && pnpm dev",
         "e2e": "pnpm --filter harnessa-fe-react-demo e2e"
     },

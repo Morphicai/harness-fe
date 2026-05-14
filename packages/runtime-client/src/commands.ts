@@ -43,8 +43,29 @@ export const commandHandlers: Record<string, CommandHandler> = {
         const result = resolveSelector(args.selector);
         if (!result.element) throw new Error(describeNoMatch(args.selector));
         const target = result.element as HTMLElement;
-        target.click();
-        return { via: result.via, tag: target.tagName.toLowerCase() };
+
+        // When the resolved element is not itself an <a>, walk up to find the
+        // nearest anchor ancestor. This handles the common case where a text
+        // selector matches a child <span> inside a React Router <Link>, which
+        // would otherwise fire a click that bypasses the router's onClick handler.
+        let clickTarget: HTMLElement = target;
+        if (target.tagName !== 'A') {
+            const anchor = target.closest('a');
+            if (anchor) clickTarget = anchor as HTMLElement;
+        }
+
+        // Dispatch a proper MouseEvent instead of calling .click() so that
+        // framework routers (React Router, Vue Router) receive a bubbling event
+        // with the correct button/modifier state they check before navigating.
+        clickTarget.dispatchEvent(
+            new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                button: args.button === 'right' ? 2 : args.button === 'middle' ? 1 : 0,
+            }),
+        );
+        return { via: result.via, tag: clickTarget.tagName.toLowerCase() };
     },
 
     [COMMAND.PAGE_TYPE]: async (raw) => {
@@ -124,7 +145,6 @@ export const commandHandlers: Record<string, CommandHandler> = {
 
         const rect = target.getBoundingClientRect();
         const naturalWidth = Math.max(1, Math.round(rect.width || target.clientWidth || window.innerWidth));
-        const naturalHeight = Math.max(1, Math.round(rect.height || target.clientHeight || window.innerHeight));
         const width = naturalWidth > maxWidth ? maxWidth : naturalWidth;
 
         const result = await snapdom(target as HTMLElement, {

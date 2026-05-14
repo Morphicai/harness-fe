@@ -86,7 +86,7 @@ export function transformJsx(
             if (!hasAttribute(node, ATTR_LOC)) {
                 attrs.push(`${ATTR_LOC}="${escapeAttr(locValue)}"`);
             }
-            if (!explicitName && enclosingName) {
+            if (!hasAttribute(node, ATTR_COMP) && enclosingName) {
                 attrs.push(`${ATTR_COMP}="${escapeAttr(enclosingName)}"`);
             }
 
