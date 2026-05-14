@@ -37,6 +37,8 @@ export const helloAckFrameSchema = z.object({
     /** Server-assigned tabId (echoed if client supplied one). */
     tabId: z.string().optional(),
     serverVersion: z.string(),
+    /** Present when the server rejects the connection (e.g. no active session for runtime-client). */
+    error: z.string().optional(),
 });
 export type HelloAckFrame = z.infer<typeof helloAckFrameSchema>;
 

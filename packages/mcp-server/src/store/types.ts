@@ -5,37 +5,50 @@
  *   {dataDir}/
  *   └── {projectId}/
  *       ├── meta.json                  project metadata
- *       ├── notes.jsonl                project-level notes (cross-session)
+ *       ├── tasks.json                 annotation tasks
+ *       ├── memory.json                agent memory (key-value)
+ *       ├── notes.jsonl                project-level notes (cross-session, legacy)
  *       └── sessions/
  *           └── {sessionId}/
  *               ├── meta.json          session metadata
  *               ├── timeline.jsonl     session-level event stream
  *               └── tabs/
  *                   └── {tabId}/
+ *                       ├── meta.json        tab metadata
  *                       ├── timeline.jsonl   tab-level event stream
  *                       └── recording.jsonl  rrweb recording (optional)
  */
+
+import type { Task } from '@morphixai/harnessa-fe.protocol';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 
 /** Short type codes used in JSONL lines to keep files compact. */
 export type EventType =
-    | 'log'        // browser console
-    | 'err'        // browser JS error
-    | 'req'        // network request (start)
-    | 'res'        // network response (end)
-    | 'cmd'        // MCP command sent to runtime/plugin
-    | 'resp'       // MCP command response
-    | 'hmr'        // HMR update from build plugin
-    | 'task'       // user annotation task submitted
-    | 'rrweb'      // rrweb recording chunk
-    | 'node:log'   // Node.js stdout from build plugin
-    | 'node:err'   // Node.js stderr from build plugin
-    | 'note'       // project-level note written by agent/user
-    | string;      // extensible — future types don't need schema changes
+    | 'log'          // browser console
+    | 'err'          // browser JS error
+    | 'req'          // network request (start)
+    | 'res'          // network response (end)
+    | 'cmd'          // MCP command sent to runtime/plugin
+    | 'resp'         // MCP command response
+    | 'hmr'          // HMR update from build plugin
+    | 'task'         // user annotation task submitted
+    | 'task:claim'   // annotation task claimed by agent
+    | 'task:resolve' // annotation task resolved by agent
+    | 'rrweb'        // rrweb recording chunk
+    | 'node:log'     // Node.js stdout from build plugin
+    | 'node:err'     // Node.js stderr from build plugin
+    | 'note'         // project-level note written by agent/user
+    | string;        // extensible — future types don't need schema changes
 
 /** A single event line in a JSONL file. */
 export interface StoreEvent {
+    /**
+     * Server-assigned monotonic integer per session (assigned at enqueue time).
+     * Optional on input — the store layer assigns this; callers of `append` omit it.
+     * Always present on events returned by `tail` and `search`.
+     */
+    seq?: number;
     /** Unix timestamp in milliseconds. */
     ts: number;
     /** Short event type code. */
@@ -120,6 +133,46 @@ export interface PurgeResult {
     bytesFreed: number;
 }
 
+// ─── Task store interface ─────────────────────────────────────────────────────
+
+/**
+ * Persistence interface for annotation tasks.
+ * Implementations use atomic write-then-rename for durability.
+ */
+export interface ITaskStore {
+    /** Load all tasks for a project. Returns [] if file is missing or corrupt. */
+    loadTasks(projectId: string): Task[];
+    /** Atomically persist the full task list for a project. */
+    saveTasks(projectId: string, tasks: Task[]): void;
+}
+
+// ─── Memory store interface ───────────────────────────────────────────────────
+
+/** A single agent memory entry stored in memory.json. */
+export interface MemoryEntry {
+    /** The entry key. */
+    key: string;
+    /** The stored value (plain text or JSON string). */
+    value: string;
+    /** Unix ms timestamp of the last write. */
+    updatedAt: number;
+}
+
+/**
+ * Persistence interface for agent memory (persistent key-value store per project).
+ * Implementations use atomic write-then-rename for durability.
+ */
+export interface IMemoryStore {
+    /** Get a memory entry by key. Returns undefined if not found. */
+    get(projectId: string, key: string): MemoryEntry | undefined;
+    /** Write or update a memory entry. Returns the new/updated entry. */
+    set(projectId: string, key: string, value: string): MemoryEntry;
+    /** Delete a memory entry. Returns true if the key existed, false otherwise. */
+    delete(projectId: string, key: string): boolean;
+    /** List all memory entries for a project, sorted by updatedAt descending. */
+    list(projectId: string): MemoryEntry[];
+}
+
 // ─── Store interface ──────────────────────────────────────────────────────────
 
 export interface IStore {
@@ -128,8 +181,8 @@ export interface IStore {
     /** Create or resume a session for a project. Returns sessionId. */
     openSession(projectId: string, meta: Omit<SessionMeta, 'id' | 'projectId' | 'startedAt'>): string;
 
-    /** Mark a session as ended. */
-    closeSession(sessionId: string): void;
+    /** Mark a session as ended. Optional closedAt timestamp (defaults to Date.now()). */
+    closeSession(sessionId: string, closedAt?: number): void;
 
     /** Register a tab within a session. */
     openTab(sessionId: string, tab: Omit<TabMeta, 'sessionId' | 'connectedAt'>): void;
@@ -194,5 +247,5 @@ export interface IStore {
     purge(policy?: RetentionPolicy): PurgeResult;
 
     /** Close any open file handles. */
-    close(): void;
+    close(): void | Promise<void>;
 }

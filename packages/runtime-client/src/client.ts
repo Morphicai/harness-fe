@@ -23,17 +23,17 @@ export interface ClientOptions {
     mcpUrl?: string;
 }
 
-const TAB_ID_KEY = '__harnessa_fe_tab_id__';
+const TAB_ID_KEY = '__hfe_tab_id__';
 
 function getOrCreateTabId(): string {
     try {
         const existing = sessionStorage.getItem(TAB_ID_KEY);
         if (existing) return existing;
-        const id = crypto.randomUUID();
+        const id = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
         sessionStorage.setItem(TAB_ID_KEY, id);
         return id;
     } catch {
-        return crypto.randomUUID();
+        return `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
     }
 }
 

@@ -29,6 +29,7 @@ import {
 } from '@morphixai/harnessa-fe.protocol';
 import { transformJsx, type ComponentMap } from './transform.js';
 import { transformVueSFC } from './vue-transform.js';
+import { resolveProjectId } from './resolveProjectId.js';
 
 export interface HarnessaFEOptions {
     /** Override projectId (defaults to package.json `name`). */
@@ -39,20 +40,34 @@ export interface HarnessaFEOptions {
     disabled?: boolean;
 }
 
-function readPackageName(root: string): string {
-    try {
-        const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf-8')) as {
-            name?: string;
-        };
-        return pkg.name ?? 'unknown-project';
-    } catch {
-        return 'unknown-project';
-    }
-}
-
 function newId(): string {
     const g = globalThis as { crypto?: { randomUUID?: () => string } };
     return g.crypto?.randomUUID ? g.crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+}
+
+/**
+ * Intercepts `process.stdout.write` and `process.stderr.write` to emit
+ * `'node:log'` / `'node:err'` events to the MCP server.
+ *
+ * Returns a cleanup function that restores the original write methods.
+ */
+function installNodeLogCapture(emitEvent: (name: string, payload: unknown) => void): () => void {
+    const origOut = process.stdout.write.bind(process.stdout);
+    const origErr = process.stderr.write.bind(process.stderr);
+
+    (process.stdout as any).write = (chunk: any, ...args: any[]) => {
+        emitEvent('node:log', { text: String(chunk) });
+        return origOut(chunk, ...args);
+    };
+    (process.stderr as any).write = (chunk: any, ...args: any[]) => {
+        emitEvent('node:err', { text: String(chunk) });
+        return origErr(chunk, ...args);
+    };
+
+    return () => {
+        (process.stdout as any).write = origOut;
+        (process.stderr as any).write = origErr;
+    };
 }
 
 export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (options = {}) => {
@@ -63,6 +78,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
     let projectRoot = process.cwd();
     let peerRole: 'vite-plugin' | 'webpack-plugin' = 'vite-plugin';
     const componentMap: ComponentMap = new Map();
+    let logCaptureCleanup: (() => void) | undefined;
 
     function send(frame: EventFrame | HelloFrame | ResponseFrame): void {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -168,6 +184,8 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
     function disconnectMcp(): void {
         isActive = false;
+        logCaptureCleanup?.();
+        logCaptureCleanup = undefined;
         ws?.close();
         ws = undefined;
     }
@@ -201,10 +219,10 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
         name: 'harnessa-fe',
         enforce: 'pre',
 
-        buildStart() {
+        async buildStart() {
             if (options.disabled) return;
-            // Resolve projectId from package.json if not explicitly set
-            projectId = options.projectId ?? readPackageName(projectRoot);
+            // Resolve projectId from .harnessa-id if not explicitly set
+            projectId = await resolveProjectId(projectRoot, options.projectId);
         },
 
         transformInclude(id: string) {
@@ -229,16 +247,17 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
         // Vite-specific hooks
         vite: {
-            configResolved(config: any) {
+            async configResolved(config: any) {
                 if (options.disabled) return;
                 projectRoot = config.root ?? process.cwd();
-                projectId = options.projectId ?? readPackageName(projectRoot);
+                projectId = await resolveProjectId(projectRoot, options.projectId);
             },
 
             configureServer(server: any) {
                 if (options.disabled) return;
                 isActive = true;
                 connectMcp();
+                logCaptureCleanup = installNodeLogCapture(emitEvent);
                 server.httpServer?.once('close', () => {
                     disconnectMcp();
                 });
@@ -276,7 +295,9 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
 
             // Resolve project root from webpack context
             projectRoot = compiler.options?.context ?? process.cwd();
-            projectId = options.projectId ?? readPackageName(projectRoot);
+            void resolveProjectId(projectRoot, options.projectId).then((id) => {
+                projectId = id;
+            });
 
             // Skip entirely in production
             if (compiler.options?.mode === 'production') return;
@@ -285,6 +306,7 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
             compiler.hooks.afterEnvironment.tap('harnessa-fe', () => {
                 isActive = true;
                 connectMcp();
+                logCaptureCleanup = installNodeLogCapture(emitEvent);
             });
 
             // Disconnect on shutdown

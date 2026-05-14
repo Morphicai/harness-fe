@@ -18,6 +18,7 @@ import {
     frameSchema,
 } from '@morphixai/harnessa-fe.protocol';
 import type { IBridge, SendCommandOptions } from './bridge.js';
+import type { IMemoryStore } from './store/index.js';
 
 const DEFAULT_CALL_TIMEOUT_MS = 30_000;
 
@@ -94,6 +95,10 @@ export class RemoteBridge implements IBridge {
 
     resolveTask(id: string, note?: string): Promise<Task | undefined> {
         return this.invoke('resolveTask', { id, note }) as Promise<Task | undefined>;
+    }
+
+    getMemoryStore(): IMemoryStore {
+        throw new Error('remote-bridge: getMemoryStore() is not available in follower mode');
     }
 
     private invoke(method: McpCallFrame['method'], args: unknown): Promise<unknown> {
