@@ -26,6 +26,7 @@ Thumbs.db
 
 # Local dev tool configs (contain machine-specific paths & permissions)
 .claude/
+.codex/
 .kiro/
 .mcp.json
 
