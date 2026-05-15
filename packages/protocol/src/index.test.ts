@@ -10,6 +10,7 @@ import {
     frameSchema,
     helloAckFrameSchema,
     helloFrameSchema,
+    rrwebChunkPayloadSchema,
     responseFrameSchema,
     returnSizeSchema,
     selectorSchema,
@@ -88,6 +89,17 @@ describe('frames', () => {
             payload: { level: 'log', args: ['hi'] },
         };
         expect(eventFrameSchema.parse(f).name).toBe('console');
+    });
+
+    it('rrweb chunk payload validates bounded metadata plus events', () => {
+        const payload = {
+            chunkId: 'rrc_000001',
+            startTs: 1000,
+            endTs: 1200,
+            eventCount: 2,
+            events: [{ type: 4 }, { type: 3, data: { source: 5 } }],
+        };
+        expect(rrwebChunkPayloadSchema.parse(payload).eventCount).toBe(2);
     });
 });
 

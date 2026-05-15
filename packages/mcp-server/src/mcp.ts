@@ -591,6 +591,76 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
     );
 
     server.registerTool(
+        'session.recordings.list',
+        {
+            description: 'List rrweb recording chunks available for a session or tab.',
+            inputSchema: {
+                sessionId: z.string(),
+                tabId: z.string().optional().describe('Optional tab ID to narrow results'),
+            },
+        },
+        async ({ sessionId, tabId }) => {
+            const session = store.getSession(sessionId);
+            if (!session) {
+                return ok({ error: 'session not found', sessionId });
+            }
+            const chunks = store.listRecordings(sessionId, tabId);
+            return ok({ chunks, intervals: meltRecordingIntervals(chunks) });
+        },
+    );
+
+    server.registerTool(
+        'session.recordings.around',
+        {
+            description: 'Find rrweb recording chunks overlapping a window around a timestamp.',
+            inputSchema: {
+                sessionId: z.string(),
+                ts: z.number().describe('Center timestamp in Unix ms'),
+                windowMs: z.number().int().positive().default(15_000).optional(),
+                tabId: z.string().optional(),
+            },
+        },
+        async ({ sessionId, ts, windowMs, tabId }) => {
+            const session = store.getSession(sessionId);
+            if (!session) {
+                return ok({ error: 'session not found', sessionId });
+            }
+            const radius = windowMs ?? 15_000;
+            const since = ts - radius;
+            const until = ts + radius;
+            const chunks = store.listRecordings(sessionId, tabId)
+                .filter((chunk) => chunk.endTs >= since && chunk.startTs <= until);
+            const markers = store.tail(
+                sessionId,
+                { n: 200, type: 'rrweb:marker', since, until },
+                tabId,
+            ).filter((marker) => chunks.some((chunk) => chunk.endTs >= marker.ts && chunk.startTs <= marker.ts));
+            return ok({ since, until, chunks, intervals: meltRecordingIntervals(chunks), markers });
+        },
+    );
+
+    server.registerTool(
+        'session.recordings.slice',
+        {
+            description: 'Return rrweb recording chunks overlapping a requested time window.',
+            inputSchema: {
+                sessionId: z.string(),
+                since: z.number().describe('Start timestamp in Unix ms'),
+                until: z.number().describe('End timestamp in Unix ms'),
+                tabId: z.string().optional(),
+            },
+        },
+        async ({ sessionId, since, until, tabId }) => {
+            const session = store.getSession(sessionId);
+            if (!session) {
+                return ok({ error: 'session not found', sessionId });
+            }
+            const chunks = store.sliceRecordings(sessionId, since, until, tabId);
+            return ok({ since, until, chunks, intervals: meltRecordingIntervals(chunks) });
+        },
+    );
+
+    server.registerTool(
         'project.memory.set',
         {
             description: 'Write or update a persistent memory entry for a project (cross-session knowledge for the agent).',
@@ -661,10 +731,27 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
                 maxAgeDays: z.number().int().positive().default(7).optional(),
                 maxSessionsPerProject: z.number().int().positive().default(20).optional(),
                 recordingRetentionDays: z.number().int().positive().default(3).optional(),
+                maxRecordingChunksPerTab: z.number().int().positive().optional(),
+                maxRecordingBytesPerTab: z.number().int().positive().optional(),
+                preserveMarkedChunks: z.boolean().optional(),
             },
         },
-        async ({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays }) => {
-            const result = store.purge({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays });
+        async ({
+            maxAgeDays,
+            maxSessionsPerProject,
+            recordingRetentionDays,
+            maxRecordingChunksPerTab,
+            maxRecordingBytesPerTab,
+            preserveMarkedChunks,
+        }) => {
+            const result = store.purge({
+                maxAgeDays,
+                maxSessionsPerProject,
+                recordingRetentionDays,
+                maxRecordingChunksPerTab,
+                maxRecordingBytesPerTab,
+                preserveMarkedChunks,
+            });
             return ok({
                 sessionsDeleted: result.sessionsDeleted,
                 recordingsDeleted: result.recordingsDeleted,
@@ -687,6 +774,8 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
         summaryAsync(sessionId: string): Promise<unknown>;
         tailAsync(sessionId: string, opts?: unknown, tabId?: string): Promise<unknown>;
         searchAsync(sessionId: string, query: string, opts?: unknown, tabId?: string): Promise<unknown>;
+        listRecordingsAsync(sessionId: string, tabId?: string): Promise<unknown>;
+        sliceRecordingsAsync(sessionId: string, since: number, until: number, tabId?: string): Promise<unknown>;
         purgeAsync(policy?: unknown): Promise<unknown>;
     };
     const remoteMem = bridge.getMemoryStore() as ReturnType<RemoteBridge['getMemoryStore']> & {
@@ -791,6 +880,99 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
     );
 
     server.registerTool(
+        'session.recordings.list',
+        {
+            description: 'List rrweb recording chunks available for a session or tab.',
+            inputSchema: {
+                sessionId: z.string(),
+                tabId: z.string().optional().describe('Optional tab ID to narrow results'),
+            },
+        },
+        async ({ sessionId, tabId }) => {
+            const chunks = await remoteStore.listRecordingsAsync(sessionId, tabId);
+            return ok({ chunks, intervals: meltRecordingIntervals(chunks as Array<{
+                startTs: number;
+                endTs: number;
+                chunkId: string;
+                tabId: string;
+                eventCount: number;
+            }>) });
+        },
+    );
+
+    server.registerTool(
+        'session.recordings.around',
+        {
+            description: 'Find rrweb recording chunks overlapping a window around a timestamp.',
+            inputSchema: {
+                sessionId: z.string(),
+                ts: z.number().describe('Center timestamp in Unix ms'),
+                windowMs: z.number().int().positive().default(15_000).optional(),
+                tabId: z.string().optional(),
+            },
+        },
+        async ({ sessionId, ts, windowMs, tabId }) => {
+            const radius = windowMs ?? 15_000;
+            const since = ts - radius;
+            const until = ts + radius;
+            const chunks = await remoteStore.listRecordingsAsync(sessionId, tabId) as Array<{
+                startTs: number;
+                endTs: number;
+            }>;
+            const markers = await remoteStore.tailAsync(
+                sessionId,
+                { n: 200, type: 'rrweb:marker', since, until },
+                tabId,
+            ) as Array<{ ts: number }>;
+            return ok({
+                since,
+                until,
+                chunks: chunks.filter((chunk) => chunk.endTs >= since && chunk.startTs <= until),
+                intervals: meltRecordingIntervals(
+                    chunks.filter((chunk) => chunk.endTs >= since && chunk.startTs <= until) as Array<{
+                        startTs: number;
+                        endTs: number;
+                        chunkId: string;
+                        tabId: string;
+                        eventCount: number;
+                    }>,
+                ),
+                markers: markers.filter((marker) =>
+                    chunks.some((chunk) => chunk.endTs >= marker.ts && chunk.startTs <= marker.ts),
+                ),
+            });
+        },
+    );
+
+    server.registerTool(
+        'session.recordings.slice',
+        {
+            description: 'Return rrweb recording chunks overlapping a requested time window.',
+            inputSchema: {
+                sessionId: z.string(),
+                since: z.number().describe('Start timestamp in Unix ms'),
+                until: z.number().describe('End timestamp in Unix ms'),
+                tabId: z.string().optional(),
+            },
+        },
+        async ({ sessionId, since, until, tabId }) => {
+            const chunks = await remoteStore.sliceRecordingsAsync(sessionId, since, until, tabId);
+            return ok({
+                since,
+                until,
+                chunks,
+                intervals: meltRecordingIntervals(chunks as Array<{
+                    startTs: number;
+                    endTs: number;
+                    chunkId: string;
+                    tabId: string;
+                    eventCount: number;
+                }>),
+            });
+        },
+    );
+
+    server.registerTool(
         'project.memory.set',
         {
             description: 'Write or update a persistent memory entry for a project (cross-session knowledge for the agent).',
@@ -861,11 +1043,77 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
                 maxAgeDays: z.number().int().positive().default(7).optional(),
                 maxSessionsPerProject: z.number().int().positive().default(20).optional(),
                 recordingRetentionDays: z.number().int().positive().default(3).optional(),
+                maxRecordingChunksPerTab: z.number().int().positive().optional(),
+                maxRecordingBytesPerTab: z.number().int().positive().optional(),
+                preserveMarkedChunks: z.boolean().optional(),
             },
         },
-        async ({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays }) => {
-            const result = await remoteStore.purgeAsync({ maxAgeDays, maxSessionsPerProject, recordingRetentionDays });
+        async ({
+            maxAgeDays,
+            maxSessionsPerProject,
+            recordingRetentionDays,
+            maxRecordingChunksPerTab,
+            maxRecordingBytesPerTab,
+            preserveMarkedChunks,
+        }) => {
+            const result = await remoteStore.purgeAsync({
+                maxAgeDays,
+                maxSessionsPerProject,
+                recordingRetentionDays,
+                maxRecordingChunksPerTab,
+                maxRecordingBytesPerTab,
+                preserveMarkedChunks,
+            });
             return ok(result);
         },
     );
+}
+
+function meltRecordingIntervals(chunks: Array<{
+    chunkId: string;
+    tabId: string;
+    startTs: number;
+    endTs: number;
+    eventCount: number;
+}>): Array<{
+    startTs: number;
+    endTs: number;
+    chunkCount: number;
+    eventCount: number;
+    chunkIds: string[];
+    tabIds: string[];
+}> {
+    if (chunks.length === 0) return [];
+    const sorted = [...chunks].sort((a, b) => a.startTs - b.startTs || a.endTs - b.endTs);
+    const intervals: Array<{
+        startTs: number;
+        endTs: number;
+        chunkCount: number;
+        eventCount: number;
+        chunkIds: string[];
+        tabIds: string[];
+    }> = [];
+
+    for (const chunk of sorted) {
+        const last = intervals[intervals.length - 1];
+        if (!last || chunk.startTs > last.endTs) {
+            intervals.push({
+                startTs: chunk.startTs,
+                endTs: chunk.endTs,
+                chunkCount: 1,
+                eventCount: chunk.eventCount,
+                chunkIds: [chunk.chunkId],
+                tabIds: [chunk.tabId],
+            });
+            continue;
+        }
+
+        last.endTs = Math.max(last.endTs, chunk.endTs);
+        last.chunkCount += 1;
+        last.eventCount += chunk.eventCount;
+        last.chunkIds.push(chunk.chunkId);
+        if (!last.tabIds.includes(chunk.tabId)) last.tabIds.push(chunk.tabId);
+    }
+
+    return intervals;
 }

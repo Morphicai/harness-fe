@@ -87,6 +87,15 @@ export const eventFrameSchema = z.object({
 });
 export type EventFrame = z.infer<typeof eventFrameSchema>;
 
+export const rrwebChunkPayloadSchema = z.object({
+    chunkId: z.string(),
+    startTs: z.number(),
+    endTs: z.number(),
+    eventCount: z.number().int().nonnegative(),
+    events: z.array(z.unknown()),
+});
+export type RrwebChunkPayload = z.infer<typeof rrwebChunkPayloadSchema>;
+
 // ─── MCP follower channel ──────────────────────────────────────────────────
 //
 // Allows a second `morphix-dev-bridge` process to attach to an already-running
@@ -106,6 +115,8 @@ export const mcpMethodSchema = z.enum([
     'storeSummary',
     'storeTail',
     'storeSearch',
+    'storeRecordingsList',
+    'storeRecordingsSlice',
     'storePurge',
     'memorySet',
     'memoryGet',
@@ -182,6 +193,7 @@ export type CommandName = typeof COMMAND[keyof typeof COMMAND];
 
 export const EVENT_NAME = {
     TASK_SUBMIT: 'task.submit',
+    RRWEB: 'rrweb',
 } as const;
 
 // ─── User-submitted annotation tasks ────────────────────────────────────────

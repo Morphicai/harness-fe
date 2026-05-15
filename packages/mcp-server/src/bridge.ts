@@ -19,6 +19,7 @@ import {
     DEFAULT_WS_PORT,
     EVENT_NAME,
     PROTOCOL_VERSION,
+    rrwebChunkPayloadSchema,
     taskSubmitPayloadSchema,
     type CommandFrame,
     type EventFrame,
@@ -594,16 +595,52 @@ export class Bridge implements IBridge {
                 if (this.store) {
                     const storeSessionId = this.connToStoreSession.get(connectionId);
                     if (storeSessionId) {
-                        this.store.append(
-                            storeSessionId,
-                            {
-                                ts: frame.ts ?? Date.now(),
-                                t: frame.name as string,
-                                tab: frame.tabId ?? peer.tabId,
-                                d: frame.payload,
-                            },
-                            frame.tabId ?? peer.tabId,
-                        );
+                        const tabId = frame.tabId ?? peer.tabId;
+                        if (frame.name === EVENT_NAME.RRWEB && tabId) {
+                            const parsed = rrwebChunkPayloadSchema.safeParse(frame.payload);
+                            if (parsed.success) {
+                                this.store.appendRecording(storeSessionId, tabId, parsed.data);
+                                this.store.append(
+                                    storeSessionId,
+                                    {
+                                        ts: frame.ts ?? Date.now(),
+                                        t: 'rrweb',
+                                        tab: tabId,
+                                        d: {
+                                            chunkId: parsed.data.chunkId,
+                                            startTs: parsed.data.startTs,
+                                            endTs: parsed.data.endTs,
+                                            eventCount: parsed.data.eventCount,
+                                        },
+                                    },
+                                    tabId,
+                                );
+                            }
+                        } else {
+                            this.store.append(
+                                storeSessionId,
+                                {
+                                    ts: frame.ts ?? Date.now(),
+                                    t: frame.name as string,
+                                    tab: tabId,
+                                    d: frame.payload,
+                                },
+                                tabId,
+                            );
+                        }
+                        const marker = deriveRecordingMarker(frame, tabId);
+                        if (marker) {
+                            this.store.append(
+                                storeSessionId,
+                                {
+                                    ts: frame.ts ?? Date.now(),
+                                    t: 'rrweb:marker',
+                                    tab: tabId,
+                                    d: marker,
+                                },
+                                tabId,
+                            );
+                        }
                     }
                 }
                 for (const listener of this.eventListeners) {
@@ -704,6 +741,16 @@ export class Bridge implements IBridge {
                 };
                 return this.store.search(a.sessionId, a.query, a.opts, a.tabId);
             }
+            case 'storeRecordingsList': {
+                if (!this.store) throw new Error('bridge: store is not enabled');
+                const a = args as { sessionId: string; tabId?: string };
+                return this.store.listRecordings(a.sessionId, a.tabId);
+            }
+            case 'storeRecordingsSlice': {
+                if (!this.store) throw new Error('bridge: store is not enabled');
+                const a = args as { sessionId: string; since: number; until: number; tabId?: string };
+                return this.store.sliceRecordings(a.sessionId, a.since, a.until, a.tabId);
+            }
             case 'storePurge': {
                 if (!this.store) throw new Error('bridge: store is not enabled');
                 const a = (args ?? {}) as import('./store/index.js').RetentionPolicy;
@@ -728,6 +775,69 @@ export class Bridge implements IBridge {
             }
         }
     }
+}
+
+function deriveRecordingMarker(frame: EventFrame, tabId?: string): Record<string, unknown> | undefined {
+    if (!tabId) return undefined;
+
+    if (frame.name === 'error') {
+        const payload = frame.payload as { message?: unknown; source?: unknown } | undefined;
+        return {
+            markerId: `rrm_${frame.id}`,
+            kind: 'error',
+            ts: frame.ts,
+            tabId,
+            label: typeof payload?.message === 'string' ? payload.message : 'Runtime error',
+            relatedEventType: 'error',
+            source: typeof payload?.source === 'string' ? payload.source : undefined,
+        };
+    }
+
+    if (frame.name === 'network') {
+        const payload = frame.payload as { status?: unknown; method?: unknown; url?: unknown } | undefined;
+        const status = typeof payload?.status === 'number' ? payload.status : undefined;
+        if (status === undefined || (status > 0 && status < 400)) return undefined;
+        const method = typeof payload?.method === 'string' ? payload.method : 'REQUEST';
+        const url = typeof payload?.url === 'string' ? payload.url : 'unknown URL';
+        return {
+            markerId: `rrm_${frame.id}`,
+            kind: 'network',
+            ts: frame.ts,
+            tabId,
+            label: `${method} ${url} -> ${status ?? 'ERR'}`,
+            relatedEventType: 'network',
+            status,
+        };
+    }
+
+    if (frame.name === 'console') {
+        const payload = frame.payload as { level?: unknown; args?: unknown } | undefined;
+        if (payload?.level !== 'error') return undefined;
+        const firstArg = Array.isArray(payload.args) ? payload.args[0] : undefined;
+        return {
+            markerId: `rrm_${frame.id}`,
+            kind: 'console',
+            ts: frame.ts,
+            tabId,
+            label: typeof firstArg === 'string' ? firstArg : 'console.error',
+            relatedEventType: 'console',
+        };
+    }
+
+    if (frame.name === EVENT_NAME.TASK_SUBMIT) {
+        const parsed = taskSubmitPayloadSchema.safeParse(frame.payload);
+        if (!parsed.success) return undefined;
+        return {
+            markerId: `rrm_${frame.id}`,
+            kind: 'task',
+            ts: frame.ts,
+            tabId,
+            label: parsed.data.question,
+            relatedEventType: EVENT_NAME.TASK_SUBMIT,
+        };
+    }
+
+    return undefined;
 }
 
 /**

@@ -24,6 +24,8 @@ import type {
     MemoryEntry,
     ProjectMeta,
     PurgeResult,
+    RecordingChunk,
+    RecordingChunkSummary,
     RetentionPolicy,
     SearchOptions,
     SessionMeta,
@@ -280,6 +282,17 @@ class RemoteStore implements IStore {
         return this.bridge.invokeRemote('storeSearch', { sessionId, query, opts, tabId }) as Promise<StoreEvent[]>;
     }
 
+    async listRecordingsAsync(sessionId: string, tabId?: string): Promise<RecordingChunkSummary[]> {
+        return this.bridge.invokeRemote('storeRecordingsList', { sessionId, tabId }) as Promise<RecordingChunkSummary[]>;
+    }
+
+    async sliceRecordingsAsync(sessionId: string, since: number, until: number, tabId?: string): Promise<RecordingChunk[]> {
+        return this.bridge.invokeRemote(
+            'storeRecordingsSlice',
+            { sessionId, since, until, tabId },
+        ) as Promise<RecordingChunk[]>;
+    }
+
     async purgeAsync(policy?: RetentionPolicy): Promise<PurgeResult> {
         return this.bridge.invokeRemote('storePurge', policy ?? {}) as Promise<PurgeResult>;
     }
@@ -293,6 +306,8 @@ class RemoteStore implements IStore {
     getSession(_id: string): SessionMeta | undefined { throw notSupported('getSession'); }
     tail(_s: string, _o?: TailOptions, _t?: string): StoreEvent[] { throw notSupported('tail'); }
     search(_s: string, _q: string, _o?: SearchOptions, _t?: string): StoreEvent[] { throw notSupported('search'); }
+    listRecordings(_s: string, _t?: string): RecordingChunkSummary[] { throw notSupported('listRecordings'); }
+    sliceRecordings(_s: string, _since: number, _until: number, _t?: string): RecordingChunk[] { throw notSupported('sliceRecordings'); }
     summary(_s: string): SessionSummary { throw notSupported('summary'); }
     purge(_p?: RetentionPolicy): PurgeResult { throw notSupported('purge'); }
     listNotes(_p: string): Array<{ key: string; value: string; ts: number }> { throw notSupported('listNotes'); }
@@ -304,7 +319,7 @@ class RemoteStore implements IStore {
     closeTab(_s: string, _t: string): void { throw notSupported('closeTab'); }
     append(_s: string, _e: StoreEvent, _t?: string): void { throw notSupported('append'); }
     appendBatch(_s: string, _e: StoreEvent[], _t?: string): void { throw notSupported('appendBatch'); }
-    appendRecording(_s: string, _t: string, _e: unknown[]): void { throw notSupported('appendRecording'); }
+    appendRecording(_s: string, _t: string, _c: unknown): void { throw notSupported('appendRecording'); }
     writeNote(_p: string, _k: string, _v: string): void { throw notSupported('writeNote'); }
     close(): void { /* no-op for remote */ }
 }

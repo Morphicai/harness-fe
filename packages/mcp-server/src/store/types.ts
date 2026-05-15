@@ -106,6 +106,18 @@ export interface SearchOptions {
     limit?: number;
 }
 
+export interface RecordingChunkSummary {
+    chunkId: string;
+    tabId: string;
+    startTs: number;
+    endTs: number;
+    eventCount: number;
+}
+
+export interface RecordingChunk extends RecordingChunkSummary {
+    events: unknown[];
+}
+
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
 export interface SessionSummary {
@@ -125,6 +137,12 @@ export interface RetentionPolicy {
     maxSessionsPerProject?: number;
     /** Delete recording.jsonl files older than this many days. Default 3. */
     recordingRetentionDays?: number;
+    /** Keep at most this many recording chunks per tab. */
+    maxRecordingChunksPerTab?: number;
+    /** Keep at most this many bytes of recording data per tab. */
+    maxRecordingBytesPerTab?: number;
+    /** Prefer keeping chunks that overlap rrweb markers when trimming by count/bytes. */
+    preserveMarkedChunks?: boolean;
 }
 
 export interface PurgeResult {
@@ -206,7 +224,7 @@ export interface IStore {
     /**
      * Append an rrweb recording chunk to a tab's recording file.
      */
-    appendRecording(sessionId: string, tabId: string, events: unknown[]): void;
+    appendRecording(sessionId: string, tabId: string, chunk: unknown): void;
 
     /**
      * Write a project-level note (cross-session knowledge).
@@ -234,6 +252,12 @@ export interface IStore {
      * Search events in a session timeline by substring match on the raw JSON line.
      */
     search(sessionId: string, query: string, opts?: SearchOptions, tabId?: string): StoreEvent[];
+
+    /** List recording chunks for a session or a specific tab. */
+    listRecordings(sessionId: string, tabId?: string): RecordingChunkSummary[];
+
+    /** Return recording chunks overlapping the requested time window. */
+    sliceRecordings(sessionId: string, since: number, until: number, tabId?: string): RecordingChunk[];
 
     /** Get a summary of a session (counts, last error, etc.). */
     summary(sessionId: string): SessionSummary;

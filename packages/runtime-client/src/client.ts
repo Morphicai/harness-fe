@@ -8,6 +8,7 @@
 import {
     COMMAND,
     DEFAULT_WS_PORT,
+    EVENT_NAME,
     type CommandFrame,
     type EventFrame,
     type Frame,
@@ -17,6 +18,7 @@ import {
 } from '@morphixai/harnessa-fe.protocol';
 import { getCaptureStore } from './capture.js';
 import { commandHandlers, type CommandContext } from './commands.js';
+import { RrwebRecorder } from './recording.js';
 
 export interface ClientOptions {
     projectId: string;
@@ -41,6 +43,7 @@ export class RuntimeClient {
     private ws?: WebSocket;
     private readonly tabId = getOrCreateTabId();
     private readonly ctx: CommandContext = { capture: getCaptureStore() };
+    private readonly recorder = new RrwebRecorder((chunk) => this.sendEvent(EVENT_NAME.RRWEB, chunk));
     private reconnectAttempts = 0;
     private closed = false;
 
@@ -48,11 +51,13 @@ export class RuntimeClient {
 
     start(): void {
         this.ctx.capture.install((name, payload) => this.sendEvent(name, payload));
+        this.recorder.start();
         this.connect();
     }
 
     stop(): void {
         this.closed = true;
+        this.recorder.stop();
         this.ws?.close();
     }
 
