@@ -1,0 +1,19 @@
+schema: spec-driven
+
+context: |
+  Tech stack: TypeScript monorepo with packages for runtime-client, mcp-server, protocol, and build tooling.
+  We use conventional commits.
+  Domain: browser session observability for AI agents, including rrweb recordings, timeline history, markers, and retention.
+  Current rrweb model: runtime client emits chunks, bridge stores raw chunks in tab-scoped recording.jsonl, timeline stores compact metadata, query-time interval melting returns merged coverage windows, and retention is configurable and marker-aware.
+  This project is pre-launch. Prefer direct implementation over compatibility or migration layers.
+
+rules:
+  proposal:
+    - Keep proposals focused on behavior and scope.
+    - Include non-goals when there is a plausible scope boundary.
+  design:
+    - Describe the current contract and the intended storage/query model.
+    - Avoid compatibility or migration detail unless the change explicitly needs it.
+  tasks:
+    - Break work into implementation-sized steps.
+    - Mark only completed work as done.
