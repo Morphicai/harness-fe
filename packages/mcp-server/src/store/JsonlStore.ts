@@ -36,6 +36,8 @@ import type {
     IStore,
     ProjectMeta,
     PurgeResult,
+    RecordingChunk,
+    RecordingChunkSummary,
     RetentionPolicy,
     SearchOptions,
     SessionMeta,
@@ -50,6 +52,9 @@ const DEFAULT_RETENTION: Required<RetentionPolicy> = {
     maxAgeDays: 7,
     maxSessionsPerProject: 20,
     recordingRetentionDays: 3,
+    maxRecordingChunksPerTab: 500,
+    maxRecordingBytesPerTab: 250 * 1024 * 1024,
+    preserveMarkedChunks: true,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -126,6 +131,68 @@ function parseEvent(line: string): StoreEvent | undefined {
     } catch {
         return undefined;
     }
+}
+
+function parseJsonLine<T>(line: string): T | undefined {
+    try {
+        return JSON.parse(line) as T;
+    } catch {
+        return undefined;
+    }
+}
+
+interface RecordingChunkRecord extends RecordingChunk {
+    line: string;
+    bytes: number;
+    marked: boolean;
+    ageTs: number;
+}
+
+function parseRecordingChunkLine(
+    line: string,
+    tabId: string,
+    fallbackAgeTs: number,
+    index: number,
+): RecordingChunkRecord | undefined {
+    const parsed = parseJsonLine<Record<string, unknown>>(line);
+    if (!parsed || !Array.isArray(parsed.events)) return undefined;
+
+    const chunkId =
+        typeof parsed.chunkId === 'string'
+            ? parsed.chunkId
+            : `legacy_${index.toString().padStart(6, '0')}`;
+    const startTs =
+        typeof parsed.startTs === 'number'
+            ? parsed.startTs
+            : typeof parsed.ts === 'number'
+              ? parsed.ts
+              : undefined;
+    const endTs =
+        typeof parsed.endTs === 'number'
+            ? parsed.endTs
+            : typeof parsed.ts === 'number'
+              ? parsed.ts
+              : undefined;
+    if (startTs === undefined || endTs === undefined) return undefined;
+
+    return {
+        chunkId,
+        tabId,
+        startTs,
+        endTs,
+        eventCount:
+            typeof parsed.eventCount === 'number'
+                ? parsed.eventCount
+                : parsed.events.length,
+        events: parsed.events,
+        line,
+        bytes: Buffer.byteLength(`${line}\n`, 'utf-8'),
+        marked: false,
+        ageTs:
+            typeof parsed.endTs === 'number'
+                ? parsed.endTs
+                : fallbackAgeTs,
+    };
 }
 
 function matchesType(event: StoreEvent, type: string | string[] | undefined): boolean {
@@ -382,17 +449,18 @@ export class JsonlStore implements IStore {
         }
     }
 
-    appendRecording(sessionId: string, tabId: string, events: unknown[]): void {
+    appendRecording(sessionId: string, tabId: string, chunk: unknown): void {
         const projectId = this.resolveProject(sessionId);
         if (!projectId) return;
         const tabDir = this.tabDir(projectId, sessionId, tabId);
         ensureDir(tabDir);
-        // Each chunk is one line: { ts, events: [...] }
+        const line = Array.isArray(chunk) ? { ts: Date.now(), events: chunk } : chunk;
+        // Each chunk is one line in recording.jsonl.
         // Write ONLY to recording.jsonl — NOT to session or tab timeline
         this.writeQueue.enqueue(
             this.tabRecording(projectId, sessionId, tabId),
             sessionId,
-            JSON.stringify({ ts: Date.now(), events }),
+            JSON.stringify(line),
         );
     }
 
@@ -509,6 +577,58 @@ export class JsonlStore implements IStore {
         return results;
     }
 
+    listRecordings(sessionId: string, tabId?: string): RecordingChunkSummary[] {
+        const projectId = this.resolveProject(sessionId);
+        if (!projectId) return [];
+
+        const tabIds = tabId ? [tabId] : this.listTabIds(projectId, sessionId);
+        const chunks: RecordingChunkSummary[] = [];
+
+        for (const currentTabId of tabIds) {
+            const lines = readAllLines(this.tabRecording(projectId, sessionId, currentTabId));
+            lines.forEach((line, index) => {
+                const chunk = parseRecordingChunkLine(line, currentTabId, 0, index);
+                if (!chunk) return;
+                chunks.push({
+                    chunkId: chunk.chunkId,
+                    tabId: currentTabId,
+                    startTs: chunk.startTs,
+                    endTs: chunk.endTs,
+                    eventCount: chunk.eventCount,
+                });
+            });
+        }
+
+        return chunks.sort((a, b) => a.startTs - b.startTs);
+    }
+
+    sliceRecordings(sessionId: string, since: number, until: number, tabId?: string): RecordingChunk[] {
+        const projectId = this.resolveProject(sessionId);
+        if (!projectId) return [];
+
+        const tabIds = tabId ? [tabId] : this.listTabIds(projectId, sessionId);
+        const chunks: RecordingChunk[] = [];
+
+        for (const currentTabId of tabIds) {
+            const lines = readAllLines(this.tabRecording(projectId, sessionId, currentTabId));
+            lines.forEach((line, index) => {
+                const chunk = parseRecordingChunkLine(line, currentTabId, 0, index);
+                if (!chunk) return;
+                if (chunk.endTs < since || chunk.startTs > until) return;
+                chunks.push({
+                    chunkId: chunk.chunkId,
+                    tabId: currentTabId,
+                    startTs: chunk.startTs,
+                    endTs: chunk.endTs,
+                    eventCount: chunk.eventCount,
+                    events: chunk.events,
+                });
+            });
+        }
+
+        return chunks.sort((a, b) => a.startTs - b.startTs);
+    }
+
     summary(sessionId: string): SessionSummary {
         const session = this.getSession(sessionId);
         const projectId = this.resolveProject(sessionId);
@@ -569,6 +689,14 @@ export class JsonlStore implements IStore {
         return [...latest.values()].sort((a, b) => b.ts - a.ts);
     }
 
+    private listTabIds(projectId: string, sessionId: string): string[] {
+        const tabsDir = join(this.sessionDir(projectId, sessionId), 'tabs');
+        if (!existsSync(tabsDir)) return [];
+        return readdirSync(tabsDir, { withFileTypes: true })
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => entry.name);
+    }
+
     // ── Maintenance ───────────────────────────────────────────────────────
 
     purge(policy: RetentionPolicy = {}): PurgeResult {
@@ -611,7 +739,7 @@ export class JsonlStore implements IStore {
                 }
             }
 
-            // Delete old recording files (keep timeline, just remove rrweb)
+            // Trim recording data per tab while preserving timeline history.
             for (const sess of this.listSessions(proj.id, 1000)) {
                 const tabsDir = join(this.sessionDir(proj.id, sess.id), 'tabs');
                 if (!existsSync(tabsDir)) continue;
@@ -619,13 +747,15 @@ export class JsonlStore implements IStore {
                     if (!tabEntry.isDirectory()) continue;
                     const recPath = join(tabsDir, tabEntry.name, 'recording.jsonl');
                     if (!existsSync(recPath)) continue;
-                    const { mtimeMs } = statSync(recPath);
-                    if (now - mtimeMs > recMaxAge) {
-                        const size = statSync(recPath).size;
-                        unlinkSync(recPath);
-                        bytesFreed += size;
-                        recordingsDeleted++;
-                    }
+                    const result = this.pruneRecordingFile(
+                        recPath,
+                        this.tabTimeline(proj.id, sess.id, tabEntry.name),
+                        now,
+                        recMaxAge,
+                        p,
+                    );
+                    bytesFreed += result.bytesFreed;
+                    recordingsDeleted += result.chunksDeleted;
                 }
             }
         }
@@ -648,6 +778,85 @@ export class JsonlStore implements IStore {
         } catch (err) {
             console.error('[JsonlStore] close: drain failed:', err);
         }
+    }
+
+    private pruneRecordingFile(
+        recPath: string,
+        tabTimelinePath: string,
+        now: number,
+        recMaxAge: number,
+        policy: Required<RetentionPolicy>,
+    ): { chunksDeleted: number; bytesFreed: number } {
+        const lines = readAllLines(recPath);
+        if (lines.length === 0) return { chunksDeleted: 0, bytesFreed: 0 };
+        const fallbackAgeTs = statSync(recPath).mtimeMs;
+
+        const markerTimestamps = this.readMarkerTimestamps(tabTimelinePath);
+        const chunks: RecordingChunkRecord[] = [];
+
+        lines.forEach((line, index) => {
+            const chunk = parseRecordingChunkLine(line, '', fallbackAgeTs, index);
+            if (!chunk) return;
+            chunk.marked = markerTimestamps.some((ts) => ts >= chunk.startTs && ts <= chunk.endTs);
+            chunks.push(chunk);
+        });
+
+        if (chunks.length === 0) return { chunksDeleted: 0, bytesFreed: 0 };
+
+        const removed = new Set<string>();
+
+        for (const chunk of chunks) {
+            if (now - chunk.ageTs > recMaxAge) removed.add(chunk.chunkId);
+        }
+
+        let kept = chunks.filter((chunk) => !removed.has(chunk.chunkId));
+
+        const chooseRemovalCandidate = (): RecordingChunkRecord | undefined => {
+            if (kept.length === 0) return undefined;
+            const sorted = [...kept].sort((a, b) => a.startTs - b.startTs);
+            if (!policy.preserveMarkedChunks) return sorted[0];
+            return sorted.find((chunk) => !chunk.marked) ?? sorted[0];
+        };
+
+        while (kept.length > policy.maxRecordingChunksPerTab) {
+            const candidate = chooseRemovalCandidate();
+            if (!candidate) break;
+            removed.add(candidate.chunkId);
+            kept = kept.filter((chunk) => chunk.chunkId !== candidate.chunkId);
+        }
+
+        let totalBytes = kept.reduce((sum, chunk) => sum + chunk.bytes, 0);
+        while (totalBytes > policy.maxRecordingBytesPerTab) {
+            const candidate = chooseRemovalCandidate();
+            if (!candidate) break;
+            removed.add(candidate.chunkId);
+            kept = kept.filter((chunk) => chunk.chunkId !== candidate.chunkId);
+            totalBytes = kept.reduce((sum, chunk) => sum + chunk.bytes, 0);
+        }
+
+        if (removed.size === 0) return { chunksDeleted: 0, bytesFreed: 0 };
+
+        const bytesFreed = chunks
+            .filter((chunk) => removed.has(chunk.chunkId))
+            .reduce((sum, chunk) => sum + chunk.bytes, 0);
+
+        if (kept.length === 0) {
+            unlinkSync(recPath);
+        } else {
+            writeFileSync(recPath, `${kept.map((chunk) => chunk.line).join('\n')}\n`, 'utf-8');
+        }
+
+        return { chunksDeleted: removed.size, bytesFreed };
+    }
+
+    private readMarkerTimestamps(tabTimelinePath: string): number[] {
+        const timestamps: number[] = [];
+        for (const line of readAllLines(tabTimelinePath)) {
+            const event = parseEvent(line);
+            if (!event || event.t !== 'rrweb:marker') continue;
+            timestamps.push(event.ts);
+        }
+        return timestamps;
     }
 }
 

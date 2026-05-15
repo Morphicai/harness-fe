@@ -15,6 +15,8 @@ export type {
     SessionSummary,
     TailOptions,
     SearchOptions,
+    RecordingChunkSummary,
+    RecordingChunk,
     RetentionPolicy,
     PurgeResult,
 } from './types.js';

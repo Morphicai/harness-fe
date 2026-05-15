@@ -8,6 +8,7 @@ import { JsonlStore, JsonTaskStore } from './store/index.js';
 import {
     EVENT_NAME,
     PROTOCOL_VERSION,
+    type RrwebChunkPayload,
     type EventFrame,
     type Frame,
     type HelloAckFrame,
@@ -330,6 +331,138 @@ describe('Bridge', () => {
                 await b2.stop();
             }
         } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('persists rrweb payloads outside timeline entries while keeping timeline metadata', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-rrweb-'));
+        const store = new JsonlStore(dir);
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        await bridge.start();
+        try {
+            const port = getPort(bridge);
+            const projectId = 'rrweb-project';
+            const tabId = 'tab-rrweb-1';
+            const { pluginWs, ws } = await fakeClientWithSession(port, { tabId, projectId });
+
+            const payload: RrwebChunkPayload = {
+                chunkId: 'rrc_000001',
+                startTs: 1000,
+                endTs: 1400,
+                eventCount: 2,
+                events: [
+                    { type: 4, timestamp: 1000, data: { href: 'http://localhost:5173/', width: 1280, height: 720 } },
+                    { type: 3, timestamp: 1400, data: { source: 5, id: 1, text: 'abc', isChecked: false } },
+                ],
+            };
+
+            ws.send(JSON.stringify({
+                type: 'event',
+                id: 'rr1',
+                tabId,
+                projectId,
+                name: EVENT_NAME.RRWEB,
+                ts: 1500,
+                payload,
+            } satisfies EventFrame));
+
+            await new Promise((r) => setTimeout(r, 50));
+            await store.close();
+
+            const sessionId = store.listSessions(projectId, 1)[0]?.id;
+            expect(sessionId).toBeTruthy();
+
+            const rrwebLine = store.tail(sessionId!, { n: 20 }).find((line) => line.t === 'rrweb');
+            expect(rrwebLine).toBeTruthy();
+            expect(rrwebLine?.d).toMatchObject({
+                chunkId: payload.chunkId,
+                eventCount: payload.eventCount,
+            });
+            expect((rrwebLine?.d as { events?: unknown[] } | undefined)?.events).toBeUndefined();
+
+            const recordingPath = join(dir, projectId, 'sessions', sessionId!, 'tabs', tabId, 'recording.jsonl');
+            expect(existsSync(recordingPath)).toBe(true);
+            const recordingLines = readFileSync(recordingPath, 'utf-8')
+                .split('\n')
+                .filter((l) => l.trim());
+            expect(recordingLines).toHaveLength(1);
+            const recordingChunk = JSON.parse(recordingLines[0]);
+            expect(recordingChunk.chunkId).toBe(payload.chunkId);
+            expect(recordingChunk.events).toHaveLength(2);
+
+            pluginWs.close();
+            ws.close();
+        } finally {
+            await bridge.stop();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('derives rrweb markers from errors, failed network events, and task submissions', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-markers-'));
+        const store = new JsonlStore(dir);
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        await bridge.start();
+        try {
+            const port = getPort(bridge);
+            const projectId = 'marker-project';
+            const tabId = 'tab-marker-1';
+            const { pluginWs, ws } = await fakeClientWithSession(port, { tabId, projectId });
+
+            ws.send(JSON.stringify({
+                type: 'event',
+                id: 'err1',
+                tabId,
+                projectId,
+                name: 'error',
+                ts: 1100,
+                payload: { message: 'Unhandled boom' },
+            } satisfies EventFrame));
+
+            ws.send(JSON.stringify({
+                type: 'event',
+                id: 'net1',
+                tabId,
+                projectId,
+                name: 'network',
+                ts: 1200,
+                payload: { method: 'POST', url: '/api/save', status: 500 },
+            } satisfies EventFrame));
+
+            ws.send(JSON.stringify({
+                type: 'event',
+                id: 'task1',
+                tabId,
+                projectId,
+                name: EVENT_NAME.TASK_SUBMIT,
+                ts: 1300,
+                payload: {
+                    question: 'why did save fail?',
+                    url: 'http://localhost:5173/',
+                    selector: { comp: 'SaveBtn' },
+                    element: { tag: 'button', outerHTML: '<button>Save</button>' },
+                },
+            } satisfies EventFrame));
+
+            await new Promise((r) => setTimeout(r, 50));
+            await store.close();
+
+            const sessionId = store.listSessions(projectId, 1)[0]?.id;
+            expect(sessionId).toBeTruthy();
+            const markers = store.tail(sessionId!, { n: 20, type: 'rrweb:marker' });
+            expect(markers).toHaveLength(3);
+            expect(markers.map((marker) => (marker.d as { kind: string }).kind)).toEqual([
+                'error',
+                'network',
+                'task',
+            ]);
+            expect((markers[1].d as { label: string }).label).toContain('/api/save');
+
+            pluginWs.close();
+            ws.close();
+        } finally {
+            await bridge.stop();
             rmSync(dir, { recursive: true, force: true });
         }
     });

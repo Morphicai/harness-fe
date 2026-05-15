@@ -159,6 +159,143 @@ describe('JsonlStore', () => {
         // No error = pass; recordings are written to disk
     });
 
+    it('lists recording chunks across tabs in chronological order', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        store.openTab(sessId, { id: 'tab-2' });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_1',
+            startTs: 1000,
+            endTs: 1500,
+            eventCount: 2,
+            events: [{ type: 4 }, { type: 3 }],
+        });
+        store.appendRecording(sessId, 'tab-2', {
+            chunkId: 'rrc_2',
+            startTs: 2000,
+            endTs: 2500,
+            eventCount: 1,
+            events: [{ type: 3 }],
+        });
+
+        await store.flush();
+        expect(store.listRecordings(sessId)).toEqual([
+            { chunkId: 'rrc_1', tabId: 'tab-1', startTs: 1000, endTs: 1500, eventCount: 2 },
+            { chunkId: 'rrc_2', tabId: 'tab-2', startTs: 2000, endTs: 2500, eventCount: 1 },
+        ]);
+        expect(store.listRecordings(sessId, 'tab-1')).toEqual([
+            { chunkId: 'rrc_1', tabId: 'tab-1', startTs: 1000, endTs: 1500, eventCount: 2 },
+        ]);
+    });
+
+    it('slices recording chunks by overlapping time window', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_1',
+            startTs: 1000,
+            endTs: 1500,
+            eventCount: 2,
+            events: [{ type: 4 }, { type: 3 }],
+        });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_2',
+            startTs: 2000,
+            endTs: 2500,
+            eventCount: 1,
+            events: [{ type: 3 }],
+        });
+
+        await store.flush();
+        const slice = store.sliceRecordings(sessId, 1200, 2100);
+        expect(slice).toHaveLength(2);
+        expect(slice.map((chunk) => chunk.chunkId)).toEqual(['rrc_1', 'rrc_2']);
+        expect(slice[0].events).toHaveLength(2);
+        expect(store.sliceRecordings(sessId, 2600, 3000)).toEqual([]);
+    });
+
+    it('purge trims recording chunks by per-tab count limit', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_1',
+            startTs: Date.now() - 1000,
+            endTs: Date.now() - 900,
+            eventCount: 1,
+            events: [{ type: 4 }],
+        });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_2',
+            startTs: Date.now() - 800,
+            endTs: Date.now() - 700,
+            eventCount: 1,
+            events: [{ type: 4 }],
+        });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_3',
+            startTs: Date.now() - 600,
+            endTs: Date.now() - 500,
+            eventCount: 1,
+            events: [{ type: 4 }],
+        });
+
+        await store.flush();
+        const result = store.purge({
+            maxAgeDays: 7,
+            maxSessionsPerProject: 20,
+            recordingRetentionDays: 7,
+            maxRecordingChunksPerTab: 2,
+        });
+
+        expect(result.recordingsDeleted).toBe(1);
+        expect(store.listRecordings(sessId, 'tab-1').map((chunk) => chunk.chunkId)).toEqual(['rrc_2', 'rrc_3']);
+    });
+
+    it('purge prefers keeping marked chunks when configured', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        const now = Date.now();
+        store.append(sessId, {
+            ts: now - 450,
+            t: 'rrweb:marker',
+            tab: 'tab-1',
+            d: { markerId: 'rrm_1', kind: 'error', label: 'boom' },
+        }, 'tab-1');
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_1',
+            startTs: now - 1000,
+            endTs: now - 900,
+            eventCount: 1,
+            events: [{ type: 4 }],
+        });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_2',
+            startTs: now - 600,
+            endTs: now - 400,
+            eventCount: 1,
+            events: [{ type: 4 }],
+        });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_3',
+            startTs: now - 300,
+            endTs: now - 200,
+            eventCount: 1,
+            events: [{ type: 4 }],
+        });
+
+        await store.flush();
+        const result = store.purge({
+            maxAgeDays: 7,
+            maxSessionsPerProject: 20,
+            recordingRetentionDays: 7,
+            maxRecordingChunksPerTab: 2,
+            preserveMarkedChunks: true,
+        });
+
+        expect(result.recordingsDeleted).toBe(1);
+        expect(store.listRecordings(sessId, 'tab-1').map((chunk) => chunk.chunkId)).toEqual(['rrc_2', 'rrc_3']);
+    });
+
     // ── Search ───────────────────────────────────────────────────────────
 
     it('searches events by substring', async () => {
