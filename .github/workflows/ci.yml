@@ -44,9 +44,11 @@ jobs:
               run: pnpm install --frozen-lockfile --ignore-scripts
 
             - name: Verify dependency signatures
-              # Validates that every installed tarball was signed by its registry.
-              # Catches tampered packages that slipped past the lockfile hash check.
-              run: pnpm audit signatures || echo "::warning::audit signatures reported issues"
+              # Validates every installed tarball was signed by its registry.
+              # `pnpm audit signatures` is not implemented (pnpm falls back to vuln audit);
+              # `npm audit signatures` is the real one. Non-blocking: lockfile already
+              # pins SHA512 hashes for every package.
+              run: npm audit signatures || echo "::warning::audit signatures reported issues"
 
             - name: Typecheck
               run: pnpm typecheck
