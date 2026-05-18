@@ -1,6 +1,6 @@
 # @harnessa-fe/vite
 
-> Vite plugin for [Harnessa-FE](https://github.com/morphixai/harnessa-fe) — the frontend harness for AI agents.
+> Vite plugin for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe) — the frontend harness for AI agents.
 
 Source-aware transform + runtime injection + MCP bridge for Vite projects. Tags every JSX element with `data-morphix-loc` / `data-morphix-comp` so AI agents can map any UI element back to a file:line:column.
 
@@ -35,8 +35,8 @@ The plugin auto-disables in production builds — zero overhead in your shipped 
 
 ## Docs
 
-- [Root README](https://github.com/morphixai/harnessa-fe#readme) — quick start, all packages
-- [Architecture](https://github.com/morphixai/harnessa-fe/blob/main/ARCHITECTURE.md) — how the layers fit together
+- [Root README](https://github.com/Morphicai/harnessa-fe#readme) — quick start, all packages
+- [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md) — how the layers fit together
 
 ## License
 
