@@ -46,8 +46,8 @@ pnpm restart:mcp          # restart the local MCP daemon
 Per-package:
 
 ```bash
-pnpm --filter @morphixai/harnessa-fe.vite build
-pnpm --filter @morphixai/harnessa-fe.mcp-server test
+pnpm --filter @harnessa-fe/vite build
+pnpm --filter @harnessa-fe/mcp-server test
 ```
 
 ## End-to-end run
@@ -55,7 +55,7 @@ pnpm --filter @morphixai/harnessa-fe.mcp-server test
 1. `pnpm build`
 2. `pnpm --filter harnessa-fe-react-demo dev` — opens `http://localhost:5173`
 3. The Vite plugin auto-starts the MCP server on port `47729`
-4. Connect Claude Code (or any MCP-aware client) to `npx @morphixai/harnessa-fe.mcp-server`
+4. Connect Claude Code (or any MCP-aware client) to `npx @harnessa-fe/mcp-server`
 
 ## Commit style
 

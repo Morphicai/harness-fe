@@ -23,7 +23,7 @@ import {
     selectorSchema,
     typeArgsSchema,
     waitForArgsSchema,
-} from '@morphixai/harnessa-fe.protocol';
+} from '@harnessa-fe/protocol';
 import type { IBridge } from './bridge.js';
 import type { Bridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';

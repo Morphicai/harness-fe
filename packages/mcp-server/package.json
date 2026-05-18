@@ -1,5 +1,5 @@
 {
-    "name": "@morphixai/harnessa-fe.mcp-server",
+    "name": "@harnessa-fe/mcp-server",
     "version": "0.1.0",
     "description": "Unified MCP daemon: stdio MCP for AI agents + WS bridge for Vite plugin and runtime client.",
     "type": "module",
@@ -40,7 +40,7 @@
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.26.0",
-        "@morphixai/harnessa-fe.protocol": "workspace:*",
+        "@harnessa-fe/protocol": "workspace:*",
         "rrweb-player": "1.0.0-alpha.4",
         "ws": "^8.18.0",
         "zod": "^4.4.3"

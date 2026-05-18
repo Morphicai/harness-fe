@@ -16,7 +16,7 @@ import {
     type Selector,
     type TypeArgs,
     type WaitForArgs,
-} from '@morphixai/harnessa-fe.protocol';
+} from '@harnessa-fe/protocol';
 import { snapdom } from '@zumer/snapdom';
 import { resolveSelector } from './selectors.js';
 import type { CaptureStore } from './capture.js';

@@ -27,9 +27,9 @@
 
 ## Phase 4: XHR prototype patch
 
-- [ ] 17. Replace the constructor-wrapping XHR patch with `XMLHttpRequest.prototype` patches for `open`, `setRequestHeader`, and `send`, storing per-instance metadata via a non-enumerable symbol.
-- [ ] 18. Apply the same body / header / cap / redaction rules as fetch and emit the same `req` / `res` event pair.
-- [ ] 19. Add tests proving `xhr instanceof XMLHttpRequest` holds for business code and that `addEventListener('loadend', …)` continues to fire without modification.
+- [x] 17. Replace the constructor-wrapping XHR patch with `XMLHttpRequest.prototype` patches for `open`, `setRequestHeader`, and `send`, storing per-instance metadata via a non-enumerable symbol.
+- [x] 18. Apply the same body / header / cap / redaction rules as fetch and emit the same `req` / `res` event pair.
+- [x] 19. Add tests proving `xhr instanceof XMLHttpRequest` holds for business code and that `addEventListener('loadend', …)` continues to fire without modification.
 
 ## Phase 5: Storage capture
 
@@ -56,7 +56,7 @@
 
 ## Phase 9: Validation
 
-- [ ] 31. Run `pnpm --filter @morphixai/harnessa-fe.protocol test` and `pnpm --filter @morphixai/harnessa-fe.mcp-server test`; both should be green.
+- [ ] 31. Run `pnpm --filter @harnessa-fe/protocol test` and `pnpm --filter @harnessa-fe/mcp-server test`; both should be green.
 - [ ] 32. Manually exercise the example page: refresh three times, confirm three loads appear in the dashboard with snapshots matching the actual browser state.
 - [ ] 33. Issue a POST `fetch` with a JSON body and confirm the dashboard shows matching `req` / `res` entries with body content and a redacted `Authorization` header.
 - [ ] 34. Trigger an SSE response and confirm the body cap kicks in with `truncated: true`.

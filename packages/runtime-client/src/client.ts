@@ -16,7 +16,7 @@ import {
     type HelloFrame,
     type ResponseFrame,
     frameSchema,
-} from '@morphixai/harnessa-fe.protocol';
+} from '@harnessa-fe/protocol';
 import { getCaptureStore } from './capture.js';
 import { commandHandlers, type CommandContext } from './commands.js';
 import { RrwebRecorder } from './recording.js';

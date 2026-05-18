@@ -16,7 +16,7 @@ import {
     type Task,
     type TaskStatus,
     frameSchema,
-} from '@morphixai/harnessa-fe.protocol';
+} from '@harnessa-fe/protocol';
 import type { IBridge, SendCommandOptions } from './bridge.js';
 import type {
     IMemoryStore,

@@ -2,7 +2,7 @@
 /**
  * CLI entry — boots WS bridge + stdio MCP server.
  *
- * Run with:  pnpm --filter @morphixai/harnessa-fe.mcp-server start
+ * Run with:  pnpm --filter @harnessa-fe/mcp-server start
  *
  * Or configure as a Claude Code / Cursor MCP server (stdio mode).
  *
@@ -15,7 +15,7 @@
  * (and thus the same browser / vite-plugin connections).
  */
 
-import { DEFAULT_WS_PORT } from '@morphixai/harnessa-fe.protocol';
+import { DEFAULT_WS_PORT } from '@harnessa-fe/protocol';
 import { Bridge, type IBridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';
 import { startMcpStdioServer } from './mcp.js';

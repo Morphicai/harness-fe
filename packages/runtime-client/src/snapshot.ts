@@ -9,7 +9,7 @@
  * No business code is modified by this helper.
  */
 
-import type { PageLoadPayload } from '@morphixai/harnessa-fe.protocol';
+import type { PageLoadPayload } from '@harnessa-fe/protocol';
 
 const VALUE_CAP = 32 * 1024;
 const TOTAL_CAP = 256 * 1024;

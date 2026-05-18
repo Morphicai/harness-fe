@@ -11,9 +11,9 @@
  */
 
 import { createServer } from 'vite';
-import { Bridge } from '@morphixai/harnessa-fe.mcp-server';
-import { harnessaFE } from '@morphixai/harnessa-fe.vite';
-import { COMMAND } from '@morphixai/harnessa-fe.protocol';
+import { Bridge } from '@harnessa-fe/mcp-server';
+import { harnessaFE } from '@harnessa-fe/vite';
+import { COMMAND } from '@harnessa-fe/protocol';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';

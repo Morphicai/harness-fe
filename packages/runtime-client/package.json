@@ -1,5 +1,5 @@
 {
-    "name": "@morphixai/harnessa-fe.runtime",
+    "name": "@harnessa-fe/runtime",
     "version": "0.1.0",
     "description": "Browser-side SDK injected into the dev page. Connects to the MCP server via WebSocket and executes commands.",
     "type": "module",
@@ -35,7 +35,7 @@
         "test": "vitest run"
     },
     "dependencies": {
-        "@morphixai/harnessa-fe.protocol": "workspace:*",
+        "@harnessa-fe/protocol": "workspace:*",
         "@zumer/snapdom": "^2.12.0",
         "rrweb": "2.0.0-alpha.4"
     },

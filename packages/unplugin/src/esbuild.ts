@@ -2,7 +2,7 @@
  * esbuild-specific export.
  *
  * Usage:
- *   import { harnessaFE } from '@morphixai/harnessa-fe.unplugin/esbuild'
+ *   import { harnessaFE } from '@harnessa-fe/unplugin/esbuild'
  */
 
 import { unplugin } from './core.js';

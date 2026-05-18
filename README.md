@@ -69,17 +69,17 @@ graph LR
 
 **pnpm** (recommended):
 ```bash
-pnpm add -D @morphixai/harnessa-fe.vite @morphixai/harnessa-fe.runtime
+pnpm add -D @harnessa-fe/vite @harnessa-fe/runtime
 ```
 
 **npm:**
 ```bash
-npm install -D @morphixai/harnessa-fe.vite @morphixai/harnessa-fe.runtime
+npm install -D @harnessa-fe/vite @harnessa-fe/runtime
 ```
 
 **yarn:**
 ```bash
-yarn add -D @morphixai/harnessa-fe.vite @morphixai/harnessa-fe.runtime
+yarn add -D @harnessa-fe/vite @harnessa-fe/runtime
 ```
 
 ### Quick Start (5 steps)
@@ -90,7 +90,7 @@ yarn add -D @morphixai/harnessa-fe.vite @morphixai/harnessa-fe.runtime
    ```typescript
    import { defineConfig } from 'vite';
    import react from '@vitejs/plugin-react';
-   import { harnessaFE } from '@morphixai/harnessa-fe.vite';
+   import { harnessaFE } from '@harnessa-fe/vite';
 
    export default defineConfig({
      plugins: [react(), harnessaFE()],
@@ -99,7 +99,7 @@ yarn add -D @morphixai/harnessa-fe.vite @morphixai/harnessa-fe.runtime
 
 3. **Start the MCP server** — Run the daemon so AI agents can connect:
    ```bash
-   npx @morphixai/harnessa-fe.mcp-server
+   npx @harnessa-fe/mcp-server
    ```
 
 4. **Start your dev server** — Launch your app as usual:
@@ -113,12 +113,12 @@ yarn add -D @morphixai/harnessa-fe.vite @morphixai/harnessa-fe.runtime
 
 | Package | Description |
 |---------|-------------|
-| [`@morphixai/harnessa-fe.protocol`](./packages/protocol) | Shared types, schemas, and message definitions |
-| [`@morphixai/harnessa-fe.mcp-server`](./packages/mcp-server) | MCP daemon with WebSocket bridge |
-| [`@morphixai/harnessa-fe.runtime`](./packages/runtime-client) | Browser runtime client SDK |
-| [`@morphixai/harnessa-fe.vite`](./packages/vite-plugin) | Vite plugin |
-| [`@morphixai/harnessa-fe.webpack`](./packages/webpack-plugin) | Webpack plugin |
-| [`@morphixai/harnessa-fe.unplugin`](./packages/unplugin) | Core unplugin (shared by all bundler plugins) |
+| [`@harnessa-fe/protocol`](./packages/protocol) | Shared types, schemas, and message definitions |
+| [`@harnessa-fe/mcp-server`](./packages/mcp-server) | MCP daemon with WebSocket bridge |
+| [`@harnessa-fe/runtime`](./packages/runtime-client) | Browser runtime client SDK |
+| [`@harnessa-fe/vite`](./packages/vite-plugin) | Vite plugin |
+| [`@harnessa-fe/webpack`](./packages/webpack-plugin) | Webpack plugin |
+| [`@harnessa-fe/unplugin`](./packages/unplugin) | Core unplugin (shared by all bundler plugins) |
 
 ## Documentation
 

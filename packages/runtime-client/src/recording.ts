@@ -1,5 +1,5 @@
 import { record } from 'rrweb';
-import type { RrwebChunkPayload } from '@morphixai/harnessa-fe.protocol';
+import type { RrwebChunkPayload } from '@harnessa-fe/protocol';
 
 const FLUSH_MS = 5_000;
 const MAX_EVENTS = 200;

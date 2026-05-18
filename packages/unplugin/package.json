@@ -1,5 +1,5 @@
 {
-    "name": "@morphixai/harnessa-fe.unplugin",
+    "name": "@harnessa-fe/unplugin",
     "version": "0.1.0",
     "description": "Unified build plugin for Harnessa-FE. Supports Vite, Webpack, Rspack, esbuild, and Rollup via unplugin.",
     "type": "module",
@@ -58,7 +58,7 @@
         "@babel/parser": "^7.29.3",
         "@babel/traverse": "^7.29.0",
         "@babel/types": "^7.29.0",
-        "@morphixai/harnessa-fe.protocol": "workspace:*",
+        "@harnessa-fe/protocol": "workspace:*",
         "@vue/compiler-dom": "^3.4.0",
         "@vue/compiler-sfc": "^3.4.0",
         "magic-string": "^0.30.21",

@@ -2,7 +2,7 @@
  * Verify the Vite plugin's HTML transform without spinning up an HTTP server.
  * Calls the plugin's `transformIndexHtml.handler` directly.
  */
-import { harnessaFE } from '@morphixai/harnessa-fe.vite';
+import { harnessaFE } from '@harnessa-fe/vite';
 
 const plugin = harnessaFE({ projectId: 'react-demo-test' });
 const html = `<!doctype html><html><head><title>x</title></head><body><div id="root"></div></body></html>`;
@@ -26,7 +26,7 @@ console.log('------------------------');
 const expectations = [
     '__HARNESSA_FE__',
     '"projectId":"react-demo-test"',
-    "import '@morphixai/harnessa-fe.runtime'",
+    "import '@harnessa-fe/runtime'",
 ];
 for (const e of expectations) {
     if (!transformed.includes(e)) {

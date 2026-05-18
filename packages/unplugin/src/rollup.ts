@@ -2,7 +2,7 @@
  * Rollup-specific export.
  *
  * Usage:
- *   import { harnessaFE } from '@morphixai/harnessa-fe.unplugin/rollup'
+ *   import { harnessaFE } from '@harnessa-fe/unplugin/rollup'
  */
 
 import { unplugin } from './core.js';

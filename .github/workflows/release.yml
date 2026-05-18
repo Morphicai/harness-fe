@@ -1,0 +1,104 @@
+name: Release
+
+# Trigger only on annotated tag push matching v*.*.*
+# Tag protection rules in repo settings should restrict who can push tags.
+on:
+    push:
+        tags:
+            - 'v*.*.*'
+
+# Strict least-privilege. id-token is required for OIDC / npm provenance.
+permissions:
+    contents: read
+    id-token: write
+
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    publish:
+        name: Publish to npm
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+
+        # Require manual approval via a protected environment.
+        # Configure in repo Settings → Environments → "release":
+        #   - required reviewers (you)
+        #   - branch restriction: tags matching v*.*.*
+        environment:
+            name: release
+            url: https://www.npmjs.com/org/harnessa-fe
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  fetch-depth: 0
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+              with:
+                  version: 9.15.0
+                  run_install: false
+
+            - name: Setup Node.js
+              uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+              with:
+                  node-version: '20'
+                  cache: 'pnpm'
+                  registry-url: 'https://registry.npmjs.org'
+                  scope: '@harnessa-fe'
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile --ignore-scripts
+
+            - name: Verify dependency signatures
+              run: pnpm audit signatures
+
+            - name: Typecheck
+              run: pnpm typecheck
+
+            - name: Build
+              run: pnpm build
+
+            - name: Test
+              run: pnpm test
+
+            - name: Verify tag matches package versions
+              # Refuse to publish if the git tag (v0.1.0) does not match the version
+              # in every package.json. Defends against accidental drift and against
+              # an attacker who pushes a tag without updating versions.
+              run: |
+                  TAG_VERSION="${GITHUB_REF_NAME#v}"
+                  echo "Tag version: $TAG_VERSION"
+                  for pkg in packages/*/package.json; do
+                      PKG_VERSION=$(node -p "require('./$pkg').version")
+                      if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+                          echo "::error::$pkg has version $PKG_VERSION but tag is $TAG_VERSION"
+                          exit 1
+                      fi
+                  done
+                  echo "✓ All packages match $TAG_VERSION"
+
+            - name: Dry-run publish
+              # Sanity check: ensure workspace:* deps rewrite correctly and tarballs are valid.
+              run: pnpm -r --filter './packages/*' publish --dry-run --access public --no-git-checks
+
+            - name: Publish to npm with provenance
+              # --provenance attaches a sigstore attestation linking each tarball
+              # to this exact commit + workflow run. Consumers can verify with
+              # `npm install --foreground-scripts` + `npm audit signatures`.
+              # Requires id-token: write (granted above) and npm public registry.
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+                  NPM_CONFIG_PROVENANCE: 'true'
+              run: pnpm -r --filter './packages/*' publish --access public --no-git-checks --provenance
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
+              with:
+                  generate_release_notes: true
+                  body_path: ${{ github.workspace }}/CHANGELOG.md
+                  draft: false
+                  prerelease: ${{ contains(github.ref_name, '-') }}

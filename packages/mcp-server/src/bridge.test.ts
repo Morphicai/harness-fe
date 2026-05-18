@@ -14,7 +14,7 @@ import {
     type HelloAckFrame,
     type ResponseFrame,
     type TaskSubmitPayload,
-} from '@morphixai/harnessa-fe.protocol';
+} from '@harnessa-fe/protocol';
 
 async function spawnBridge(): Promise<Bridge> {
     // store: null, taskStore: null → no persistence in tests

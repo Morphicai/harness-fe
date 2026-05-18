@@ -2,7 +2,7 @@
  * Rspack-specific export.
  *
  * Usage:
- *   import { harnessaFE } from '@morphixai/harnessa-fe.unplugin/rspack'
+ *   import { harnessaFE } from '@harnessa-fe/unplugin/rspack'
  */
 
 import { unplugin } from './core.js';

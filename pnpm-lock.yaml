@@ -33,16 +33,16 @@ importers:
         specifier: ^6.28.0
         version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
-      '@morphixai/harnessa-fe.mcp-server':
+      '@harnessa-fe/mcp-server':
         specifier: workspace:*
         version: link:../../packages/mcp-server
-      '@morphixai/harnessa-fe.protocol':
+      '@harnessa-fe/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
-      '@morphixai/harnessa-fe.runtime':
+      '@harnessa-fe/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime-client
-      '@morphixai/harnessa-fe.vite':
+      '@harnessa-fe/vite':
         specifier: workspace:*
         version: link:../../packages/vite-plugin
       '@playwright/test':
@@ -82,7 +82,7 @@ importers:
         specifier: ^3.4.0
         version: 3.5.34(typescript@5.9.3)
     devDependencies:
-      '@morphixai/harnessa-fe.vite':
+      '@harnessa-fe/vite':
         specifier: workspace:*
         version: link:../../packages/vite-plugin
       '@vitejs/plugin-vue':
@@ -113,7 +113,7 @@ importers:
       '@babel/preset-react':
         specifier: ^7.24.0
         version: 7.28.5(@babel/core@7.29.0)
-      '@morphixai/harnessa-fe.webpack':
+      '@harnessa-fe/webpack':
         specifier: workspace:*
         version: link:../../packages/webpack-plugin
       babel-loader:
@@ -137,7 +137,7 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.26.0
         version: 1.29.0(zod@4.4.3)
-      '@morphixai/harnessa-fe.protocol':
+      '@harnessa-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
       rrweb-player:
@@ -181,7 +181,7 @@ importers:
 
   packages/runtime-client:
     dependencies:
-      '@morphixai/harnessa-fe.protocol':
+      '@harnessa-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@zumer/snapdom':
@@ -212,7 +212,7 @@ importers:
       '@babel/types':
         specifier: ^7.29.0
         version: 7.29.0
-      '@morphixai/harnessa-fe.protocol':
+      '@harnessa-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@vue/compiler-dom':
@@ -252,7 +252,7 @@ importers:
 
   packages/vite-plugin:
     dependencies:
-      '@morphixai/harnessa-fe.unplugin':
+      '@harnessa-fe/unplugin':
         specifier: workspace:*
         version: link:../unplugin
     devDependencies:
@@ -268,7 +268,7 @@ importers:
 
   packages/webpack-plugin:
     dependencies:
-      '@morphixai/harnessa-fe.unplugin':
+      '@harnessa-fe/unplugin':
         specifier: workspace:*
         version: link:../unplugin
     devDependencies:
