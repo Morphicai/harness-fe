@@ -17,6 +17,8 @@ export interface PeerSession {
     role: PeerRole;
     projectId: string;
     tabId?: string;
+    /** Runtime-client only: identifies the page load this connection belongs to. */
+    loadId?: string;
     /** Opaque identifier for the underlying connection. */
     connectionId: string;
     lastActive: number;

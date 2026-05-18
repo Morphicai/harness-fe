@@ -66,12 +66,21 @@ export type ConsoleEntry = z.infer<typeof consoleEntrySchema>;
 
 export const networkEntrySchema = z.object({
     ts: z.number(),
+    /** Correlates a `req` event with its matching `res` event. */
+    id: z.string().optional(),
+    /** Direction marker; absent records carry both req+resp metadata for back-compat. */
+    phase: z.enum(['req', 'res']).optional(),
     method: z.string(),
     url: z.string(),
     status: z.number().int().optional(),
     durationMs: z.number().optional(),
+    requestHeaders: z.record(z.string(), z.string()).optional(),
+    responseHeaders: z.record(z.string(), z.string()).optional(),
     requestBody: z.unknown().optional(),
     responseBody: z.unknown().optional(),
+    requestBodyTruncated: z.boolean().optional(),
+    responseBodyTruncated: z.boolean().optional(),
+    error: z.string().optional(),
 });
 export type NetworkEntry = z.infer<typeof networkEntrySchema>;
 

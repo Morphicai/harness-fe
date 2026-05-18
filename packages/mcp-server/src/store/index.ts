@@ -12,6 +12,7 @@ export type {
     ProjectMeta,
     SessionMeta,
     TabMeta,
+    LoadMeta,
     SessionSummary,
     TailOptions,
     SearchOptions,

@@ -12,6 +12,7 @@ import {
     type CommandFrame,
     type EventFrame,
     type Frame,
+    type HelloAckFrame,
     type HelloFrame,
     type ResponseFrame,
     frameSchema,
@@ -19,6 +20,7 @@ import {
 import { getCaptureStore } from './capture.js';
 import { commandHandlers, type CommandContext } from './commands.js';
 import { RrwebRecorder } from './recording.js';
+import { collectPageLoadSnapshot } from './snapshot.js';
 
 export interface ClientOptions {
     projectId: string;
@@ -39,9 +41,24 @@ function getOrCreateTabId(): string {
     }
 }
 
+/**
+ * Generate a fresh loadId for this page load. Intentionally NOT persisted to
+ * sessionStorage — a refresh MUST yield a new id. WebSocket reconnects within
+ * the same page load reuse this in-memory value.
+ */
+function generateLoadId(): string {
+    try {
+        return crypto.randomUUID();
+    } catch {
+        return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+}
+
 export class RuntimeClient {
     private ws?: WebSocket;
     private readonly tabId = getOrCreateTabId();
+    private readonly loadId = generateLoadId();
+    private pageLoadSent = false;
     private readonly ctx: CommandContext = { capture: getCaptureStore() };
     private readonly recorder = new RrwebRecorder((chunk) => this.sendEvent(EVENT_NAME.RRWEB, chunk));
     private reconnectAttempts = 0;
@@ -85,6 +102,7 @@ export class RuntimeClient {
             role: 'runtime-client',
             projectId: this.opts.projectId,
             tabId: this.tabId,
+            loadId: this.loadId,
             page: {
                 url: location.href,
                 title: document.title,
@@ -114,6 +132,24 @@ export class RuntimeClient {
         if (!result.success) return;
         const frame = result.data;
         if (frame.type === 'command') this.handleCommand(frame);
+        else if (frame.type === 'hello.ack') this.onHelloAck(frame);
+    }
+
+    private onHelloAck(frame: HelloAckFrame): void {
+        if (frame.error) {
+            // Bridge rejected this hello — do not send PAGE_LOAD.
+            return;
+        }
+        // Send the page-load snapshot exactly once per load. The reconnect
+        // path also lands here; emit only on the first ack of this load.
+        if (this.pageLoadSent) return;
+        this.pageLoadSent = true;
+        try {
+            const payload = collectPageLoadSnapshot(this.loadId);
+            this.sendEvent(EVENT_NAME.PAGE_LOAD, payload);
+        } catch {
+            /* snapshot failures must not propagate */
+        }
     }
 
     private async handleCommand(frame: CommandFrame): Promise<void> {

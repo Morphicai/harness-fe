@@ -32,8 +32,8 @@ async function bootBridge() {
 function seed(store: JsonlStore, projectId: string) {
     const sessId = store.openSession(projectId, { peerRole: 'vite-plugin' });
     store.openTab(sessId, { id: 'tab-1', url: 'http://localhost:5173/', title: 'Demo' });
-    store.append(sessId, { ts: 1000, t: 'log', d: { args: ['hello'] } }, 'tab-1');
-    store.append(sessId, { ts: 1100, t: 'err', d: { message: 'boom' } }, 'tab-1');
+    store.append(sessId, { ts: 1000, t: 'log', load: 'L1', d: { args: ['hello'] } }, 'tab-1');
+    store.append(sessId, { ts: 1100, t: 'err', load: 'L1', d: { message: 'boom' } }, 'tab-1');
     store.appendRecording(sessId, 'tab-1', {
         chunkId: 'rrc_a', startTs: 1000, endTs: 2000, eventCount: 2,
         events: [{ type: 4, data: {}, timestamp: 1000 }, { type: 3, data: {}, timestamp: 2000 }],

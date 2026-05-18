@@ -36,7 +36,7 @@ function getPort(bridge: Bridge): number {
  */
 async function fakeClientWithSession(
     port: number,
-    opts: { tabId?: string; projectId?: string } = {},
+    opts: { tabId?: string; projectId?: string; loadId?: string } = {},
 ): Promise<{ pluginWs: WebSocket; ws: WebSocket; ack: HelloAckFrame }> {
     const projectId = opts.projectId ?? 'demo';
     // First connect vite-plugin to create an active session
@@ -65,13 +65,14 @@ async function fakeClientWithSession(
 async function fakeClient(
     port: number,
     role: 'runtime-client' | 'vite-plugin',
-    opts: { tabId?: string; projectId?: string } = {},
+    opts: { tabId?: string; projectId?: string; loadId?: string } = {},
 ): Promise<{ ws: WebSocket; ack: HelloAckFrame }> {
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     await new Promise<void>((resolve, reject) => {
         ws.once('open', () => resolve());
         ws.once('error', reject);
     });
+    const loadId = role === 'runtime-client' ? (opts.loadId ?? 'load-1') : undefined;
     ws.send(
         JSON.stringify({
             type: 'hello',
@@ -79,6 +80,7 @@ async function fakeClient(
             role,
             projectId: opts.projectId ?? 'demo',
             tabId: opts.tabId,
+            loadId,
             page: { url: 'http://localhost:5173/', title: 'Demo' },
         }),
     );
@@ -105,6 +107,41 @@ describe('Bridge', () => {
             expect(ack.tabId).toBe('t-1');
             expect(ack.serverVersion).toBe(PROTOCOL_VERSION);
             expect(bridge.router.listTabs()).toHaveLength(1);
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('rejects a runtime-client hello missing loadId', async () => {
+        const bridge = await spawnBridge();
+        try {
+            const port = getPort(bridge);
+            const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+            await new Promise<void>((resolve, reject) => {
+                ws.once('open', () => resolve());
+                ws.once('error', reject);
+            });
+            ws.send(
+                JSON.stringify({
+                    type: 'hello',
+                    id: 'h1',
+                    role: 'runtime-client',
+                    projectId: 'demo',
+                    tabId: 't-1',
+                    // loadId intentionally omitted
+                }),
+            );
+            const ack = await new Promise<HelloAckFrame>((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('hello.ack timeout')), 1000);
+                ws.once('message', (raw) => {
+                    clearTimeout(timer);
+                    resolve(JSON.parse(raw.toString()) as HelloAckFrame);
+                });
+            });
+            expect(ack.type).toBe('hello.ack');
+            expect(ack.error).toMatch(/loadId/);
+            expect(bridge.router.listTabs()).toHaveLength(0);
+            ws.close();
         } finally {
             await bridge.stop();
         }
@@ -857,6 +894,125 @@ describe('Integration: startup recovery (Task 14.3)', () => {
         } finally {
             await bridge2.stop();
             await store2.close();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('PAGE_LOAD persistence', () => {
+    it('appends a LoadMeta row when a PAGE_LOAD event arrives', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'morphix-pageload-1-'));
+        const store = new JsonlStore(dir);
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        await bridge.start();
+        try {
+            const port = getPort(bridge);
+            const projectId = 'pl-project-1';
+            const { ws: pluginWs } = await fakeClient(port, 'vite-plugin', { projectId });
+            await new Promise((r) => setTimeout(r, 20));
+            const { ws: rcWs } = await fakeClient(port, 'runtime-client', {
+                projectId,
+                tabId: 'tab-1',
+                loadId: 'load-A',
+            });
+            await new Promise((r) => setTimeout(r, 20));
+
+            rcWs.send(JSON.stringify({
+                type: 'event',
+                id: 'plE1',
+                projectId,
+                tabId: 'tab-1',
+                name: EVENT_NAME.PAGE_LOAD,
+                ts: 1000,
+                payload: {
+                    loadId: 'load-A',
+                    page: { url: 'http://x/', title: 'Demo' },
+                    viewport: { w: 1024, h: 768, dpr: 2 },
+                    storage: { local: { k: 'v' }, session: {}, cookie: '', truncated: false },
+                },
+            }));
+            await new Promise((r) => setTimeout(r, 40));
+
+            const sessionId = store.listSessions(projectId)[0].id;
+            const loads = store.listLoads(sessionId, 'tab-1');
+            expect(loads).toHaveLength(1);
+            expect(loads[0].id).toBe('load-A');
+            expect(loads[0].url).toBe('http://x/');
+            expect(loads[0].initial?.viewport).toEqual({ w: 1024, h: 768, dpr: 2 });
+            expect(loads[0].initial?.storageKeys?.local).toBe(1);
+            expect(loads[0].endedAt).toBeUndefined();
+
+            rcWs.close();
+            pluginWs.close();
+        } finally {
+            await bridge.stop();
+            await store.close();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('closes the previous load endedAt when a refresh happens on the same tab', async () => {
+        // Real-browser refresh = old ws close (sets L1.endedAt = now) then
+        // new ws connect + PAGE_LOAD (L2 opens). The store guarantees:
+        //   - both loads are recorded
+        //   - L1.endedAt is set (either by close handler or by next openLoad)
+        //   - L2 is open until its tab closes
+        const dir = mkdtempSync(join(tmpdir(), 'morphix-pageload-2-'));
+        const store = new JsonlStore(dir);
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        await bridge.start();
+        try {
+            const port = getPort(bridge);
+            const projectId = 'pl-project-2';
+            const { ws: pluginWs } = await fakeClient(port, 'vite-plugin', { projectId });
+            await new Promise((r) => setTimeout(r, 20));
+
+            // First load
+            const rc1 = await fakeClient(port, 'runtime-client', {
+                projectId, tabId: 'tab-1', loadId: 'L1',
+            });
+            await new Promise((r) => setTimeout(r, 20));
+            rc1.ws.send(JSON.stringify({
+                type: 'event', id: 'e1', projectId, tabId: 'tab-1',
+                name: EVENT_NAME.PAGE_LOAD, ts: 100,
+                payload: { loadId: 'L1', page: {}, storage: { local: {}, session: {}, cookie: '' } },
+            }));
+            await new Promise((r) => setTimeout(r, 30));
+            rc1.ws.close();
+            await new Promise((r) => setTimeout(r, 30));
+
+            // Second load — same tabId, new loadId (simulates browser refresh)
+            const rc2 = await fakeClient(port, 'runtime-client', {
+                projectId, tabId: 'tab-1', loadId: 'L2',
+            });
+            await new Promise((r) => setTimeout(r, 20));
+            const l2StartTs = Date.now();
+            rc2.ws.send(JSON.stringify({
+                type: 'event', id: 'e2', projectId, tabId: 'tab-1',
+                name: EVENT_NAME.PAGE_LOAD, ts: l2StartTs,
+                payload: { loadId: 'L2', page: {}, storage: { local: {}, session: {}, cookie: '' } },
+            }));
+            await new Promise((r) => setTimeout(r, 40));
+
+            const sessionId = store.listSessions(projectId)[0].id;
+            const loads = store.listLoads(sessionId, 'tab-1');
+            expect(loads).toHaveLength(2);
+            const l1 = loads.find((l) => l.id === 'L1')!;
+            const l2 = loads.find((l) => l.id === 'L2')!;
+            expect(l1.endedAt).toBeDefined();
+            expect(l1.endedAt!).toBeLessThanOrEqual(l2.startedAt);
+            expect(l2.endedAt).toBeUndefined();
+
+            // Closing rc2's tab should fill L2's endedAt.
+            rc2.ws.close();
+            await new Promise((r) => setTimeout(r, 50));
+            const after = store.listLoads(sessionId, 'tab-1');
+            expect(after.find((l) => l.id === 'L2')!.endedAt).toBeDefined();
+
+            pluginWs.close();
+        } finally {
+            await bridge.stop();
+            await store.close();
             rmSync(dir, { recursive: true, force: true });
         }
     });

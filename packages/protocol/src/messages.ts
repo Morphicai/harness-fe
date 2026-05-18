@@ -20,6 +20,12 @@ export const helloFrameSchema = z.object({
     projectId: z.string(),
     /** Only present for runtime-client. */
     tabId: z.string().optional(),
+    /**
+     * Runtime-client only: identifies one page load (refresh-scoped).
+     * The bridge rejects runtime-client hellos that omit this field.
+     * Build-plugin roles MUST NOT set it.
+     */
+    loadId: z.string().optional(),
     /** Optional page metadata for runtime-client. */
     page: z
         .object({
@@ -195,7 +201,57 @@ export type CommandName = typeof COMMAND[keyof typeof COMMAND];
 export const EVENT_NAME = {
     TASK_SUBMIT: 'task.submit',
     RRWEB: 'rrweb',
+    /** Initial-state snapshot emitted once per page load, right after hello.ack. */
+    PAGE_LOAD: 'page.load',
+    /** Storage mutation (localStorage / sessionStorage / cookie). */
+    STORAGE: 'storage',
 } as const;
+
+// ─── PAGE_LOAD payload ──────────────────────────────────────────────────────
+
+export const pageLoadPayloadSchema = z.object({
+    loadId: z.string(),
+    page: z.object({
+        url: z.string().optional(),
+        title: z.string().optional(),
+        referrer: z.string().optional(),
+        userAgent: z.string().optional(),
+    }),
+    viewport: z
+        .object({
+            w: z.number().int().nonnegative(),
+            h: z.number().int().nonnegative(),
+            dpr: z.number().positive(),
+        })
+        .optional(),
+    storage: z.object({
+        local: z.record(z.string(), z.string()).optional(),
+        session: z.record(z.string(), z.string()).optional(),
+        cookie: z.string().optional(),
+        truncated: z.boolean().optional(),
+    }),
+    performance: z
+        .object({
+            navigationStart: z.number().optional(),
+            domContentLoaded: z.number().optional(),
+            loadEventEnd: z.number().optional(),
+        })
+        .partial()
+        .optional(),
+});
+export type PageLoadPayload = z.infer<typeof pageLoadPayloadSchema>;
+
+// ─── Storage mutation payload ───────────────────────────────────────────────
+
+export const storagePayloadSchema = z.object({
+    op: z.enum(['set', 'remove', 'clear']),
+    which: z.enum(['local', 'session', 'cookie']),
+    key: z.string().optional(),
+    value: z.string().optional(),
+    /** True when the mutation came from another tab via the native `storage` event. */
+    crossTab: z.boolean().optional(),
+});
+export type StoragePayload = z.infer<typeof storagePayloadSchema>;
 
 // ─── User-submitted annotation tasks ────────────────────────────────────────
 
@@ -234,6 +290,8 @@ export type TaskStatus = 'pending' | 'claimed' | 'resolved';
 export interface Task {
     id: string;
     tabId: string;
+    /** Load that produced this task; used to attribute claim/resolve events too. */
+    loadId?: string;
     projectId: string;
     url: string;
     status: TaskStatus;

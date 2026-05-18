@@ -133,11 +133,39 @@ describe('JsonlStore', () => {
         expect(events).toHaveLength(3);
     });
 
+    it('rejects tab-scoped append without load field', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        expect(() =>
+            store.append(sessId, { ts: 1, t: 'log', d: {} }, 'tab-1'),
+        ).toThrow(/missing required load field/);
+    });
+
+    it('rejects session-scoped append carrying a load field', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        expect(() =>
+            store.append(sessId, { ts: 1, t: 'hmr', load: 'L1', d: {} }),
+        ).toThrow(/must not carry a load field/);
+    });
+
+    it('filters tail by loadId when provided', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        store.append(sessId, { ts: 1, t: 'log', load: 'L1', d: {} }, 'tab-1');
+        store.append(sessId, { ts: 2, t: 'log', load: 'L2', d: {} }, 'tab-1');
+        store.append(sessId, { ts: 3, t: 'log', load: 'L1', d: {} }, 'tab-1');
+        await store.flush();
+        const l1 = store.tail(sessId, { loadId: 'L1' }, 'tab-1');
+        const l2 = store.tail(sessId, { loadId: 'L2' }, 'tab-1');
+        expect(l1.map((e) => e.ts)).toEqual([1, 3]);
+        expect(l2.map((e) => e.ts)).toEqual([2]);
+    });
+
     it('appends to tab timeline when tabId provided', async () => {
         const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
         store.openTab(sessId, { id: 'tab-1' });
-        store.append(sessId, { ts: 1000, t: 'log', d: {} }, 'tab-1');
-        store.append(sessId, { ts: 2000, t: 'err', d: {} }, 'tab-1');
+        store.append(sessId, { ts: 1000, t: 'log', load: 'L1', d: {} }, 'tab-1');
+        store.append(sessId, { ts: 2000, t: 'err', load: 'L1', d: {} }, 'tab-1');
 
         await store.flush();
 
@@ -148,6 +176,52 @@ describe('JsonlStore', () => {
         // Tab timeline also has both
         const tabEvents = store.tail(sessId, {}, 'tab-1');
         expect(tabEvents).toHaveLength(2);
+    });
+
+    it('openLoad appends to loads.jsonl and rewrites prior endedAt', () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        store.openLoad(sessId, 'tab-1', { id: 'L1', startedAt: 1000, url: 'http://x/' });
+        let loads = store.listLoads(sessId, 'tab-1');
+        expect(loads).toHaveLength(1);
+        expect(loads[0].endedAt).toBeUndefined();
+
+        store.openLoad(sessId, 'tab-1', { id: 'L2', startedAt: 2000, url: 'http://x/' });
+        loads = store.listLoads(sessId, 'tab-1');
+        expect(loads).toHaveLength(2);
+        // listLoads returns newest first
+        expect(loads[0].id).toBe('L2');
+        expect(loads[0].endedAt).toBeUndefined();
+        expect(loads[1].id).toBe('L1');
+        expect(loads[1].endedAt).toBe(2000);
+
+        store.closeLatestLoad(sessId, 'tab-1', 3000);
+        loads = store.listLoads(sessId, 'tab-1');
+        expect(loads[0].endedAt).toBe(3000);
+    });
+
+    it('getLoad returns the matching LoadMeta', () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        store.openLoad(sessId, 'tab-1', { id: 'L1', startedAt: 100 });
+        expect(store.getLoad(sessId, 'tab-1', 'L1')?.id).toBe('L1');
+        expect(store.getLoad(sessId, 'tab-1', 'missing')).toBeUndefined();
+    });
+
+    it('sliceRecordingsByLoad uses the load time window', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        store.openLoad(sessId, 'tab-1', { id: 'L1', startedAt: 1000 });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'c1', startTs: 1100, endTs: 1200, eventCount: 1, events: [],
+        });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'c2', startTs: 9000, endTs: 9500, eventCount: 1, events: [],
+        });
+        store.closeLatestLoad(sessId, 'tab-1', 2000);
+        await store.flush();
+        const chunks = store.sliceRecordingsByLoad(sessId, 'tab-1', 'L1');
+        expect(chunks.map((c) => c.chunkId)).toEqual(['c1']);
     });
 
     it('appends rrweb recording chunks', async () => {
@@ -259,6 +333,7 @@ describe('JsonlStore', () => {
             ts: now - 450,
             t: 'rrweb:marker',
             tab: 'tab-1',
+            load: 'L1',
             d: { markerId: 'rrm_1', kind: 'error', label: 'boom' },
         }, 'tab-1');
         store.appendRecording(sessId, 'tab-1', {
@@ -301,12 +376,13 @@ describe('JsonlStore', () => {
         store.openTab(sessId, { id: 'tab-1' });
         const now = Date.now();
         // Two ordinary timeline entries + one marker — none of these should be touched.
-        store.append(sessId, { ts: now - 800, t: 'log', d: { args: ['hello'] } }, 'tab-1');
-        store.append(sessId, { ts: now - 500, t: 'err', d: { message: 'boom' } }, 'tab-1');
+        store.append(sessId, { ts: now - 800, t: 'log', load: 'L1', d: { args: ['hello'] } }, 'tab-1');
+        store.append(sessId, { ts: now - 500, t: 'err', load: 'L1', d: { message: 'boom' } }, 'tab-1');
         store.append(sessId, {
             ts: now - 450,
             t: 'rrweb:marker',
             tab: 'tab-1',
+            load: 'L1',
             d: { markerId: 'rrm_1', kind: 'error', label: 'boom' },
         }, 'tab-1');
         // Three rrweb chunks — purge will trim to 2.
@@ -753,7 +829,7 @@ describe('Property 5: Dual-write invariant', () => {
                         const store = new JsonlStore(tmpDir);
                         const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
                         store.openTab(sessId, { id: eventInput.tab });
-                        store.append(sessId, { ts: eventInput.ts, t: eventInput.t }, eventInput.tab);
+                        store.append(sessId, { ts: eventInput.ts, t: eventInput.t, load: 'L1' }, eventInput.tab);
                         await store.flush();
 
                         const sessEvents = store.tail(sessId);
@@ -1269,7 +1345,7 @@ describe('Property 12: Recording purge preserves timeline', () => {
                         store.openTab(sessId, { id: 'tab-1' });
 
                         // Write a timeline event and a recording chunk
-                        store.append(sessId, { ts: Date.now(), t: 'log', d: {} }, 'tab-1');
+                        store.append(sessId, { ts: Date.now(), t: 'log', load: 'L1', d: {} }, 'tab-1');
                         store.appendRecording(sessId, 'tab-1', [{ type: 4, data: {} }]);
                         await store.flush();
 

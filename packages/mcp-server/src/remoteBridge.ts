@@ -21,6 +21,7 @@ import type { IBridge, SendCommandOptions } from './bridge.js';
 import type {
     IMemoryStore,
     IStore,
+    LoadMeta,
     MemoryEntry,
     ProjectMeta,
     PurgeResult,
@@ -330,6 +331,9 @@ class RemoteStore implements IStore {
     search(_s: string, _q: string, _o?: SearchOptions, _t?: string): StoreEvent[] { throw notSupported('search'); }
     listRecordings(_s: string, _t?: string): RecordingChunkSummary[] { throw notSupported('listRecordings'); }
     sliceRecordings(_s: string, _since: number, _until: number, _t?: string): RecordingChunk[] { throw notSupported('sliceRecordings'); }
+    listLoads(_s: string, _t: string): LoadMeta[] { throw notSupported('listLoads'); }
+    getLoad(_s: string, _t: string, _l: string): LoadMeta | undefined { throw notSupported('getLoad'); }
+    sliceRecordingsByLoad(_s: string, _t: string, _l: string): RecordingChunk[] { throw notSupported('sliceRecordingsByLoad'); }
     summary(_s: string): SessionSummary { throw notSupported('summary'); }
     purge(_p?: RetentionPolicy): PurgeResult { throw notSupported('purge'); }
     listNotes(_p: string): Array<{ key: string; value: string; ts: number }> { throw notSupported('listNotes'); }
@@ -339,6 +343,8 @@ class RemoteStore implements IStore {
     closeSession(_s: string, _c?: number): void { throw notSupported('closeSession'); }
     openTab(_s: string, _t: Omit<TabMeta, 'sessionId' | 'connectedAt'>): void { throw notSupported('openTab'); }
     closeTab(_s: string, _t: string): void { throw notSupported('closeTab'); }
+    openLoad(_s: string, _t: string, _m: Omit<LoadMeta, 'tabId' | 'sessionId' | 'endedAt'>): void { throw notSupported('openLoad'); }
+    closeLatestLoad(_s: string, _t: string, _e?: number): void { throw notSupported('closeLatestLoad'); }
     append(_s: string, _e: StoreEvent, _t?: string): void { throw notSupported('append'); }
     appendBatch(_s: string, _e: StoreEvent[], _t?: string): void { throw notSupported('appendBatch'); }
     appendRecording(_s: string, _t: string, _c: unknown): void { throw notSupported('appendRecording'); }

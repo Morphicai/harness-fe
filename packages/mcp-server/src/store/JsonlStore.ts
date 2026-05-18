@@ -36,6 +36,7 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import type {
     IStore,
+    LoadMeta,
     ProjectMeta,
     PurgeResult,
     RecordingChunk,
@@ -212,6 +213,25 @@ function matchesTimeRange(event: StoreEvent, since?: number, until?: number): bo
     return true;
 }
 
+/**
+ * Enforce the `tab ⇒ load` invariant: every tab-scoped event must carry a
+ * loadId so it can be attributed to a specific page load. Session-scoped
+ * events (no tab, e.g. build-plugin hmr / node:log) MUST NOT carry one.
+ */
+function validateLoadInvariant(event: StoreEvent, tabId: string | undefined): void {
+    const hasTab = !!(tabId ?? event.tab);
+    if (hasTab && !event.load) {
+        throw new Error(
+            `JsonlStore.append: tab-scoped event "${event.t}" missing required load field`,
+        );
+    }
+    if (!hasTab && event.load) {
+        throw new Error(
+            `JsonlStore.append: session-scoped event "${event.t}" must not carry a load field`,
+        );
+    }
+}
+
 function dirSize(dir: string): number {
     if (!existsSync(dir)) return 0;
     let total = 0;
@@ -326,6 +346,10 @@ export class JsonlStore implements IStore {
         return join(this.tabDir(projectId, sessionId, tabId), 'recording.jsonl');
     }
 
+    private tabLoadsFile(projectId: string, sessionId: string, tabId: string): string {
+        return join(this.tabDir(projectId, sessionId, tabId), 'loads.jsonl');
+    }
+
     private exportDir(projectId: string): string {
         return join(this.projectDir(projectId), 'exports');
     }
@@ -431,9 +455,59 @@ export class JsonlStore implements IStore {
         writeJson(metaPath, meta);
     }
 
+    openLoad(
+        sessionId: string,
+        tabId: string,
+        meta: Omit<LoadMeta, 'tabId' | 'sessionId' | 'endedAt'>,
+    ): void {
+        const projectId = this.resolveProject(sessionId);
+        if (!projectId) return;
+        const tabDir = this.tabDir(projectId, sessionId, tabId);
+        ensureDir(tabDir);
+        // Close prior open load on this tab — endedAt = new load's startedAt.
+        this.closeLatestLoad(sessionId, tabId, meta.startedAt);
+        const row: LoadMeta = { ...meta, tabId, sessionId };
+        appendJsonl(this.tabLoadsFile(projectId, sessionId, tabId), row);
+    }
+
+    closeLatestLoad(sessionId: string, tabId: string, endedAt: number = Date.now()): void {
+        const projectId = this.resolveProject(sessionId);
+        if (!projectId) return;
+        const loadsPath = this.tabLoadsFile(projectId, sessionId, tabId);
+        if (!existsSync(loadsPath)) return;
+        const lines = readAllLines(loadsPath);
+        if (!lines.length) return;
+        // Find last row with no endedAt and rewrite the file in place.
+        const rows = lines
+            .map((l) => {
+                try {
+                    return JSON.parse(l) as LoadMeta;
+                } catch {
+                    return undefined;
+                }
+            })
+            .filter((r): r is LoadMeta => !!r);
+        let rewrote = false;
+        for (let i = rows.length - 1; i >= 0; i--) {
+            const row = rows[i];
+            if (row.endedAt === undefined) {
+                row.endedAt = endedAt;
+                rewrote = true;
+                break;
+            }
+        }
+        if (!rewrote) return;
+        writeFileSync(
+            loadsPath,
+            rows.map((r) => JSON.stringify(r)).join('\n') + '\n',
+            'utf-8',
+        );
+    }
+
     // ── Write ─────────────────────────────────────────────────────────────
 
     append(sessionId: string, event: StoreEvent, tabId?: string): void {
+        validateLoadInvariant(event, tabId);
         const projectId = this.resolveProject(sessionId);
         if (!projectId) return;
 
@@ -458,6 +532,7 @@ export class JsonlStore implements IStore {
 
     appendBatch(sessionId: string, events: StoreEvent[], tabId?: string): void {
         if (!events.length) return;
+        for (const event of events) validateLoadInvariant(event, tabId);
         const projectId = this.resolveProject(sessionId);
         if (!projectId) return;
 
@@ -567,7 +642,7 @@ export class JsonlStore implements IStore {
 
         const n = opts.n ?? 50;
         // Read more lines than needed to account for filtering
-        const multiplier = opts.type || opts.since || opts.until ? 5 : 1;
+        const multiplier = opts.type || opts.since || opts.until || opts.loadId ? 5 : 1;
         const rawLines = readLastNLines(filePath, n * multiplier);
 
         const events: StoreEvent[] = [];
@@ -576,6 +651,7 @@ export class JsonlStore implements IStore {
             if (!event) continue;
             if (!matchesType(event, opts.type)) continue;
             if (!matchesTimeRange(event, opts.since, opts.until)) continue;
+            if (opts.loadId && event.load !== opts.loadId) continue;
             events.push(event);
         }
 
@@ -604,6 +680,7 @@ export class JsonlStore implements IStore {
             const event = parseEvent(line);
             if (!event) continue;
             if (!matchesType(event, opts.type)) continue;
+            if (opts.loadId && event.load !== opts.loadId) continue;
             results.push(event);
             if (results.length >= limit) break;
         }
@@ -661,6 +738,33 @@ export class JsonlStore implements IStore {
         }
 
         return chunks.sort((a, b) => a.startTs - b.startTs);
+    }
+
+    listLoads(sessionId: string, tabId: string): LoadMeta[] {
+        const projectId = this.resolveProject(sessionId);
+        if (!projectId) return [];
+        const loadsPath = this.tabLoadsFile(projectId, sessionId, tabId);
+        if (!existsSync(loadsPath)) return [];
+        const rows: LoadMeta[] = [];
+        for (const line of readAllLines(loadsPath)) {
+            try {
+                rows.push(JSON.parse(line) as LoadMeta);
+            } catch {
+                /* skip malformed */
+            }
+        }
+        return rows.sort((a, b) => b.startedAt - a.startedAt);
+    }
+
+    getLoad(sessionId: string, tabId: string, loadId: string): LoadMeta | undefined {
+        return this.listLoads(sessionId, tabId).find((r) => r.id === loadId);
+    }
+
+    sliceRecordingsByLoad(sessionId: string, tabId: string, loadId: string): RecordingChunk[] {
+        const load = this.getLoad(sessionId, tabId, loadId);
+        if (!load) return [];
+        const until = load.endedAt ?? Date.now();
+        return this.sliceRecordings(sessionId, load.startedAt, until, tabId);
     }
 
     writeExport(input: {
