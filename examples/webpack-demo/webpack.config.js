@@ -1,6 +1,6 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const { harnessaFE } = require('@morphixai/harnessa-fe.webpack');
+const { harnessaFE } = require('@harnessa-fe/webpack');
 
 module.exports = {
     mode: 'development',
