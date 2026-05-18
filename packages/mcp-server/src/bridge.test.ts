@@ -25,10 +25,9 @@ async function spawnBridge(): Promise<Bridge> {
 }
 
 function getPort(bridge: Bridge): number {
-    // @ts-expect-error access private for test
-    const addr = bridge.wss?.address();
-    if (!addr || typeof addr === 'string') throw new Error('no address');
-    return addr.port;
+    const port = bridge.getBoundPort();
+    if (!port) throw new Error('no address');
+    return port;
 }
 
 /**

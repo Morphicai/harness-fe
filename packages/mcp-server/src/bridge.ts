@@ -13,6 +13,7 @@
 
 import { WebSocket, WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
+import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
 import { join as joinPath } from 'node:path';
 import { homedir } from 'node:os';
 import {
@@ -33,6 +34,8 @@ import {
     frameSchema,
 } from '@morphixai/harnessa-fe.protocol';
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
+import { createReplayHandler } from './replayViewer.js';
+import { createDashboardHandler } from './dashboard.js';
 import {
     JsonlStore,
     JsonTaskStore,
@@ -60,6 +63,11 @@ export interface IBridge {
     claimTask(id: string): Promise<Task | undefined>;
     resolveTask(id: string, note?: string): Promise<Task | undefined>;
     getMemoryStore(): IMemoryStore;
+    /**
+     * Base URL (e.g. http://127.0.0.1:47729) where the replay viewer is reachable.
+     * Returns undefined when the bridge does not serve HTTP (e.g. follower mode).
+     */
+    getViewerBaseUrl(): string | undefined;
 }
 
 export interface SendCommandOptions {
@@ -112,6 +120,13 @@ export class Bridge implements IBridge {
     readonly taskStore: ITaskStore | null;
     readonly memoryStore: IMemoryStore;
     private wss?: WebSocketServer;
+    private httpServer?: HttpServer;
+    /**
+     * Optional HTTP handler invoked for non-WebSocket requests. Set via
+     * `setHttpHandler()`. Allows higher layers (e.g. replay viewer) to serve
+     * routes on the same port as the WS bridge without coupling Bridge to them.
+     */
+    private httpHandler?: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
     private sockets = new Map<string, WebSocket>();
     private pending = new Map<string, PendingCommand>();
     private eventListeners = new Set<EventListener>();
@@ -142,6 +157,20 @@ export class Bridge implements IBridge {
             host: opts.host ?? '127.0.0.1',
         };
         this.loadTasks();
+
+        // Auto-install dashboard + replay viewer HTTP handlers when a store is present.
+        if (this.store) {
+            const store = this.store;
+            const replay = createReplayHandler(store);
+            const dashboard = createDashboardHandler(store, () => this.getViewerBaseUrl());
+            this.setHttpHandler(async (req, res) => {
+                if (replay(req, res)) return;
+                if (await dashboard(req, res)) return;
+                res.statusCode = 404;
+                res.setHeader('content-type', 'text/plain; charset=utf-8');
+                res.end('Not Found');
+            });
+        }
     }
 
     /**
@@ -198,15 +227,51 @@ export class Bridge implements IBridge {
         return `${tabId}::${selKey}::${payload.question.trim()}`;
     }
 
+    /**
+     * Register an HTTP request handler that runs for non-WebSocket requests on
+     * the same port. Only one handler is supported; later calls replace prior
+     * ones. WS upgrades bypass this handler.
+     */
+    setHttpHandler(handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>): void {
+        this.httpHandler = handler;
+    }
+
     async start(): Promise<void> {
         return new Promise((resolve, reject) => {
-            this.wss = new WebSocketServer({
-                port: this.opts.port,
-                host: this.opts.host,
+            const httpServer = createServer((req, res) => {
+                if (this.httpHandler) {
+                    Promise.resolve(this.httpHandler(req, res)).catch((err) => {
+                        if (!res.headersSent) {
+                            res.statusCode = 500;
+                            res.setHeader('content-type', 'text/plain; charset=utf-8');
+                            res.end(`Internal error: ${err instanceof Error ? err.message : String(err)}`);
+                        } else {
+                            try { res.end(); } catch { /* swallow */ }
+                        }
+                    });
+                    return;
+                }
+                res.statusCode = 404;
+                res.setHeader('content-type', 'text/plain; charset=utf-8');
+                res.end('Not Found');
             });
-            this.wss.on('listening', () => resolve());
-            this.wss.on('error', reject);
-            this.wss.on('connection', (ws) => this.onConnection(ws));
+
+            const wss = new WebSocketServer({ noServer: true });
+            wss.on('connection', (ws) => this.onConnection(ws));
+
+            httpServer.on('upgrade', (req, socket, head) => {
+                wss.handleUpgrade(req, socket, head, (ws) => {
+                    wss.emit('connection', ws, req);
+                });
+            });
+
+            httpServer.once('error', reject);
+            httpServer.listen(this.opts.port, this.opts.host, () => {
+                this.httpServer = httpServer;
+                this.wss = wss;
+                httpServer.off('error', reject);
+                resolve();
+            });
         });
     }
 
@@ -219,10 +284,28 @@ export class Bridge implements IBridge {
             }
         }
         this.sockets.clear();
-        return new Promise((resolve) => {
+        await new Promise<void>((resolve) => {
             if (!this.wss) return resolve();
             this.wss.close(() => resolve());
         });
+        await new Promise<void>((resolve) => {
+            if (!this.httpServer) return resolve();
+            this.httpServer.close(() => resolve());
+        });
+    }
+
+    /** Expose the bound port (useful when port:0 was passed for tests). */
+    getBoundPort(): number | undefined {
+        if (!this.httpServer) return undefined;
+        const addr = this.httpServer.address();
+        if (addr && typeof addr === 'object') return addr.port;
+        return undefined;
+    }
+
+    getViewerBaseUrl(): string | undefined {
+        const port = this.getBoundPort() ?? this.opts.port;
+        if (!port) return undefined;
+        return `http://${this.opts.host}:${port}`;
     }
 
     onEvent(listener: EventListener): () => void {
@@ -750,6 +833,11 @@ export class Bridge implements IBridge {
                 if (!this.store) throw new Error('bridge: store is not enabled');
                 const a = args as { sessionId: string; since: number; until: number; tabId?: string };
                 return this.store.sliceRecordings(a.sessionId, a.since, a.until, a.tabId);
+            }
+            case 'storeReplayCreate': {
+                if (!this.store) throw new Error('bridge: store is not enabled');
+                const { createReplayExport } = await import('./replayCreate.js');
+                return createReplayExport(this.store, this.getViewerBaseUrl(), args as Parameters<typeof createReplayExport>[2]);
             }
             case 'storePurge': {
                 if (!this.store) throw new Error('bridge: store is not enabled');

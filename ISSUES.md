@@ -10,7 +10,16 @@
 ## Bug #1 — 多标签页命令超时（WebSocket 端口不一致）
 
 **严重程度**: 🔴 高  
-**状态**: 根因已确认
+**状态**: ✅ 已修复（2026-05-18）
+
+### 修复结果
+
+1. `packages/unplugin/src/core.ts:87-91` 让插件读取 `HARNESSA_FE_PORT` / `HARNESSA_FE_HOST`，与 `cli.ts` 对称。
+2. `.mcp.json` 和 `.kiro/settings/mcp.json` 移除 `env` 覆盖，全部回落到 `DEFAULT_WS_PORT=47729`。demo 不需额外配置。
+3. 后续如需改端口：要么改 `packages/protocol/src/index.ts` 的 `DEFAULT_WS_PORT` 常量（一处生效），要么在 mcp.json env + 启动 vite 的 shell 里都设同一个 `HARNESSA_FE_PORT`。
+
+以下保留原始诊断记录供参考。
+
 
 ### 现象
 

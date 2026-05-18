@@ -26,6 +26,7 @@ import type {
     PurgeResult,
     RecordingChunk,
     RecordingChunkSummary,
+    ReplayExportMeta,
     RetentionPolicy,
     SearchOptions,
     SessionMeta,
@@ -56,9 +57,13 @@ export class RemoteBridge implements IBridge {
     private closed = false;
     private readonly url: string;
     private readonly callTimeoutMs: number;
+    private readonly host: string;
+    private readonly port: number;
 
     constructor(opts: RemoteBridgeOptions) {
         const host = opts.host ?? '127.0.0.1';
+        this.host = host;
+        this.port = opts.port;
         this.url = `ws://${host}:${opts.port}`;
         this.callTimeoutMs = opts.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
     }
@@ -119,6 +124,11 @@ export class RemoteBridge implements IBridge {
      */
     getMemoryStore(): IMemoryStore {
         return new RemoteMemoryStore(this);
+    }
+
+    getViewerBaseUrl(): string | undefined {
+        // Followers share the same WS/HTTP port as the leader.
+        return `http://${this.host}:${this.port}`;
     }
 
     /**
@@ -293,6 +303,18 @@ class RemoteStore implements IStore {
         ) as Promise<RecordingChunk[]>;
     }
 
+    async replayCreateAsync(args: {
+        sessionId: string;
+        tabId?: string;
+        ts?: number;
+        windowMs?: number;
+        since?: number;
+        until?: number;
+        label?: string;
+    }): Promise<unknown> {
+        return this.bridge.invokeRemote('storeReplayCreate', args);
+    }
+
     async purgeAsync(policy?: RetentionPolicy): Promise<PurgeResult> {
         return this.bridge.invokeRemote('storePurge', policy ?? {}) as Promise<PurgeResult>;
     }
@@ -321,6 +343,10 @@ class RemoteStore implements IStore {
     appendBatch(_s: string, _e: StoreEvent[], _t?: string): void { throw notSupported('appendBatch'); }
     appendRecording(_s: string, _t: string, _c: unknown): void { throw notSupported('appendRecording'); }
     writeNote(_p: string, _k: string, _v: string): void { throw notSupported('writeNote'); }
+    writeExport(_i: Parameters<IStore['writeExport']>[0]): ReplayExportMeta { throw notSupported('writeExport'); }
+    getExport(_id: string): ReplayExportMeta | undefined { throw notSupported('getExport'); }
+    readExportEvents(_id: string): unknown[] | undefined { throw notSupported('readExportEvents'); }
+    listExports(_p: string, _l?: number): ReplayExportMeta[] { throw notSupported('listExports'); }
     close(): void { /* no-op for remote */ }
 }
 

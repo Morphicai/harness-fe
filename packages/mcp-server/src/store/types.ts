@@ -118,6 +118,29 @@ export interface RecordingChunk extends RecordingChunkSummary {
     events: unknown[];
 }
 
+/**
+ * Metadata for a saved replay export. The actual events array lives in
+ * {dataDir}/{projectId}/exports/{exportId}.rrweb.json.
+ */
+export interface ReplayExportMeta {
+    exportId: string;
+    projectId: string;
+    sessionId: string;
+    tabId?: string;
+    /** Optional human label, e.g. "checkout-error". */
+    label?: string;
+    /** Window requested by the caller. */
+    since: number;
+    until: number;
+    /** Time span actually covered by the exported events (may be tighter than [since, until]). */
+    startTs: number;
+    endTs: number;
+    chunkCount: number;
+    eventCount: number;
+    bytes: number;
+    createdAt: number;
+}
+
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
 export interface SessionSummary {
@@ -143,11 +166,16 @@ export interface RetentionPolicy {
     maxRecordingBytesPerTab?: number;
     /** Prefer keeping chunks that overlap rrweb markers when trimming by count/bytes. */
     preserveMarkedChunks?: boolean;
+    /** Keep at most this many replay exports per project. Default 50. */
+    maxExportsPerProject?: number;
+    /** Keep at most this many bytes of replay exports per project. Default 200MB. */
+    maxExportBytesPerProject?: number;
 }
 
 export interface PurgeResult {
     sessionsDeleted: number;
     recordingsDeleted: number;
+    exportsDeleted: number;
     bytesFreed: number;
 }
 
@@ -258,6 +286,31 @@ export interface IStore {
 
     /** Return recording chunks overlapping the requested time window. */
     sliceRecordings(sessionId: string, since: number, until: number, tabId?: string): RecordingChunk[];
+
+    /**
+     * Persist a replay export (concatenated rrweb events for a time window).
+     * Returns metadata. Events are stored as a single JSON array file on disk.
+     */
+    writeExport(input: {
+        sessionId: string;
+        tabId?: string;
+        since: number;
+        until: number;
+        label?: string;
+        events: unknown[];
+        startTs: number;
+        endTs: number;
+        chunkCount: number;
+    }): ReplayExportMeta;
+
+    /** Read export metadata by id. Returns undefined if not found. */
+    getExport(exportId: string): ReplayExportMeta | undefined;
+
+    /** Read the raw events array for an export. Returns undefined if missing. */
+    readExportEvents(exportId: string): unknown[] | undefined;
+
+    /** List exports for a project, newest first. */
+    listExports(projectId: string, limit?: number): ReplayExportMeta[];
 
     /** Get a summary of a session (counts, last error, etc.). */
     summary(sessionId: string): SessionSummary;
