@@ -761,7 +761,12 @@ describe('Property 3: StoreEvent JSONL round-trip', () => {
                         expect(events).toHaveLength(1);
                         expect(events[0].ts).toBe(event.ts);
                         expect(events[0].t).toBe(event.t);
-                        expect(events[0].d).toEqual(event.d);
+                        // toStrictEqual would distinguish -0 / +0, but JSON cannot
+                        // round-trip -0 (JSON.stringify(-0) === "0"). toEqual treats
+                        // them as equal in older vitest; v2 made it strict. Normalize.
+                        expect(JSON.parse(JSON.stringify(events[0].d))).toEqual(
+                            JSON.parse(JSON.stringify(event.d)),
+                        );
 
                         await store.close();
                     } finally {
