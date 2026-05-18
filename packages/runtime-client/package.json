@@ -6,12 +6,12 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/morphixai/harnessa-fe.git",
+        "url": "https://github.com/Morphicai/harnessa-fe.git",
         "directory": "packages/runtime-client"
     },
-    "homepage": "https://github.com/morphixai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
     "bugs": {
-        "url": "https://github.com/morphixai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harnessa-fe/issues"
     },
     "main": "dist/index.js",
     "types": "dist/index.d.ts",

@@ -1,6 +1,6 @@
 # @harnessa-fe/webpack
 
-> Webpack plugin for [Harnessa-FE](https://github.com/morphixai/harnessa-fe) — the frontend harness for AI agents.
+> Webpack plugin for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe) — the frontend harness for AI agents.
 
 Source-aware transform + runtime injection + MCP bridge for Webpack projects. Tags every JSX element with `data-morphix-loc` / `data-morphix-comp` so AI agents can map any UI element back to a file:line:column.
 
@@ -41,8 +41,8 @@ Same as [`@harnessa-fe/vite`](https://www.npmjs.com/package/@harnessa-fe/vite). 
 
 ## Docs
 
-- [Root README](https://github.com/morphixai/harnessa-fe#readme)
-- [Architecture](https://github.com/morphixai/harnessa-fe/blob/main/ARCHITECTURE.md)
+- [Root README](https://github.com/Morphicai/harnessa-fe#readme)
+- [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md)
 
 ## License
 

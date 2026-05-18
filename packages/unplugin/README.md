@@ -1,6 +1,6 @@
 # @harnessa-fe/unplugin
 
-> Unified build plugin core for [Harnessa-FE](https://github.com/morphixai/harnessa-fe). Powers the Vite, Webpack, Rspack, esbuild, and Rollup adapters.
+> Unified build plugin core for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe). Powers the Vite, Webpack, Rspack, esbuild, and Rollup adapters.
 
 You normally do **not** install this directly — install the bundler-specific package instead:
 
@@ -35,8 +35,8 @@ import { unplugin, unpluginFactory } from '@harnessa-fe/unplugin';
 
 ## Docs
 
-- [Root README](https://github.com/morphixai/harnessa-fe#readme)
-- [Architecture](https://github.com/morphixai/harnessa-fe/blob/main/ARCHITECTURE.md)
+- [Root README](https://github.com/Morphicai/harnessa-fe#readme)
+- [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md)
 
 ## License
 

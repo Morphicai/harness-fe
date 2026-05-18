@@ -10,7 +10,7 @@ Thanks for considering a contribution. This guide covers the minimal workflow to
 ## Setup
 
 ```bash
-git clone https://github.com/morphixai/harnessa-fe.git
+git clone https://github.com/Morphicai/harnessa-fe.git
 cd harnessa-fe
 pnpm install
 pnpm build
@@ -95,7 +95,7 @@ pnpm -r publish --access public
 
 ## Reporting issues
 
-File on [GitHub issues](https://github.com/morphixai/harnessa-fe/issues). Include:
+File on [GitHub issues](https://github.com/Morphicai/harnessa-fe/issues). Include:
 
 - Bundler + version (Vite 7.3.3 / Webpack 5.106.x / etc.)
 - Framework + version (React 18 / Vue 3.4 / etc.)

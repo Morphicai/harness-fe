@@ -10,7 +10,7 @@ Starting at `v0.1.0`, every tarball on npm is published with `--provenance`, whi
 
 - the exact git commit
 - the exact GitHub Actions workflow run
-- the `morphixai/harnessa-fe` repo
+- the `Morphicai/harnessa-fe` repo
 
 Verify in your project:
 
@@ -50,7 +50,7 @@ Please **do not** file public GitHub issues for security problems.
 
 Email: **security@morphix.ai** (PGP key on request)
 
-Or use [GitHub's private vulnerability reporting](https://github.com/morphixai/harnessa-fe/security/advisories/new).
+Or use [GitHub's private vulnerability reporting](https://github.com/Morphicai/harnessa-fe/security/advisories/new).
 
 We aim to:
 

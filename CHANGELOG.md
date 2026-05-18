@@ -24,4 +24,4 @@ First public release on npm.
 - Webpack plugin is beta — fast-refresh edge cases may drop the WebSocket
 - Wire format (`PROTOCOL_VERSION`) is not yet frozen — pin exact versions in production
 
-[0.1.0]: https://github.com/morphixai/harnessa-fe/releases/tag/v0.1.0
+[0.1.0]: https://github.com/Morphicai/harnessa-fe/releases/tag/v0.1.0

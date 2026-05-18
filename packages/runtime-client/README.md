@@ -1,6 +1,6 @@
 # @harnessa-fe/runtime
 
-> Browser runtime client for [Harnessa-FE](https://github.com/morphixai/harnessa-fe). Captures DOM/console/network events and executes commands from the MCP server in the user's real browser tab.
+> Browser runtime client for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe). Captures DOM/console/network events and executes commands from the MCP server in the user's real browser tab.
 
 Auto-injected by the [Vite plugin](https://www.npmjs.com/package/@harnessa-fe/vite) / [Webpack plugin](https://www.npmjs.com/package/@harnessa-fe/webpack) — you typically install it as a peer of the plugin.
 
@@ -36,8 +36,8 @@ client.start();
 
 ## Docs
 
-- [Root README](https://github.com/morphixai/harnessa-fe#readme)
-- [Architecture](https://github.com/morphixai/harnessa-fe/blob/main/ARCHITECTURE.md)
+- [Root README](https://github.com/Morphicai/harnessa-fe#readme)
+- [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md)
 
 ## License
 

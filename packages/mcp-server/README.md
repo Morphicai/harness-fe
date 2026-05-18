@@ -1,6 +1,6 @@
 # @harnessa-fe/mcp-server
 
-> The MCP daemon for [Harnessa-FE](https://github.com/morphixai/harnessa-fe). Bridges AI agents (Claude, Cursor, Kiro) with running dev servers and browser tabs.
+> The MCP daemon for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe). Bridges AI agents (Claude, Cursor, Kiro) with running dev servers and browser tabs.
 
 The MCP server exposes tools over **stdio MCP** to AI agents and runs a **WebSocket bridge** for the Vite/Webpack plugin and the browser runtime client. One daemon can serve multiple projects simultaneously.
 
@@ -34,7 +34,7 @@ Cursor, Kiro, and other MCP-compatible clients use the same pattern.
 
 ## What it exposes
 
-Tools across these domains (see [Architecture](https://github.com/morphixai/harnessa-fe/blob/main/ARCHITECTURE.md)):
+Tools across these domains (see [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md)):
 
 - **page** — `navigate`, `click`, `type`, `dom_query`, `evaluate`, `screenshot`, …
 - **console / network / errors** — tail and search runtime events
@@ -46,8 +46,8 @@ Persistence lives in `~/.harnessa/` (JSONL event logs + JSON records).
 
 ## Docs
 
-- [Root README](https://github.com/morphixai/harnessa-fe#readme)
-- [Architecture](https://github.com/morphixai/harnessa-fe/blob/main/ARCHITECTURE.md)
+- [Root README](https://github.com/Morphicai/harnessa-fe#readme)
+- [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md)
 
 ## License
 
