@@ -29,5 +29,9 @@
         "happy-dom": "^20.9.0",
         "turbo": "^2.9.12",
         "typescript": "^5.6.0"
+    },
+    "pnpm": {
+        "// onlyBuiltDependencies": "Empty allowlist disables ALL install/postinstall scripts in our dependency tree. This is the primary defense against Shai-Hulud style postinstall worms. Add a package here ONLY if its postinstall is required AND audited.",
+        "onlyBuiltDependencies": []
     }
 }
