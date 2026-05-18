@@ -20,6 +20,7 @@ import {
     DEFAULT_WS_PORT,
     EVENT_NAME,
     PROTOCOL_VERSION,
+    pageLoadPayloadSchema,
     rrwebChunkPayloadSchema,
     taskSubmitPayloadSchema,
     type CommandFrame,
@@ -359,7 +360,13 @@ export class Bridge implements IBridge {
         if (!storeSessionId) return;
         this.store.append(
             storeSessionId,
-            { ts: Date.now(), t: eventType, tab: task.tabId, d: { id: task.id, status: task.status, question: task.question, note: task.note } },
+            {
+                ts: Date.now(),
+                t: eventType,
+                tab: task.tabId,
+                load: task.loadId,
+                d: { id: task.id, status: task.status, question: task.question, note: task.note },
+            },
             task.tabId,
         );
     }
@@ -386,6 +393,7 @@ export class Bridge implements IBridge {
         const task: Task = {
             id,
             tabId,
+            loadId: peer.loadId,
             projectId: peer.projectId ?? frame.projectId ?? 'unknown',
             url: parsed.data.url,
             status: 'pending',
@@ -443,10 +451,11 @@ export class Bridge implements IBridge {
 
         // Persist command to store
         const storeSessionId = this.connToStoreSession.get(session.connectionId);
+        const loadId = session.loadId;
         if (this.store && storeSessionId) {
             this.store.append(
                 storeSessionId,
-                { ts: cmdTs, t: 'cmd', tab: session.tabId, d: { id, command, args, target } },
+                { ts: cmdTs, t: 'cmd', tab: session.tabId, load: loadId, d: { id, command, args, target } },
                 session.tabId,
             );
         }
@@ -459,7 +468,7 @@ export class Bridge implements IBridge {
                 if (this.store && storeSessionId) {
                     this.store.append(
                         storeSessionId,
-                        { ts: Date.now(), t: 'resp', tab: session.tabId, d: { id, ok: false, error: `timeout after ${timeoutMs}ms`, durationMs: timeoutMs } },
+                        { ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId, d: { id, ok: false, error: `timeout after ${timeoutMs}ms`, durationMs: timeoutMs } },
                         session.tabId,
                     );
                 }
@@ -472,7 +481,7 @@ export class Bridge implements IBridge {
                         const safeResult = stripLargePayloads(result);
                         this.store.append(
                             storeSessionId,
-                            { ts: Date.now(), t: 'resp', tab: session.tabId, d: { id, ok: true, result: safeResult, durationMs: Date.now() - cmdTs } },
+                            { ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId, d: { id, ok: true, result: safeResult, durationMs: Date.now() - cmdTs } },
                             session.tabId,
                         );
                     }
@@ -483,7 +492,7 @@ export class Bridge implements IBridge {
                     if (this.store && storeSessionId) {
                         this.store.append(
                             storeSessionId,
-                            { ts: Date.now(), t: 'resp', tab: session.tabId, d: { id, ok: false, error: err.message, durationMs: Date.now() - cmdTs } },
+                            { ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId, d: { id, ok: false, error: err.message, durationMs: Date.now() - cmdTs } },
                             session.tabId,
                         );
                     }
@@ -547,6 +556,8 @@ export class Bridge implements IBridge {
             if (storeSessionId && this.store) {
                 const peer = this.router.getByConnectionId(connectionId);
                 if (peer?.role === 'runtime-client' && peer.tabId) {
+                    // Close the most recent open load before closing the tab.
+                    this.store.closeLatestLoad(storeSessionId, peer.tabId);
                     this.store.closeTab(storeSessionId, peer.tabId);
                     this.connToStoreSession.delete(connectionId);
                 } else if (peer?.role === 'vite-plugin' || peer?.role === 'webpack-plugin') {
@@ -582,6 +593,20 @@ export class Bridge implements IBridge {
     private handleFrame(connectionId: string, ws: WebSocket, frame: Frame): void {
         switch (frame.type) {
             case 'hello': {
+                // Runtime-client MUST carry a loadId so every emitted event is
+                // attributable to a specific page load. Reject explicitly so
+                // misconfigured clients surface during development.
+                if (frame.role === 'runtime-client' && !frame.loadId) {
+                    const errorAck: HelloAckFrame = {
+                        type: 'hello.ack',
+                        id: frame.id,
+                        serverVersion: PROTOCOL_VERSION,
+                        error: 'runtime-client hello missing loadId',
+                    };
+                    ws.send(JSON.stringify(errorAck));
+                    return;
+                }
+
                 // For runtime-client: check if an active session exists before registering.
                 // Only enforced when the store is active (persistence enabled).
                 if (frame.role === 'runtime-client' && this.store) {
@@ -602,6 +627,7 @@ export class Bridge implements IBridge {
                     role: frame.role,
                     projectId: frame.projectId,
                     tabId: frame.tabId,
+                    loadId: frame.loadId,
                     connectionId,
                     page: frame.page,
                 });
@@ -679,7 +705,43 @@ export class Bridge implements IBridge {
                     const storeSessionId = this.connToStoreSession.get(connectionId);
                     if (storeSessionId) {
                         const tabId = frame.tabId ?? peer.tabId;
-                        if (frame.name === EVENT_NAME.RRWEB && tabId) {
+                        // Tab-scoped events MUST carry the peer's loadId — the
+                        // store enforces the `tab ⇒ load` invariant.
+                        const loadId = tabId ? peer.loadId : undefined;
+                        if (frame.name === EVENT_NAME.PAGE_LOAD && tabId && loadId) {
+                            const parsed = pageLoadPayloadSchema.safeParse(frame.payload);
+                            const ts = frame.ts ?? Date.now();
+                            // Persist the full snapshot on the timeline and a
+                            // compact LoadMeta row to loads.jsonl. The store
+                            // rewrites the previous open load's endedAt.
+                            this.store.append(
+                                storeSessionId,
+                                { ts, t: 'load', tab: tabId, load: loadId, d: frame.payload },
+                                tabId,
+                            );
+                            const page = parsed.success ? parsed.data.page : undefined;
+                            const viewport = parsed.success ? parsed.data.viewport : undefined;
+                            const storageData = parsed.success ? parsed.data.storage : undefined;
+                            this.store.openLoad(storeSessionId, tabId, {
+                                id: loadId,
+                                startedAt: ts,
+                                url: page?.url ?? peer.page?.url,
+                                title: page?.title ?? peer.page?.title,
+                                referrer: page?.referrer,
+                                userAgent: page?.userAgent ?? peer.page?.userAgent,
+                                initial: {
+                                    viewport,
+                                    storageKeys: storageData
+                                        ? {
+                                            local: storageData.local ? Object.keys(storageData.local).length : 0,
+                                            session: storageData.session ? Object.keys(storageData.session).length : 0,
+                                            cookie: storageData.cookie ? storageData.cookie.length : 0,
+                                        }
+                                        : undefined,
+                                    storageTruncated: storageData?.truncated,
+                                },
+                            });
+                        } else if (frame.name === EVENT_NAME.RRWEB && tabId) {
                             const parsed = rrwebChunkPayloadSchema.safeParse(frame.payload);
                             if (parsed.success) {
                                 this.store.appendRecording(storeSessionId, tabId, parsed.data);
@@ -689,6 +751,7 @@ export class Bridge implements IBridge {
                                         ts: frame.ts ?? Date.now(),
                                         t: 'rrweb',
                                         tab: tabId,
+                                        load: loadId,
                                         d: {
                                             chunkId: parsed.data.chunkId,
                                             startTs: parsed.data.startTs,
@@ -706,6 +769,7 @@ export class Bridge implements IBridge {
                                     ts: frame.ts ?? Date.now(),
                                     t: frame.name as string,
                                     tab: tabId,
+                                    load: loadId,
                                     d: frame.payload,
                                 },
                                 tabId,
@@ -719,6 +783,7 @@ export class Bridge implements IBridge {
                                     ts: frame.ts ?? Date.now(),
                                     t: 'rrweb:marker',
                                     tab: tabId,
+                                    load: loadId,
                                     d: marker,
                                 },
                                 tabId,

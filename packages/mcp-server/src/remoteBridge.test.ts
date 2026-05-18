@@ -32,6 +32,7 @@ async function fakeRuntimeClient(
             role: 'runtime-client',
             projectId: 'demo',
             tabId,
+            loadId: 'load-1',
             page: { url: 'http://localhost:5173/', title: 'Demo' },
         }),
     );
