@@ -12,6 +12,8 @@
  *   {dataDir}/{projectId}/sessions/{sessionId}/timeline.jsonl
  *   {dataDir}/{projectId}/sessions/{sessionId}/tabs/{tabId}/timeline.jsonl
  *   {dataDir}/{projectId}/sessions/{sessionId}/tabs/{tabId}/recording.jsonl
+ *   {dataDir}/{projectId}/exports/index.jsonl                       export metadata
+ *   {dataDir}/{projectId}/exports/{exportId}.rrweb.json             replay events
  */
 
 import {
@@ -38,6 +40,7 @@ import type {
     PurgeResult,
     RecordingChunk,
     RecordingChunkSummary,
+    ReplayExportMeta,
     RetentionPolicy,
     SearchOptions,
     SessionMeta,
@@ -55,6 +58,8 @@ const DEFAULT_RETENTION: Required<RetentionPolicy> = {
     maxRecordingChunksPerTab: 500,
     maxRecordingBytesPerTab: 250 * 1024 * 1024,
     preserveMarkedChunks: true,
+    maxExportsPerProject: 50,
+    maxExportBytesPerProject: 200 * 1024 * 1024,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -319,6 +324,35 @@ export class JsonlStore implements IStore {
 
     private tabRecording(projectId: string, sessionId: string, tabId: string): string {
         return join(this.tabDir(projectId, sessionId, tabId), 'recording.jsonl');
+    }
+
+    private exportDir(projectId: string): string {
+        return join(this.projectDir(projectId), 'exports');
+    }
+
+    private exportIndex(projectId: string): string {
+        return join(this.exportDir(projectId), 'index.jsonl');
+    }
+
+    private exportEventsPath(projectId: string, exportId: string): string {
+        return join(this.exportDir(projectId), `${sanitizeId(exportId)}.rrweb.json`);
+    }
+
+    /** Reverse lookup: exportId → projectId. Built lazily, scans project dirs. */
+    private findExportProject(exportId: string): string | undefined {
+        for (const proj of this.listProjects()) {
+            const indexPath = this.exportIndex(proj.id);
+            if (!existsSync(indexPath)) continue;
+            for (const line of readAllLines(indexPath)) {
+                try {
+                    const meta = JSON.parse(line) as ReplayExportMeta;
+                    if (meta?.exportId === exportId) return proj.id;
+                } catch {
+                    /* swallow malformed line */
+                }
+            }
+        }
+        return undefined;
     }
 
     // ── Session lookup (sessionId → projectId) ────────────────────────────
@@ -629,6 +663,96 @@ export class JsonlStore implements IStore {
         return chunks.sort((a, b) => a.startTs - b.startTs);
     }
 
+    writeExport(input: {
+        sessionId: string;
+        tabId?: string;
+        since: number;
+        until: number;
+        label?: string;
+        events: unknown[];
+        startTs: number;
+        endTs: number;
+        chunkCount: number;
+    }): ReplayExportMeta {
+        const projectId = this.resolveProject(input.sessionId);
+        if (!projectId) {
+            throw new Error(`writeExport: unknown sessionId ${input.sessionId}`);
+        }
+        const exportId = `exp_${randomUUID().slice(0, 12)}`;
+        const exportDir = this.exportDir(projectId);
+        ensureDir(exportDir);
+
+        const eventsPath = this.exportEventsPath(projectId, exportId);
+        const payload = JSON.stringify(input.events);
+        writeFileSync(eventsPath, payload, 'utf-8');
+
+        const meta: ReplayExportMeta = {
+            exportId,
+            projectId,
+            sessionId: input.sessionId,
+            tabId: input.tabId,
+            label: input.label,
+            since: input.since,
+            until: input.until,
+            startTs: input.startTs,
+            endTs: input.endTs,
+            chunkCount: input.chunkCount,
+            eventCount: input.events.length,
+            bytes: Buffer.byteLength(payload, 'utf-8'),
+            createdAt: Date.now(),
+        };
+        appendJsonl(this.exportIndex(projectId), meta);
+        return meta;
+    }
+
+    getExport(exportId: string): ReplayExportMeta | undefined {
+        const projectId = this.findExportProject(exportId);
+        if (!projectId) return undefined;
+        const indexPath = this.exportIndex(projectId);
+        let latest: ReplayExportMeta | undefined;
+        for (const line of readAllLines(indexPath)) {
+            try {
+                const meta = JSON.parse(line) as ReplayExportMeta;
+                if (meta?.exportId === exportId) latest = meta;
+            } catch {
+                /* swallow */
+            }
+        }
+        return latest;
+    }
+
+    readExportEvents(exportId: string): unknown[] | undefined {
+        const projectId = this.findExportProject(exportId);
+        if (!projectId) return undefined;
+        const eventsPath = this.exportEventsPath(projectId, exportId);
+        if (!existsSync(eventsPath)) return undefined;
+        try {
+            const parsed = JSON.parse(readFileSync(eventsPath, 'utf-8'));
+            return Array.isArray(parsed) ? parsed : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    listExports(projectId: string, limit?: number): ReplayExportMeta[] {
+        const indexPath = this.exportIndex(projectId);
+        if (!existsSync(indexPath)) return [];
+        const metas: ReplayExportMeta[] = [];
+        // Index is append-only; later lines win for duplicate exportIds (shouldn't happen, but defensive).
+        const seen = new Map<string, ReplayExportMeta>();
+        for (const line of readAllLines(indexPath)) {
+            try {
+                const meta = JSON.parse(line) as ReplayExportMeta;
+                if (meta?.exportId) seen.set(meta.exportId, meta);
+            } catch {
+                /* swallow */
+            }
+        }
+        for (const meta of seen.values()) metas.push(meta);
+        metas.sort((a, b) => b.createdAt - a.createdAt);
+        return typeof limit === 'number' ? metas.slice(0, limit) : metas;
+    }
+
     summary(sessionId: string): SessionSummary {
         const session = this.getSession(sessionId);
         const projectId = this.resolveProject(sessionId);
@@ -707,6 +831,7 @@ export class JsonlStore implements IStore {
 
         let sessionsDeleted = 0;
         let recordingsDeleted = 0;
+        let exportsDeleted = 0;
         let bytesFreed = 0;
 
         for (const proj of this.listProjects()) {
@@ -758,9 +883,68 @@ export class JsonlStore implements IStore {
                     recordingsDeleted += result.chunksDeleted;
                 }
             }
+
+            // Trim exports per project: enforce count + byte ceilings (oldest first).
+            const exportResult = this.pruneExportsForProject(
+                proj.id,
+                p.maxExportsPerProject,
+                p.maxExportBytesPerProject,
+            );
+            exportsDeleted += exportResult.exportsDeleted;
+            bytesFreed += exportResult.bytesFreed;
         }
 
-        return { sessionsDeleted, recordingsDeleted, bytesFreed };
+        return { sessionsDeleted, recordingsDeleted, exportsDeleted, bytesFreed };
+    }
+
+    private pruneExportsForProject(
+        projectId: string,
+        maxExports: number,
+        maxBytes: number,
+    ): { exportsDeleted: number; bytesFreed: number } {
+        const exports = this.listExports(projectId); // newest first
+        if (exports.length === 0) return { exportsDeleted: 0, bytesFreed: 0 };
+
+        const keep: ReplayExportMeta[] = [];
+        const drop: ReplayExportMeta[] = [];
+        let runningBytes = 0;
+        for (const meta of exports) {
+            const fits = keep.length < maxExports && runningBytes + meta.bytes <= maxBytes;
+            if (fits) {
+                keep.push(meta);
+                runningBytes += meta.bytes;
+            } else {
+                drop.push(meta);
+            }
+        }
+        if (drop.length === 0) return { exportsDeleted: 0, bytesFreed: 0 };
+
+        let bytesFreed = 0;
+        for (const meta of drop) {
+            const eventsPath = this.exportEventsPath(projectId, meta.exportId);
+            if (existsSync(eventsPath)) {
+                const size = statSync(eventsPath).size;
+                try {
+                    unlinkSync(eventsPath);
+                    bytesFreed += size;
+                } catch {
+                    /* swallow */
+                }
+            }
+        }
+
+        // Rewrite index keeping only surviving entries.
+        const indexPath = this.exportIndex(projectId);
+        if (keep.length === 0) {
+            try { unlinkSync(indexPath); } catch { /* swallow */ }
+        } else {
+            // Preserve original insertion order (oldest first) so future appends still work naturally.
+            keep.sort((a, b) => a.createdAt - b.createdAt);
+            const body = keep.map((m) => JSON.stringify(m)).join('\n') + '\n';
+            writeFileSync(indexPath, body, 'utf-8');
+        }
+
+        return { exportsDeleted: drop.length, bytesFreed };
     }
 
     /**

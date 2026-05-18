@@ -28,6 +28,7 @@ import type { IBridge } from './bridge.js';
 import type { Bridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';
 import type { IStore, IMemoryStore } from './store/index.js';
+import { createReplayExport } from './replayCreate.js';
 
 const SERVER_NAME = 'harnessa-fe';
 const tabIdParam = z
@@ -49,7 +50,7 @@ export async function startMcpStdioServer(bridge: IBridge): Promise<McpServer> {
     if (leaderStore != null) {
         // Leader: direct in-process access
         const memoryStore = bridge.getMemoryStore();
-        registerStoreTools(server, leaderStore, memoryStore);
+        registerStoreTools(server, leaderStore, memoryStore, bridge);
     } else if (bridge instanceof RemoteBridge) {
         // Follower: proxy store/memory operations to the leader
         registerRemoteStoreTools(server, bridge);
@@ -481,7 +482,7 @@ function registerTools(server: McpServer, bridge: IBridge): void {
 
 // ─── Store tools (session history, timeline, memory) ──────────────────────────
 
-function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemoryStore): void {
+function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemoryStore, bridge: IBridge): void {
     server.registerTool(
         'session.list',
         {
@@ -661,6 +662,31 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
     );
 
     server.registerTool(
+        'session.replay.create',
+        {
+            description:
+                'Bundle rrweb recording chunks in a time window into a single replay export and return a viewer URL. '
+                + 'Provide either {ts, windowMs?} (default ±15s around ts) or {since, until} explicit bounds. '
+                + 'The returned viewerUrl opens a self-contained rrweb-player page — paste it to the user to share the replay.',
+            inputSchema: {
+                sessionId: z.string(),
+                tabId: z.string().optional().describe('Restrict to a single tab (recommended for clean replay).'),
+                ts: z.number().optional().describe('Center timestamp in Unix ms; ignored if since/until provided.'),
+                windowMs: z.number().int().positive().default(15_000).optional().describe('Half-window around ts. Default 15s.'),
+                since: z.number().optional().describe('Explicit window start (Unix ms). Overrides ts.'),
+                until: z.number().optional().describe('Explicit window end (Unix ms). Overrides ts.'),
+                label: z.string().optional().describe('Optional human label saved with the export.'),
+            },
+        },
+        async ({ sessionId, tabId, ts, windowMs, since, until, label }) => {
+            const result = createReplayExport(store, bridge.getViewerBaseUrl(), {
+                sessionId, tabId, ts, windowMs, since, until, label,
+            });
+            return ok(result);
+        },
+    );
+
+    server.registerTool(
         'project.memory.set',
         {
             description: 'Write or update a persistent memory entry for a project (cross-session knowledge for the agent).',
@@ -776,6 +802,7 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
         searchAsync(sessionId: string, query: string, opts?: unknown, tabId?: string): Promise<unknown>;
         listRecordingsAsync(sessionId: string, tabId?: string): Promise<unknown>;
         sliceRecordingsAsync(sessionId: string, since: number, until: number, tabId?: string): Promise<unknown>;
+        replayCreateAsync(args: unknown): Promise<unknown>;
         purgeAsync(policy?: unknown): Promise<unknown>;
     };
     const remoteMem = bridge.getMemoryStore() as ReturnType<RemoteBridge['getMemoryStore']> & {
@@ -969,6 +996,31 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
                     eventCount: number;
                 }>),
             });
+        },
+    );
+
+    server.registerTool(
+        'session.replay.create',
+        {
+            description:
+                'Bundle rrweb recording chunks in a time window into a single replay export and return a viewer URL. '
+                + 'Provide either {ts, windowMs?} (default ±15s around ts) or {since, until} explicit bounds. '
+                + 'The returned viewerUrl opens a self-contained rrweb-player page — paste it to the user to share the replay.',
+            inputSchema: {
+                sessionId: z.string(),
+                tabId: z.string().optional(),
+                ts: z.number().optional(),
+                windowMs: z.number().int().positive().default(15_000).optional(),
+                since: z.number().optional(),
+                until: z.number().optional(),
+                label: z.string().optional(),
+            },
+        },
+        async ({ sessionId, tabId, ts, windowMs, since, until, label }) => {
+            const result = await remoteStore.replayCreateAsync({
+                sessionId, tabId, ts, windowMs, since, until, label,
+            });
+            return ok(result);
         },
     );
 

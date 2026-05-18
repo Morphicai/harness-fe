@@ -117,6 +117,7 @@ export const mcpMethodSchema = z.enum([
     'storeSearch',
     'storeRecordingsList',
     'storeRecordingsSlice',
+    'storeReplayCreate',
     'storePurge',
     'memorySet',
     'memoryGet',

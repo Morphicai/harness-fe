@@ -17,6 +17,7 @@ export type {
     SearchOptions,
     RecordingChunkSummary,
     RecordingChunk,
+    ReplayExportMeta,
     RetentionPolicy,
     PurgeResult,
 } from './types.js';

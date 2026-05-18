@@ -18,9 +18,14 @@
 
 - [x] 9. Add derived markers for errors, unhandled rejections, failed network activity, and annotation tasks.
 - [x] 10. Add configurable retention for recordings with age and size ceilings.
-- [ ] 11. Add tests for pruning old chunks while preserving timeline integrity and marker consistency.
+- [x] 11. Tests cover pruning by count/byte ceilings; new `recording prune leaves session timeline and markers intact` test asserts timeline + marker rows survive an rrweb chunk purge.
 
 ## Phase 4: Replay ergonomics
 
-- [ ] 12. Add a replay-oriented export or viewer handoff path for bounded recording slices.
-- [ ] 13. Add end-to-end verification against the example app covering recording capture, marker generation, slice retrieval, and replay handoff.
+- [x] 12. Add a replay-oriented export + local viewer for bounded recording slices.
+        - Bundled `rrweb-player` in `@morphixai/harnessa-fe.mcp-server`.
+        - Bridge now serves HTTP and WS on the same port; `/replay/:id` returns a self-contained viewer page, `/replay/:id.json` returns raw events.
+        - New MCP tool `session.replay.create` builds an export from `{ts, windowMs?}` or `{since, until}` and returns `viewerUrl`.
+        - Available in both leader and follower modes (proxied via `storeReplayCreate` mcp.call method).
+        - Per-project retention added (`maxExportsPerProject`, `maxExportBytesPerProject`).
+- [x] 13. Verified end-to-end via vitest: rrweb chunks → `session.replay.create` → HTTP viewer + JSON routes return 200 with the bundled events; bundled rrweb-player JS/CSS served; retention-trimmed chunks are excluded from later exports.

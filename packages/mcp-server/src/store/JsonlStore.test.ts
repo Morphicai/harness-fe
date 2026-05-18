@@ -296,6 +296,134 @@ describe('JsonlStore', () => {
         expect(store.listRecordings(sessId, 'tab-1').map((chunk) => chunk.chunkId)).toEqual(['rrc_2', 'rrc_3']);
     });
 
+    it('recording prune leaves session timeline and markers intact', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        const now = Date.now();
+        // Two ordinary timeline entries + one marker — none of these should be touched.
+        store.append(sessId, { ts: now - 800, t: 'log', d: { args: ['hello'] } }, 'tab-1');
+        store.append(sessId, { ts: now - 500, t: 'err', d: { message: 'boom' } }, 'tab-1');
+        store.append(sessId, {
+            ts: now - 450,
+            t: 'rrweb:marker',
+            tab: 'tab-1',
+            d: { markerId: 'rrm_1', kind: 'error', label: 'boom' },
+        }, 'tab-1');
+        // Three rrweb chunks — purge will trim to 2.
+        for (let i = 0; i < 3; i++) {
+            store.appendRecording(sessId, 'tab-1', {
+                chunkId: `c_${i}`,
+                startTs: now - 1000 + i * 100,
+                endTs: now - 900 + i * 100,
+                eventCount: 1,
+                events: [{ type: 4 }],
+            });
+        }
+        await store.flush();
+
+        const before = store.tail(sessId, { n: 50 });
+        const beforeMarkers = store.tail(sessId, { n: 50, type: 'rrweb:marker' });
+
+        const result = store.purge({ maxRecordingChunksPerTab: 2, preserveMarkedChunks: false });
+        expect(result.recordingsDeleted).toBe(1);
+
+        const after = store.tail(sessId, { n: 50 });
+        const afterMarkers = store.tail(sessId, { n: 50, type: 'rrweb:marker' });
+        expect(after).toEqual(before);
+        expect(afterMarkers).toEqual(beforeMarkers);
+        expect(afterMarkers).toHaveLength(1);
+    });
+
+    // ── Exports (replay) ─────────────────────────────────────────────────
+
+    it('writeExport persists events and metadata, readable by id', async () => {
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        const meta = store.writeExport({
+            sessionId: sessId,
+            tabId: 'tab-1',
+            since: 1000,
+            until: 2000,
+            startTs: 1100,
+            endTs: 1900,
+            chunkCount: 2,
+            events: [{ type: 4 }, { type: 3 }, { type: 3 }],
+            label: 'bug-1',
+        });
+        expect(meta.exportId).toMatch(/^exp_/);
+        expect(meta.eventCount).toBe(3);
+        expect(meta.bytes).toBeGreaterThan(0);
+
+        const fromIndex = store.getExport(meta.exportId);
+        expect(fromIndex?.label).toBe('bug-1');
+        expect(fromIndex?.chunkCount).toBe(2);
+
+        const events = store.readExportEvents(meta.exportId);
+        expect(events).toHaveLength(3);
+    });
+
+    it('listExports returns exports newest-first per project', () => {
+        const s1 = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(s1, { id: 'tab-1' });
+        const a = store.writeExport({ sessionId: s1, tabId: 'tab-1', since: 0, until: 1, startTs: 0, endTs: 1, chunkCount: 1, events: [{}, {}] });
+        // Tiny delay to differentiate createdAt.
+        const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+        return (async () => {
+            await sleep(5);
+            const b = store.writeExport({ sessionId: s1, tabId: 'tab-1', since: 0, until: 1, startTs: 0, endTs: 1, chunkCount: 1, events: [{}, {}] });
+            const all = store.listExports('proj');
+            expect(all.map((m) => m.exportId)).toEqual([b.exportId, a.exportId]);
+        })();
+    });
+
+    it('purge trims exports beyond the per-project count limit, oldest first', async () => {
+        const s1 = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(s1, { id: 'tab-1' });
+        const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+        const exports: string[] = [];
+        for (let i = 0; i < 4; i++) {
+            const meta = store.writeExport({
+                sessionId: s1, tabId: 'tab-1', since: 0, until: 1, startTs: 0, endTs: 1, chunkCount: 1, events: [{}, {}],
+            });
+            exports.push(meta.exportId);
+            await sleep(3);
+        }
+        const result = store.purge({
+            maxExportsPerProject: 2,
+            // disable other knobs by leaving them at defaults
+        });
+        expect(result.exportsDeleted).toBe(2);
+        const remaining = store.listExports('proj').map((m) => m.exportId);
+        // newest two kept
+        expect(remaining).toEqual([exports[3], exports[2]]);
+        // deleted ones gone
+        expect(store.getExport(exports[0])).toBeUndefined();
+        expect(store.readExportEvents(exports[0])).toBeUndefined();
+    });
+
+    it('purge trims exports beyond the per-project byte ceiling', async () => {
+        const s1 = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(s1, { id: 'tab-1' });
+        // Each export with ~1KB of events.
+        const bigEvent = { type: 3, data: { payload: 'x'.repeat(900) } };
+        const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+        const ids: string[] = [];
+        for (let i = 0; i < 3; i++) {
+            const meta = store.writeExport({
+                sessionId: s1, tabId: 'tab-1', since: 0, until: 1, startTs: 0, endTs: 1, chunkCount: 1,
+                events: [bigEvent, bigEvent],
+            });
+            ids.push(meta.exportId);
+            await sleep(3);
+        }
+        // Allow only ~one export worth of bytes.
+        const result = store.purge({ maxExportBytesPerProject: 2000 });
+        expect(result.exportsDeleted).toBeGreaterThanOrEqual(1);
+        const surviving = store.listExports('proj').map((m) => m.exportId);
+        // newest survives
+        expect(surviving[0]).toBe(ids[2]);
+    });
+
     // ── Search ───────────────────────────────────────────────────────────
 
     it('searches events by substring', async () => {
