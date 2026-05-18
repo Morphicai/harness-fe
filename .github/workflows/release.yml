@@ -7,9 +7,11 @@ on:
         tags:
             - 'v*.*.*'
 
-# Strict least-privilege. id-token is required for OIDC / npm provenance.
+# Strict least-privilege.
+#   id-token: write → required for OIDC / npm provenance
+#   contents: write → required by softprops/action-gh-release to create a release
 permissions:
-    contents: read
+    contents: write
     id-token: write
 
 concurrency:
