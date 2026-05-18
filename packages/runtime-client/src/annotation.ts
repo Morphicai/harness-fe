@@ -9,7 +9,7 @@
  * host page styles never leak in or out.
  */
 
-import { EVENT_NAME, type TaskSubmitPayload } from '@morphixai/harnessa-fe.protocol';
+import { EVENT_NAME, type TaskSubmitPayload } from '@harnessa-fe/protocol';
 
 const HOST_ID = '__harnessa_fe_annotation__';
 const MAX_OUTER_HTML = 2048;

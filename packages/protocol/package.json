@@ -1,5 +1,5 @@
 {
-    "name": "@morphixai/harnessa-fe.protocol",
+    "name": "@harnessa-fe/protocol",
     "version": "0.1.0",
     "description": "Shared types + Zod schemas across mcp-server, vite-plugin, runtime-client.",
     "type": "module",

@@ -1,5 +1,5 @@
 /**
- * @morphixai/harnessa-fe.protocol — shared types + Zod schemas.
+ * @harnessa-fe/protocol — shared types + Zod schemas.
  *
  * All three other packages (mcp-server / vite-plugin / runtime-client)
  * depend on this and nothing else from morphix. Keep it small and pure.

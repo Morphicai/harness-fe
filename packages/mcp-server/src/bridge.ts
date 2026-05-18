@@ -1,7 +1,7 @@
 /**
  * WS bridge — accepts connections from vite-plugin and runtime-client.
  *
- * Protocol: see @morphixai/harnessa-fe.protocol.
+ * Protocol: see @harnessa-fe/protocol.
  *
  * Responsibilities:
  *   - Handshake: `hello` frame → register peer in SessionRouter, reply `hello.ack`
@@ -33,7 +33,7 @@ import {
     type Task,
     type TaskStatus,
     frameSchema,
-} from '@morphixai/harnessa-fe.protocol';
+} from '@harnessa-fe/protocol';
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
 import { createReplayHandler } from './replayViewer.js';
 import { createDashboardHandler } from './dashboard.js';

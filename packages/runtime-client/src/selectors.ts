@@ -4,7 +4,7 @@
  * transform — Phase B). file:line + runtime fiber lookup land in Phase B/C.
  */
 
-import type { Selector } from '@morphixai/harnessa-fe.protocol';
+import type { Selector } from '@harnessa-fe/protocol';
 
 export interface ResolveResult {
     element: Element | null;

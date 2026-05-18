@@ -2,7 +2,7 @@
  * Vite-specific export.
  *
  * Usage:
- *   import { harnessaFE } from '@morphixai/harnessa-fe.unplugin/vite'
+ *   import { harnessaFE } from '@harnessa-fe/unplugin/vite'
  *   export default defineConfig({ plugins: [harnessaFE()] })
  */
 

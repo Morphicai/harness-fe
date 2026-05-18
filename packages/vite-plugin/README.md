@@ -1,4 +1,4 @@
-# @morphixai/harnessa-fe.vite
+# @harnessa-fe/vite
 
 > Vite plugin for [Harnessa-FE](https://github.com/morphixai/harnessa-fe) — the frontend harness for AI agents.
 
@@ -7,7 +7,7 @@ Source-aware transform + runtime injection + MCP bridge for Vite projects. Tags 
 ## Install
 
 ```bash
-pnpm add -D @morphixai/harnessa-fe.vite @morphixai/harnessa-fe.runtime
+pnpm add -D @harnessa-fe/vite @harnessa-fe/runtime
 ```
 
 ## Usage
@@ -16,7 +16,7 @@ pnpm add -D @morphixai/harnessa-fe.vite @morphixai/harnessa-fe.runtime
 // vite.config.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { harnessaFE } from '@morphixai/harnessa-fe.vite';
+import { harnessaFE } from '@harnessa-fe/vite';
 
 export default defineConfig({
     plugins: [react(), harnessaFE()],

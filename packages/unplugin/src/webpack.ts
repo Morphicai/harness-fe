@@ -2,9 +2,9 @@
  * Webpack-specific export.
  *
  * Usage:
- *   import { harnessaFE } from '@morphixai/harnessa-fe.unplugin/webpack'
+ *   import { harnessaFE } from '@harnessa-fe/unplugin/webpack'
  *   // or
- *   const { harnessaFE } = require('@morphixai/harnessa-fe.unplugin/webpack')
+ *   const { harnessaFE } = require('@harnessa-fe/unplugin/webpack')
  *
  *   module.exports = { plugins: [harnessaFE()] }
  */

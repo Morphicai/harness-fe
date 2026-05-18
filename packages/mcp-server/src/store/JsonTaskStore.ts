@@ -13,7 +13,7 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Task } from '@morphixai/harnessa-fe.protocol';
+import type { Task } from '@harnessa-fe/protocol';
 import type { ITaskStore } from './types.js';
 import { sanitizeId } from './JsonlStore.js';
 

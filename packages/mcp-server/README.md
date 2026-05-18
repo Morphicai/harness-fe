@@ -1,4 +1,4 @@
-# @morphixai/harnessa-fe.mcp-server
+# @harnessa-fe/mcp-server
 
 > The MCP daemon for [Harnessa-FE](https://github.com/morphixai/harnessa-fe). Bridges AI agents (Claude, Cursor, Kiro) with running dev servers and browser tabs.
 
@@ -8,10 +8,10 @@ The MCP server exposes tools over **stdio MCP** to AI agents and runs a **WebSoc
 
 ```bash
 # Run on demand (recommended)
-npx @morphixai/harnessa-fe.mcp-server
+npx @harnessa-fe/mcp-server
 
 # Or install globally
-pnpm add -g @morphixai/harnessa-fe.mcp-server
+pnpm add -g @harnessa-fe/mcp-server
 harnessa-fe
 ```
 
@@ -24,7 +24,7 @@ Register the daemon as an MCP server in your Claude Code settings:
     "mcpServers": {
         "harnessa-fe": {
             "command": "npx",
-            "args": ["-y", "@morphixai/harnessa-fe.mcp-server"]
+            "args": ["-y", "@harnessa-fe/mcp-server"]
         }
     }
 }

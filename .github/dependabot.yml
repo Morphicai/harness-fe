@@ -1,0 +1,47 @@
+version: 2
+updates:
+    # Pin GitHub Actions by SHA — Dependabot tracks upstream SHA changes.
+    - package-ecosystem: github-actions
+      directory: /
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5
+      labels: [deps, ci]
+
+    # Root workspace npm deps
+    - package-ecosystem: npm
+      directory: /
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5
+      labels: [deps]
+      # Group patch/minor bumps to reduce PR noise; majors stay separate for review.
+      groups:
+          minor-and-patch:
+              update-types: [minor, patch]
+
+    # Per-package npm deps
+    - package-ecosystem: npm
+      directory: /packages/protocol
+      schedule: { interval: weekly }
+      labels: [deps, protocol]
+    - package-ecosystem: npm
+      directory: /packages/unplugin
+      schedule: { interval: weekly }
+      labels: [deps, unplugin]
+    - package-ecosystem: npm
+      directory: /packages/vite-plugin
+      schedule: { interval: weekly }
+      labels: [deps, vite-plugin]
+    - package-ecosystem: npm
+      directory: /packages/webpack-plugin
+      schedule: { interval: weekly }
+      labels: [deps, webpack-plugin]
+    - package-ecosystem: npm
+      directory: /packages/runtime-client
+      schedule: { interval: weekly }
+      labels: [deps, runtime-client]
+    - package-ecosystem: npm
+      directory: /packages/mcp-server
+      schedule: { interval: weekly }
+      labels: [deps, mcp-server]

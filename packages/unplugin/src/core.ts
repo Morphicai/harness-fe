@@ -35,7 +35,7 @@ import {
     type HelloFrame,
     type ResponseFrame,
     frameSchema,
-} from '@morphixai/harnessa-fe.protocol';
+} from '@harnessa-fe/protocol';
 import { transformJsx, type ComponentMap } from './transform.js';
 import { transformVueSFC } from './vue-transform.js';
 import { resolveProjectId } from './resolveProjectId.js';
@@ -287,7 +287,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
             load(id: string) {
                 if (id !== RESOLVED_VIRTUAL_RUNTIME_ID) return undefined;
                 // Resolve the runtime package entry point relative to this plugin
-                const runtimeEntry = require.resolve('@morphixai/harnessa-fe.runtime');
+                const runtimeEntry = require.resolve('@harnessa-fe/runtime');
                 return `export * from ${JSON.stringify(runtimeEntry)};\nimport ${JSON.stringify(runtimeEntry)};`;
             },
 
@@ -295,7 +295,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
                 order: 'pre' as const,
                 handler(html: string) {
                     if (options.disabled) return html;
-                    const injection = `<!-- @morphixai/harnessa-fe injected (dev only) -->
+                    const injection = `<!-- @harnessa-fe injected (dev only) -->
 <script>
 window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
 </script>
@@ -362,11 +362,11 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
                     const HtmlPlugin = require('html-webpack-plugin');
                     const hooks = HtmlPlugin.getHooks(compilation);
                     hooks.beforeEmit.tapAsync('harnessa-fe', (data: any, cb: any) => {
-                        const injection = `<!-- @morphixai/harnessa-fe injected (dev only) -->
+                        const injection = `<!-- @harnessa-fe injected (dev only) -->
 <script>
 window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
 </script>
-<script type="module" src="@morphixai/harnessa-fe.runtime"></script>`;
+<script type="module" src="@harnessa-fe/runtime"></script>`;
                         data.html = data.html.replace(/<\/head>/i, `${injection}\n</head>`);
                         cb(null, data);
                     });
@@ -383,11 +383,11 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
                                 if (!name.endsWith('.html')) continue;
                                 const html = (source as any).source();
                                 if (typeof html !== 'string') continue;
-                                const injection = `<!-- @morphixai/harnessa-fe injected (dev only) -->
+                                const injection = `<!-- @harnessa-fe injected (dev only) -->
 <script>
 window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
 </script>
-<script type="module" src="@morphixai/harnessa-fe.runtime"></script>`;
+<script type="module" src="@harnessa-fe/runtime"></script>`;
                                 const newHtml = html.replace(/<\/head>/i, `${injection}\n</head>`);
                                 compilation.updateAsset(name, new (require('webpack').sources.RawSource)(newHtml));
                             }

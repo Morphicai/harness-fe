@@ -19,7 +19,7 @@
         "typecheck": "turbo typecheck",
         "test": "turbo test",
         "dev": "turbo dev --filter=./packages/* --filter=harnessa-fe-react-demo",
-        "start:mcp": "pnpm --filter @morphixai/harnessa-fe.mcp-server start",
+        "start:mcp": "pnpm --filter @harnessa-fe/mcp-server start",
         "restart:mcp": "bash scripts/restart-mcp.sh",
         "demo": "pnpm build && pnpm --filter harnessa-fe-react-demo dev",
         "e2e": "pnpm --filter harnessa-fe-react-demo e2e"

@@ -1,4 +1,4 @@
-# @morphixai/harnessa-fe.webpack
+# @harnessa-fe/webpack
 
 > Webpack plugin for [Harnessa-FE](https://github.com/morphixai/harnessa-fe) — the frontend harness for AI agents.
 
@@ -9,14 +9,14 @@ Source-aware transform + runtime injection + MCP bridge for Webpack projects. Ta
 ## Install
 
 ```bash
-pnpm add -D @morphixai/harnessa-fe.webpack @morphixai/harnessa-fe.runtime
+pnpm add -D @harnessa-fe/webpack @harnessa-fe/runtime
 ```
 
 ## Usage
 
 ```js
 // webpack.config.js
-const { harnessaFE } = require('@morphixai/harnessa-fe.webpack');
+const { harnessaFE } = require('@harnessa-fe/webpack');
 
 module.exports = {
     plugins: [harnessaFE()],
@@ -26,7 +26,7 @@ module.exports = {
 ESM:
 
 ```ts
-import { harnessaFE } from '@morphixai/harnessa-fe.webpack';
+import { harnessaFE } from '@harnessa-fe/webpack';
 
 export default {
     plugins: [harnessaFE()],
@@ -37,7 +37,7 @@ The plugin auto-disables in production builds — zero overhead in your shipped 
 
 ## Options
 
-Same as [`@morphixai/harnessa-fe.vite`](https://www.npmjs.com/package/@morphixai/harnessa-fe.vite). All bundler-specific plugins share the same option surface via the underlying `unplugin`.
+Same as [`@harnessa-fe/vite`](https://www.npmjs.com/package/@harnessa-fe/vite). All bundler-specific plugins share the same option surface via the underlying `unplugin`.
 
 ## Docs
 

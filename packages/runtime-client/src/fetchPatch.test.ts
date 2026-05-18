@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { installFetchPatch } from './fetchPatch.js';
-import type { NetworkEntry } from '@morphixai/harnessa-fe.protocol';
+import type { NetworkEntry } from '@harnessa-fe/protocol';
 
 // happy-dom installs `window.fetch` via Node's undici. We override with a
 // controllable mock per test so we can shape the Response exactly.

@@ -11,7 +11,7 @@
 import type {
     PeerRole,
     TabInfo,
-} from '@morphixai/harnessa-fe.protocol';
+} from '@harnessa-fe/protocol';
 
 export interface PeerSession {
     role: PeerRole;

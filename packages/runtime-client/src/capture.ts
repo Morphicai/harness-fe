@@ -9,9 +9,10 @@ import type {
     ConsoleEntry,
     ErrorEntry,
     NetworkEntry,
-} from '@morphixai/harnessa-fe.protocol';
+} from '@harnessa-fe/protocol';
 import { RingBuffer } from './buffer.js';
 import { installFetchPatch } from './fetchPatch.js';
+import { installXhrPatch } from './xhrPatch.js';
 
 const CONSOLE_CAP = 500;
 const NETWORK_CAP = 200;
@@ -24,6 +25,7 @@ export class CaptureStore {
 
     private installed = false;
     private fetchDispose?: () => void;
+    private xhrDispose?: () => void;
 
     install(onEvent: (name: string, payload: unknown) => void): void {
         if (this.installed) return;
@@ -37,6 +39,8 @@ export class CaptureStore {
     dispose(): void {
         this.fetchDispose?.();
         this.fetchDispose = undefined;
+        this.xhrDispose?.();
+        this.xhrDispose = undefined;
         this.installed = false;
     }
 
@@ -67,41 +71,12 @@ export class CaptureStore {
     }
 
     private installXhr(onEvent: (name: string, payload: unknown) => void): void {
-        if (typeof window === 'undefined' || !window.XMLHttpRequest) return;
-        const OriginalXHR = window.XMLHttpRequest;
-        function PatchedXHR(this: XMLHttpRequest) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const xhr = new (OriginalXHR as any)();
-            let method = 'GET';
-            let url = '';
-            let startedAt = 0;
-            const originalOpen = xhr.open.bind(xhr);
-            const originalSend = xhr.send.bind(xhr);
-            xhr.open = (m: string, u: string, ...rest: unknown[]) => {
-                method = m;
-                url = u;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                return (originalOpen as any)(m, u, ...rest);
-            };
-            xhr.send = (body?: Document | XMLHttpRequestBodyInit | null) => {
-                startedAt = performance.now();
-                xhr.addEventListener('loadend', () => {
-                    const entry: NetworkEntry = {
-                        ts: Date.now(),
-                        method,
-                        url,
-                        status: xhr.status,
-                        durationMs: performance.now() - startedAt,
-                    };
-                    onEvent.call(undefined, 'network', entry);
-                    captureStoreSingleton?.network.push(entry);
-                });
-                return originalSend(body ?? null);
-            };
-            return xhr;
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (window as any).XMLHttpRequest = PatchedXHR;
+        this.xhrDispose = installXhrPatch({
+            onEntry: (entry) => {
+                this.network.push(entry);
+                onEvent('network', entry);
+            },
+        });
     }
 
     private installErrors(onEvent: (name: string, payload: unknown) => void): void {

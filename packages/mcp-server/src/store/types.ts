@@ -19,7 +19,7 @@
  *                       └── recording.jsonl  rrweb recording (optional)
  */
 
-import type { Task } from '@morphixai/harnessa-fe.protocol';
+import type { Task } from '@harnessa-fe/protocol';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 

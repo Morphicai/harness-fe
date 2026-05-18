@@ -18,11 +18,11 @@ graph LR
 
 | Layer | Package | Responsibility |
 |-------|---------|---------------|
-| Build Plugin | `@morphixai/harnessa-fe.vite` / `.webpack` | Source transform at build time; forward HMR and Node.js logs to MCP server |
-| Runtime Client | `@morphixai/harnessa-fe.runtime` | Capture browser events (console, network, errors); execute agent commands in the page |
-| MCP Server | `@morphixai/harnessa-fe.mcp-server` | Global daemon; bridge between AI agents and browser/plugin peers; owns all persistence |
-| Unplugin Core | `@morphixai/harnessa-fe.unplugin` | Shared plugin logic (transform + WebSocket lifecycle) for all bundlers |
-| Protocol | `@morphixai/harnessa-fe.protocol` | Shared frame types and schemas |
+| Build Plugin | `@harnessa-fe/vite` / `.webpack` | Source transform at build time; forward HMR and Node.js logs to MCP server |
+| Runtime Client | `@harnessa-fe/runtime` | Capture browser events (console, network, errors); execute agent commands in the page |
+| MCP Server | `@harnessa-fe/mcp-server` | Global daemon; bridge between AI agents and browser/plugin peers; owns all persistence |
+| Unplugin Core | `@harnessa-fe/unplugin` | Shared plugin logic (transform + WebSocket lifecycle) for all bundlers |
+| Protocol | `@harnessa-fe/protocol` | Shared frame types and schemas |
 
 The MCP server is a **global daemon** — it is not tied to any single project and can serve multiple projects simultaneously.
 
