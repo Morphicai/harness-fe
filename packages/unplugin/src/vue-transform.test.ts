@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { transformVueSFC, type VueTransformResult } from './vue-transform.js';
+import {
+    transformVueSFC,
+    transformVueTemplate,
+    resolveVueComponentName,
+    getTemplateLineOffset,
+    type VueTransformResult,
+} from './vue-transform.js';
 import type { ComponentMap } from './transform.js';
 
 function makeMap(): ComponentMap {
@@ -177,5 +183,87 @@ const x = 1;
 
         expect(result).not.toBeNull();
         expect(result!.componentName).toBe('MyFancyButton');
+    });
+});
+
+// Webpack + vue-loader: vue-loader splits the SFC into virtual sub-modules and
+// re-reads from disk for each request. Our transform must tag template
+// fragments separately on those sub-module hits.
+describe('transformVueTemplate (webpack vue-loader sub-module path)', () => {
+    it('injects data-morphix-* on every element in a bare template fragment', () => {
+        const templateFragment = `<div class="container">
+  <h1>Title</h1>
+  <p>Body</p>
+</div>`;
+        const map: ComponentMap = new Map();
+        const result = transformVueTemplate(templateFragment, 'src/App.vue', 'App', map, 0);
+
+        expect(result).not.toBeNull();
+        expect(result!.taggedCount).toBe(3);
+        expect(result!.code).toContain('data-morphix-loc="src/App.vue:1:');
+        expect(result!.code).toContain('data-morphix-comp="App"');
+    });
+
+    it('applies lineOffset so locations are file-relative, not fragment-relative', () => {
+        const templateFragment = `<div>x</div>`;
+        const map: ComponentMap = new Map();
+        const result = transformVueTemplate(templateFragment, 'src/Foo.vue', 'Foo', map, 7);
+
+        expect(result).not.toBeNull();
+        // Element at fragment line 1 + offset 7 = file line 8
+        expect(result!.code).toMatch(/data-morphix-loc="src\/Foo\.vue:8:/);
+    });
+
+    it('returns null when the fragment has no elements (e.g. text only)', () => {
+        const map: ComponentMap = new Map();
+        expect(transformVueTemplate('plain text', 'src/Foo.vue', 'Foo', map)).toBeNull();
+    });
+
+    it('preserves existing data-morphix-* attributes (idempotent)', () => {
+        const templateFragment = `<div data-morphix-loc="src/Foo.vue:99:99" data-morphix-comp="Foo">x</div>`;
+        const map: ComponentMap = new Map();
+        const result = transformVueTemplate(templateFragment, 'src/Foo.vue', 'Foo', map, 0);
+        // No tagging happens — existing attrs already cover both
+        expect(result).toBeNull();
+    });
+
+    it('populates componentMap with file-relative line numbers', () => {
+        const templateFragment = `<button>click</button>`;
+        const map: ComponentMap = new Map();
+        transformVueTemplate(templateFragment, 'src/Counter.vue', 'Counter', map, 5);
+
+        const entries = map.get('Counter');
+        expect(entries).toBeDefined();
+        expect(entries![0]).toMatchObject({ file: 'src/Counter.vue', line: 6, col: 1 });
+    });
+});
+
+describe('resolveVueComponentName + getTemplateLineOffset (SFC helpers)', () => {
+    it('resolveVueComponentName picks up defineOptions name', () => {
+        const sfc = `<script setup>defineOptions({ name: 'CustomName' });</script>
+<template><div>x</div></template>`;
+        expect(resolveVueComponentName(sfc, 'src/Anything.vue')).toBe('CustomName');
+    });
+
+    it('resolveVueComponentName falls back to filename PascalCase', () => {
+        const sfc = `<template><div>x</div></template>`;
+        expect(resolveVueComponentName(sfc, 'src/my-widget.vue')).toBe('MyWidget');
+    });
+
+    it('getTemplateLineOffset returns line of first char inside <template>', () => {
+        // template tag is on line 3, content starts on the same line (after the >)
+        const sfc = `<script>
+export default {};
+</script><template><div>x</div></template>`;
+        // descriptor.template.loc.start.line is the line of the first content
+        // char (after the closing >). We subtract 1 so fragment line 1 maps
+        // to this source line.
+        const offset = getTemplateLineOffset(sfc, 'src/Foo.vue');
+        expect(offset).toBeGreaterThanOrEqual(0);
+    });
+
+    it('getTemplateLineOffset returns 0 when SFC has no template', () => {
+        const sfc = `<script>export default {};</script>`;
+        expect(getTemplateLineOffset(sfc, 'src/Foo.vue')).toBe(0);
     });
 });

@@ -98,6 +98,111 @@ interface TemplateNode {
     };
 }
 
+/**
+ * Inject `data-morphix-*` attributes into a raw Vue template HTML fragment.
+ *
+ * Used by the webpack pipeline to handle the `*.vue?vue&type=template` virtual
+ * sub-module emitted by vue-loader. vue-loader's `templateLoader` will then
+ * compile the (now-tagged) template into a render function, preserving the
+ * attributes on every element vnode.
+ *
+ * `lineOffset` is added to every element's reported line number — pass the
+ * 1-based line index where this template appears in the original `.vue` file
+ * (so locations remain file-relative, not template-relative).
+ */
+export function transformVueTemplate(
+    templateSource: string,
+    relPath: string,
+    componentName: string | undefined,
+    componentMap: ComponentMap,
+    lineOffset: number = 0,
+): { code: string; map?: object; taggedCount: number } | null {
+    let ast;
+    try {
+        ast = parseTemplate(templateSource);
+    } catch (err) {
+        console.warn(`[harnessa-fe] Failed to parse Vue template fragment: ${relPath}`, err);
+        return null;
+    }
+
+    const magic = new MagicString(templateSource);
+    let taggedCount = 0;
+
+    function walkNode(node: TemplateNode): void {
+        if (node.type === NODE_ELEMENT && node.tag) {
+            const line = node.loc.start.line + lineOffset;
+            const col = node.loc.start.column;
+            const locValue = `${relPath}:${line}:${col}`;
+
+            const hasLoc = node.props?.some((p) => p.name === ATTR_LOC) ?? false;
+            const hasComp = node.props?.some((p) => p.name === ATTR_COMP) ?? false;
+
+            const attrs: string[] = [];
+            if (!hasLoc) attrs.push(`${ATTR_LOC}="${escapeAttr(locValue)}"`);
+            if (!hasComp && componentName)
+                attrs.push(`${ATTR_COMP}="${escapeAttr(componentName)}"`);
+
+            if (attrs.length > 0) {
+                // Position after the tag name in the original template fragment.
+                const tagNameEnd = node.loc.start.offset + 1 + node.tag.length;
+                magic.appendLeft(tagNameEnd, ' ' + attrs.join(' '));
+                taggedCount++;
+            }
+
+            if (componentName) {
+                const entries = componentMap.get(componentName) ?? [];
+                entries.push({ file: relPath, line, col });
+                componentMap.set(componentName, entries);
+            }
+        }
+        if (node.children) for (const child of node.children) walkNode(child);
+    }
+
+    for (const child of ast.children) walkNode(child as TemplateNode);
+
+    if (taggedCount === 0) return null;
+
+    return {
+        code: magic.toString(),
+        map: magic.generateMap({ hires: true, source: relPath, includeContent: true }),
+        taggedCount,
+    };
+}
+
+/**
+ * Resolve the component name from a raw .vue source (used by webpack pipeline
+ * where we only see the template sub-module and need to look up the parent's
+ * component name from disk).
+ */
+export function resolveVueComponentName(source: string, relPath: string): string | undefined {
+    try {
+        const { descriptor } = parseSFC(source, { filename: relPath });
+        return resolveComponentName(descriptor, relPath);
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Compute the 0-based line offset where the `<template>` *content* begins in
+ * the original .vue file. Adding this to template-relative line numbers gives
+ * file-relative numbers suitable for `data-morphix-loc`.
+ *
+ * Returns 0 if the SFC cannot be parsed or has no template block.
+ */
+export function getTemplateLineOffset(source: string, relPath: string): number {
+    try {
+        const { descriptor } = parseSFC(source, { filename: relPath });
+        if (!descriptor.template) return 0;
+        // descriptor.template.loc.start is 1-based and points at the FIRST char
+        // INSIDE <template> (i.e., the character after the closing `>`).
+        // We subtract 1 so that template-relative line 1 maps to that source line.
+        return descriptor.template.loc.start.line - 1;
+    } catch {
+        return 0;
+    }
+}
+
 export function transformVueSFC(
     source: string,
     relPath: string,
