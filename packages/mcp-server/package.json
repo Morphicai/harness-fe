@@ -1,7 +1,6 @@
 {
     "name": "@morphixai/harnessa-fe.mcp-server",
-    "version": "0.0.1",
-    "private": true,
+    "version": "0.1.0",
     "description": "Unified MCP daemon: stdio MCP for AI agents + WS bridge for Vite plugin and runtime client.",
     "type": "module",
     "license": "MIT",
@@ -27,7 +26,9 @@
     },
     "files": [
         "dist",
-        "src"
+        "src",
+        "README.md",
+        "LICENSE"
     ],
     "scripts": {
         "build": "tsc",
@@ -50,5 +51,8 @@
         "tsx": "^4.19.0",
         "typescript": "^5.6.0",
         "vitest": "^2.1.9"
+    },
+    "publishConfig": {
+        "access": "public"
     }
 }
