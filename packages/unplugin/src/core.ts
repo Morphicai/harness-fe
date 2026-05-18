@@ -37,7 +37,12 @@ import {
     frameSchema,
 } from '@harnessa-fe/protocol';
 import { transformJsx, type ComponentMap } from './transform.js';
-import { transformVueSFC } from './vue-transform.js';
+import {
+    transformVueSFC,
+    transformVueTemplate,
+    resolveVueComponentName,
+    getTemplateLineOffset,
+} from './vue-transform.js';
 import { resolveProjectId } from './resolveProjectId.js';
 
 export interface HarnessaFEOptions {
@@ -243,19 +248,53 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
         transformInclude(id: string) {
             if (options.disabled) return false;
-            if (!/\.([jt]sx|vue)$/.test(id)) return false;
+            // Accept query-string variants so we can intercept vue-loader's
+            // virtual sub-modules (`App.vue?vue&type=template…`).
+            if (!/\.([jt]sx|vue)($|\?)/.test(id)) return false;
             if (id.includes('/node_modules/') || id.includes('\\node_modules\\')) return false;
             return true;
         },
 
         transform(code: string, id: string) {
             if (options.disabled) return null;
-            const rel = relative(projectRoot, id);
-            if (id.endsWith('.vue')) {
+            // Strip query string for relative path + extension checks.
+            const queryIdx = id.indexOf('?');
+            const filePath = queryIdx === -1 ? id : id.slice(0, queryIdx);
+            const query = queryIdx === -1 ? '' : id.slice(queryIdx);
+            const rel = relative(projectRoot, filePath);
+
+            // Vue template virtual sub-module emitted by vue-loader (webpack)
+            // OR @vitejs/plugin-vue (vite). The `code` here is the raw template
+            // HTML fragment between <template>…</template> in the source .vue.
+            if (filePath.endsWith('.vue') && /[?&]vue\b/.test(query) && /[?&]type=template\b/.test(query)) {
+                let componentName: string | undefined;
+                let lineOffset = 0;
+                try {
+                    const sfcSource = readFileSync(filePath, 'utf-8');
+                    componentName = resolveVueComponentName(sfcSource, rel);
+                    lineOffset = getTemplateLineOffset(sfcSource, rel);
+                } catch {
+                    /* fall through with no offset / no name */
+                }
+                const out = transformVueTemplate(code, rel, componentName, componentMap, lineOffset);
+                if (!out) return null;
+                return { code: out.code, map: out.map as any };
+            }
+
+            // Plain .vue request: full SFC transform (works for Vite). In webpack
+            // the bundler-side handler discards this output and reads sub-modules
+            // from disk separately — but the componentMap side effect still
+            // populates the component index, which is what matters for source
+            // intelligence tools.
+            if (filePath.endsWith('.vue') && !query) {
                 const out = transformVueSFC(code, rel, componentMap);
                 if (!out) return null;
                 return { code: out.code, map: out.map as any };
             }
+
+            // Skip every other .vue sub-module (script / style).
+            if (filePath.endsWith('.vue')) return null;
+
             const out = transformJsx(code, rel, componentMap);
             if (!out) return null;
             return { code: out.code, map: out.map as any };
