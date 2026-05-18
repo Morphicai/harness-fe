@@ -369,6 +369,30 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
             // Skip entirely in production
             if (compiler.options?.mode === 'production') return;
 
+            // Inject the browser runtime into the user's main bundle.
+            //
+            // Webpack — unlike Vite — has no dev server that translates bare
+            // specifiers in <script src="…"> tags. Serving runtime via a script
+            // tag with `src="@harnessa-fe/runtime"` 404s in the browser.
+            // The webpack-idiomatic fix is `EntryPlugin`: add the runtime
+            // entry to the DEFAULT chunk (no `name`) so it gets concatenated
+            // into the user's main `bundle.js` and auto-executes on load.
+            //
+            // The runtime is a side-effect import: importing it calls
+            // `client.start()` at module top level.
+            try {
+                const { EntryPlugin } = require('webpack');
+                const runtimeEntry = require.resolve('@harnessa-fe/runtime');
+                new EntryPlugin(compiler.context ?? projectRoot, runtimeEntry, {
+                    name: undefined,
+                }).apply(compiler);
+            } catch (err) {
+                console.warn(
+                    '[harnessa-fe] failed to register runtime entry via webpack.EntryPlugin:',
+                    err,
+                );
+            }
+
             // Connect to MCP server when compilation starts
             compiler.hooks.afterEnvironment.tap('harnessa-fe', () => {
                 isActive = true;
@@ -401,11 +425,14 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
                     const HtmlPlugin = require('html-webpack-plugin');
                     const hooks = HtmlPlugin.getHooks(compilation);
                     hooks.beforeEmit.tapAsync('harnessa-fe', (data: any, cb: any) => {
+                        // Runtime is added to the main bundle via EntryPlugin
+                        // above — no <script> tag needed for it. Only inject
+                        // the window config object that the runtime reads at
+                        // boot time (via `readInjectedConfig()`).
                         const injection = `<!-- @harnessa-fe injected (dev only) -->
 <script>
 window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
-</script>
-<script type="module" src="@harnessa-fe/runtime"></script>`;
+</script>`;
                         data.html = data.html.replace(/<\/head>/i, `${injection}\n</head>`);
                         cb(null, data);
                     });
@@ -422,11 +449,14 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
                                 if (!name.endsWith('.html')) continue;
                                 const html = (source as any).source();
                                 if (typeof html !== 'string') continue;
-                                const injection = `<!-- @harnessa-fe injected (dev only) -->
+                                // Runtime is added to the main bundle via EntryPlugin
+                        // above — no <script> tag needed for it. Only inject
+                        // the window config object that the runtime reads at
+                        // boot time (via `readInjectedConfig()`).
+                        const injection = `<!-- @harnessa-fe injected (dev only) -->
 <script>
 window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
-</script>
-<script type="module" src="@harnessa-fe/runtime"></script>`;
+</script>`;
                                 const newHtml = html.replace(/<\/head>/i, `${injection}\n</head>`);
                                 compilation.updateAsset(name, new (require('webpack').sources.RawSource)(newHtml));
                             }

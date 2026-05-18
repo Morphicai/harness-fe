@@ -10,9 +10,9 @@ All notable changes to this project will be documented here. The format is based
 - `transformVueTemplate`, `resolveVueComponentName`, `getTemplateLineOffset` exported from `@harnessa-fe/unplugin` for direct use by custom bundler integrations.
 - Build-pipeline e2e smoke for the webpack+vue3 demo (`pnpm --filter harnessa-fe-webpack5-vue3-demo e2e`).
 
-### Known limitations
+### Changed
 
-- **Webpack runtime client injection still uses a bare-specifier `<script>` tag** (`@harnessa-fe/runtime`) that browsers cannot resolve. The build-time attribute tagging works, but the in-page runtime (rrweb, network capture, command execution) does not yet connect in webpack mode. Vite mode is unaffected.
+- **Webpack runtime client is now bundled into the user's main entry chunk** via `webpack.EntryPlugin`. The previous bare-specifier `<script src="@harnessa-fe/runtime">` injection 404'd in browsers; runtime now auto-loads with `bundle.js` and registers `window.__harnessa_fe_client__`. End-to-end browser ↔ MCP connection works in webpack mode. New e2e: `examples/webpack5-vue3-demo/e2e/runtime.e2e.ts` (headless Chromium asserts DOM tagging + WS open).
 
 ## [0.1.0] — 2026-05-18
 
