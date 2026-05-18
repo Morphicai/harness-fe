@@ -89,13 +89,15 @@ jobs:
               # Sanity check: ensure workspace:* deps rewrite correctly and tarballs are valid.
               run: pnpm -r --filter './packages/*' publish --dry-run --access public --no-git-checks
 
-            - name: Publish to npm with provenance
+            - name: Publish to npm with provenance (OIDC trusted publishing)
+              # No NPM_TOKEN needed. npm CLI exchanges the workflow's OIDC id-token
+              # for a short-lived registry credential, scoped to this workflow run.
+              # Each package on npm must have a Trusted Publisher configured pointing
+              # to: Morphicai/harnessa-fe → release.yml → environment "release".
+              #
               # --provenance attaches a sigstore attestation linking each tarball
-              # to this exact commit + workflow run. Consumers can verify with
-              # `npm install --foreground-scripts` + `npm audit signatures`.
-              # Requires id-token: write (granted above) and npm public registry.
+              # to this exact commit + workflow run. Verify with `npm audit signatures`.
               env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
                   NPM_CONFIG_PROVENANCE: 'true'
               run: pnpm -r --filter './packages/*' publish --access public --no-git-checks --provenance
 
