@@ -11,6 +11,7 @@ import type {
     NetworkEntry,
 } from '@morphixai/harnessa-fe.protocol';
 import { RingBuffer } from './buffer.js';
+import { installFetchPatch } from './fetchPatch.js';
 
 const CONSOLE_CAP = 500;
 const NETWORK_CAP = 200;
@@ -22,6 +23,7 @@ export class CaptureStore {
     readonly errors = new RingBuffer<ErrorEntry>(ERROR_CAP);
 
     private installed = false;
+    private fetchDispose?: () => void;
 
     install(onEvent: (name: string, payload: unknown) => void): void {
         if (this.installed) return;
@@ -30,6 +32,12 @@ export class CaptureStore {
         this.installFetch(onEvent);
         this.installXhr(onEvent);
         this.installErrors(onEvent);
+    }
+
+    dispose(): void {
+        this.fetchDispose?.();
+        this.fetchDispose = undefined;
+        this.installed = false;
     }
 
     private installConsole(onEvent: (name: string, payload: unknown) => void): void {
@@ -50,42 +58,12 @@ export class CaptureStore {
     }
 
     private installFetch(onEvent: (name: string, payload: unknown) => void): void {
-        if (typeof window === 'undefined' || !window.fetch) return;
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-            const startedAt = performance.now();
-            const url =
-                typeof input === 'string'
-                    ? input
-                    : input instanceof URL
-                      ? input.toString()
-                      : input.url;
-            const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-            try {
-                const response = await originalFetch(input, init);
-                const entry: NetworkEntry = {
-                    ts: Date.now(),
-                    method,
-                    url,
-                    status: response.status,
-                    durationMs: performance.now() - startedAt,
-                };
+        this.fetchDispose = installFetchPatch({
+            onEntry: (entry) => {
                 this.network.push(entry);
                 onEvent('network', entry);
-                return response;
-            } catch (err) {
-                const entry: NetworkEntry = {
-                    ts: Date.now(),
-                    method,
-                    url,
-                    status: 0,
-                    durationMs: performance.now() - startedAt,
-                };
-                this.network.push(entry);
-                onEvent('network', entry);
-                throw err;
-            }
-        };
+            },
+        });
     }
 
     private installXhr(onEvent: (name: string, payload: unknown) => void): void {

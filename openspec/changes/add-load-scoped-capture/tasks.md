@@ -18,12 +18,12 @@
 
 ## Phase 3: fetch capture rewrite
 
-- [ ] 11. Replace `installFetch` with a named-function patch that preserves `name`, `length`, `toString`, returns the original Promise unchanged, and exposes a dispose function.
-- [ ] 12. Read response bodies via `response.clone()` on a side branch, applying the 256 KB cap, content-type routing (json / text / SSE / binary), and `truncated` flagging.
-- [ ] 13. Capture and redact request and response headers (`Authorization` / `Cookie` / `x-api-key` / `x-auth-*` replaced with `[redacted <length>]`).
-- [ ] 14. Emit two store events per request (`t: 'req'` and `t: 'res'`) keyed by a generated `id`, with the `req` event sent eagerly so long SSE responses are visible before completion.
-- [ ] 15. Skip self-traffic via an `init.__hfeInternal` flag and a URL denylist for HMR / dev-server internals.
-- [ ] 16. Add tests covering: business `instanceof Response` is preserved, `fetch.name === 'fetch'`, body truncation, SSE pump termination on cap, header redaction, and the dispose path restores the original `fetch`.
+- [x] 11. Replace `installFetch` with a named-function patch that preserves `name`, `length`, `toString`, returns the original Promise unchanged, and exposes a dispose function.
+- [x] 12. Read response bodies via `response.clone()` on a side branch, applying the 256 KB cap, content-type routing (json / text / SSE / binary), and `truncated` flagging.
+- [x] 13. Capture and redact request and response headers (`Authorization` / `Cookie` / `x-api-key` / `x-auth-*` replaced with `[redacted <length>]`).
+- [x] 14. Emit two store events per request (`t: 'req'` and `t: 'res'`) keyed by a generated `id`, with the `req` event sent eagerly so long SSE responses are visible before completion.
+- [x] 15. Skip self-traffic via an `init.__hfeInternal` flag and a URL denylist for HMR / dev-server internals.
+- [x] 16. Add tests covering: business `fetch.name === 'fetch'`, body return is the original Response, body truncation, SSE pump termination on cap, header redaction, error path, internal-flag bypass, URL denylist, and dispose restores the original `fetch`.
 
 ## Phase 4: XHR prototype patch
 
