@@ -53,9 +53,9 @@ graph LR
 | Environment | Version | Status |
 |-------------|---------|--------|
 | Vite + React | 5.x – 7.x | ✅ Stable |
-| Webpack + React | 5.x | 🟡 Beta |
+| Webpack + React | 5.x | ✅ Stable |
 | Vite + Vue 3 | 5.x – 7.x | 🟡 Beta |
-| Webpack + Vue 3 | 5.x | 🟡 Beta (build-time tagging works; runtime injection pending) |
+| Webpack + Vue 3 | 5.x | ✅ Stable |
 | Next.js (Webpack) | 13+ | 📋 Planned |
 
 ## Getting Started

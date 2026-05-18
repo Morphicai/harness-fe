@@ -2,10 +2,13 @@
     "name": "harnessa-fe-webpack5-vue3-demo",
     "version": "0.0.1",
     "private": true,
+    "type": "module",
     "scripts": {
         "dev": "webpack serve",
         "build": "webpack",
-        "e2e": "tsx e2e/build.e2e.ts"
+        "e2e": "tsx e2e/build.e2e.ts && tsx e2e/runtime.e2e.ts",
+        "e2e:build": "tsx e2e/build.e2e.ts",
+        "e2e:runtime": "tsx e2e/runtime.e2e.ts"
     },
     "dependencies": {
         "vue": "^3.4.0"
@@ -14,6 +17,7 @@
         "@harnessa-fe/webpack": "workspace:*",
         "@types/node": "^22.0.0",
         "css-loader": "^7.1.0",
+        "playwright": "^1.50.1",
         "tsx": "^4.19.0",
         "html-webpack-plugin": "^5.6.0",
         "style-loader": "^4.0.0",
