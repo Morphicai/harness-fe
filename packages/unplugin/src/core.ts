@@ -37,6 +37,7 @@ import {
     frameSchema,
 } from '@harnessa-fe/protocol';
 import { transformJsx, type ComponentMap } from './transform.js';
+import { resolveBuildId } from './resolveBuildId.js';
 import {
     transformVueSFC,
     transformVueTemplate,
@@ -52,6 +53,21 @@ export interface HarnessaFEOptions {
     mcpUrl?: string;
     /** Disable injection entirely. */
     disabled?: boolean;
+
+    /**
+     * Parent project's id, used to build the project tree on the daemon.
+     * Set this on the iframe child app's plugin config when you can declare
+     * the relationship at build time. Otherwise the runtime client will
+     * auto-detect it via same-origin parent inspection.
+     */
+    parentProjectId?: string;
+    /** Human-readable name; defaults to package.json `name`. */
+    displayName?: string;
+    /**
+     * Override buildId. When omitted, the plugin resolves it from git sha
+     * (or CI env vars) and falls back to a dev-stable hash of config files.
+     */
+    buildId?: string;
 }
 
 function newId(): string {
@@ -100,6 +116,35 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
     let peerRole: 'vite-plugin' | 'webpack-plugin' = 'vite-plugin';
     const componentMap: ComponentMap = new Map();
     let logCaptureCleanup: (() => void) | undefined;
+
+    // Build identity — resolved lazily from projectRoot once it's known.
+    // The startTs is captured once so dev-mode fallback ids stay stable for
+    // the lifetime of this dev-server process.
+    const buildStartTs = Date.now();
+    let resolvedBuild: ReturnType<typeof resolveBuildId> | undefined;
+    function getBuildId(): string {
+        if (resolvedBuild) return resolvedBuild.buildId;
+        resolvedBuild = resolveBuildId({
+            userConfig: options.buildId,
+            root: projectRoot,
+            startTs: buildStartTs,
+        });
+        return resolvedBuild.buildId;
+    }
+    // displayName defaults to package.json `name`.
+    let resolvedDisplayName: string | undefined = options.displayName;
+    function getDisplayName(): string | undefined {
+        if (resolvedDisplayName !== undefined) return resolvedDisplayName;
+        try {
+            const pkg = JSON.parse(
+                require('node:fs').readFileSync(require('node:path').join(projectRoot, 'package.json'), 'utf-8'),
+            ) as { name?: string };
+            resolvedDisplayName = pkg.name;
+        } catch {
+            resolvedDisplayName = undefined;
+        }
+        return resolvedDisplayName;
+    }
 
     function send(frame: EventFrame | HelloFrame | ResponseFrame): void {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -173,6 +218,9 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
                     id: newId(),
                     role: peerRole,
                     projectId,
+                    parentProjectId: options.parentProjectId,
+                    displayName: getDisplayName(),
+                    buildId: getBuildId(),
                 };
                 send(hello);
             });
@@ -217,6 +265,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
             type: 'event',
             id: newId(),
             projectId,
+            buildId: getBuildId(),
             name,
             ts: Date.now(),
             payload,
@@ -336,7 +385,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
                     if (options.disabled) return html;
                     const injection = `<!-- @harnessa-fe injected (dev only) -->
 <script>
-window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
+window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: getBuildId(), parentProjectId: options.parentProjectId, displayName: getDisplayName() })};
 </script>
 <script type="module">import '${VIRTUAL_RUNTIME_ID}';</script>`;
                     return html.replace(/<\/head>/i, `${injection}\n</head>`);
@@ -431,7 +480,7 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
                         // boot time (via `readInjectedConfig()`).
                         const injection = `<!-- @harnessa-fe injected (dev only) -->
 <script>
-window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
+window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: getBuildId(), parentProjectId: options.parentProjectId, displayName: getDisplayName() })};
 </script>`;
                         data.html = data.html.replace(/<\/head>/i, `${injection}\n</head>`);
                         cb(null, data);
@@ -455,7 +504,7 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
                         // boot time (via `readInjectedConfig()`).
                         const injection = `<!-- @harnessa-fe injected (dev only) -->
 <script>
-window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
+window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: getBuildId(), parentProjectId: options.parentProjectId, displayName: getDisplayName() })};
 </script>`;
                                 const newHtml = html.replace(/<\/head>/i, `${injection}\n</head>`);
                                 compilation.updateAsset(name, new (require('webpack').sources.RawSource)(newHtml));
