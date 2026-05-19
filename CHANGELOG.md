@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] — 2026-05-19
+
+### Added
+
+- **`@harnessa-fe/next` — `HarnessaScript` now accepts `buildId`.** Stamp every event with the code version (`git sha`, `NEXT_BUILD_ID`, …) so agents can answer "which build was running when this happened?". Without it the daemon still works — it just can't slice by build. Recommended source for production: `process.env.NEXT_PUBLIC_GIT_SHA` injected by your CI. Dev: leave undefined.
+
 ## [0.2.4] — 2026-05-19
 
 ### Fixed — rrweb replay sometimes rendered blank

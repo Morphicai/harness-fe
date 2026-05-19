@@ -25,6 +25,21 @@ export interface HarnessaScriptProps {
     displayName?: string;
     /** MCP daemon WebSocket URL. Defaults to `ws://127.0.0.1:47729`. */
     mcpUrl?: string;
+    /**
+     * Build artifact id — stamped on every event so agents can answer
+     * "which code version was running when this happened?". Optional.
+     *
+     * Recommended sources:
+     *   - Production: your git SHA injected at build time
+     *       e.g. `process.env.NEXT_PUBLIC_GIT_SHA`
+     *   - Self-hosted with Next.js build id:
+     *       e.g. `process.env.__NEXT_BUILD_ID` (server side; pass through props)
+     *   - Dev: leave undefined; every refresh is "current source" anyway.
+     *
+     * Without it, the daemon still works — it just can't slice timelines by
+     * build (`build.timeline` returns nothing for this project).
+     */
+    buildId?: string;
 }
 
 const IS_DEV = process.env.NODE_ENV === 'development';
@@ -54,6 +69,7 @@ export function HarnessaScript(props: HarnessaScriptProps): null {
             parentProjectId: props.parentProjectId,
             displayName: props.displayName ?? props.projectId,
             mcpUrl: props.mcpUrl ?? 'ws://127.0.0.1:47729',
+            buildId: props.buildId,
         };
         // Dynamic import: bundles the runtime into client chunks because
         // this whole file is 'use client'. The import is async; first
