@@ -35,9 +35,11 @@ import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import type {
+    BuildMeta,
     IStore,
     LoadMeta,
     ProjectMeta,
+    ProjectTreeNode,
     PurgeResult,
     RecordingChunk,
     RecordingChunkSummary,
@@ -397,10 +399,12 @@ export class JsonlStore implements IStore {
         const projDir = this.projectDir(projectId);
         ensureDir(projDir);
 
-        // Upsert project meta
+        // Upsert project meta (preserve previously written fields like
+        // parentProjectId / displayName / tags — only touch lifecycle stamps).
         const projMetaPath = join(projDir, 'meta.json');
         const existing = readJson<ProjectMeta>(projMetaPath);
         const projMeta: ProjectMeta = {
+            ...existing,
             id: projectId,
             createdAt: existing?.createdAt ?? Date.now(),
             lastActiveAt: Date.now(),
@@ -581,6 +585,128 @@ export class JsonlStore implements IStore {
             key,
             value,
         });
+    }
+
+    // ── Project metadata (v0.2: parent/displayName/tags) ───────────────────
+
+    upsertProject(
+        projectId: string,
+        patch: Partial<Omit<ProjectMeta, 'id' | 'createdAt'>>,
+    ): ProjectMeta {
+        const projDir = this.projectDir(projectId);
+        ensureDir(projDir);
+        const metaPath = join(projDir, 'meta.json');
+        const existing = readJson<ProjectMeta>(metaPath);
+
+        // Cycle detection — refuse parent assignments that would close a loop.
+        if (patch.parentProjectId !== undefined && patch.parentProjectId !== null) {
+            if (patch.parentProjectId === projectId) {
+                throw new Error(
+                    `[harnessa-fe] refused to set parentProjectId=${projectId} on itself`,
+                );
+            }
+            // Walk up the candidate parent's chain; if we encounter `projectId`, it's a cycle.
+            const visited = new Set<string>();
+            let cursor: string | undefined = patch.parentProjectId;
+            while (cursor) {
+                if (cursor === projectId) {
+                    throw new Error(
+                        `[harnessa-fe] refused to create parent-project cycle: ${projectId} → … → ${projectId}`,
+                    );
+                }
+                if (visited.has(cursor)) break;
+                visited.add(cursor);
+                const ancestor: ProjectMeta | undefined = readJson<ProjectMeta>(
+                    join(this.projectDir(cursor), 'meta.json'),
+                ) ?? undefined;
+                cursor = ancestor?.parentProjectId;
+            }
+        }
+
+        const merged: ProjectMeta = {
+            ...existing,
+            ...patch,
+            id: projectId,
+            createdAt: existing?.createdAt ?? Date.now(),
+            lastActiveAt: Date.now(),
+        };
+        writeJson(metaPath, merged);
+        return merged;
+    }
+
+    getProject(projectId: string): ProjectMeta | undefined {
+        const meta = readJson<ProjectMeta>(join(this.projectDir(projectId), 'meta.json'));
+        return meta ?? undefined;
+    }
+
+    // ── Build metadata (v0.2: source-code snapshot id) ─────────────────────
+
+    upsertBuild(
+        projectId: string,
+        buildId: string,
+        patch: Partial<Omit<BuildMeta, 'id' | 'projectId'>>,
+    ): BuildMeta {
+        const buildDir = join(this.projectDir(projectId), 'builds', sanitizeId(buildId));
+        ensureDir(buildDir);
+        const metaPath = join(buildDir, 'meta.json');
+        const existing = readJson<BuildMeta>(metaPath);
+        const merged: BuildMeta = {
+            ...existing,
+            ...patch,
+            id: buildId,
+            projectId,
+            builtAt: existing?.builtAt ?? Date.now(),
+        };
+        writeJson(metaPath, merged);
+        return merged;
+    }
+
+    getBuild(projectId: string, buildId: string): BuildMeta | undefined {
+        const meta = readJson<BuildMeta>(
+            join(this.projectDir(projectId), 'builds', sanitizeId(buildId), 'meta.json'),
+        );
+        return meta ?? undefined;
+    }
+
+    listBuilds(projectId: string, limit = 50): BuildMeta[] {
+        const buildsDir = join(this.projectDir(projectId), 'builds');
+        if (!existsSync(buildsDir)) return [];
+        const builds: BuildMeta[] = [];
+        for (const entry of readdirSync(buildsDir, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue;
+            const meta = readJson<BuildMeta>(join(buildsDir, entry.name, 'meta.json'));
+            if (meta) builds.push(meta);
+        }
+        return builds.sort((a, b) => b.builtAt - a.builtAt).slice(0, limit);
+    }
+
+    // ── Project tree ───────────────────────────────────────────────────────
+
+    getProjectTree(rootId?: string): ProjectTreeNode[] {
+        const all = this.listProjects();
+        // Build child-list lookup once.
+        const children = new Map<string, ProjectMeta[]>();
+        for (const p of all) {
+            const parent = p.parentProjectId ?? null;
+            if (parent === null) continue;
+            const arr = children.get(parent) ?? [];
+            arr.push(p);
+            children.set(parent, arr);
+        }
+        const build = (p: ProjectMeta): ProjectTreeNode => ({
+            id: p.id,
+            displayName: p.displayName,
+            tags: p.tags,
+            children: (children.get(p.id) ?? [])
+                .sort((a, b) => (a.displayName ?? a.id).localeCompare(b.displayName ?? b.id))
+                .map(build),
+        });
+        const roots = rootId
+            ? all.filter((p) => p.id === rootId)
+            : all.filter((p) => !p.parentProjectId);
+        return roots
+            .sort((a, b) => (a.displayName ?? a.id).localeCompare(b.displayName ?? b.id))
+            .map(build);
     }
 
     // ── Read ──────────────────────────────────────────────────────────────

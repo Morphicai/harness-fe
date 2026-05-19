@@ -74,6 +74,58 @@ export interface ProjectMeta {
     id: string;
     createdAt: number;
     lastActiveAt: number;
+    /**
+     * Parent project's id when this project is loaded as a sub-app
+     * (e.g. micro-frontend iframe child, module-federation remote).
+     * Forms the project tree; undefined = forest root.
+     */
+    parentProjectId?: string;
+    /** Human-readable display name. Defaults to package.json `name`. */
+    displayName?: string;
+    /** Free-form labels (monorepo / team / product-line / …). */
+    tags?: string[];
+    /**
+     * Extension slot — future relationship/categorization types live here
+     * before being promoted to first-class fields.
+     */
+    metadata?: Record<string, unknown>;
+}
+
+/**
+ * Per-build metadata. One row per distinct build artifact. Builds are an
+ * external dimension to sessions/tabs — a single build can be executed by
+ * many tabs across many page-load sessions; recording these lets agents
+ * answer "what source code was running when this happened".
+ *
+ * Falls back to dev defaults when git is unavailable.
+ */
+export interface BuildMeta {
+    /** buildId — stable for the lifetime of a dev server run / a prod build. */
+    id: string;
+    projectId: string;
+    builtAt: number;
+    /** git rev-parse HEAD, when available. */
+    gitSha?: string;
+    /** True if working tree had uncommitted changes when this build was started. */
+    gitDirty?: boolean;
+    /** Hash of (package.json + lockfile + key config files) — falls back when gitSha is missing. */
+    sourceDigest?: string;
+    nodeVersion?: string;
+    /** 'vite' | 'webpack' | 'esbuild' | 'rspack' | … */
+    bundler?: string;
+    bundlerVersion?: string;
+    metadata?: Record<string, unknown>;
+}
+
+/**
+ * Node in a project tree returned by `getProjectTree`. Computed from
+ * `ProjectMeta.parentProjectId` relationships at read time.
+ */
+export interface ProjectTreeNode {
+    id: string;
+    displayName?: string;
+    tags?: string[];
+    children: ProjectTreeNode[];
 }
 
 export interface SessionMeta {
@@ -306,6 +358,39 @@ export interface IStore {
      * Write a project-level note (cross-session knowledge).
      */
     writeNote(projectId: string, key: string, value: string): void;
+
+    // ── Project metadata (v0.2: parent/displayName/tags) ───────────────────
+
+    /**
+     * Upsert project metadata. Merges with the existing meta.json:
+     * caller-provided fields overwrite, others are preserved. `id` and
+     * `createdAt` are never overwritten.
+     *
+     * Throws if `patch.parentProjectId` would create a cycle in the project tree.
+     */
+    upsertProject(projectId: string, patch: Partial<Omit<ProjectMeta, 'id' | 'createdAt'>>): ProjectMeta;
+
+    /** Read a single project's metadata. */
+    getProject(projectId: string): ProjectMeta | undefined;
+
+    // ── Build metadata (v0.2: identify source-code snapshots) ──────────────
+
+    /** Upsert build metadata. Creates the project dir if missing. */
+    upsertBuild(projectId: string, buildId: string, patch: Partial<Omit<BuildMeta, 'id' | 'projectId'>>): BuildMeta;
+
+    /** Read a single build's metadata. */
+    getBuild(projectId: string, buildId: string): BuildMeta | undefined;
+
+    /** List builds for a project, newest first. */
+    listBuilds(projectId: string, limit?: number): BuildMeta[];
+
+    // ── Project tree (v0.2: micro-frontend support) ────────────────────────
+
+    /**
+     * Get a forest (or sub-tree from `rootId`) constructed from
+     * `ProjectMeta.parentProjectId`. Projects with no parent become roots.
+     */
+    getProjectTree(rootId?: string): ProjectTreeNode[];
 
     // ── Read ───────────────────────────────────────────────────────────────
 
