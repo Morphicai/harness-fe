@@ -1,10 +1,19 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { WebSocket } from 'ws';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+function dirSize(dir: string): number {
+    let total = 0;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, entry.name);
+        total += entry.isDirectory() ? dirSize(p) : statSync(p).size;
+    }
+    return total;
+}
 import { Bridge } from './bridge.js';
-import { JsonlStore, JsonTaskStore } from './store/index.js';
+import { JsonlStore, JsonTaskStore, type IStore } from './store/index.js';
 import {
     EVENT_NAME,
     PROTOCOL_VERSION,
@@ -93,6 +102,176 @@ async function fakeClient(
     });
     return { ws, ack };
 }
+
+describe('Bridge — auto-purge scheduler', () => {
+    it('runs store.purge() on start when enabled, with policy passed through', async () => {
+        const calls: Array<unknown> = [];
+        const fakeStore = {
+            purge: (policy: unknown) => {
+                calls.push(policy);
+                return {
+                    sessionsDeleted: 0,
+                    recordingsDeleted: 0,
+                    exportsDeleted: 0,
+                    bytesFreed: 0,
+                };
+            },
+        } as unknown as IStore;
+
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store: fakeStore as unknown as IStore,
+            taskStore: null,
+            autoPurge: {
+                enabled: true,
+                intervalMs: 9_999_999, // periodic timer is unref'd; we only assert startup call here
+                policy: { maxAgeDays: 1 },
+            },
+        });
+        try {
+            await bridge.start();
+            // start() defers the initial purge via setImmediate; yield twice.
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            expect(calls).toHaveLength(1);
+            expect(calls[0]).toEqual({ maxAgeDays: 1 });
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('skips startup purge when skipInitial is set', async () => {
+        let count = 0;
+        const fakeStore = {
+            purge: () => {
+                count++;
+                return {
+                    sessionsDeleted: 0,
+                    recordingsDeleted: 0,
+                    exportsDeleted: 0,
+                    bytesFreed: 0,
+                };
+            },
+        } as unknown as IStore;
+
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store: fakeStore,
+            taskStore: null,
+            autoPurge: { enabled: true, intervalMs: 9_999_999, skipInitial: true },
+        });
+        try {
+            await bridge.start();
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            expect(count).toBe(0);
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('does not crash daemon when store.purge throws', async () => {
+        const fakeStore = {
+            purge: () => {
+                throw new Error('disk full');
+            },
+        } as unknown as IStore;
+
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store: fakeStore,
+            taskStore: null,
+            autoPurge: { enabled: true, intervalMs: 9_999_999 },
+        });
+        try {
+            await expect(bridge.start()).resolves.toBeUndefined();
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            // bridge is still listening
+            expect(bridge.getBoundPort()).toBeGreaterThan(0);
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('end-to-end: real JsonlStore + auto-purge shrinks disk usage', async () => {
+        // Real store on temp dir + real Bridge. Proves disk usage actually
+        // drops (not just that purge() returns numbers).
+        const dir = mkdtempSync(join(tmpdir(), 'autopurge-int-'));
+        const store = new JsonlStore(dir);
+        try {
+            for (let i = 0; i < 10; i++) {
+                const sid = store.openSession(`proj-${i}`, { peerRole: 'vite-plugin' });
+                store.openTab(sid, { id: `t-${i}` });
+                store.append(
+                    sid,
+                    {
+                        ts: Date.now(),
+                        t: 'log',
+                        tab: `t-${i}`,
+                        load: `L-${i}`,
+                        d: { msg: 'x'.repeat(2048) },
+                    },
+                    `t-${i}`,
+                );
+            }
+            await store.flush();
+            const before = dirSize(dir);
+            expect(before).toBeGreaterThan(10_000);
+
+            const bridge = new Bridge({
+                port: 0,
+                host: '127.0.0.1',
+                store,
+                taskStore: null,
+                autoPurge: {
+                    enabled: true,
+                    intervalMs: 9_999_999,
+                    policy: { maxAgeDays: 0 }, // wipe everything older than 0 days
+                },
+            });
+            await bridge.start();
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            await bridge.stop();
+
+            const after = dirSize(dir);
+            expect(after).toBeLessThan(before);
+        } finally {
+            await store.close();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('respects enabled:false (no purge runs)', async () => {
+        let count = 0;
+        const fakeStore = {
+            purge: () => {
+                count++;
+                return {
+                    sessionsDeleted: 0,
+                    recordingsDeleted: 0,
+                    exportsDeleted: 0,
+                    bytesFreed: 0,
+                };
+            },
+        } as unknown as IStore;
+
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store: fakeStore,
+            taskStore: null,
+            autoPurge: { enabled: false },
+        });
+        try {
+            await bridge.start();
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            expect(count).toBe(0);
+        } finally {
+            await bridge.stop();
+        }
+    });
+});
 
 describe('Bridge', () => {
     it('handshakes a runtime-client and registers it', async () => {
@@ -374,7 +553,7 @@ describe('Bridge', () => {
     it('persists rrweb payloads outside timeline entries while keeping timeline metadata', async () => {
         const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-rrweb-'));
         const store = new JsonlStore(dir);
-        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);
@@ -438,7 +617,7 @@ describe('Bridge', () => {
     it('derives rrweb markers from errors, failed network events, and task submissions', async () => {
         const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-markers-'));
         const store = new JsonlStore(dir);
-        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);
@@ -531,7 +710,7 @@ describe('Bridge', () => {
     it('rejects runtime-client hello with error ack when no active session exists (Req 3.4)', async () => {
         const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-req34-'));
         const store = new JsonlStore(dir);
-        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);
@@ -555,7 +734,7 @@ describe('Bridge', () => {
     it('accepts runtime-client hello when an active vite-plugin session exists (Req 3.3)', async () => {
         const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-req33-'));
         const store = new JsonlStore(dir);
-        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);
@@ -589,7 +768,7 @@ describe('Integration: end-to-end event persistence (Task 14.1)', () => {
     it('events sent by runtime-client appear in JSONL files on disk with correct seq values', async () => {
         const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-int14-1-'));
         const store = new JsonlStore(dir);
-        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);
@@ -695,7 +874,7 @@ describe('Integration: session grace period (Task 14.2)', () => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-int14-2a-'));
         const store = new JsonlStore(dir);
-        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);
@@ -743,7 +922,7 @@ describe('Integration: session grace period (Task 14.2)', () => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-int14-2b-'));
         const store = new JsonlStore(dir);
-        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);
@@ -903,7 +1082,7 @@ describe('PAGE_LOAD persistence', () => {
     it('appends a LoadMeta row when a PAGE_LOAD event arrives', async () => {
         const dir = mkdtempSync(join(tmpdir(), 'morphix-pageload-1-'));
         const store = new JsonlStore(dir);
-        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);
@@ -959,7 +1138,7 @@ describe('PAGE_LOAD persistence', () => {
         //   - L2 is open until its tab closes
         const dir = mkdtempSync(join(tmpdir(), 'morphix-pageload-2-'));
         const store = new JsonlStore(dir);
-        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);

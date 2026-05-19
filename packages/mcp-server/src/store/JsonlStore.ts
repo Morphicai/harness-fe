@@ -211,6 +211,21 @@ function parseRecordingChunkLine(
  */
 const META_EXTENSION_LIMIT_BYTES = 16 * 1024;
 
+/**
+ * Drop a single timeline event when its JSON encoding exceeds this size.
+ * Typical events are ~200B–2KB. 256KB lets through giant console payloads
+ * (e.g. JSON.dump of a small object tree) but stops "console.log(window)"-
+ * style accidents from filling timeline.jsonl with megabytes per row.
+ */
+const MAX_EVENT_BYTES = 256 * 1024;
+
+/**
+ * Drop an rrweb recording chunk when its JSON encoding exceeds this size.
+ * Full-snapshot frames can legitimately be ~500KB on rich pages. 2MB
+ * tolerates the worst real cases and catches misbehaving recorders.
+ */
+const MAX_RECORDING_CHUNK_BYTES = 2 * 1024 * 1024;
+
 function enforceExtensionBudget(meta: { tags?: unknown; metadata?: unknown }, label: string): void {
     const open = JSON.stringify({ tags: meta.tags, metadata: meta.metadata });
     const size = Buffer.byteLength(open, 'utf-8');
@@ -532,23 +547,25 @@ export class JsonlStore implements IStore {
         validateLoadInvariant(event, tabId);
         const projectId = this.resolveProject(sessionId);
         if (!projectId) return;
+        // Single-event size guard. Drops + warns rather than throwing so one
+        // huge payload (e.g. a malformed page that JSON-dumps a megabyte of
+        // state into a console.log) can't crash the daemon.
+        const line = JSON.stringify(event);
+        if (Buffer.byteLength(line, 'utf-8') > MAX_EVENT_BYTES) {
+            process.stderr.write(
+                `[harnessa-fe] dropping oversized event (${Buffer.byteLength(line, 'utf-8')} bytes > ${MAX_EVENT_BYTES}) — type=${event.t}\n`,
+            );
+            return;
+        }
 
         // Always write to session timeline
-        this.writeQueue.enqueue(
-            this.sessionTimeline(projectId, sessionId),
-            sessionId,
-            JSON.stringify(event),
-        );
+        this.writeQueue.enqueue(this.sessionTimeline(projectId, sessionId), sessionId, line);
 
         // Also write to tab timeline if tabId provided
         if (tabId) {
             const tabDir = this.tabDir(projectId, sessionId, tabId);
             ensureDir(tabDir);
-            this.writeQueue.enqueue(
-                this.tabTimeline(projectId, sessionId, tabId),
-                sessionId,
-                JSON.stringify(event),
-            );
+            this.writeQueue.enqueue(this.tabTimeline(projectId, sessionId, tabId), sessionId, line);
         }
     }
 
@@ -558,23 +575,24 @@ export class JsonlStore implements IStore {
         const projectId = this.resolveProject(sessionId);
         if (!projectId) return;
 
-        // Enqueue each event individually — WriteQueue handles batching
+        // Enqueue each event individually — WriteQueue handles batching.
+        // Apply the same size guard as `append()`.
         for (const event of events) {
-            this.writeQueue.enqueue(
-                this.sessionTimeline(projectId, sessionId),
-                sessionId,
-                JSON.stringify(event),
-            );
-        }
-
-        if (tabId) {
-            const tabDir = this.tabDir(projectId, sessionId, tabId);
-            ensureDir(tabDir);
-            for (const event of events) {
+            const line = JSON.stringify(event);
+            if (Buffer.byteLength(line, 'utf-8') > MAX_EVENT_BYTES) {
+                process.stderr.write(
+                    `[harnessa-fe] dropping oversized event in batch (${Buffer.byteLength(line, 'utf-8')} bytes) — type=${event.t}\n`,
+                );
+                continue;
+            }
+            this.writeQueue.enqueue(this.sessionTimeline(projectId, sessionId), sessionId, line);
+            if (tabId) {
+                const tabDir = this.tabDir(projectId, sessionId, tabId);
+                ensureDir(tabDir);
                 this.writeQueue.enqueue(
                     this.tabTimeline(projectId, sessionId, tabId),
                     sessionId,
-                    JSON.stringify(event),
+                    line,
                 );
             }
         }
@@ -586,12 +604,22 @@ export class JsonlStore implements IStore {
         const tabDir = this.tabDir(projectId, sessionId, tabId);
         ensureDir(tabDir);
         const line = Array.isArray(chunk) ? { ts: Date.now(), events: chunk } : chunk;
+        // rrweb chunk size guard. rrweb full-snapshots can grow large on
+        // first capture (style sheets etc.). Anything past the ceiling is a
+        // sign the page is mis-using rrweb — drop the chunk + warn.
+        const serialized = JSON.stringify(line);
+        if (Buffer.byteLength(serialized, 'utf-8') > MAX_RECORDING_CHUNK_BYTES) {
+            process.stderr.write(
+                `[harnessa-fe] dropping oversized rrweb chunk (${Buffer.byteLength(serialized, 'utf-8')} bytes > ${MAX_RECORDING_CHUNK_BYTES})\n`,
+            );
+            return;
+        }
         // Each chunk is one line in recording.jsonl.
         // Write ONLY to recording.jsonl — NOT to session or tab timeline
         this.writeQueue.enqueue(
             this.tabRecording(projectId, sessionId, tabId),
             sessionId,
-            JSON.stringify(line),
+            serialized,
         );
     }
 
