@@ -4,12 +4,34 @@ All notable changes to this project will be documented here. The format is based
 
 ## [Unreleased]
 
-### Added
+### Added — Narrative refactor: parent project + iframe identity + buildId
+
+Foundation for micro-frontend debugging. Detailed plan in `/Users/admin/.claude/plans/delegated-seeking-tiger.md`.
+
+- **Project tree as a first-class concept.** `ProjectMeta` extended with `parentProjectId`, `displayName`, `tags`, `metadata`. Bridge upserts these on every `HelloFrame`. Cycle detection at write time.
+- **`BuildMeta`** — new persisted record (`{projectId}/builds/{buildId}/meta.json`) identifying a source-code snapshot. Captures `gitSha`, `gitDirty`, `bundler`, `nodeVersion`, `sourceDigest`. Plugin computes a stable `buildId` per dev-server start (git sha → CI env → config-file hash fallback).
+- **Same-origin iframe identity inheritance** (`tryInheritFromParent`). When a runtime client boots inside a same-origin iframe, it reads `window.parent.__harnessa_fe_client__` + `__hfe_session_id__` + `__HARNESSA_FE__.projectId` so parent + child apps share the same `tabId` / `sessionId` and the child reports `parentProjectId`. Cross-origin SecurityError caught silently → child falls back to its own identity.
+- **Protocol additions.** `HelloFrame` carries `parentProjectId` / `displayName` / `buildId` / `sessionId` (renamed from `loadId`; legacy field still accepted via `normalizeHelloFrame`). `EventFrame` stamps `sessionId` + `buildId` for downstream cross-cutting queries.
+- **New MCP tools** for the project tree:
+  - `project.list` — full `ProjectMeta[]`
+  - `project.get` — single project
+  - `project.tree(rootId?)` — assembled forest from parent links
+  - `project.set_parent` — set/clear with cycle rejection
+  - `build.list` / `build.get` — builds of a project
+- **New runtime export**: `tryInheritFromParent` (in `parent-inherit.ts`, kept rrweb-free so unit tests can import without happy-dom CJS/ESM friction).
+
+### Added — earlier in this release window
 
 - **Webpack + Vue 3 build-pipeline integration** — Vue SFC `<template>` tagging now works under `vue-loader` by intercepting its `*.vue?vue&type=template` virtual sub-module. Element line numbers are translated back to the original `.vue` file via `<template>` block offset. New example: `examples/webpack5-vue3-demo/`.
 - `transformVueTemplate`, `resolveVueComponentName`, `getTemplateLineOffset` exported from `@harnessa-fe/unplugin` for direct use by custom bundler integrations.
 - Build-pipeline e2e smoke for the webpack+vue3 demo (`pnpm --filter harnessa-fe-webpack5-vue3-demo e2e`).
 - Build + runtime e2e for the Vite+Vue 3 demo (`pnpm --filter harnessa-fe-vue-demo e2e`). Confirms `data-morphix-*` tagging on rendered Vue DOM, `defineOptions({ name })` propagation, and live WebSocket connection to MCP via headless Chromium.
+
+### Known limitations (deferred to a follow-up minor)
+
+- Cross-project session timeline tools (`session.timeline` / `tab.timeline` / `project.timeline` / `build.timeline`) are planned but not in this release. Today, agent code must call `session.tail` per (project, session). The data model now supports them — the implementation is a future scan-and-merge over disk events.
+- Folder layout reversal (`sessions/` at top of store dir, projects mixed by row-level tag) is deferred. Existing per-project layout still works; the refactor stays additive.
+- `examples/iframe-demo/` end-to-end fixture is planned but not landed.
 
 ### Promoted to Stable
 
