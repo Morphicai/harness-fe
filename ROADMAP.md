@@ -18,6 +18,7 @@ Foundation release. Stable for Vite + React.
 ## Next — 0.2.x
 
 - [x] Vue 3 SFC transform — full template + script setup support
+- [x] Vite + Vue 3 promoted from beta to stable
 - [x] Webpack + Vue 3 build-pipeline integration (vue-loader sub-module handling)
 - [x] Browser runtime injection in webpack mode (via `webpack.EntryPlugin`)
 - [x] Webpack plugin promoted from beta to stable

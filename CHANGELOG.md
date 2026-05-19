@@ -9,6 +9,13 @@ All notable changes to this project will be documented here. The format is based
 - **Webpack + Vue 3 build-pipeline integration** — Vue SFC `<template>` tagging now works under `vue-loader` by intercepting its `*.vue?vue&type=template` virtual sub-module. Element line numbers are translated back to the original `.vue` file via `<template>` block offset. New example: `examples/webpack5-vue3-demo/`.
 - `transformVueTemplate`, `resolveVueComponentName`, `getTemplateLineOffset` exported from `@harnessa-fe/unplugin` for direct use by custom bundler integrations.
 - Build-pipeline e2e smoke for the webpack+vue3 demo (`pnpm --filter harnessa-fe-webpack5-vue3-demo e2e`).
+- Build + runtime e2e for the Vite+Vue 3 demo (`pnpm --filter harnessa-fe-vue-demo e2e`). Confirms `data-morphix-*` tagging on rendered Vue DOM, `defineOptions({ name })` propagation, and live WebSocket connection to MCP via headless Chromium.
+
+### Promoted to Stable
+
+- **Vite + Vue 3** — full SFC support (template tagging + component-name resolution from `defineOptions` / `export default { name }` / filename / parent dir). Verified end-to-end via headless Chromium e2e: 13+ tagged DOM elements, runtime client registers, WebSocket connects to MCP.
+- **Webpack + React** — same `EntryPlugin` fix that landed for Webpack+Vue 3 makes the runtime client load in any webpack project; React's `data-morphix-*` JSX tagging was already correct, but the in-page runtime now actually boots.
+- **Webpack + Vue 3** — both the build-pipeline integration above and the runtime injection fix together.
 
 ### Changed
 

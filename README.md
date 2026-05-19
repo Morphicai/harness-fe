@@ -54,7 +54,7 @@ graph LR
 |-------------|---------|--------|
 | Vite + React | 5.x – 7.x | ✅ Stable |
 | Webpack + React | 5.x | ✅ Stable |
-| Vite + Vue 3 | 5.x – 7.x | 🟡 Beta |
+| Vite + Vue 3 | 5.x – 7.x | ✅ Stable |
 | Webpack + Vue 3 | 5.x | ✅ Stable |
 | Next.js (Webpack) | 13+ | 📋 Planned |
 
