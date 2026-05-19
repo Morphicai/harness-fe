@@ -9,6 +9,15 @@
 
 import type { IStore } from './store/index.js';
 
+/** rrweb event types: 2 = FullSnapshot baseline. Replay needs at least one. */
+function isFullSnapshotEvent(ev: unknown): boolean {
+    return (
+        typeof ev === 'object' &&
+        ev !== null &&
+        (ev as { type?: unknown }).type === 2
+    );
+}
+
 export interface ReplayCreateArgs {
     sessionId: string;
     tabId?: string;
@@ -102,9 +111,48 @@ export function createReplayExport(
         if (c.startTs < startTs) startTs = c.startTs;
         if (c.endTs > endTs) endTs = c.endTs;
     }
+
+    // rrweb replay requires a baseline pair — type:4 (Meta) + type:2
+    // (FullSnapshot) — before any type:3 (IncrementalSnapshot) is meaningful.
+    // If the window only contains incremental mutations (e.g. user picked a
+    // narrow window long after the page loaded, or the very first chunk was
+    // lost during a daemon restart), look back across earlier chunks for the
+    // most recent baseline and prepend it. Replay will then start from that
+    // earlier DOM state and roll mutations forward into the window.
+    if (!events.some(isFullSnapshotEvent) && resolvedSince > 0) {
+        const priorChunks = store
+            .sliceRecordings(sessionId, 0, resolvedSince - 1, scopedTabId)
+            .filter((c) => c.tabId === scopedTabId)
+            .sort((a, b) => a.startTs - b.startTs);
+        // Walk backwards from the chunk closest to window start; the first
+        // chunk that has a FullSnapshot becomes our baseline.
+        for (let i = priorChunks.length - 1; i >= 0; i--) {
+            const baseline = priorChunks[i];
+            if (!baseline) continue;
+            if (baseline.events.some(isFullSnapshotEvent)) {
+                // Prepend baseline events (full chunk — preserves Meta + FS
+                // ordering rrweb emitted them in). startTs widens to baseline.
+                events.unshift(...baseline.events);
+                if (baseline.startTs < startTs) startTs = baseline.startTs;
+                break;
+            }
+        }
+    }
+
     if (events.length < 2) {
         return {
             error: 'window contains fewer than 2 rrweb events — not enough to replay',
+            sessionId,
+            tabId: scopedTabId,
+            since: resolvedSince,
+            until: resolvedUntil,
+            eventCount: events.length,
+        };
+    }
+    if (!events.some(isFullSnapshotEvent)) {
+        return {
+            error:
+                'window contains no rrweb FullSnapshot (type:2) baseline, and no earlier baseline could be found — replay would be blank',
             sessionId,
             tabId: scopedTabId,
             since: resolvedSince,

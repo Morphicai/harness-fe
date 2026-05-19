@@ -35,8 +35,12 @@ function seed(store: JsonlStore, projectId: string) {
     store.append(sessId, { ts: 1000, t: 'log', load: 'L1', d: { args: ['hello'] } }, 'tab-1');
     store.append(sessId, { ts: 1100, t: 'err', load: 'L1', d: { message: 'boom' } }, 'tab-1');
     store.appendRecording(sessId, 'tab-1', {
-        chunkId: 'rrc_a', startTs: 1000, endTs: 2000, eventCount: 2,
-        events: [{ type: 4, data: {}, timestamp: 1000 }, { type: 3, data: {}, timestamp: 2000 }],
+        chunkId: 'rrc_a', startTs: 1000, endTs: 2000, eventCount: 3,
+        events: [
+            { type: 4, data: {}, timestamp: 1000 },
+            { type: 2, data: {}, timestamp: 1100 },
+            { type: 3, data: {}, timestamp: 2000 },
+        ],
     });
     return sessId;
 }

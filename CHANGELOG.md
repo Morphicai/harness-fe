@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] — 2026-05-19
+
+### Fixed — rrweb replay sometimes rendered blank
+
+Two independent gaps caused the very first chunk of a recording (the one carrying the `type:4` Meta + `type:2` FullSnapshot baseline) to be lost, which made every subsequent incremental snapshot useless for replay:
+
+- **`@harnessa-fe/runtime` — pre-OPEN frames were silently dropped.** `RuntimeClient.send()` checked `ws.readyState !== OPEN` and returned without buffering, so any event emitted between `start()` and the WebSocket handshake completing (notably rrweb's synchronous FullSnapshot on init) hit the floor. Now buffered in a bounded FIFO outbox (500 frames / 8 MB cap) and drained right after the `hello` is sent on `open` — the daemon sees the baseline immediately after registering the peer. Also covers transient reconnects.
+- **`@harnessa-fe/mcp-server` — replay export accepted FullSnapshot-less windows.** `createReplayExport()` produced exports that contained only `type:3` mutations when the user picked a narrow window long after page load (or any window that happened to miss the baseline chunk). The export "succeeded" but the rrweb player rendered an empty viewport. The export builder now scans for `type:2` in the window; if absent, walks back across earlier chunks for the same tab, finds the most recent baseline chunk, and prepends its events. If no baseline can be located anywhere, the export is refused with an explanatory error instead of producing a blank replay.
+
+### Fixed — plugin-less mode silently lost events
+
+`@harnessa-fe/mcp-server` `bridge.ts` previously refused `runtime-client` `hello` frames whenever no build plugin (vite / webpack) had already registered the project. That made the new `@harnessa-fe/next` + `jsxImportSource` integration unusable — and any production / staging deployment where the bundler plugin is absent. The gate is removed: a `runtime-client` `hello` now bootstraps its own store session (`peerRole: 'runtime-client'`) when none exists. As an observability backstop, the daemon now logs a `console.warn` the first time a connection drops an event for lack of a store session — silent data loss surfaces immediately.
+
 ## [0.2.3] — 2026-05-19
 
 ### Added
