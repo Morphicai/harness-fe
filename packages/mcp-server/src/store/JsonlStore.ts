@@ -63,6 +63,7 @@ const DEFAULT_RETENTION: Required<RetentionPolicy> = {
     preserveMarkedChunks: true,
     maxExportsPerProject: 50,
     maxExportBytesPerProject: 200 * 1024 * 1024,
+    maxBuildsPerProject: 100,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -201,6 +202,23 @@ function parseRecordingChunkLine(
                 ? parsed.endTs
                 : fallbackAgeTs,
     };
+}
+
+/**
+ * Reject meta upserts that would write more than this many bytes of
+ * open-ended user data (`tags` + `metadata`). Protects against agents or
+ * misconfigured plugins inflating meta.json files to MBs.
+ */
+const META_EXTENSION_LIMIT_BYTES = 16 * 1024;
+
+function enforceExtensionBudget(meta: { tags?: unknown; metadata?: unknown }, label: string): void {
+    const open = JSON.stringify({ tags: meta.tags, metadata: meta.metadata });
+    const size = Buffer.byteLength(open, 'utf-8');
+    if (size > META_EXTENSION_LIMIT_BYTES) {
+        throw new Error(
+            `[harnessa-fe] refused to write ${label}: tags+metadata payload is ${size} bytes (limit ${META_EXTENSION_LIMIT_BYTES}).`,
+        );
+    }
 }
 
 function matchesType(event: StoreEvent, type: string | string[] | undefined): boolean {
@@ -630,6 +648,11 @@ export class JsonlStore implements IStore {
             createdAt: existing?.createdAt ?? Date.now(),
             lastActiveAt: Date.now(),
         };
+        // Open-ended fields (tags / metadata) accept anything the caller passes.
+        // Refuse to persist if the combined extension fields would push the
+        // meta.json past a safe ceiling — protects against agents stuffing
+        // megabytes into project metadata.
+        enforceExtensionBudget(merged, `project ${projectId}`);
         writeJson(metaPath, merged);
         return merged;
     }
@@ -657,6 +680,7 @@ export class JsonlStore implements IStore {
             projectId,
             builtAt: existing?.builtAt ?? Date.now(),
         };
+        enforceExtensionBudget(merged, `build ${projectId}/${buildId}`);
         writeJson(metaPath, merged);
         return merged;
     }
@@ -682,31 +706,61 @@ export class JsonlStore implements IStore {
 
     // ── Project tree ───────────────────────────────────────────────────────
 
+    /**
+     * Assemble the project forest from `parentProjectId` links.
+     *
+     * Iterative (no recursion) so a 10,000-level deep tree won't blow the
+     * stack. A `visited` set additionally guards against any stale cycle
+     * that slipped past upsertProject's check (e.g. from a hand-edited
+     * meta.json).
+     */
     getProjectTree(rootId?: string): ProjectTreeNode[] {
         const all = this.listProjects();
-        // Build child-list lookup once.
-        const children = new Map<string, ProjectMeta[]>();
+        const byParent = new Map<string, ProjectMeta[]>();
         for (const p of all) {
-            const parent = p.parentProjectId ?? null;
-            if (parent === null) continue;
-            const arr = children.get(parent) ?? [];
+            const parent = p.parentProjectId;
+            if (!parent) continue;
+            const arr = byParent.get(parent) ?? [];
             arr.push(p);
-            children.set(parent, arr);
+            byParent.set(parent, arr);
         }
-        const build = (p: ProjectMeta): ProjectTreeNode => ({
-            id: p.id,
-            displayName: p.displayName,
-            tags: p.tags,
-            children: (children.get(p.id) ?? [])
-                .sort((a, b) => (a.displayName ?? a.id).localeCompare(b.displayName ?? b.id))
-                .map(build),
-        });
-        const roots = rootId
+        const sortByLabel = (a: { displayName?: string; id: string }, b: { displayName?: string; id: string }) =>
+            (a.displayName ?? a.id).localeCompare(b.displayName ?? b.id);
+
+        const seedRoots = rootId
             ? all.filter((p) => p.id === rootId)
             : all.filter((p) => !p.parentProjectId);
-        return roots
-            .sort((a, b) => (a.displayName ?? a.id).localeCompare(b.displayName ?? b.id))
-            .map(build);
+
+        // Build all nodes up-front (id-keyed) so we can stitch children into
+        // their parents in a second pass without recursion.
+        const nodeOf = new Map<string, ProjectTreeNode>();
+        const queue: ProjectMeta[] = [...seedRoots];
+        const visited = new Set<string>();
+        while (queue.length > 0) {
+            const p = queue.shift()!;
+            if (visited.has(p.id)) continue;
+            visited.add(p.id);
+            nodeOf.set(p.id, {
+                id: p.id,
+                displayName: p.displayName,
+                tags: p.tags,
+                children: [],
+            });
+            const kids = (byParent.get(p.id) ?? []).slice().sort(sortByLabel);
+            for (const k of kids) queue.push(k);
+        }
+        // Stitch.
+        for (const p of all) {
+            if (!nodeOf.has(p.id) || !p.parentProjectId) continue;
+            const parent = nodeOf.get(p.parentProjectId);
+            const me = nodeOf.get(p.id);
+            if (parent && me) parent.children.push(me);
+        }
+        return seedRoots
+            .slice()
+            .sort(sortByLabel)
+            .map((p) => nodeOf.get(p.id))
+            .filter((n): n is ProjectTreeNode => Boolean(n));
     }
 
     // ── Read ──────────────────────────────────────────────────────────────
@@ -1063,6 +1117,7 @@ export class JsonlStore implements IStore {
         let recordingsDeleted = 0;
         let exportsDeleted = 0;
         let bytesFreed = 0;
+        let buildsDeleted = 0;
 
         for (const proj of this.listProjects()) {
             const sessions = this.listSessions(proj.id, 1000);
@@ -1122,9 +1177,23 @@ export class JsonlStore implements IStore {
             );
             exportsDeleted += exportResult.exportsDeleted;
             bytesFreed += exportResult.bytesFreed;
+
+            // Trim BuildMeta directories per project. listBuilds returns newest
+            // first by builtAt; anything past `maxBuildsPerProject` is pruned.
+            const allBuilds = this.listBuilds(proj.id, Number.MAX_SAFE_INTEGER);
+            if (allBuilds.length > p.maxBuildsPerProject) {
+                const stale = allBuilds.slice(p.maxBuildsPerProject);
+                for (const b of stale) {
+                    const dir = join(this.projectDir(proj.id), 'builds', sanitizeId(b.id));
+                    const size = dirSize(dir);
+                    rmrf(dir);
+                    bytesFreed += size;
+                    buildsDeleted++;
+                }
+            }
         }
 
-        return { sessionsDeleted, recordingsDeleted, exportsDeleted, bytesFreed };
+        return { sessionsDeleted, recordingsDeleted, exportsDeleted, bytesFreed, buildsDeleted };
     }
 
     private pruneExportsForProject(
