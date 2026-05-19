@@ -10,6 +10,8 @@ export type {
     StoreEvent,
     EventType,
     ProjectMeta,
+    ProjectTreeNode,
+    BuildMeta,
     SessionMeta,
     TabMeta,
     LoadMeta,

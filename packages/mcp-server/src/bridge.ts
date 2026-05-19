@@ -646,6 +646,38 @@ export class Bridge implements IBridge {
                 });
                 // Persist to store
                 if (this.store) {
+                    // Project tree: record parentProjectId / displayName / tags
+                    // the moment we learn about them via any hello frame.
+                    if (
+                        frame.parentProjectId !== undefined ||
+                        frame.displayName !== undefined
+                    ) {
+                        try {
+                            this.store.upsertProject(frame.projectId, {
+                                parentProjectId: frame.parentProjectId,
+                                displayName: frame.displayName,
+                            });
+                        } catch (err) {
+                            // Cycle detection or other validation failure —
+                            // log and continue; the peer still gets registered.
+                            console.warn(
+                                '[harnessa-fe] upsertProject failed:',
+                                err instanceof Error ? err.message : err,
+                            );
+                        }
+                    }
+                    // Build artifact: record buildId metadata on first sight.
+                    if (frame.buildId) {
+                        this.store.upsertBuild(frame.projectId, frame.buildId, {
+                            bundler:
+                                frame.role === 'vite-plugin'
+                                    ? 'vite'
+                                    : frame.role === 'webpack-plugin'
+                                    ? 'webpack'
+                                    : undefined,
+                        });
+                    }
+
                     if (frame.role === 'vite-plugin' || frame.role === 'webpack-plugin') {
                         const projectId = frame.projectId;
                         // Check if there's a pending grace period for this project

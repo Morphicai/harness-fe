@@ -696,6 +696,130 @@ describe('JsonlStore', () => {
     });
 });
 
+// ── Project tree + build metadata (v0.2 micro-frontend layer) ────────────────
+
+describe('JsonlStore — project tree + build metadata', () => {
+    let dataDir: string;
+    let store: JsonlStore;
+
+    beforeEach(() => {
+        dataDir = mkdtempSync(join(tmpdir(), 'jstore-tree-'));
+        store = new JsonlStore(dataDir);
+    });
+
+    afterEach(async () => {
+        await store.close();
+        rmSync(dataDir, { recursive: true, force: true });
+    });
+
+    it('upsertProject writes parentProjectId/displayName/tags into meta.json', () => {
+        store.upsertProject('app-parent', { displayName: 'Parent App' });
+        store.upsertProject('app-child', {
+            parentProjectId: 'app-parent',
+            displayName: 'Child App',
+            tags: ['mfe', 'iframe'],
+        });
+
+        const parent = store.getProject('app-parent');
+        const child = store.getProject('app-child');
+        expect(parent?.displayName).toBe('Parent App');
+        expect(parent?.parentProjectId).toBeUndefined();
+        expect(child?.parentProjectId).toBe('app-parent');
+        expect(child?.tags).toEqual(['mfe', 'iframe']);
+    });
+
+    it('upsertProject preserves fields not in the patch (last-write-wins per field)', () => {
+        store.upsertProject('p1', { displayName: 'first', tags: ['a'] });
+        store.upsertProject('p1', { parentProjectId: 'root' });
+
+        const meta = store.getProject('p1');
+        expect(meta?.displayName).toBe('first'); // preserved
+        expect(meta?.tags).toEqual(['a']); // preserved
+        expect(meta?.parentProjectId).toBe('root'); // newly set
+        expect(meta?.id).toBe('p1');
+        expect(typeof meta?.createdAt).toBe('number');
+    });
+
+    it('upsertProject refuses self-parent cycle', () => {
+        store.upsertProject('p1', {});
+        expect(() => store.upsertProject('p1', { parentProjectId: 'p1' })).toThrow(/itself/);
+    });
+
+    it('upsertProject refuses indirect parent cycle (A→B→A)', () => {
+        store.upsertProject('a', {});
+        store.upsertProject('b', { parentProjectId: 'a' });
+        expect(() => store.upsertProject('a', { parentProjectId: 'b' })).toThrow(/cycle/);
+    });
+
+    it('subsequent openSession does NOT overwrite parentProjectId / displayName', () => {
+        // Critical: hello-driven upsertProject runs first, then plugin opens
+        // a session via openSession. Older code would wipe the new meta fields.
+        store.upsertProject('p1', { displayName: 'Parent', parentProjectId: 'root' });
+        store.openSession('p1', { peerRole: 'vite-plugin' });
+
+        const meta = store.getProject('p1');
+        expect(meta?.displayName).toBe('Parent');
+        expect(meta?.parentProjectId).toBe('root');
+    });
+
+    it('upsertBuild + getBuild + listBuilds roundtrip', () => {
+        store.upsertProject('app', {});
+        store.upsertBuild('app', 'b1', {
+            gitSha: 'abc',
+            gitDirty: false,
+            bundler: 'vite',
+        });
+        store.upsertBuild('app', 'b2', {
+            gitSha: 'def',
+            gitDirty: true,
+            bundler: 'vite',
+        });
+
+        const b1 = store.getBuild('app', 'b1');
+        expect(b1?.gitSha).toBe('abc');
+        expect(b1?.projectId).toBe('app');
+
+        const all = store.listBuilds('app');
+        expect(all.map((b) => b.id).sort()).toEqual(['b1', 'b2']);
+    });
+
+    it('upsertBuild merges incremental patches', () => {
+        store.upsertProject('app', {});
+        store.upsertBuild('app', 'b1', { gitSha: 'abc' });
+        store.upsertBuild('app', 'b1', { nodeVersion: 'v22.0.0' });
+
+        const meta = store.getBuild('app', 'b1');
+        expect(meta?.gitSha).toBe('abc');
+        expect(meta?.nodeVersion).toBe('v22.0.0');
+    });
+
+    it('getProjectTree assembles parent/child relationships into a forest', () => {
+        store.upsertProject('root1', { displayName: 'Root One' });
+        store.upsertProject('child-a', { parentProjectId: 'root1', displayName: 'Alpha' });
+        store.upsertProject('child-b', { parentProjectId: 'root1', displayName: 'Bravo' });
+        store.upsertProject('grandchild', { parentProjectId: 'child-a' });
+        store.upsertProject('root2', { displayName: 'Root Two' });
+
+        const tree = store.getProjectTree();
+        expect(tree.map((n) => n.id).sort()).toEqual(['root1', 'root2']);
+        const r1 = tree.find((n) => n.id === 'root1')!;
+        expect(r1.children.map((c) => c.id).sort()).toEqual(['child-a', 'child-b']);
+        const ca = r1.children.find((c) => c.id === 'child-a')!;
+        expect(ca.children.map((c) => c.id)).toEqual(['grandchild']);
+    });
+
+    it('getProjectTree with rootId returns just that sub-tree', () => {
+        store.upsertProject('root', { displayName: 'Root' });
+        store.upsertProject('mid', { parentProjectId: 'root' });
+        store.upsertProject('leaf', { parentProjectId: 'mid' });
+
+        const subtree = store.getProjectTree('mid');
+        expect(subtree).toHaveLength(1);
+        expect(subtree[0]?.id).toBe('mid');
+        expect(subtree[0]?.children.map((c) => c.id)).toEqual(['leaf']);
+    });
+});
+
 // ── Property-Based Tests ─────────────────────────────────────────────────────
 
 // Feature: persistence, Property 13: ID sanitization safety

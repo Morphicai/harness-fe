@@ -19,11 +19,13 @@ import {
 } from '@harnessa-fe/protocol';
 import type { IBridge, SendCommandOptions } from './bridge.js';
 import type {
+    BuildMeta,
     IMemoryStore,
     IStore,
     LoadMeta,
     MemoryEntry,
     ProjectMeta,
+    ProjectTreeNode,
     PurgeResult,
     RecordingChunk,
     RecordingChunkSummary,
@@ -325,6 +327,12 @@ class RemoteStore implements IStore {
     // use the async variants above when running in follower mode.
 
     listProjects(): ProjectMeta[] { throw notSupported('listProjects'); }
+    upsertProject(_p: string, _patch: Partial<Omit<ProjectMeta, 'id' | 'createdAt'>>): ProjectMeta { throw notSupported('upsertProject'); }
+    getProject(_p: string): ProjectMeta | undefined { throw notSupported('getProject'); }
+    upsertBuild(_p: string, _b: string, _patch: Partial<Omit<BuildMeta, 'id' | 'projectId'>>): BuildMeta { throw notSupported('upsertBuild'); }
+    getBuild(_p: string, _b: string): BuildMeta | undefined { throw notSupported('getBuild'); }
+    listBuilds(_p: string, _l?: number): BuildMeta[] { throw notSupported('listBuilds'); }
+    getProjectTree(_r?: string): ProjectTreeNode[] { throw notSupported('getProjectTree'); }
     listSessions(_p: string, _l?: number): SessionMeta[] { throw notSupported('listSessions'); }
     getSession(_id: string): SessionMeta | undefined { throw notSupported('getSession'); }
     tail(_s: string, _o?: TailOptions, _t?: string): StoreEvent[] { throw notSupported('tail'); }
