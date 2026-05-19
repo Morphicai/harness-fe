@@ -2,7 +2,11 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.1] — 2026-05-19
+
+### Fixed
+
+- **Release pipeline** — v0.2.0 publish failed at npm with `E404` because pnpm 9 doesn't yet exchange the workflow's OIDC id-token for an npm publish credential. Restored the granular-token flow (`NODE_AUTH_TOKEN` in the workflow env). Provenance (sigstore attestation) still attaches via `--provenance` + `NPM_CONFIG_PROVENANCE=true`. We'll revisit OIDC when pnpm 10 lands.
 
 ### Added — Storage hardening (unbounded-growth defense)
 
