@@ -89,18 +89,43 @@ jobs:
               # Sanity check: ensure workspace:* deps rewrite correctly and tarballs are valid.
               run: pnpm -r --filter './packages/*' publish --dry-run --access public --no-git-checks
 
-            - name: Publish to npm with provenance
-              # Provenance attestation works with either an NPM_TOKEN or an
-              # OIDC trusted publisher. We use a granular NPM_TOKEN (scoped to
-              # @harnessa-fe, bypass-2FA enabled, 30-day expiry) because pnpm 9
-              # doesn't yet exchange the workflow's OIDC id-token for an npm
-              # publish credential. Reconsider when pnpm 10 ships.
-              # Trusted Publisher config on npmjs.com is harmless to keep —
-              # it's just inert until we switch publishers.
+            - name: Pack all packages into tarballs
+              # pnpm pack rewrites `workspace:*` deps onto their real version
+              # numbers inside each generated .tgz — same magic as pnpm publish
+              # but stops short of the actual upload. pnpm 9 has no recursive
+              # `pack` subcommand, so we loop. `npm publish` consumes the
+              # tarballs next and brings OIDC into the picture.
+              run: |
+                  set -e
+                  TARBALL_DIR="${{ github.workspace }}/tarballs"
+                  mkdir -p "$TARBALL_DIR"
+                  for pkg in packages/*/; do
+                      ( cd "$pkg" && pnpm pack --pack-destination "$TARBALL_DIR" )
+                  done
+                  ls -la "$TARBALL_DIR"
+
+            - name: Publish to npm with provenance (OIDC trusted publishing)
+              # No NPM_TOKEN needed. npm CLI sees this GitHub Actions context
+              # (id-token: write granted above + setup-node registry-url set)
+              # and exchanges the workflow's OIDC id-token for a short-lived
+              # publish credential, scoped to this workflow run + the npm
+              # trusted-publisher config on each package.
+              #
+              # Trusted Publisher must be configured on npmjs.com for every
+              # package, pointing to: Morphicai/harnessa-fe → release.yml →
+              # environment "release".
+              #
+              # --provenance attaches a sigstore attestation linking each
+              # tarball to this exact commit + workflow run. Verify with
+              # `npm audit signatures` on the consumer side.
               env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
                   NPM_CONFIG_PROVENANCE: 'true'
-              run: pnpm -r --filter './packages/*' publish --access public --no-git-checks --provenance
+              run: |
+                  set -e
+                  for tgz in "${{ github.workspace }}/tarballs"/*.tgz; do
+                      echo ">>> publishing $tgz"
+                      npm publish "$tgz" --access public --provenance
+                  done
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
