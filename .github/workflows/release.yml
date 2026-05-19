@@ -112,28 +112,47 @@ jobs:
                   done
                   ls -la "$TARBALL_DIR"
 
-            - name: Publish to npm with provenance (OIDC trusted publishing)
-              # No NPM_TOKEN needed. npm CLI sees this GitHub Actions context
-              # (id-token: write granted above + setup-node registry-url set)
-              # and exchanges the workflow's OIDC id-token for a short-lived
-              # publish credential, scoped to this workflow run + the npm
-              # trusted-publisher config on each package.
-              #
-              # Trusted Publisher must be configured on npmjs.com for every
-              # package, pointing to: Morphicai/harnessa-fe → release.yml →
-              # environment "release".
-              #
-              # --provenance attaches a sigstore attestation linking each
-              # tarball to this exact commit + workflow run. Verify with
-              # `npm audit signatures` on the consumer side.
+            - name: Publish to npm with provenance
+              # Auth: explicit NPM_TOKEN for now (until trusted publisher is
+              # configured for every package). Once all packages have trusted
+              # publishers on npmjs.com, drop NODE_AUTH_TOKEN and OIDC kicks
+              # in automatically via id-token: write.
+              # Provenance still attaches via --provenance flag.
               env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
                   NPM_CONFIG_PROVENANCE: 'true'
               run: |
-                  set -e
-                  for tgz in "${{ github.workspace }}/tarballs"/*.tgz; do
-                      echo ">>> publishing $tgz"
-                      npm publish "$tgz" --access public --provenance
+                  # NO `set -e` here — one package's failure (e.g. missing
+                  # trusted-publisher config) must not block the rest.
+                  TARBALL_DIR="${{ github.workspace }}/tarballs"
+                  PUBLISHED=()
+                  SKIPPED=()
+                  for tgz in "$TARBALL_DIR"/*.tgz; do
+                      name=$(basename "$tgz")
+                      echo "::group::publishing $name"
+                      if npm publish "$tgz" --access public --provenance; then
+                          PUBLISHED+=("$name")
+                          echo "::endgroup::"
+                      else
+                          rc=$?
+                          SKIPPED+=("$name (exit $rc)")
+                          echo "::warning::failed to publish $name (exit $rc) — continuing"
+                          echo "::endgroup::"
+                      fi
                   done
+
+                  echo "── publish summary ──────────────────────"
+                  echo "published (${#PUBLISHED[@]}):"
+                  for n in "${PUBLISHED[@]}"; do echo "  ✓ $n"; done
+                  echo "skipped (${#SKIPPED[@]}):"
+                  for n in "${SKIPPED[@]}"; do echo "  ✗ $n"; done
+
+                  # Fail the job only if NOTHING published. A partial release is
+                  # acceptable when new packages lack trusted-publisher config.
+                  if [ ${#PUBLISHED[@]} -eq 0 ]; then
+                      echo "::error::no packages published"
+                      exit 1
+                  fi
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2

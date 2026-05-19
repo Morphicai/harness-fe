@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] — 2026-05-19
+
+### Added
+
+- **New package `@harnessa-fe/react-jsx`** — a universal `jsxImportSource` wrapper for React. Set `"jsxImportSource": "@harnessa-fe/react-jsx"` in tsconfig.json (or the SWC / Babel equivalent) and every JSX element gets a `data-morphix-loc="file:line:column"` attribute in dev — works in any React toolchain (Next.js, Vite, Webpack, Remix, Astro, …) without a bundler plugin. Wraps React's `jsxDEV` runtime; passes through unchanged in production builds.
+- **New package `@harnessa-fe/next`** — Next.js integration for App Router and Pages Router. Drop `<HarnessaScript projectId="my-app" />` into `app/layout.tsx`; the client component seeds `window.__HARNESSA_FE__`, dynamically imports `@harnessa-fe/runtime`, and connects to the daemon. Works under both webpack and Turbopack, renders nothing in production.
+
+### Changed
+
+- **CI publish loop is now fault-tolerant** — one package failing (e.g. missing trusted-publisher config on a brand-new name) no longer blocks the rest. The workflow collects published / skipped lists, only fails when *nothing* publishes, and emits warnings for each skip so partial releases are visible at a glance.
+
 ## [0.2.2] — 2026-05-19
 
 ### Added

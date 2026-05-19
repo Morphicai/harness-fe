@@ -1,0 +1,65 @@
+{
+    "name": "@harnessa-fe/react-jsx",
+    "version": "0.2.3",
+    "description": "Drop-in JSX runtime that adds data-morphix-loc to every rendered element in dev mode. Set tsconfig.jsxImportSource = '@harnessa-fe/react-jsx' and the Harnessa-FE agent can map any DOM node back to file:line:col with zero bundler config.",
+    "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "directory": "packages/react-jsx"
+    },
+    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "bugs": {
+        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+    },
+    "main": "dist/jsx-runtime.js",
+    "types": "dist/jsx-runtime.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/jsx-runtime.d.ts",
+            "default": "./dist/jsx-runtime.js"
+        },
+        "./jsx-runtime": {
+            "types": "./dist/jsx-runtime.d.ts",
+            "default": "./dist/jsx-runtime.js"
+        },
+        "./jsx-dev-runtime": {
+            "types": "./dist/jsx-dev-runtime.d.ts",
+            "default": "./dist/jsx-dev-runtime.js"
+        }
+    },
+    "files": [
+        "dist",
+        "src",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch --preserveWatchOutput",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run"
+    },
+    "peerDependencies": {
+        "react": "^17.0.0 || ^18.0.0 || ^19.0.0"
+    },
+    "devDependencies": {
+        "@types/react": "^18.3.0",
+        "happy-dom": "^20.9.0",
+        "react": "^18.3.0",
+        "typescript": "^5.6.0",
+        "vitest": "^2.1.9"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "keywords": [
+        "harnessa-fe",
+        "jsx",
+        "jsxImportSource",
+        "data-morphix",
+        "agent",
+        "source-aware"
+    ]
+}
