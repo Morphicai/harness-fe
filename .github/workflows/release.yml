@@ -52,6 +52,14 @@ jobs:
                   registry-url: 'https://registry.npmjs.org'
                   scope: '@harnessa-fe'
 
+            - name: Upgrade npm CLI for OIDC trusted publishing
+              # Node 20 ships npm 10.9 which only does provenance via tokens.
+              # Trusted publishing (no-token OIDC) needs npm ≥ 11.5.
+              # See https://docs.npmjs.com/trusted-publishers
+              run: |
+                  npm install -g npm@latest
+                  npm --version
+
             - name: Install dependencies
               run: pnpm install --frozen-lockfile --ignore-scripts
 
