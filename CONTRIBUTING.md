@@ -54,7 +54,7 @@ pnpm --filter @harnessa-fe/mcp-server test
 
 1. `pnpm build`
 2. `pnpm --filter harnessa-fe-react-demo dev` — opens `http://localhost:5173`
-3. The Vite plugin auto-starts the MCP server on port `47729`
+3. The Vite plugin auto-connects to the MCP daemon at the default URL `ws://127.0.0.1:47729`. Override with `HARNESSA_FE_URL=ws://host:port` if needed.
 4. Connect Claude Code (or any MCP-aware client) to `npx @harnessa-fe/mcp-server`
 
 ## Commit style

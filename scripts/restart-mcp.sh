@@ -12,9 +12,9 @@
 #
 # Kill strategy (in order, all attempted):
 #   1. PID file ($HARNESSA_PID_FILE, default ~/.harnessa/mcp.pid)
-#   2. Whatever is listening on $HARNESSA_FE_PORT (default 47729) — catches
-#      leaders spawned by Kiro/Claude/Codex as stdio children, which the
-#      PID file does not track.
+#   2. Whatever is listening on the bridge port (parsed from $HARNESSA_FE_URL,
+#      default 47729) — catches leaders spawned by Kiro/Claude/Codex as stdio
+#      children, which the PID file does not track.
 #   3. Any `node …/mcp-server/dist/cli.js` orphan by full path match.
 # Each step is best-effort; failures are non-fatal.
 
@@ -23,7 +23,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PID_FILE="${HARNESSA_PID_FILE:-$HOME/.harnessa/mcp.pid}"
 LOG_FILE="${HARNESSA_LOG_FILE:-$HOME/.harnessa/mcp.log}"
-PORT="${HARNESSA_FE_PORT:-47729}"
+# Parse port from HARNESSA_FE_URL (e.g. ws://host:47729/) — fallback 47729.
+URL_VAR="${HARNESSA_FE_URL:-ws://127.0.0.1:47729}"
+PORT="$(echo "$URL_VAR" | sed -E 's|^[a-z]+://[^:/]+:([0-9]+).*|\1|; t; s|.*|47729|')"
 CLI_PATH="$REPO_ROOT/packages/mcp-server/dist/cli.js"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────

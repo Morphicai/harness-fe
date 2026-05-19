@@ -27,6 +27,16 @@ Foundation for micro-frontend debugging. Detailed plan in `/Users/admin/.claude/
 - Build-pipeline e2e smoke for the webpack+vue3 demo (`pnpm --filter harnessa-fe-webpack5-vue3-demo e2e`).
 - Build + runtime e2e for the Vite+Vue 3 demo (`pnpm --filter harnessa-fe-vue-demo e2e`). Confirms `data-morphix-*` tagging on rendered Vue DOM, `defineOptions({ name })` propagation, and live WebSocket connection to MCP via headless Chromium.
 
+### Changed
+
+- **URL-based config** — replaced the `HARNESSA_FE_HOST` + `HARNESSA_FE_PORT` env-var pair with a single `HARNESSA_FE_URL` (default `ws://127.0.0.1:47729`). One env var, one resolution path for both the daemon and the plugins/runtimes. New `parseWsUrl()` + `DEFAULT_WS_URL` exports in `@harnessa-fe/protocol`. No backwards compatibility — local data and configs are wipeable at this stage.
+- **`loadId` field fully removed** from the protocol; renamed to `sessionId` everywhere on the wire (`HelloFrame`, `EventFrame`, `pageLoadPayloadSchema`, `Task`). Bridge's compat shim removed.
+
+### Docs
+
+- `ARCHITECTURE.md` rewritten to reflect the v0.2 narrative model (project tree, builds, sessions, iframe inheritance, URL config, IStore migration path).
+- Each example demo (`react-demo`, `vue-demo`, `webpack-demo`, `webpack5-vue3-demo`) ships a brief README explaining what it shows, how to run it, and how to verify via e2e.
+
 ### Known limitations (deferred to a follow-up minor)
 
 - Cross-project session timeline tools (`session.timeline` / `tab.timeline` / `project.timeline` / `build.timeline`) are planned but not in this release. Today, agent code must call `session.tail` per (project, session). The data model now supports them — the implementation is a future scan-and-merge over disk events.
