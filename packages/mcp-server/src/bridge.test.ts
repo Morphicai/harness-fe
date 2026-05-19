@@ -112,7 +112,7 @@ describe('Bridge', () => {
         }
     });
 
-    it('rejects a runtime-client hello missing loadId', async () => {
+    it('rejects a runtime-client hello missing sessionId', async () => {
         const bridge = await spawnBridge();
         try {
             const port = getPort(bridge);
@@ -128,7 +128,7 @@ describe('Bridge', () => {
                     role: 'runtime-client',
                     projectId: 'demo',
                     tabId: 't-1',
-                    // loadId intentionally omitted
+                    // sessionId / loadId intentionally omitted
                 }),
             );
             const ack = await new Promise<HelloAckFrame>((resolve, reject) => {
@@ -139,9 +139,52 @@ describe('Bridge', () => {
                 });
             });
             expect(ack.type).toBe('hello.ack');
-            expect(ack.error).toMatch(/loadId/);
+            expect(ack.error).toMatch(/sessionId/);
             expect(bridge.router.listTabs()).toHaveLength(0);
             ws.close();
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('accepts legacy `loadId` field as alias for `sessionId` on hello', async () => {
+        // Backward-compat shim: clients on < v0.2 still send loadId.
+        // The bridge normalizes it onto sessionId via normalizeHelloFrame.
+        const bridge = await spawnBridge();
+        try {
+            const port = getPort(bridge);
+            // Need an active plugin session first so the runtime hello isn't rejected
+            // for "no active session" reasons.
+            const { ws: pluginWs } = await fakeClient(port, 'vite-plugin', {
+                projectId: 'demo-legacy',
+            });
+
+            const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+            await new Promise<void>((resolve, reject) => {
+                ws.once('open', () => resolve());
+                ws.once('error', reject);
+            });
+            ws.send(
+                JSON.stringify({
+                    type: 'hello',
+                    id: 'h2',
+                    role: 'runtime-client',
+                    projectId: 'demo-legacy',
+                    tabId: 't-legacy',
+                    loadId: 'legacy-load-1', // ← old field name, no sessionId
+                }),
+            );
+            const ack = await new Promise<HelloAckFrame>((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('hello.ack timeout')), 1000);
+                ws.once('message', (raw) => {
+                    clearTimeout(timer);
+                    resolve(JSON.parse(raw.toString()) as HelloAckFrame);
+                });
+            });
+            expect(ack.type).toBe('hello.ack');
+            expect(ack.error).toBeUndefined();
+            ws.close();
+            pluginWs.close();
         } finally {
             await bridge.stop();
         }

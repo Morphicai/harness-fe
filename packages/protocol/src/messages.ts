@@ -18,12 +18,34 @@ export const helloFrameSchema = z.object({
     id: z.string(),
     role: peerRoleSchema,
     projectId: z.string(),
+    /**
+     * Parent project's id (declared by plugin or inferred by runtime via
+     * `window.parent.__HARNESSA_FE__.projectId`). Builds the project tree.
+     */
+    parentProjectId: z.string().optional(),
+    /** Human-readable project name; defaults to package.json `name`. */
+    displayName: z.string().optional(),
+    /**
+     * Build artifact id — identifies a particular compilation of the source.
+     * Plugin sets this on every hello; runtime echoes it via `__HARNESSA_FE__.buildId`.
+     * Stable across HMR, changes on dev-server restart or prod build.
+     */
+    buildId: z.string().optional(),
     /** Only present for runtime-client. */
     tabId: z.string().optional(),
     /**
-     * Runtime-client only: identifies one page load (refresh-scoped).
-     * The bridge rejects runtime-client hellos that omit this field.
+     * Runtime-client only: identifies one page load. Inherited from
+     * `window.parent.__hfe_session_id__` when running inside a same-origin
+     * iframe, so parent + child apps share the same session.
+     * Bridge rejects runtime-client hellos that omit this field.
      * Build-plugin roles MUST NOT set it.
+     *
+     * Renamed from `loadId` in v0.2; bridge accepts the old field as alias.
+     */
+    sessionId: z.string().optional(),
+    /**
+     * @deprecated Use `sessionId`. Accepted as alias during the v0.2 transition;
+     * removable from v0.6+.
      */
     loadId: z.string().optional(),
     /** Optional page metadata for runtime-client. */
@@ -36,6 +58,17 @@ export const helloFrameSchema = z.object({
         .optional(),
 });
 export type HelloFrame = z.infer<typeof helloFrameSchema>;
+
+/**
+ * Normalize legacy `loadId` field onto `sessionId`. Apply to any incoming
+ * HelloFrame before further routing. Pure; no validation side-effects.
+ */
+export function normalizeHelloFrame(frame: HelloFrame): HelloFrame {
+    if (frame.sessionId == null && frame.loadId != null) {
+        return { ...frame, sessionId: frame.loadId };
+    }
+    return frame;
+}
 
 export const helloAckFrameSchema = z.object({
     type: z.literal('hello.ack'),
@@ -86,6 +119,13 @@ export const eventFrameSchema = z.object({
     id: z.string(),
     tabId: z.string().optional(),
     projectId: z.string().optional(),
+    /**
+     * Session id (one page load). Set by runtime-client; build-plugin events
+     * (hmr, node logs) omit it.
+     */
+    sessionId: z.string().optional(),
+    /** Build id — identifies the source-code snapshot that produced this event. */
+    buildId: z.string().optional(),
     /** e.g. 'console', 'network', 'error', 'route', 'hmr', 'user-action', 'rrweb' */
     name: z.string(),
     ts: z.number(),
