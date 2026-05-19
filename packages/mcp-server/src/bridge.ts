@@ -33,6 +33,7 @@ import {
     type Task,
     type TaskStatus,
     frameSchema,
+    normalizeHelloFrame,
 } from '@harnessa-fe/protocol';
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
 import { createReplayHandler } from './replayViewer.js';
@@ -593,15 +594,27 @@ export class Bridge implements IBridge {
     private handleFrame(connectionId: string, ws: WebSocket, frame: Frame): void {
         switch (frame.type) {
             case 'hello': {
-                // Runtime-client MUST carry a loadId so every emitted event is
+                // Normalize legacy `loadId` field onto `sessionId` (v0.2 rename).
+                // After this point, only `frame.sessionId` is referenced.
+                const helloFrame = normalizeHelloFrame(frame);
+                // Bridge-internal alias so all downstream code keeps working
+                // until Layer B/E migrate to sessionId everywhere.
+                if (helloFrame.sessionId && !helloFrame.loadId) {
+                    helloFrame.loadId = helloFrame.sessionId;
+                }
+                // Re-assign so subsequent `frame.xxx` references see the
+                // normalized values.
+                Object.assign(frame, helloFrame);
+
+                // Runtime-client MUST carry a session id so every emitted event is
                 // attributable to a specific page load. Reject explicitly so
                 // misconfigured clients surface during development.
-                if (frame.role === 'runtime-client' && !frame.loadId) {
+                if (frame.role === 'runtime-client' && !frame.sessionId && !frame.loadId) {
                     const errorAck: HelloAckFrame = {
                         type: 'hello.ack',
                         id: frame.id,
                         serverVersion: PROTOCOL_VERSION,
-                        error: 'runtime-client hello missing loadId',
+                        error: 'runtime-client hello missing sessionId',
                     };
                     ws.send(JSON.stringify(errorAck));
                     return;
