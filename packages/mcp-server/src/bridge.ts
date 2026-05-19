@@ -44,6 +44,7 @@ import {
     type IStore,
     type ITaskStore,
     type IMemoryStore,
+    type RetentionPolicy,
 } from './store/index.js';
 
 /**
@@ -111,6 +112,23 @@ export interface BridgeOptions {
      * memory persistence (useful in tests).
      */
     memoryStore?: IMemoryStore | null;
+    /**
+     * Automatic retention policy enforcement.
+     *
+     * Without this, manual `session.purge` MCP calls are the only thing that
+     * trims the on-disk store — so a long-running daemon will eventually fill
+     * the user's disk. Default: run `store.purge()` once shortly after start
+     * and every hour thereafter. Set `enabled: false` for tests / one-shot runs.
+     */
+    autoPurge?: {
+        enabled?: boolean;          // default true
+        /** Period between purges in ms. Default 1 hour. */
+        intervalMs?: number;
+        /** Override the retention policy. Default uses store's built-in defaults. */
+        policy?: RetentionPolicy;
+        /** Skip the startup purge (still runs the periodic timer). Default false. */
+        skipInitial?: boolean;
+    };
 }
 
 export type EventListener = (event: EventFrame, session: PeerSession) => void;
@@ -132,7 +150,10 @@ export class Bridge implements IBridge {
     private pending = new Map<string, PendingCommand>();
     private eventListeners = new Set<EventListener>();
     private tasks = new Map<string, Task>();
-    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore'>>;
+    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore' | 'autoPurge'>>;
+    private autoPurgeOpts: Required<NonNullable<BridgeOptions['autoPurge']>>;
+    /** Set by start() when auto-purge is enabled; cleared by stop(). */
+    private autoPurgeTimer?: NodeJS.Timeout;
     /** Map from connectionId → sessionId in the store */
     private connToStoreSession = new Map<string, string>();
     /**
@@ -156,6 +177,15 @@ export class Bridge implements IBridge {
         this.opts = {
             port: opts.port ?? DEFAULT_WS_PORT,
             host: opts.host ?? '127.0.0.1',
+        };
+        // Default auto-purge ON. CI / tests pass `enabled: false` (or set
+        // env HARNESSA_FE_PURGE_DISABLED=1) to opt out.
+        const envDisabled = process.env.HARNESSA_FE_PURGE_DISABLED === '1';
+        this.autoPurgeOpts = {
+            enabled: opts.autoPurge?.enabled ?? !envDisabled,
+            intervalMs: opts.autoPurge?.intervalMs ?? 60 * 60 * 1000,
+            policy: opts.autoPurge?.policy ?? {},
+            skipInitial: opts.autoPurge?.skipInitial ?? false,
         };
         this.loadTasks();
 
@@ -238,7 +268,7 @@ export class Bridge implements IBridge {
     }
 
     async start(): Promise<void> {
-        return new Promise((resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
             const httpServer = createServer((req, res) => {
                 if (this.httpHandler) {
                     Promise.resolve(this.httpHandler(req, res)).catch((err) => {
@@ -274,9 +304,29 @@ export class Bridge implements IBridge {
                 resolve();
             });
         });
+
+        // Schedule auto-purge after the listen socket is up. Skipped when:
+        //   - no store configured (in-memory only)
+        //   - explicitly disabled via opts / env
+        if (this.store && this.autoPurgeOpts.enabled) {
+            if (!this.autoPurgeOpts.skipInitial) {
+                this.runAutoPurge('startup');
+            }
+            const timer = setInterval(
+                () => this.runAutoPurge('periodic'),
+                this.autoPurgeOpts.intervalMs,
+            );
+            // unref so the timer never holds the Node process alive on its own.
+            timer.unref();
+            this.autoPurgeTimer = timer;
+        }
     }
 
     async stop(): Promise<void> {
+        if (this.autoPurgeTimer) {
+            clearInterval(this.autoPurgeTimer);
+            this.autoPurgeTimer = undefined;
+        }
         for (const ws of this.sockets.values()) {
             try {
                 ws.close();
@@ -293,6 +343,39 @@ export class Bridge implements IBridge {
             if (!this.httpServer) return resolve();
             this.httpServer.close(() => resolve());
         });
+    }
+
+    /**
+     * Run `store.purge()` defensively. Errors are logged but never bubble out
+     * — the daemon must continue serving even if disk is full or files are
+     * locked.
+     */
+    private runAutoPurge(trigger: 'startup' | 'periodic'): void {
+        if (!this.store) return;
+        try {
+            const result = this.store.purge(this.autoPurgeOpts.policy);
+            const removed =
+                result.sessionsDeleted +
+                result.recordingsDeleted +
+                result.exportsDeleted +
+                (result.buildsDeleted ?? 0);
+            if (removed > 0 || result.bytesFreed > 0) {
+                const mb = (result.bytesFreed / 1024 / 1024).toFixed(2);
+                process.stderr.write(
+                    `[harnessa-fe] auto-purge (${trigger}): freed ${mb} MB · ` +
+                        `${result.sessionsDeleted} sessions, ` +
+                        `${result.recordingsDeleted} rrweb chunks, ` +
+                        `${result.buildsDeleted ?? 0} builds, ` +
+                        `${result.exportsDeleted} exports\n`,
+                );
+            }
+        } catch (err) {
+            process.stderr.write(
+                `[harnessa-fe] auto-purge failed (${trigger}): ${
+                    err instanceof Error ? err.message : String(err)
+                }\n`,
+            );
+        }
     }
 
     /** Expose the bound port (useful when port:0 was passed for tests). */

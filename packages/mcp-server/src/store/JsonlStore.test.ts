@@ -864,6 +864,33 @@ describe('JsonlStore — project tree + build metadata', () => {
         ).toThrow(/refused.*bytes.*limit/);
     });
 
+    it('append drops events whose JSON exceeds the per-event byte limit', async () => {
+        const sessionId = store.openSession('app', { peerRole: 'vite-plugin' });
+        store.openTab(sessionId, { id: 'tab1', url: 'http://x' });
+        // 300KB payload — above the 256KB ceiling.
+        const huge = 'A'.repeat(300 * 1024);
+        store.append(sessionId, { ts: Date.now(), t: 'log', tab: 'tab1', load: 'L1', d: { msg: huge } }, 'tab1');
+        await store.flush();
+        const tail = store.tail(sessionId, {}, 'tab1');
+        expect(tail).toHaveLength(0);
+    });
+
+    it('appendRecording drops chunks larger than the rrweb byte limit', async () => {
+        const sessionId = store.openSession('app', { peerRole: 'vite-plugin' });
+        store.openTab(sessionId, { id: 'tab1', url: 'http://x' });
+        // 3 MB chunk — above the 2 MB ceiling.
+        const fatChunk = {
+            chunkId: 'c1',
+            startTs: 1,
+            endTs: 2,
+            eventCount: 1,
+            events: [{ blob: 'B'.repeat(3 * 1024 * 1024) }],
+        };
+        store.appendRecording(sessionId, 'tab1', fatChunk);
+        await store.flush();
+        expect(store.listRecordings(sessionId, 'tab1')).toHaveLength(0);
+    });
+
     it('purge enforces maxBuildsPerProject (newest builds kept)', () => {
         store.upsertProject('app', {});
         // Insert 5 builds with strictly increasing builtAt timestamps so

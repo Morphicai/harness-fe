@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Storage hardening (unbounded-growth defense)
+
+Empirically measured (10 pages × 30s on react-demo): 87 KB/min growth, of which 86% is rrweb recording. Without active retention enforcement that's ~860 MB after a week, ~6 GB per month — manual `session.purge` was the *only* trim path. Three new defenses landed:
+
+- **Auto-purge scheduler in `Bridge`** — by default runs `store.purge()` once at startup and every hour thereafter. Errors are caught + logged, never crash the daemon. The interval timer is `unref()`'d so it doesn't keep Node alive. Opt-out via `new Bridge({ autoPurge: { enabled: false } })` or `HARNESSA_FE_PURGE_DISABLED=1` env var; configurable via `autoPurge.intervalMs` / `autoPurge.policy`.
+- **Per-event size limit** — `JsonlStore.append()` / `appendBatch()` drop and log any event whose JSON encoding exceeds 256 KB. Prevents one `console.log(window)` from filling a timeline with megabytes per row.
+- **Per-rrweb-chunk size limit** — `JsonlStore.appendRecording()` drops chunks larger than 2 MB. Tolerates the largest legitimate full-snapshots while catching misbehaving recorders.
+
+Integration test (`bridge.test.ts`) seeds 10 sessions on a real `JsonlStore`, fires up `Bridge` with `autoPurge.policy: { maxAgeDays: 0 }`, asserts disk usage actually decreases.
+
 ## [0.2.0] — 2026-05-19
 
 ### Added — Narrative refactor: parent project + iframe identity + buildId
