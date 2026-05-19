@@ -25,6 +25,19 @@ import { collectPageLoadSnapshot } from './snapshot.js';
 export interface ClientOptions {
     projectId: string;
     mcpUrl?: string;
+    /**
+     * Build artifact id, threaded through `window.__HARNESSA_FE__.buildId`.
+     * Stamped on every event so agents can trace "what code was running".
+     */
+    buildId?: string;
+    /**
+     * Parent project's id. Set by the plugin when the host app declares it,
+     * or auto-inferred at runtime via `tryInheritFromParent()` when this
+     * runtime is loaded inside a same-origin iframe.
+     */
+    parentProjectId?: string;
+    /** Optional human-readable name; mostly used by the project tree. */
+    displayName?: string;
 }
 
 const TAB_ID_KEY = '__hfe_tab_id__';
@@ -42,11 +55,14 @@ function getOrCreateTabId(): string {
 }
 
 /**
- * Generate a fresh loadId for this page load. Intentionally NOT persisted to
- * sessionStorage — a refresh MUST yield a new id. WebSocket reconnects within
- * the same page load reuse this in-memory value.
+ * Generate a fresh sessionId for this page load. Intentionally NOT persisted
+ * to sessionStorage — a refresh MUST yield a new id. WebSocket reconnects
+ * within the same page load reuse this in-memory value.
+ *
+ * (Previously called `loadId`; renamed to align with the narrative model
+ *  where one page-load = one "session" of user activity.)
  */
-function generateLoadId(): string {
+function generateSessionId(): string {
     try {
         return crypto.randomUUID();
     } catch {
@@ -54,17 +70,36 @@ function generateLoadId(): string {
     }
 }
 
+// Re-export inheritance helper. Implementation lives in parent-inherit.ts
+// so its unit tests can import it without dragging the rrweb-dependent
+// recorder module into the test runtime.
+export { tryInheritFromParent } from './parent-inherit.js';
+export type { ParentInheritance } from './parent-inherit.js';
+import { tryInheritFromParent as _tryInheritFromParent } from './parent-inherit.js';
+
 export class RuntimeClient {
     private ws?: WebSocket;
-    private readonly tabId = getOrCreateTabId();
-    private readonly loadId = generateLoadId();
+    readonly tabId: string;
+    readonly sessionId: string;
+    readonly parentProjectId?: string;
     private pageLoadSent = false;
     private readonly ctx: CommandContext = { capture: getCaptureStore() };
     private readonly recorder = new RrwebRecorder((chunk) => this.sendEvent(EVENT_NAME.RRWEB, chunk));
     private reconnectAttempts = 0;
     private closed = false;
 
-    constructor(private readonly opts: ClientOptions) {}
+    constructor(private readonly opts: ClientOptions) {
+        const inherited = _tryInheritFromParent();
+        this.tabId = inherited.tabId ?? getOrCreateTabId();
+        this.sessionId = inherited.sessionId ?? generateSessionId();
+        // Explicit option wins over runtime auto-detection.
+        this.parentProjectId = opts.parentProjectId ?? inherited.parentProjectId;
+    }
+
+    /** @deprecated use `sessionId`. Kept for one minor for callers that read `loadId`. */
+    get loadId(): string {
+        return this.sessionId;
+    }
 
     start(): void {
         this.ctx.capture.install((name, payload) => this.sendEvent(name, payload));
@@ -101,8 +136,14 @@ export class RuntimeClient {
             id: crypto.randomUUID(),
             role: 'runtime-client',
             projectId: this.opts.projectId,
+            parentProjectId: this.parentProjectId,
+            displayName: this.opts.displayName,
+            buildId: this.opts.buildId,
             tabId: this.tabId,
-            loadId: this.loadId,
+            sessionId: this.sessionId,
+            // Backward-compat alias: older servers (< v0.2) read `loadId`.
+            // Bridge ≥ v0.2 normalises this onto `sessionId`.
+            loadId: this.sessionId,
             page: {
                 url: location.href,
                 title: document.title,
@@ -188,6 +229,11 @@ export class RuntimeClient {
             id: crypto.randomUUID(),
             tabId: this.tabId,
             projectId: this.opts.projectId,
+            // v0.2: stamp every event with sessionId + buildId so cross-project
+            // queries (`session.timeline`, `build.timeline`) can filter without
+            // extra lookups.
+            sessionId: this.sessionId,
+            buildId: this.opts.buildId,
             name,
             ts: Date.now(),
             payload,
@@ -206,13 +252,22 @@ export class RuntimeClient {
 }
 
 /** Pull the well-known config object planted by the Vite plugin on window. */
-export function readInjectedConfig(): { projectId: string; mcpUrl?: string } {
+export function readInjectedConfig(): ClientOptions {
     const w = window as unknown as {
-        __HARNESSA_FE__?: { projectId?: string; mcpUrl?: string };
+        __HARNESSA_FE__?: {
+            projectId?: string;
+            mcpUrl?: string;
+            buildId?: string;
+            parentProjectId?: string;
+            displayName?: string;
+        };
     };
     return {
         projectId: w.__HARNESSA_FE__?.projectId ?? 'unknown-project',
         mcpUrl: w.__HARNESSA_FE__?.mcpUrl,
+        buildId: w.__HARNESSA_FE__?.buildId,
+        parentProjectId: w.__HARNESSA_FE__?.parentProjectId,
+        displayName: w.__HARNESSA_FE__?.displayName,
     };
 }
 
