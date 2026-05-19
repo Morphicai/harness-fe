@@ -15,14 +15,16 @@
  * (and thus the same browser / vite-plugin connections).
  */
 
-import { DEFAULT_WS_PORT } from '@harnessa-fe/protocol';
+import { DEFAULT_WS_URL, parseWsUrl } from '@harnessa-fe/protocol';
 import { Bridge, type IBridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';
 import { startMcpStdioServer } from './mcp.js';
 
 async function main() {
-    const port = Number(process.env.HARNESSA_FE_PORT ?? DEFAULT_WS_PORT);
-    const host = process.env.HARNESSA_FE_HOST ?? '127.0.0.1';
+    // Single env var carries the whole listen URL. No HOST + PORT pair anymore.
+    // Default: ws://127.0.0.1:47729
+    const url = process.env.HARNESSA_FE_URL ?? DEFAULT_WS_URL;
+    const { host, port } = parseWsUrl(url);
 
     const { active, shutdown } = await startBridgeOrAttach(port, host);
 
