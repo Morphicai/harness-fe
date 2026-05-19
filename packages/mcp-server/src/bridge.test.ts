@@ -596,7 +596,9 @@ describe('Bridge', () => {
             });
             expect((rrwebLine?.d as { events?: unknown[] } | undefined)?.events).toBeUndefined();
 
-            const recordingPath = join(dir, projectId, 'sessions', sessionId!, 'tabs', tabId, 'recording.jsonl');
+            // 0.3.0: recordings now live under loads/{loadId}/ so refreshes
+            // never interleave. 'sess-1' is the loadId supplied by fakeClient.
+            const recordingPath = join(dir, projectId, 'sessions', sessionId!, 'tabs', tabId, 'loads', 'sess-1', 'recording.jsonl');
             expect(existsSync(recordingPath)).toBe(true);
             const recordingLines = readFileSync(recordingPath, 'utf-8')
                 .split('\n')

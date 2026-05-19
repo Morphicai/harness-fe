@@ -800,6 +800,13 @@ export class Bridge implements IBridge {
                     serverVersion: PROTOCOL_VERSION,
                 };
                 ws.send(JSON.stringify(ack));
+                // One concise line per accepted peer. Visibility for "is the
+                // runtime actually talking to me?" without needing wireshark.
+                process.stderr.write(
+                    `[harnessa-fe] peer connected: role=${frame.role} project=${frame.projectId}` +
+                    `${frame.tabId ? ` tab=${frame.tabId.slice(0, 8)}` : ''}` +
+                    `${frame.sessionId ? ` load=${frame.sessionId.slice(0, 8)}` : ''}\n`,
+                );
                 break;
             }
             case 'response': {
@@ -876,7 +883,12 @@ export class Bridge implements IBridge {
                         } else if (frame.name === EVENT_NAME.RRWEB && tabId) {
                             const parsed = rrwebChunkPayloadSchema.safeParse(frame.payload);
                             if (parsed.success) {
-                                this.store.appendRecording(storeSessionId, tabId, parsed.data);
+                                // 0.3.0: pass loadId so each pageload writes to its
+                                // own loads/{loadId}/recording.jsonl. Without it,
+                                // refreshes pile chunks (FullSnapshot + incrementals
+                                // from multiple pageloads) into one file and replay
+                                // slicing renders blank.
+                                this.store.appendRecording(storeSessionId, tabId, parsed.data, loadId);
                                 this.store.append(
                                     storeSessionId,
                                     {

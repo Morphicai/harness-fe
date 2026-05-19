@@ -381,6 +381,39 @@ export class JsonlStore implements IStore {
         return join(this.tabDir(projectId, sessionId, tabId), 'recording.jsonl');
     }
 
+    private loadDir(projectId: string, sessionId: string, tabId: string, loadId: string): string {
+        return join(this.tabDir(projectId, sessionId, tabId), 'loads', loadId);
+    }
+
+    private loadRecording(projectId: string, sessionId: string, tabId: string, loadId: string): string {
+        return join(this.loadDir(projectId, sessionId, tabId, loadId), 'recording.jsonl');
+    }
+
+    /**
+     * Enumerate per-load recording paths for a tab. Each pageload now writes
+     * rrweb chunks into its own `loads/{loadId}/recording.jsonl` so refreshes
+     * never interleave FullSnapshot baselines from different pageloads. The
+     * legacy `tabs/{tabId}/recording.jsonl` (pre-0.3.0) is still read when
+     * present so old data remains queryable until purge GCs it.
+     */
+    private listLoadRecordingPaths(projectId: string, sessionId: string, tabId: string): Array<{ loadId: string | undefined; path: string }> {
+        const paths: Array<{ loadId: string | undefined; path: string }> = [];
+        const legacy = this.tabRecording(projectId, sessionId, tabId);
+        if (existsSync(legacy)) paths.push({ loadId: undefined, path: legacy });
+        const loadsRoot = join(this.tabDir(projectId, sessionId, tabId), 'loads');
+        if (existsSync(loadsRoot)) {
+            try {
+                for (const loadId of readdirSync(loadsRoot)) {
+                    const p = this.loadRecording(projectId, sessionId, tabId, loadId);
+                    if (existsSync(p)) paths.push({ loadId, path: p });
+                }
+            } catch {
+                /* directory disappeared; ignore */
+            }
+        }
+        return paths;
+    }
+
     private tabLoadsFile(projectId: string, sessionId: string, tabId: string): string {
         return join(this.tabDir(projectId, sessionId, tabId), 'loads.jsonl');
     }
@@ -598,11 +631,9 @@ export class JsonlStore implements IStore {
         }
     }
 
-    appendRecording(sessionId: string, tabId: string, chunk: unknown): void {
+    appendRecording(sessionId: string, tabId: string, chunk: unknown, loadId?: string): void {
         const projectId = this.resolveProject(sessionId);
         if (!projectId) return;
-        const tabDir = this.tabDir(projectId, sessionId, tabId);
-        ensureDir(tabDir);
         const line = Array.isArray(chunk) ? { ts: Date.now(), events: chunk } : chunk;
         // rrweb chunk size guard. rrweb full-snapshots can grow large on
         // first capture (style sheets etc.). Anything past the ceiling is a
@@ -614,13 +645,24 @@ export class JsonlStore implements IStore {
             );
             return;
         }
+        // 0.3.0: rrweb chunks are now scoped per-pageload. Each refresh on
+        // the same tab gets its own loads/{loadId}/recording.jsonl, so the
+        // initial FullSnapshot of pageload N doesn't get tangled with the
+        // incremental mutations of pageload N+1. Caller passes the runtime
+        // sessionId (a.k.a. loadId) which uniquely identifies one pageload.
+        //
+        // When `loadId` is missing — only happens for pre-0.3.0 callers in
+        // tests or during a daemon downgrade — fall back to the legacy
+        // per-tab path so we never silently drop data.
+        const target = loadId
+            ? this.loadRecording(projectId, sessionId, tabId, loadId)
+            : this.tabRecording(projectId, sessionId, tabId);
+        ensureDir(loadId
+            ? this.loadDir(projectId, sessionId, tabId, loadId)
+            : this.tabDir(projectId, sessionId, tabId));
         // Each chunk is one line in recording.jsonl.
         // Write ONLY to recording.jsonl — NOT to session or tab timeline
-        this.writeQueue.enqueue(
-            this.tabRecording(projectId, sessionId, tabId),
-            sessionId,
-            serialized,
-        );
+        this.writeQueue.enqueue(target, sessionId, serialized);
     }
 
     writeNote(projectId: string, key: string, value: string): void {
@@ -904,18 +946,19 @@ export class JsonlStore implements IStore {
         const chunks: RecordingChunkSummary[] = [];
 
         for (const currentTabId of tabIds) {
-            const lines = readAllLines(this.tabRecording(projectId, sessionId, currentTabId));
-            lines.forEach((line, index) => {
-                const chunk = parseRecordingChunkLine(line, currentTabId, 0, index);
-                if (!chunk) return;
-                chunks.push({
-                    chunkId: chunk.chunkId,
-                    tabId: currentTabId,
-                    startTs: chunk.startTs,
-                    endTs: chunk.endTs,
-                    eventCount: chunk.eventCount,
+            for (const { path } of this.listLoadRecordingPaths(projectId, sessionId, currentTabId)) {
+                readAllLines(path).forEach((line, index) => {
+                    const chunk = parseRecordingChunkLine(line, currentTabId, 0, index);
+                    if (!chunk) return;
+                    chunks.push({
+                        chunkId: chunk.chunkId,
+                        tabId: currentTabId,
+                        startTs: chunk.startTs,
+                        endTs: chunk.endTs,
+                        eventCount: chunk.eventCount,
+                    });
                 });
-            });
+            }
         }
 
         return chunks.sort((a, b) => a.startTs - b.startTs);
@@ -929,20 +972,21 @@ export class JsonlStore implements IStore {
         const chunks: RecordingChunk[] = [];
 
         for (const currentTabId of tabIds) {
-            const lines = readAllLines(this.tabRecording(projectId, sessionId, currentTabId));
-            lines.forEach((line, index) => {
-                const chunk = parseRecordingChunkLine(line, currentTabId, 0, index);
-                if (!chunk) return;
-                if (chunk.endTs < since || chunk.startTs > until) return;
-                chunks.push({
-                    chunkId: chunk.chunkId,
-                    tabId: currentTabId,
-                    startTs: chunk.startTs,
-                    endTs: chunk.endTs,
-                    eventCount: chunk.eventCount,
-                    events: chunk.events,
+            for (const { path } of this.listLoadRecordingPaths(projectId, sessionId, currentTabId)) {
+                readAllLines(path).forEach((line, index) => {
+                    const chunk = parseRecordingChunkLine(line, currentTabId, 0, index);
+                    if (!chunk) return;
+                    if (chunk.endTs < since || chunk.startTs > until) return;
+                    chunks.push({
+                        chunkId: chunk.chunkId,
+                        tabId: currentTabId,
+                        startTs: chunk.startTs,
+                        endTs: chunk.endTs,
+                        eventCount: chunk.eventCount,
+                        events: chunk.events,
+                    });
                 });
-            });
+            }
         }
 
         return chunks.sort((a, b) => a.startTs - b.startTs);
@@ -1178,22 +1222,44 @@ export class JsonlStore implements IStore {
             }
 
             // Trim recording data per tab while preserving timeline history.
+            // 0.3.0 layout: tabs/{tabId}/loads/{loadId}/recording.jsonl —
+            // prune each per-load file independently so retention is enforced
+            // *within* a pageload and across pageloads (count + bytes caps
+            // are per tab, summed across its loads). Also handles the legacy
+            // tabs/{tabId}/recording.jsonl for installs that still have data
+            // from before the per-load split.
             for (const sess of this.listSessions(proj.id, 1000)) {
                 const tabsDir = join(this.sessionDir(proj.id, sess.id), 'tabs');
                 if (!existsSync(tabsDir)) continue;
                 for (const tabEntry of readdirSync(tabsDir, { withFileTypes: true })) {
                     if (!tabEntry.isDirectory()) continue;
-                    const recPath = join(tabsDir, tabEntry.name, 'recording.jsonl');
-                    if (!existsSync(recPath)) continue;
-                    const result = this.pruneRecordingFile(
-                        recPath,
-                        this.tabTimeline(proj.id, sess.id, tabEntry.name),
-                        now,
-                        recMaxAge,
-                        p,
-                    );
-                    bytesFreed += result.bytesFreed;
-                    recordingsDeleted += result.chunksDeleted;
+                    const tabName = tabEntry.name;
+                    const recordingFiles: string[] = [];
+                    const legacy = join(tabsDir, tabName, 'recording.jsonl');
+                    if (existsSync(legacy)) recordingFiles.push(legacy);
+                    const loadsDir = join(tabsDir, tabName, 'loads');
+                    if (existsSync(loadsDir)) {
+                        try {
+                            for (const loadEntry of readdirSync(loadsDir, { withFileTypes: true })) {
+                                if (!loadEntry.isDirectory()) continue;
+                                const p2 = join(loadsDir, loadEntry.name, 'recording.jsonl');
+                                if (existsSync(p2)) recordingFiles.push(p2);
+                            }
+                        } catch {
+                            /* directory disappeared mid-scan; ignore */
+                        }
+                    }
+                    for (const recPath of recordingFiles) {
+                        const result = this.pruneRecordingFile(
+                            recPath,
+                            this.tabTimeline(proj.id, sess.id, tabName),
+                            now,
+                            recMaxAge,
+                            p,
+                        );
+                        bytesFreed += result.bytesFreed;
+                        recordingsDeleted += result.chunksDeleted;
+                    }
                 }
             }
 
