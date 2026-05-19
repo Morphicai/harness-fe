@@ -224,6 +224,8 @@ importers:
         specifier: ^5.0.0
         version: 5.2.4(tslib@2.8.1)(webpack-cli@5.1.4)(webpack@5.106.2)
 
+  packages/agent-skill: {}
+
   packages/mcp-server:
     dependencies:
       '@harnessa-fe/protocol':

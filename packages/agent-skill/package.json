@@ -1,0 +1,44 @@
+{
+    "name": "@harnessa-fe/skill",
+    "version": "0.2.2",
+    "description": "Agent skill / playbook for using the Harnessa-FE MCP toolset. Drop SKILL.md into Claude Code / Cursor / Kiro / etc. via `npx @harnessa-fe/skill install`.",
+    "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "directory": "packages/agent-skill"
+    },
+    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "bugs": {
+        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+    },
+    "main": "bin/api.js",
+    "bin": {
+        "harnessa-fe-skill": "bin/cli.js"
+    },
+    "files": [
+        "bin",
+        "skill",
+        "README.md",
+        "LICENSE"
+    ],
+    "exports": {
+        ".": "./bin/api.js",
+        "./SKILL.md": "./skill/SKILL.md",
+        "./skill/*": "./skill/*"
+    },
+    "keywords": [
+        "harnessa-fe",
+        "mcp",
+        "agent",
+        "skill",
+        "claude-code",
+        "cursor",
+        "kiro",
+        "playbook"
+    ],
+    "publishConfig": {
+        "access": "public"
+    }
+}

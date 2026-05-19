@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-05-19
+
+### Added
+
+- **New package `@harnessa-fe/skill`** — a curated agent playbook (`SKILL.md`) + tiny CLI for distributing harnessa-fe knowledge to Claude Code, Cursor, Kiro, or any MCP-aware agent. Install with `npx @harnessa-fe/skill install [target]`. Covers the mental model (project / build / tab / session), MCP tool catalog with examples, source-aware selector usage, four common debugging decision flows, and safety constraints. Pure-data package — no build step, ships as `bin/*.js` + `skill/SKILL.md`.
+
 ## [0.2.1] — 2026-05-19
 
 ### Fixed
