@@ -83,7 +83,7 @@ function readPerformance(): PageLoadPayload['performance'] {
     }
 }
 
-export function collectPageLoadSnapshot(loadId: string): PageLoadPayload {
+export function collectPageLoadSnapshot(sessionId: string): PageLoadPayload {
     const local = readStorage(typeof localStorage !== 'undefined' ? localStorage : null);
     const session = readStorage(typeof sessionStorage !== 'undefined' ? sessionStorage : null);
     let cookie = '';
@@ -93,7 +93,7 @@ export function collectPageLoadSnapshot(loadId: string): PageLoadPayload {
         cookie = '';
     }
     return {
-        loadId,
+        sessionId,
         page: {
             url: typeof location !== 'undefined' ? location.href : undefined,
             title: typeof document !== 'undefined' ? document.title : undefined,

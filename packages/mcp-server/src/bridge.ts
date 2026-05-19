@@ -33,7 +33,6 @@ import {
     type Task,
     type TaskStatus,
     frameSchema,
-    normalizeHelloFrame,
 } from '@harnessa-fe/protocol';
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
 import { createReplayHandler } from './replayViewer.js';
@@ -365,7 +364,7 @@ export class Bridge implements IBridge {
                 ts: Date.now(),
                 t: eventType,
                 tab: task.tabId,
-                load: task.loadId,
+                load: task.sessionId,
                 d: { id: task.id, status: task.status, question: task.question, note: task.note },
             },
             task.tabId,
@@ -394,7 +393,7 @@ export class Bridge implements IBridge {
         const task: Task = {
             id,
             tabId,
-            loadId: peer.loadId,
+            sessionId: peer.sessionId,
             projectId: peer.projectId ?? frame.projectId ?? 'unknown',
             url: parsed.data.url,
             status: 'pending',
@@ -452,7 +451,7 @@ export class Bridge implements IBridge {
 
         // Persist command to store
         const storeSessionId = this.connToStoreSession.get(session.connectionId);
-        const loadId = session.loadId;
+        const loadId = session.sessionId;
         if (this.store && storeSessionId) {
             this.store.append(
                 storeSessionId,
@@ -594,22 +593,10 @@ export class Bridge implements IBridge {
     private handleFrame(connectionId: string, ws: WebSocket, frame: Frame): void {
         switch (frame.type) {
             case 'hello': {
-                // Normalize legacy `loadId` field onto `sessionId` (v0.2 rename).
-                // After this point, only `frame.sessionId` is referenced.
-                const helloFrame = normalizeHelloFrame(frame);
-                // Bridge-internal alias so all downstream code keeps working
-                // until Layer B/E migrate to sessionId everywhere.
-                if (helloFrame.sessionId && !helloFrame.loadId) {
-                    helloFrame.loadId = helloFrame.sessionId;
-                }
-                // Re-assign so subsequent `frame.xxx` references see the
-                // normalized values.
-                Object.assign(frame, helloFrame);
-
-                // Runtime-client MUST carry a session id so every emitted event is
+                // Runtime-client MUST carry a sessionId so every emitted event is
                 // attributable to a specific page load. Reject explicitly so
                 // misconfigured clients surface during development.
-                if (frame.role === 'runtime-client' && !frame.sessionId && !frame.loadId) {
+                if (frame.role === 'runtime-client' && !frame.sessionId) {
                     const errorAck: HelloAckFrame = {
                         type: 'hello.ack',
                         id: frame.id,
@@ -640,7 +627,7 @@ export class Bridge implements IBridge {
                     role: frame.role,
                     projectId: frame.projectId,
                     tabId: frame.tabId,
-                    loadId: frame.loadId,
+                    sessionId: frame.sessionId,
                     connectionId,
                     page: frame.page,
                 });
@@ -752,7 +739,7 @@ export class Bridge implements IBridge {
                         const tabId = frame.tabId ?? peer.tabId;
                         // Tab-scoped events MUST carry the peer's loadId — the
                         // store enforces the `tab ⇒ load` invariant.
-                        const loadId = tabId ? peer.loadId : undefined;
+                        const loadId = tabId ? peer.sessionId : undefined;
                         if (frame.name === EVENT_NAME.PAGE_LOAD && tabId && loadId) {
                             const parsed = pageLoadPayloadSchema.safeParse(frame.payload);
                             const ts = frame.ts ?? Date.now();

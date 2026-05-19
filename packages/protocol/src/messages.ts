@@ -39,15 +39,8 @@ export const helloFrameSchema = z.object({
      * iframe, so parent + child apps share the same session.
      * Bridge rejects runtime-client hellos that omit this field.
      * Build-plugin roles MUST NOT set it.
-     *
-     * Renamed from `loadId` in v0.2; bridge accepts the old field as alias.
      */
     sessionId: z.string().optional(),
-    /**
-     * @deprecated Use `sessionId`. Accepted as alias during the v0.2 transition;
-     * removable from v0.6+.
-     */
-    loadId: z.string().optional(),
     /** Optional page metadata for runtime-client. */
     page: z
         .object({
@@ -58,17 +51,6 @@ export const helloFrameSchema = z.object({
         .optional(),
 });
 export type HelloFrame = z.infer<typeof helloFrameSchema>;
-
-/**
- * Normalize legacy `loadId` field onto `sessionId`. Apply to any incoming
- * HelloFrame before further routing. Pure; no validation side-effects.
- */
-export function normalizeHelloFrame(frame: HelloFrame): HelloFrame {
-    if (frame.sessionId == null && frame.loadId != null) {
-        return { ...frame, sessionId: frame.loadId };
-    }
-    return frame;
-}
 
 export const helloAckFrameSchema = z.object({
     type: z.literal('hello.ack'),
@@ -250,7 +232,7 @@ export const EVENT_NAME = {
 // ─── PAGE_LOAD payload ──────────────────────────────────────────────────────
 
 export const pageLoadPayloadSchema = z.object({
-    loadId: z.string(),
+    sessionId: z.string(),
     page: z.object({
         url: z.string().optional(),
         title: z.string().optional(),
@@ -330,8 +312,8 @@ export type TaskStatus = 'pending' | 'claimed' | 'resolved';
 export interface Task {
     id: string;
     tabId: string;
-    /** Load that produced this task; used to attribute claim/resolve events too. */
-    loadId?: string;
+    /** Session (page load) that produced this task; used to attribute claim/resolve events too. */
+    sessionId?: string;
     projectId: string;
     url: string;
     status: TaskStatus;

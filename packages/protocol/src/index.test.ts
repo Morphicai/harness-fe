@@ -42,15 +42,15 @@ describe('frames', () => {
             role: 'runtime-client' as const,
             projectId: 'p',
             tabId: 't',
-            loadId: 'L1',
+            sessionId: 'S1',
             page: { url: 'http://x', title: 'Demo' },
         };
         expect(helloFrameSchema.parse(f)).toEqual(f);
         expect(frameSchema.parse(f).type).toBe('hello');
     });
 
-    it('hello frame loadId is optional at the schema level', () => {
-        // Bridge enforces the runtime-client-must-have-loadId rule, not the schema.
+    it('hello frame sessionId is optional at the schema level', () => {
+        // Bridge enforces the runtime-client-must-have-sessionId rule, not the schema.
         const f = {
             type: 'hello' as const,
             id: '1',
