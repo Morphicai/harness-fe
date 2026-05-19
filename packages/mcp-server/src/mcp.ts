@@ -72,6 +72,16 @@ function ok<T>(value: T): { content: Array<{ type: 'text'; text: string }> } {
     };
 }
 
+function err(message: string): {
+    content: Array<{ type: 'text'; text: string }>;
+    isError: true;
+} {
+    return {
+        content: [{ type: 'text', text: message }],
+        isError: true,
+    };
+}
+
 function registerTools(server: McpServer, bridge: IBridge): void {
     server.registerTool(
         COMMAND.PAGE_CLICK,
@@ -588,6 +598,85 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
                 recentSessions: store.listSessions(p.id, 3),
             }));
             return ok(result);
+        },
+    );
+
+    // ── v0.2: Project tree & build metadata (micro-frontend support) ────
+
+    server.registerTool(
+        'project.list',
+        {
+            description:
+                'List every project the daemon has ever seen. Returns full ProjectMeta (id, displayName, parentProjectId, tags, lastActiveAt). Use this instead of project.sessions when you only need project metadata, not session history.',
+            inputSchema: {},
+        },
+        async () => ok(store.listProjects()),
+    );
+
+    server.registerTool(
+        'project.get',
+        {
+            description:
+                'Read a single project\'s metadata (parentProjectId, displayName, tags, …).',
+            inputSchema: { projectId: z.string() },
+        },
+        async ({ projectId }) => {
+            const meta = store.getProject(projectId);
+            return meta ? ok(meta) : err(`project not found: ${projectId}`);
+        },
+    );
+
+    server.registerTool(
+        'project.tree',
+        {
+            description:
+                'Get the project forest assembled from parentProjectId relationships. Pass `rootId` to scope to one sub-tree. Useful for micro-frontend setups (parent app + iframe children) where you want to see all related projects at a glance.',
+            inputSchema: { rootId: z.string().optional() },
+        },
+        async ({ rootId }) => ok(store.getProjectTree(rootId)),
+    );
+
+    server.registerTool(
+        'project.set_parent',
+        {
+            description:
+                'Set or clear a project\'s parentProjectId. Rejects cycles (A→B→A). Pass `parentProjectId: null` to make the project a forest root.',
+            inputSchema: {
+                projectId: z.string(),
+                parentProjectId: z.string().nullable().optional(),
+            },
+        },
+        async ({ projectId, parentProjectId }) => {
+            try {
+                const meta = store.upsertProject(projectId, {
+                    parentProjectId: parentProjectId ?? undefined,
+                });
+                return ok(meta);
+            } catch (e) {
+                return err(e instanceof Error ? e.message : String(e));
+            }
+        },
+    );
+
+    server.registerTool(
+        'build.list',
+        {
+            description:
+                'List builds recorded for a project, newest first. A build = one source-code snapshot (stable across HMR; changes on dev-server restart or prod build).',
+            inputSchema: { projectId: z.string(), limit: z.number().int().positive().optional() },
+        },
+        async ({ projectId, limit }) => ok(store.listBuilds(projectId, limit)),
+    );
+
+    server.registerTool(
+        'build.get',
+        {
+            description: 'Read a single build\'s metadata (gitSha, dirty, bundler, …).',
+            inputSchema: { projectId: z.string(), buildId: z.string() },
+        },
+        async ({ projectId, buildId }) => {
+            const meta = store.getBuild(projectId, buildId);
+            return meta ? ok(meta) : err(`build not found: ${projectId}/${buildId}`);
         },
     );
 
