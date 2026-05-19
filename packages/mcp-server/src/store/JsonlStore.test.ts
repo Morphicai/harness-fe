@@ -818,6 +818,77 @@ describe('JsonlStore — project tree + build metadata', () => {
         expect(subtree[0]?.id).toBe('mid');
         expect(subtree[0]?.children.map((c) => c.id)).toEqual(['leaf']);
     });
+
+    // Edge-case hardening (Layer P1)
+
+    it('getProjectTree handles a 1000-deep chain without stack overflow', () => {
+        // Build a long linear chain p0 ← p1 ← p2 ← … ← p999 and ensure
+        // getProjectTree returns without throwing.
+        for (let i = 0; i < 1000; i++) {
+            const parent = i === 0 ? undefined : `p${i - 1}`;
+            store.upsertProject(`p${i}`, parent ? { parentProjectId: parent } : {});
+        }
+        const tree = store.getProjectTree('p0');
+        // Walk to confirm depth.
+        let depth = 0;
+        let cursor = tree[0];
+        while (cursor) {
+            depth++;
+            cursor = cursor.children[0];
+        }
+        expect(depth).toBe(1000);
+    });
+
+    it('upsertProject rejects tags + metadata exceeding 16KB', () => {
+        const big = 'x'.repeat(20 * 1024);
+        expect(() =>
+            store.upsertProject('p1', { metadata: { blob: big } }),
+        ).toThrow(/refused.*bytes.*limit/);
+    });
+
+    it('upsertProject accepts modest tags + metadata under the limit', () => {
+        const ok = 'x'.repeat(1024);
+        expect(() =>
+            store.upsertProject('p1', {
+                tags: ['a', 'b', 'c'],
+                metadata: { note: ok },
+            }),
+        ).not.toThrow();
+    });
+
+    it('upsertBuild rejects tags + metadata exceeding 16KB', () => {
+        store.upsertProject('app', {});
+        const big = 'x'.repeat(20 * 1024);
+        expect(() =>
+            store.upsertBuild('app', 'b1', { metadata: { blob: big } }),
+        ).toThrow(/refused.*bytes.*limit/);
+    });
+
+    it('purge enforces maxBuildsPerProject (newest builds kept)', () => {
+        store.upsertProject('app', {});
+        // Insert 5 builds with strictly increasing builtAt timestamps so
+        // listBuilds returns them in known order.
+        for (let i = 0; i < 5; i++) {
+            store.upsertBuild('app', `b${i}`, {
+                bundler: 'vite',
+            });
+            // Patch builtAt to force sortability — bypass the merge that
+            // would re-stamp to "now" by writing the meta directly.
+            const meta = store.getBuild('app', `b${i}`)!;
+            const fixed = { ...meta, builtAt: 1_700_000_000_000 + i * 1000 };
+            writeFileSync(
+                join(dataDir, 'app', 'builds', `b${i}`, 'meta.json'),
+                JSON.stringify(fixed),
+            );
+        }
+        expect(store.listBuilds('app')).toHaveLength(5);
+
+        const result = store.purge({ maxBuildsPerProject: 2 });
+        expect(result.buildsDeleted).toBe(3);
+
+        const remaining = store.listBuilds('app').map((b) => b.id);
+        expect(remaining.sort()).toEqual(['b3', 'b4']); // newest 2 kept
+    });
 });
 
 // ── Property-Based Tests ─────────────────────────────────────────────────────

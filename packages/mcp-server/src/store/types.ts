@@ -261,12 +261,21 @@ export interface RetentionPolicy {
     maxExportsPerProject?: number;
     /** Keep at most this many bytes of replay exports per project. Default 200MB. */
     maxExportBytesPerProject?: number;
+    /**
+     * Keep at most this many BuildMeta records per project, newest first.
+     * Default 100. Builds beyond this point are pruned along with the events
+     * they touched (timeline-level pruning is left to the session retention
+     * rules above).
+     */
+    maxBuildsPerProject?: number;
 }
 
 export interface PurgeResult {
     sessionsDeleted: number;
     recordingsDeleted: number;
     exportsDeleted: number;
+    /** Number of BuildMeta directories pruned by maxBuildsPerProject. */
+    buildsDeleted?: number;
     bytesFreed: number;
 }
 
