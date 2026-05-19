@@ -36,7 +36,7 @@ function getPort(bridge: Bridge): number {
  */
 async function fakeClientWithSession(
     port: number,
-    opts: { tabId?: string; projectId?: string; loadId?: string } = {},
+    opts: { tabId?: string; projectId?: string; sessionId?: string } = {},
 ): Promise<{ pluginWs: WebSocket; ws: WebSocket; ack: HelloAckFrame }> {
     const projectId = opts.projectId ?? 'demo';
     // First connect vite-plugin to create an active session
@@ -65,14 +65,14 @@ async function fakeClientWithSession(
 async function fakeClient(
     port: number,
     role: 'runtime-client' | 'vite-plugin',
-    opts: { tabId?: string; projectId?: string; loadId?: string } = {},
+    opts: { tabId?: string; projectId?: string; sessionId?: string } = {},
 ): Promise<{ ws: WebSocket; ack: HelloAckFrame }> {
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     await new Promise<void>((resolve, reject) => {
         ws.once('open', () => resolve());
         ws.once('error', reject);
     });
-    const loadId = role === 'runtime-client' ? (opts.loadId ?? 'load-1') : undefined;
+    const sessionId = role === 'runtime-client' ? (opts.sessionId ?? 'sess-1') : undefined;
     ws.send(
         JSON.stringify({
             type: 'hello',
@@ -80,7 +80,7 @@ async function fakeClient(
             role,
             projectId: opts.projectId ?? 'demo',
             tabId: opts.tabId,
-            loadId,
+            sessionId,
             page: { url: 'http://localhost:5173/', title: 'Demo' },
         }),
     );
@@ -128,7 +128,7 @@ describe('Bridge', () => {
                     role: 'runtime-client',
                     projectId: 'demo',
                     tabId: 't-1',
-                    // sessionId / loadId intentionally omitted
+                    // sessionId intentionally omitted
                 }),
             );
             const ack = await new Promise<HelloAckFrame>((resolve, reject) => {
@@ -142,49 +142,6 @@ describe('Bridge', () => {
             expect(ack.error).toMatch(/sessionId/);
             expect(bridge.router.listTabs()).toHaveLength(0);
             ws.close();
-        } finally {
-            await bridge.stop();
-        }
-    });
-
-    it('accepts legacy `loadId` field as alias for `sessionId` on hello', async () => {
-        // Backward-compat shim: clients on < v0.2 still send loadId.
-        // The bridge normalizes it onto sessionId via normalizeHelloFrame.
-        const bridge = await spawnBridge();
-        try {
-            const port = getPort(bridge);
-            // Need an active plugin session first so the runtime hello isn't rejected
-            // for "no active session" reasons.
-            const { ws: pluginWs } = await fakeClient(port, 'vite-plugin', {
-                projectId: 'demo-legacy',
-            });
-
-            const ws = new WebSocket(`ws://127.0.0.1:${port}`);
-            await new Promise<void>((resolve, reject) => {
-                ws.once('open', () => resolve());
-                ws.once('error', reject);
-            });
-            ws.send(
-                JSON.stringify({
-                    type: 'hello',
-                    id: 'h2',
-                    role: 'runtime-client',
-                    projectId: 'demo-legacy',
-                    tabId: 't-legacy',
-                    loadId: 'legacy-load-1', // ← old field name, no sessionId
-                }),
-            );
-            const ack = await new Promise<HelloAckFrame>((resolve, reject) => {
-                const timer = setTimeout(() => reject(new Error('hello.ack timeout')), 1000);
-                ws.once('message', (raw) => {
-                    clearTimeout(timer);
-                    resolve(JSON.parse(raw.toString()) as HelloAckFrame);
-                });
-            });
-            expect(ack.type).toBe('hello.ack');
-            expect(ack.error).toBeUndefined();
-            ws.close();
-            pluginWs.close();
         } finally {
             await bridge.stop();
         }
@@ -956,7 +913,7 @@ describe('PAGE_LOAD persistence', () => {
             const { ws: rcWs } = await fakeClient(port, 'runtime-client', {
                 projectId,
                 tabId: 'tab-1',
-                loadId: 'load-A',
+                sessionId: 'sess-A',
             });
             await new Promise((r) => setTimeout(r, 20));
 
@@ -968,7 +925,7 @@ describe('PAGE_LOAD persistence', () => {
                 name: EVENT_NAME.PAGE_LOAD,
                 ts: 1000,
                 payload: {
-                    loadId: 'load-A',
+                    sessionId: 'sess-A',
                     page: { url: 'http://x/', title: 'Demo' },
                     viewport: { w: 1024, h: 768, dpr: 2 },
                     storage: { local: { k: 'v' }, session: {}, cookie: '', truncated: false },
@@ -979,7 +936,7 @@ describe('PAGE_LOAD persistence', () => {
             const sessionId = store.listSessions(projectId)[0].id;
             const loads = store.listLoads(sessionId, 'tab-1');
             expect(loads).toHaveLength(1);
-            expect(loads[0].id).toBe('load-A');
+            expect(loads[0].id).toBe('sess-A');
             expect(loads[0].url).toBe('http://x/');
             expect(loads[0].initial?.viewport).toEqual({ w: 1024, h: 768, dpr: 2 });
             expect(loads[0].initial?.storageKeys?.local).toBe(1);
@@ -1012,28 +969,28 @@ describe('PAGE_LOAD persistence', () => {
 
             // First load
             const rc1 = await fakeClient(port, 'runtime-client', {
-                projectId, tabId: 'tab-1', loadId: 'L1',
+                projectId, tabId: 'tab-1', sessionId: 'L1',
             });
             await new Promise((r) => setTimeout(r, 20));
             rc1.ws.send(JSON.stringify({
                 type: 'event', id: 'e1', projectId, tabId: 'tab-1',
                 name: EVENT_NAME.PAGE_LOAD, ts: 100,
-                payload: { loadId: 'L1', page: {}, storage: { local: {}, session: {}, cookie: '' } },
+                payload: { sessionId: 'L1', page: {}, storage: { local: {}, session: {}, cookie: '' } },
             }));
             await new Promise((r) => setTimeout(r, 30));
             rc1.ws.close();
             await new Promise((r) => setTimeout(r, 30));
 
-            // Second load — same tabId, new loadId (simulates browser refresh)
+            // Second load — same tabId, new sessionId (simulates browser refresh)
             const rc2 = await fakeClient(port, 'runtime-client', {
-                projectId, tabId: 'tab-1', loadId: 'L2',
+                projectId, tabId: 'tab-1', sessionId: 'L2',
             });
             await new Promise((r) => setTimeout(r, 20));
             const l2StartTs = Date.now();
             rc2.ws.send(JSON.stringify({
                 type: 'event', id: 'e2', projectId, tabId: 'tab-1',
                 name: EVENT_NAME.PAGE_LOAD, ts: l2StartTs,
-                payload: { loadId: 'L2', page: {}, storage: { local: {}, session: {}, cookie: '' } },
+                payload: { sessionId: 'L2', page: {}, storage: { local: {}, session: {}, cookie: '' } },
             }));
             await new Promise((r) => setTimeout(r, 40));
 

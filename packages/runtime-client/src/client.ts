@@ -96,10 +96,6 @@ export class RuntimeClient {
         this.parentProjectId = opts.parentProjectId ?? inherited.parentProjectId;
     }
 
-    /** @deprecated use `sessionId`. Kept for one minor for callers that read `loadId`. */
-    get loadId(): string {
-        return this.sessionId;
-    }
 
     start(): void {
         this.ctx.capture.install((name, payload) => this.sendEvent(name, payload));
@@ -141,9 +137,6 @@ export class RuntimeClient {
             buildId: this.opts.buildId,
             tabId: this.tabId,
             sessionId: this.sessionId,
-            // Backward-compat alias: older servers (< v0.2) read `loadId`.
-            // Bridge ≥ v0.2 normalises this onto `sessionId`.
-            loadId: this.sessionId,
             page: {
                 url: location.href,
                 title: document.title,
@@ -186,7 +179,7 @@ export class RuntimeClient {
         if (this.pageLoadSent) return;
         this.pageLoadSent = true;
         try {
-            const payload = collectPageLoadSnapshot(this.loadId);
+            const payload = collectPageLoadSnapshot(this.sessionId);
             this.sendEvent(EVENT_NAME.PAGE_LOAD, payload);
         } catch {
             /* snapshot failures must not propagate */
