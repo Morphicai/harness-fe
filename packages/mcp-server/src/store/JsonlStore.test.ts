@@ -262,6 +262,31 @@ describe('JsonlStore', () => {
         ]);
     });
 
+    it('isolates rrweb chunks per pageload (loadId) so refreshes do not interleave', async () => {
+        // Regression test for the 0.3.0 fix: pre-0.3.0, two pageloads on the
+        // same tab shared one tabs/{tabId}/recording.jsonl, so the second
+        // pageload's FullSnapshot followed the first's incrementals in the
+        // same file — replay slicing would render blank for windows that
+        // missed the baseline. Now each loadId owns its own file.
+        const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
+        store.openTab(sessId, { id: 'tab-1' });
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_load_a_1', startTs: 1000, endTs: 1500, eventCount: 2,
+            events: [{ type: 4 }, { type: 2 }],
+        }, 'load-A');
+        store.appendRecording(sessId, 'tab-1', {
+            chunkId: 'rrc_load_b_1', startTs: 5000, endTs: 5500, eventCount: 2,
+            events: [{ type: 4 }, { type: 2 }],
+        }, 'load-B');
+        await store.flush();
+        const all = store.listRecordings(sessId, 'tab-1');
+        expect(all.map((c) => c.chunkId).sort()).toEqual(['rrc_load_a_1', 'rrc_load_b_1']);
+        // Slicing a window that only overlaps load-A returns ONLY load-A's chunk,
+        // even though load-B's chunk is on disk for the same tab.
+        const sliceA = store.sliceRecordings(sessId, 900, 2000, 'tab-1');
+        expect(sliceA.map((c) => c.chunkId)).toEqual(['rrc_load_a_1']);
+    });
+
     it('slices recording chunks by overlapping time window', async () => {
         const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
         store.openTab(sessId, { id: 'tab-1' });

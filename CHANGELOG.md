@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-05-20
+
+### Changed — rrweb recordings are now isolated per pageload
+
+Pre-0.3.0 every refresh on the same tab appended rrweb chunks to one shared `tabs/{tabId}/recording.jsonl`. Each refresh emits its own `type:4 Meta` + `type:2 FullSnapshot` baseline, so the file ended up with N baselines interleaved with N×incrementals. Replay slicing then had to guess which baseline applied to which window and frequently rendered blank.
+
+Now `JsonlStore.appendRecording(sessionId, tabId, chunk, loadId)` takes the runtime `loadId` (the per-pageload id propagated as the `sessionId` field on `EventFrame`) and writes to `tabs/{tabId}/loads/{loadId}/recording.jsonl`. `listRecordings` / `sliceRecordings` aggregate across all load directories; the old per-tab path is still read so installs that had data on disk before the upgrade remain queryable until purge GCs it. Bridge passes `peer.sessionId` through automatically — runtime + plugins did not need to change.
+
+Visibility:
+- `[harnessa-fe] peer connected: role=… project=… tab=… load=…` printed once per accepted hello so "is the runtime actually talking to me?" is one log line away.
+- Purge handles both legacy and per-load recording files uniformly (count / bytes caps remain per-tab, summed across its loads).
+
+This is a storage layout change inside `~/.harnessa/data/` — nothing about the wire protocol or public package APIs changed, but old daemons running ≤ 0.2.5 cannot read 0.3.0's per-load directories (they will see empty `listRecordings` for new data). Upgrade the daemon to 0.3.0 alongside any consumers.
+
 ## [0.2.5] — 2026-05-19
 
 ### Added

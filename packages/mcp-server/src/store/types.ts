@@ -16,7 +16,10 @@
  *                   └── {tabId}/
  *                       ├── meta.json        tab metadata
  *                       ├── timeline.jsonl   tab-level event stream
- *                       └── recording.jsonl  rrweb recording (optional)
+ *                       ├── recording.jsonl  legacy rrweb recording (pre-0.3.0, read-only)
+ *                       └── loads/
+ *                           └── {loadId}/
+ *                               └── recording.jsonl  rrweb recording for one pageload
  */
 
 import type { Task } from '@harnessa-fe/protocol';
@@ -359,9 +362,15 @@ export interface IStore {
     appendBatch(sessionId: string, events: StoreEvent[], tabId?: string): void;
 
     /**
-     * Append an rrweb recording chunk to a tab's recording file.
+     * Append an rrweb recording chunk for a tab.
+     *
+     * `loadId` (the runtime client's per-pageload id, propagated as the
+     * `sessionId` field on EventFrames) scopes the chunk to a single
+     * pageload — refreshes never interleave FullSnapshot baselines from
+     * different pageloads. Missing `loadId` falls back to the legacy
+     * per-tab path so older callers continue to write somewhere.
      */
-    appendRecording(sessionId: string, tabId: string, chunk: unknown): void;
+    appendRecording(sessionId: string, tabId: string, chunk: unknown, loadId?: string): void;
 
     /**
      * Write a project-level note (cross-session knowledge).
