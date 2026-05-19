@@ -156,6 +156,8 @@ export class Bridge implements IBridge {
     private autoPurgeTimer?: NodeJS.Timeout;
     /** Map from connectionId → sessionId in the store */
     private connToStoreSession = new Map<string, string>();
+    /** Connections that already logged a "no store session" warning. */
+    private warnedNoSession = new Set<string>();
     /**
      * Grace period timers: projectId → timer handle.
      * When a build plugin disconnects, a 30-second timer is started.
@@ -634,6 +636,7 @@ export class Bridge implements IBridge {
 
         ws.on('close', () => {
             this.sockets.delete(connectionId);
+            this.warnedNoSession.delete(connectionId);
             // Close store session/tab if applicable
             const storeSessionId = this.connToStoreSession.get(connectionId);
             if (storeSessionId && this.store) {
@@ -680,6 +683,10 @@ export class Bridge implements IBridge {
                 // attributable to a specific page load. Reject explicitly so
                 // misconfigured clients surface during development.
                 if (frame.role === 'runtime-client' && !frame.sessionId) {
+                    console.warn(
+                        '[harnessa-fe] rejecting runtime-client hello — missing sessionId',
+                        { projectId: frame.projectId, tabId: frame.tabId },
+                    );
                     const errorAck: HelloAckFrame = {
                         type: 'hello.ack',
                         id: frame.id,
@@ -690,21 +697,12 @@ export class Bridge implements IBridge {
                     return;
                 }
 
-                // For runtime-client: check if an active session exists before registering.
-                // Only enforced when the store is active (persistence enabled).
-                if (frame.role === 'runtime-client' && this.store) {
-                    const hasActiveSession = this.hasActiveSession(frame.projectId);
-                    if (!hasActiveSession) {
-                        const errorAck: HelloAckFrame = {
-                            type: 'hello.ack',
-                            id: frame.id,
-                            serverVersion: PROTOCOL_VERSION,
-                            error: `no active session for projectId="${frame.projectId}"; start the dev server first`,
-                        };
-                        ws.send(JSON.stringify(errorAck));
-                        return;
-                    }
-                }
+                // NOTE: runtime-client is allowed to bootstrap a project on its
+                // own (no plugin required). This is the standard mode for the
+                // @harnessa-fe/next + jsxImportSource integration and for any
+                // production / staging deployment where the bundler plugin is
+                // absent. The runtime-client branch below opens its own store
+                // session if one does not already exist for this project.
 
                 const session = this.router.register({
                     role: frame.role,
@@ -768,18 +766,26 @@ export class Bridge implements IBridge {
                             this.connToStoreSession.set(connectionId, storeSessionId);
                         }
                     } else if (frame.role === 'runtime-client' && frame.tabId) {
-                        // Find the store session for this project
+                        // Prefer reusing an existing session opened by a plugin
+                        // (so dev events and runtime events land in the same
+                        // timeline). If none exists — which is the normal case
+                        // for jsxImportSource / production deploys — open a new
+                        // session here so events still persist.
                         const sessions = this.store.listSessions(frame.projectId, 1);
-                        const storeSessionId = sessions[0]?.id;
-                        if (storeSessionId) {
-                            this.connToStoreSession.set(connectionId, storeSessionId);
-                            this.store.openTab(storeSessionId, {
-                                id: frame.tabId,
-                                url: frame.page?.url,
-                                title: frame.page?.title,
-                                userAgent: frame.page?.userAgent,
+                        let storeSessionId = sessions[0]?.id;
+                        if (!storeSessionId) {
+                            storeSessionId = this.store.openSession(frame.projectId, {
+                                peerRole: 'runtime-client',
+                                metadata: { role: 'runtime-client' },
                             });
                         }
+                        this.connToStoreSession.set(connectionId, storeSessionId);
+                        this.store.openTab(storeSessionId, {
+                            id: frame.tabId,
+                            url: frame.page?.url,
+                            title: frame.page?.title,
+                            userAgent: frame.page?.userAgent,
+                        });
                     }
                 }
                 // If store is null but taskStore is available, still load tasks for build plugins
@@ -818,6 +824,17 @@ export class Bridge implements IBridge {
                 // Persist to store
                 if (this.store) {
                     const storeSessionId = this.connToStoreSession.get(connectionId);
+                    if (!storeSessionId) {
+                        // Should not happen after the hello-time bootstrap above.
+                        // Warn once per connection so silent data loss surfaces.
+                        if (!this.warnedNoSession.has(connectionId)) {
+                            this.warnedNoSession.add(connectionId);
+                            console.warn(
+                                '[harnessa-fe] dropping event — no store session for connection',
+                                { projectId: peer.projectId, role: peer.role, eventName: frame.name },
+                            );
+                        }
+                    }
                     if (storeSessionId) {
                         const tabId = frame.tabId ?? peer.tabId;
                         // Tab-scoped events MUST carry the peer's loadId — the

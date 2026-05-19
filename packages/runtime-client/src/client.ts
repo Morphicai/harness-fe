@@ -87,6 +87,21 @@ export class RuntimeClient {
     private readonly recorder = new RrwebRecorder((chunk) => this.sendEvent(EVENT_NAME.RRWEB, chunk));
     private reconnectAttempts = 0;
     private closed = false;
+    /**
+     * Pre-handshake / reconnect outbox.
+     *
+     * Frames produced before the WebSocket reaches OPEN (or while it is
+     * temporarily down during reconnect) used to be silently dropped. That
+     * was particularly bad for rrweb: the *very first* chunk contains the
+     * Meta + FullSnapshot baseline frames — without it, every later
+     * incremental snapshot is useless for replay. We now buffer in FIFO order
+     * and flush on `open`. Capped to defend against OOM if the bridge is
+     * unreachable for an extended period.
+     */
+    private outbox: string[] = [];
+    private outboxBytes = 0;
+    private static readonly MAX_OUTBOX_FRAMES = 500;
+    private static readonly MAX_OUTBOX_BYTES = 8 * 1024 * 1024;
 
     constructor(private readonly opts: ClientOptions) {
         const inherited = _tryInheritFromParent();
@@ -144,6 +159,10 @@ export class RuntimeClient {
             },
         };
         this.send(hello);
+        // Any pre-OPEN frames (rrweb chunk 1 with the Meta+FullSnapshot
+        // baseline is the canonical example) get flushed *after* hello, so
+        // the daemon has a registered peer before they arrive.
+        this.drainOutbox();
     }
 
     private onClose(): void {
@@ -235,11 +254,48 @@ export class RuntimeClient {
     }
 
     private send(frame: Frame): void {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        let payload: string;
         try {
-            this.ws.send(JSON.stringify(frame));
+            payload = JSON.stringify(frame);
         } catch {
-            /* swallow */
+            return; // unserializable; drop
+        }
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            try {
+                this.ws.send(payload);
+                return;
+            } catch {
+                // write failed mid-stream — fall through and buffer for retry
+            }
+        }
+        this.enqueue(payload);
+    }
+
+    private enqueue(payload: string): void {
+        this.outbox.push(payload);
+        this.outboxBytes += payload.length;
+        while (
+            this.outbox.length > RuntimeClient.MAX_OUTBOX_FRAMES ||
+            this.outboxBytes > RuntimeClient.MAX_OUTBOX_BYTES
+        ) {
+            const dropped = this.outbox.shift();
+            if (dropped === undefined) break;
+            this.outboxBytes -= dropped.length;
+        }
+    }
+
+    private drainOutbox(): void {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        while (this.outbox.length > 0) {
+            const payload = this.outbox[0]!;
+            try {
+                this.ws.send(payload);
+            } catch {
+                // Underlying socket failed; keep what remains for next drain.
+                return;
+            }
+            this.outbox.shift();
+            this.outboxBytes -= payload.length;
         }
     }
 }

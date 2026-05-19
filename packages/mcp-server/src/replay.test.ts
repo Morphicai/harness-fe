@@ -75,7 +75,7 @@ describe('createReplayExport — pure logic', () => {
         const store = new JsonlStore(dir);
         const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
         store.openTab(sessId, { id: 'tab-1' });
-        seedRecording(store, sessId, 'tab-1', { chunkId: 'rrc_1', startTs: 1000, endTs: 1500, events: [{ type: 4 }] });
+        seedRecording(store, sessId, 'tab-1', { chunkId: 'rrc_1', startTs: 1000, endTs: 1500, events: [{ type: 2 }] });
         await store.flush();
         const result = createReplayExport(store, undefined, { sessionId: sessId, since: 0, until: 5000 });
         expect(result.error).toMatch(/fewer than 2 rrweb events/);
@@ -86,7 +86,7 @@ describe('createReplayExport — pure logic', () => {
         const store = new JsonlStore(dir);
         const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
         store.openTab(sessId, { id: 'tab-1' });
-        seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{ type: 4 }, { type: 3 }] });
+        seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{ type: 4 }, { type: 2 }] });
         seedRecording(store, sessId, 'tab-1', { chunkId: 'b', startTs: 1600, endTs: 2000, events: [{ type: 3 }, { type: 3 }, { type: 3 }] });
         // outside window — should NOT be in export
         seedRecording(store, sessId, 'tab-1', { chunkId: 'c', startTs: 9000, endTs: 9500, events: [{ type: 3 }, { type: 3 }] });
@@ -114,11 +114,12 @@ describe('createReplayExport — pure logic', () => {
         const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
         store.openTab(sessId, { id: 'tab-1' });
         store.openTab(sessId, { id: 'tab-2' });
-        seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{ type: 4 }, { type: 3 }] });
+        seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{ type: 4 }, { type: 2 }, { type: 3 }] });
         seedRecording(store, sessId, 'tab-2', {
             chunkId: 'b', startTs: 1000, endTs: 2000,
-            events: [{ type: 4 }, { type: 3 }, { type: 3 }, { type: 3 }, { type: 3 }],
+            events: [{ type: 4 }, { type: 2 }, { type: 3 }, { type: 3 }, { type: 3 }],
         });
+        // eventCount(tab-1)=3, eventCount(tab-2)=5 → tab-2 wins by event count
         await store.flush();
 
         const result = createReplayExport(store, undefined, { sessionId: sessId, since: 500, until: 2500 });
@@ -132,8 +133,8 @@ describe('createReplayExport — pure logic', () => {
         const store = new JsonlStore(dir);
         const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
         store.openTab(sessId, { id: 'tab-1' });
-        seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{}, {}] });
-        seedRecording(store, sessId, 'tab-1', { chunkId: 'b', startTs: 9000, endTs: 9500, events: [{}, {}] });
+        seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{ type: 4 }, { type: 2 }] });
+        seedRecording(store, sessId, 'tab-1', { chunkId: 'b', startTs: 9000, endTs: 9500, events: [{ type: 4 }, { type: 2 }] });
         await store.flush();
 
         const r1 = createReplayExport(store, undefined, { sessionId: sessId, ts: 1200, windowMs: 500 });
@@ -160,7 +161,7 @@ describe('replay HTTP routes', () => {
         try {
             const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
             store.openTab(sessId, { id: 'tab-1' });
-            seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{ type: 4 }, { type: 3 }] });
+            seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{ type: 4 }, { type: 2 }, { type: 3 }] });
             await store.flush();
             const r = createReplayExport(store, `http://127.0.0.1:${port}`, { sessionId: sessId, since: 0, until: 5000 });
             expect(r.exportId).toBeTruthy();
@@ -180,7 +181,7 @@ describe('replay HTTP routes', () => {
         try {
             const sessId = store.openSession('proj', { peerRole: 'vite-plugin' });
             store.openTab(sessId, { id: 'tab-1' });
-            seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{ type: 4 }, { type: 3 }, { type: 3 }] });
+            seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: 1000, endTs: 1500, events: [{ type: 4 }, { type: 2 }, { type: 3 }] });
             await store.flush();
             const r = createReplayExport(store, undefined, { sessionId: sessId, since: 0, until: 5000 });
 
@@ -242,8 +243,10 @@ describe('export retention interacts cleanly with replay creation', () => {
         store.openTab(sessId, { id: 'tab-1' });
         // Three chunks; configure purge to drop oldest one.
         const now = Date.now();
-        seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: now - 3000, endTs: now - 2800, events: [{ type: 4 }, { type: 3 }] });
-        seedRecording(store, sessId, 'tab-1', { chunkId: 'b', startTs: now - 2000, endTs: now - 1800, events: [{ type: 3 }, { type: 3 }] });
+        seedRecording(store, sessId, 'tab-1', { chunkId: 'a', startTs: now - 3000, endTs: now - 2800, events: [{ type: 4 }, { type: 2 }, { type: 3 }] });
+        // Each surviving chunk carries its own baseline so the post-purge
+        // export still has a FullSnapshot to replay from.
+        seedRecording(store, sessId, 'tab-1', { chunkId: 'b', startTs: now - 2000, endTs: now - 1800, events: [{ type: 2 }, { type: 3 }] });
         seedRecording(store, sessId, 'tab-1', { chunkId: 'c', startTs: now - 1000, endTs: now - 800, events: [{ type: 3 }, { type: 3 }] });
         await store.flush();
 

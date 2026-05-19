@@ -707,23 +707,30 @@ describe('Bridge', () => {
         }
     });
 
-    it('rejects runtime-client hello with error ack when no active session exists (Req 3.4)', async () => {
-        const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-req34-'));
+    it('accepts runtime-client hello with no prior plugin and opens its own session (plugin-less mode)', async () => {
+        // This is the standard mode for the @harnessa-fe/next + jsxImportSource
+        // integration and for any production / staging deployment: the bundler
+        // plugin is absent, so the runtime-client must bootstrap the project
+        // session on its own. We require the daemon to (a) accept the hello,
+        // (b) register the tab, and (c) open a store session with
+        // peerRole='runtime-client' so subsequent events have a place to land.
+        const dir = mkdtempSync(join(tmpdir(), 'morphix-bridge-plugin-less-'));
         const store = new JsonlStore(dir);
         const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
         await bridge.start();
         try {
             const port = getPort(bridge);
-            // Connect runtime-client without any vite-plugin session active
             const { ack } = await fakeClient(port, 'runtime-client', {
-                tabId: 't-orphan',
-                projectId: 'no-session-project',
+                tabId: 't-bootstrap',
+                projectId: 'plugin-less-project',
             });
             expect(ack.type).toBe('hello.ack');
-            expect(ack.error).toBeDefined();
-            expect(typeof ack.error).toBe('string');
-            // Should NOT register the tab in the router
-            expect(bridge.router.listTabs()).toHaveLength(0);
+            expect(ack.error).toBeUndefined();
+            expect(ack.tabId).toBe('t-bootstrap');
+            expect(bridge.router.listTabs()).toHaveLength(1);
+            const sessions = store.listSessions('plugin-less-project', 10);
+            expect(sessions).toHaveLength(1);
+            expect(sessions[0]?.peerRole).toBe('runtime-client');
         } finally {
             await bridge.stop();
             store.close();

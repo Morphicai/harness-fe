@@ -1,6 +1,6 @@
 {
     "name": "harnessa-fe",
-    "version": "0.2.3",
+    "version": "0.2.4",
     "private": true,
     "packageManager": "pnpm@9.15.0",
     "description": "The frontend harness for AI agents. Source-aware Vite plugin + MCP daemon + runtime client — lets agents drive any page in the user's real browser with full-stack understanding.",
