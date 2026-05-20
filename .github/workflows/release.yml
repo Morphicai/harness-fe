@@ -1,28 +1,32 @@
 name: Release
 
-# Trigger only on annotated tag push matching v*.*.*
-# Tag protection rules in repo settings should restrict who can push tags.
+# Changesets-driven release flow.
+#
+# On every push to main, this workflow either:
+#   (a) opens / updates a "Version Packages" PR that, when merged, will bump
+#       package.json versions and consume all pending .changeset/*.md files,
+#       OR
+#   (b) if the Version Packages PR was just merged (i.e. there are bumped
+#       versions and no remaining changesets), publishes the affected
+#       packages to npm via scripts/release-publish.sh.
+#
+# How to ship a change:
+#   1. In your feature PR run `pnpm changeset` to declare which packages
+#      changed and at what semver level. Commit the generated
+#      .changeset/<name>.md file.
+#   2. Merge the feature PR into main.
+#   3. This workflow opens/updates a "Version Packages" PR with all
+#      pending bumps. Review the diff, then merge it.
+#   4. On that merge, the workflow flips into publish mode and ships.
+
 on:
     push:
-        tags:
-            - 'v*.*.*'
+        branches:
+            - main
 
-# Strict least-privilege.
-#   contents: write → required by softprops/action-gh-release to create a release
-#   id-token: write → required for BOTH sigstore provenance (--provenance flag)
-#                     AND for OIDC trusted publishing.
-#
-# Hybrid publish strategy (see "Publish to npm" step below):
-#   Pass 1: OIDC (no token). Works for packages with trusted publisher
-#     configured on npmjs.com — currently @harnessa-fe/next and
-#     @harnessa-fe/react-jsx.
-#   Pass 2: NPM_TOKEN. Picks up everything pass 1 didn't (incl. new
-#     packages like @harnessa-fe/node-runtime and the original 7
-#     non-trusted ones).
-# Flip a package's trusted-publisher config on npmjs.com to migrate it
-# between modes — the workflow adapts automatically.
 permissions:
     contents: write
+    pull-requests: write
     id-token: write
 
 concurrency:
@@ -30,15 +34,10 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
-    publish:
-        name: Publish to npm
+    release:
+        name: Version PR / Publish
         runs-on: ubuntu-latest
         timeout-minutes: 20
-
-        # Require manual approval via a protected environment.
-        # Configure in repo Settings → Environments → "release":
-        #   - required reviewers (you)
-        #   - branch restriction: tags matching v*.*.*
         environment:
             name: release
             url: https://www.npmjs.com/org/harnessa-fe
@@ -64,9 +63,9 @@ jobs:
                   scope: '@harnessa-fe'
 
             - name: Upgrade npm CLI for OIDC trusted publishing
-              # Node 20 ships npm 10.9 which only does provenance via tokens.
-              # Trusted publishing (no-token OIDC) needs npm ≥ 11.5.
-              # See https://docs.npmjs.com/trusted-publishers
+              # npm ≥ 11.5 properly negotiates trusted publishing when no
+              # token is in the env; older npm in pass A would emit
+              # provenance fine but couldn't auth without a token.
               run: |
                   npm install -g npm@latest
                   npm --version
@@ -75,8 +74,6 @@ jobs:
               run: pnpm install --frozen-lockfile --ignore-scripts
 
             - name: Verify dependency signatures
-              # npm exposes the real signature-verify; pnpm aliases this to a plain audit.
-              # Non-blocking: lockfile already pins SHA512 hashes per tarball.
               run: npm audit signatures || echo "::warning::audit signatures reported issues"
 
             - name: Typecheck
@@ -88,125 +85,28 @@ jobs:
             - name: Test
               run: pnpm test
 
-            - name: Verify tag matches package versions
-              # Refuse to publish if the git tag (v0.1.0) does not match the version
-              # in every package.json. Defends against accidental drift and against
-              # an attacker who pushes a tag without updating versions.
-              run: |
-                  TAG_VERSION="${GITHUB_REF_NAME#v}"
-                  echo "Tag version: $TAG_VERSION"
-                  for pkg in packages/*/package.json; do
-                      PKG_VERSION=$(node -p "require('./$pkg').version")
-                      if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-                          echo "::error::$pkg has version $PKG_VERSION but tag is $TAG_VERSION"
-                          exit 1
-                      fi
-                  done
-                  echo "✓ All packages match $TAG_VERSION"
-
-            - name: Dry-run publish
-              # Sanity check: ensure workspace:* deps rewrite correctly and tarballs are valid.
-              run: pnpm -r --filter './packages/*' publish --dry-run --access public --no-git-checks
-
-            - name: Pack all packages into tarballs
-              # pnpm pack rewrites `workspace:*` deps onto their real version
-              # numbers inside each generated .tgz — same magic as pnpm publish
-              # but stops short of the actual upload. pnpm 9 has no recursive
-              # `pack` subcommand, so we loop. `npm publish` consumes the
-              # tarballs next and brings OIDC into the picture.
-              run: |
-                  set -e
-                  TARBALL_DIR="${{ github.workspace }}/tarballs"
-                  mkdir -p "$TARBALL_DIR"
-                  for pkg in packages/*/; do
-                      ( cd "$pkg" && pnpm pack --pack-destination "$TARBALL_DIR" )
-                  done
-                  ls -la "$TARBALL_DIR"
-
-            - name: Publish to npm — hybrid auth (OIDC for trusted-publisher
-                  packages, NPM_TOKEN for the rest)
-              # Two-pass strategy that automatically picks the right auth
-              # mechanism per package:
-              #
-              #   Pass 1 (no NODE_AUTH_TOKEN in env):
-              #       For packages with a trusted publisher configured on
-              #       npmjs.com, npm CLI 11+ uses the GitHub Actions OIDC
-              #       token (id-token: write permission) and PUTs without
-              #       a token credential. Packages without trusted publisher
-              #       configured get a 4xx and fall through to pass 2.
-              #
-              #   Pass 2 (NODE_AUTH_TOKEN set):
-              #       Plain old token publish for whatever pass 1 didn't
-              #       cover. Both new (no-history) and existing packages
-              #       go through here.
-              #
-              # The reason we can't just always-NODE_AUTH_TOKEN: npmjs.com
-              # rejects token-based PUT with E404 once a package has a
-              # trusted publisher configured (it considers token publish
-              # unauthorized for that package). The reason we can't drop
-              # the token entirely: brand-new packages and packages without
-              # trusted publisher rely on it.
+            - name: Open Version PR or publish
+              id: changesets
+              uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1.4.10
+              with:
+                  # `version`: run when there ARE pending changesets — this
+                  # opens / updates the "Version Packages" PR.
+                  version: pnpm version-packages
+                  # `publish`: run when there are NO pending changesets
+                  # (= Version PR was just merged) and at least one package
+                  # has a version that isn't on npm yet.
+                  publish: pnpm release
+                  commit: "chore(release): version packages"
+                  title: "chore(release): version packages"
               env:
-                  NPM_CONFIG_PROVENANCE: 'true'
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-              run: |
-                  # NO `set -e` here — one package's failure must not block the rest.
-                  TARBALL_DIR="${{ github.workspace }}/tarballs"
-                  PUBLISHED=()
-                  REMAINING=()
-                  SKIPPED=()
-
-                  # Pass 1 — OIDC (no token). Trusted-publisher packages succeed here.
-                  echo "── pass 1: OIDC publish ──────────────────────"
-                  for tgz in "$TARBALL_DIR"/*.tgz; do
-                      name=$(basename "$tgz")
-                      echo "::group::pass1 $name (OIDC)"
-                      # Explicitly unset auth so npm doesn't pick up the token from any default config.
-                      if env -u NODE_AUTH_TOKEN -u npm_config__authToken \
-                          npm publish "$tgz" --access public --provenance; then
-                          PUBLISHED+=("$name (oidc)")
-                          echo "::endgroup::"
-                      else
-                          rc=$?
-                          REMAINING+=("$tgz")
-                          echo "  → pass1 failed (exit $rc); will retry with token in pass 2"
-                          echo "::endgroup::"
-                      fi
-                  done
-
-                  # Pass 2 — token. Run for whatever pass 1 didn't cover.
-                  echo "── pass 2: token publish (${#REMAINING[@]} remaining) ──"
-                  for tgz in "${REMAINING[@]}"; do
-                      name=$(basename "$tgz")
-                      echo "::group::pass2 $name (token)"
-                      if NODE_AUTH_TOKEN="$NPM_TOKEN" \
-                          npm publish "$tgz" --access public --provenance; then
-                          PUBLISHED+=("$name (token)")
-                          echo "::endgroup::"
-                      else
-                          rc=$?
-                          SKIPPED+=("$name (token exit $rc)")
-                          echo "::warning::failed to publish $name on both passes (exit $rc)"
-                          echo "::endgroup::"
-                      fi
-                  done
-
-                  echo "── publish summary ──────────────────────"
-                  echo "published (${#PUBLISHED[@]}):"
-                  for n in "${PUBLISHED[@]}"; do echo "  ✓ $n"; done
-                  echo "skipped (${#SKIPPED[@]}):"
-                  for n in "${SKIPPED[@]}"; do echo "  ✗ $n"; done
-
-                  # Fail the job only if NOTHING published.
-                  if [ ${#PUBLISHED[@]} -eq 0 ]; then
-                      echo "::error::no packages published"
-                      exit 1
-                  fi
 
             - name: Create GitHub Release
+              # Only run when changesets/action actually published.
+              if: steps.changesets.outputs.published == 'true'
               uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
               with:
                   generate_release_notes: true
                   body_path: ${{ github.workspace }}/CHANGELOG.md
                   draft: false
-                  prerelease: ${{ contains(github.ref_name, '-') }}
