@@ -1,16 +1,26 @@
-'use client';
-
 /**
  * @harnessa-fe/next/script — `<HarnessaScript />`
  *
- * Place once in your root layout (`app/layout.tsx`) inside <body>. In dev:
- *   - Seeds `window.__HARNESSA_FE__` with the project config.
- *   - Dynamically imports `@harnessa-fe/runtime`, which auto-connects to
- *     the MCP daemon and starts capturing events.
- *   - Subsequent renders are idempotent (guarded via window flag).
+ * Server Component wrapper. Place once in your root layout (`app/layout.tsx`)
+ * inside <body>:
  *
- * In production builds this component renders nothing (no imports
- * pulled into client bundles either, thanks to the env check at module top).
+ *   import { HarnessaScript } from '@harnessa-fe/next/script';
+ *   <HarnessaScript projectId="my-app" />
+ *
+ * What this does in dev:
+ *   1. Calls `getSessionId()` (React `cache()`-backed) to allocate a
+ *      deterministic per-request UUID on the server.
+ *   2. Inlines a tiny <script> that writes the sessionId into
+ *      `window.__HARNESSA_FE_SEED__` before any React hydration runs.
+ *   3. Renders `<HarnessaScriptClient>` (the `'use client'` component)
+ *      which boots the runtime and adopts the seed sessionId.
+ *
+ * Result: server-side events emitted by `@harnessa-fe/node-runtime` and
+ * client-side events emitted by the RuntimeClient share the SAME sessionId.
+ * One refresh = one `~/.harnessa/data/sessions/{id}/timeline.jsonl`.
+ *
+ * In production (`NODE_ENV !== 'development'`) this component renders nothing
+ * and pulls no code into client bundles.
  */
 
 export interface HarnessaScriptProps {
@@ -26,72 +36,42 @@ export interface HarnessaScriptProps {
     /** MCP daemon WebSocket URL. Defaults to `ws://127.0.0.1:47729`. */
     mcpUrl?: string;
     /**
-     * App-supplied user identifier (e.g. `user.id` from supabase /
-     * NextAuth / Auth0). Attached to the visitor record on the daemon
-     * side. Empty / undefined for anonymous traffic — the daemon still
-     * stitches the journey via the localStorage-based `visitorId`.
+     * App-supplied user identifier. Attached to the visitor record on the
+     * daemon side. Empty / undefined for anonymous traffic.
      *
-     * Privacy reminder: this is sent to your local daemon. Don't pass
-     * raw emails unless you understand who can read `~/.harnessa/data/`.
+     * Privacy reminder: this is sent to your local daemon only.
      */
     userId?: string;
     /**
-     * Build artifact id — stamped on every event so agents can answer
-     * "which code version was running when this happened?". Optional.
-     *
-     * Recommended sources:
-     *   - Production: your git SHA injected at build time
-     *       e.g. `process.env.NEXT_PUBLIC_GIT_SHA`
-     *   - Self-hosted with Next.js build id:
-     *       e.g. `process.env.__NEXT_BUILD_ID` (server side; pass through props)
-     *   - Dev: leave undefined; every refresh is "current source" anyway.
-     *
-     * Without it, the daemon still works — it just can't slice timelines by
-     * build (`build.timeline` returns nothing for this project).
+     * Build artifact id stamped on every event. Optional. Recommended sources:
+     *   - Production: `process.env.NEXT_PUBLIC_GIT_SHA`
+     *   - Dev: leave undefined.
      */
     buildId?: string;
 }
 
+import type React from 'react';
+
 const IS_DEV = process.env.NODE_ENV === 'development';
 
-declare global {
-    interface Window {
-        __HARNESSA_FE__?: {
-            projectId: string;
-            parentProjectId?: string;
-            displayName?: string;
-            mcpUrl?: string;
-            buildId?: string;
-            userId?: string;
-        };
-        __HARNESSA_FE_NEXT_BOOTED__?: boolean;
-    }
-}
-
-export function HarnessaScript(props: HarnessaScriptProps): null {
+export async function HarnessaScript(props: HarnessaScriptProps): Promise<React.ReactElement | null> {
     if (!IS_DEV) return null;
-    if (typeof window === 'undefined') return null;
 
-    // Run only once per page load. Re-renders / route changes are no-ops.
-    if (!window.__HARNESSA_FE_NEXT_BOOTED__) {
-        window.__HARNESSA_FE_NEXT_BOOTED__ = true;
-        window.__HARNESSA_FE__ = {
-            projectId: props.projectId,
-            parentProjectId: props.parentProjectId,
-            displayName: props.displayName ?? props.projectId,
-            mcpUrl: props.mcpUrl ?? 'ws://127.0.0.1:47729',
-            buildId: props.buildId,
-            userId: props.userId,
-        };
-        // Dynamic import: bundles the runtime into client chunks because
-        // this whole file is 'use client'. The import is async; first
-        // events before resolution may be missed, which is acceptable for
-        // a dev tool.
-        import('@harnessa-fe/runtime').catch((err: unknown) => {
-            // Swallow — dev tool, don't break the app on a network blip.
-            // eslint-disable-next-line no-console
-            console.warn('[harnessa-fe] runtime load failed:', err);
-        });
-    }
-    return null;
+    // Lazy import so production bundles never pull this in.
+    const { getSessionId } = await import('./sessionId.js');
+    const { HarnessaScriptClient } = await import('./HarnessaScriptClient.js');
+
+    const sessionId = getSessionId();
+
+    // The seed script runs synchronously before React hydration so the
+    // runtime client can read the sessionId immediately on DOMContentLoaded.
+    const seedScript = `window.__HARNESSA_FE_SEED__=${JSON.stringify({ sessionId })};`;
+
+    return (
+        <>
+            {/* eslint-disable-next-line react/no-danger */}
+            <script id="__hfe_seed__" dangerouslySetInnerHTML={{ __html: seedScript }} />
+            <HarnessaScriptClient {...props} />
+        </>
+    );
 }

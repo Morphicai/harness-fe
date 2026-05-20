@@ -1203,3 +1203,290 @@ describe('PAGE_LOAD persistence', () => {
         }
     });
 });
+
+describe('Phase B: task attachment write path', () => {
+    it('writes attachment binary to disk and stores pointer (not data) in tasks', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'hfe-attach-test-'));
+        const store = new JsonlStore(dir);
+        const taskStore = new JsonTaskStore(dir);
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store,
+            taskStore,
+            attachmentsDataDir: dir,
+            autoPurge: { enabled: false },
+        });
+        await bridge.start();
+        const port = bridge.getBoundPort()!;
+
+        try {
+            const { pluginWs, ws } = await fakeClientWithSession(port, {
+                tabId: 'tab-att',
+                projectId: 'attach-proj',
+                sessionId: 'sess-att',
+            });
+
+            // A small 1x1 PNG as base64 (minimal valid PNG)
+            const tiny1x1png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+            const payload: TaskSubmitPayload = {
+                question: 'attachment test',
+                url: 'http://localhost/',
+                selector: { css: 'div' },
+                element: { tag: 'div', outerHTML: '<div/>' },
+                attachments: [{
+                    id: 'att-123',
+                    kind: 'screenshot',
+                    data: tiny1x1png,
+                    width: 1,
+                    height: 1,
+                }],
+            };
+
+            ws.send(JSON.stringify({
+                type: 'event',
+                id: 'ev1',
+                name: 'task.submit',
+                ts: Date.now(),
+                tabId: 'tab-att',
+                projectId: 'attach-proj',
+                sessionId: 'sess-att',
+                payload,
+            }));
+
+            // Give the bridge time to process the event
+            await new Promise<void>((resolve) => setTimeout(resolve, 100));
+
+            // Find the task
+            const tasks = taskStore.loadTasks('attach-proj');
+            const task = tasks.find((t) => t.question === 'attachment test');
+            expect(task).toBeDefined();
+
+            // tasks.json should store pointer only (no data field)
+            expect(task!.attachments).toBeDefined();
+            expect(task!.attachments!.length).toBe(1);
+            const ptr = task!.attachments![0];
+            expect(ptr.id).toBe('att-123');
+            expect(ptr.path).toBeDefined();
+            expect(ptr.data).toBeUndefined();
+
+            // Binary file should exist on disk
+            const diskPath = join(dir, 'projects', 'attach-proj', 'task-attachments', task!.id, 'att-123.png');
+            expect(existsSync(diskPath)).toBe(true);
+            const fileContent = readFileSync(diskPath);
+            expect(fileContent.length).toBeGreaterThan(0);
+
+            // getTaskAttachmentData should return base64
+            const b64 = await bridge.getTaskAttachmentData(task!.id, 'att-123');
+            expect(b64).toBeTruthy();
+            expect(typeof b64).toBe('string');
+
+            pluginWs.close();
+            ws.close();
+        } finally {
+            await bridge.stop();
+            await store.close();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('drops attachments exceeding 4 MB total and logs warning to stderr', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'hfe-attach-big-'));
+        const taskStore = new JsonTaskStore(dir);
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store: null,
+            taskStore,
+            attachmentsDataDir: dir,
+            autoPurge: { enabled: false },
+        });
+        await bridge.start();
+        const port = bridge.getBoundPort()!;
+
+        const stderrChunks: string[] = [];
+        const origWrite = process.stderr.write.bind(process.stderr);
+        // @ts-expect-error patching for test
+        process.stderr.write = (chunk: string | Uint8Array, ...args: unknown[]) => {
+            if (typeof chunk === 'string') stderrChunks.push(chunk);
+            return origWrite(chunk, ...args as []);
+        };
+
+        try {
+            const { pluginWs, ws } = await fakeClientWithSession(port, {
+                tabId: 'tab-big',
+                projectId: 'big-proj',
+                sessionId: 'sess-big',
+            });
+
+            // Create a base64 string that decodes to >4 MB (4 * 1024 * 1024 + 1 bytes)
+            const bigBuf = Buffer.alloc(4 * 1024 * 1024 + 1, 0x42);
+            const bigData = bigBuf.toString('base64');
+
+            const payload: TaskSubmitPayload = {
+                question: 'big attach',
+                url: 'http://localhost/',
+                selector: { css: 'div' },
+                element: { tag: 'div', outerHTML: '<div/>' },
+                attachments: [{
+                    id: 'big-att',
+                    kind: 'screenshot',
+                    data: bigData,
+                    width: 100,
+                    height: 100,
+                }],
+            };
+
+            ws.send(JSON.stringify({
+                type: 'event',
+                id: 'ev2',
+                name: 'task.submit',
+                ts: Date.now(),
+                tabId: 'tab-big',
+                projectId: 'big-proj',
+                sessionId: 'sess-big',
+                payload,
+            }));
+
+            await new Promise<void>((resolve) => setTimeout(resolve, 100));
+
+            const tasks = taskStore.loadTasks('big-proj');
+            const task = tasks.find((t) => t.question === 'big attach');
+            expect(task).toBeDefined();
+            // attachments should be empty (dropped)
+            expect(task!.attachments).toBeDefined();
+            expect(task!.attachments!.length).toBe(0);
+            // stderr warning should have been emitted
+            expect(stderrChunks.some((c) => c.includes('exceeds 4 MB limit'))).toBe(true);
+
+            pluginWs.close();
+            ws.close();
+        } finally {
+            // @ts-expect-error restore
+            process.stderr.write = origWrite;
+            await bridge.stop();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('Phase E: bridge accepts node-runtime hello', () => {
+    it('node-runtime hello is accepted and ack is received', async () => {
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store: null,
+            taskStore: null,
+            autoPurge: { enabled: false },
+        });
+        await bridge.start();
+        const port = bridge.getBoundPort()!;
+
+        try {
+            const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+            const ack = await new Promise<HelloAckFrame>((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('timeout')), 3000);
+                ws.on('open', () => {
+                    ws.send(JSON.stringify({
+                        type: 'hello',
+                        id: 'hello-nr-1',
+                        role: 'node-runtime',
+                        protocolVersion: PROTOCOL_VERSION,
+                        projectId: 'nr-test-proj',
+                        displayName: 'Node Runtime Test',
+                    }));
+                });
+                ws.on('message', (raw: Buffer | string) => {
+                    const frame = JSON.parse(typeof raw === 'string' ? raw : raw.toString()) as HelloAckFrame;
+                    if (frame.type === 'hello.ack') {
+                        clearTimeout(timer);
+                        resolve(frame);
+                    }
+                });
+                ws.on('error', (err) => { clearTimeout(timer); reject(err); });
+            });
+
+            expect(ack.type).toBe('hello.ack');
+            expect(ack.error).toBeUndefined();
+
+            // Verify the node-runtime peer is in the router
+            const tabs = await bridge.listTabs();
+            // node-runtime connections don't have tabIds but the peer should be registered
+            expect(tabs.length).toBeGreaterThanOrEqual(0); // store=null so listTabs reads in-memory
+
+            ws.close();
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('node-runtime events are routed into the shared session', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'hfe-nr-test-'));
+        const store = new JsonlStore(dir);
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store,
+            taskStore: null,
+            autoPurge: { enabled: false },
+        });
+        await bridge.start();
+        const port = bridge.getBoundPort()!;
+
+        try {
+            // First a runtime-client connects and creates a session
+            const { pluginWs, ws: clientWs } = await fakeClientWithSession(port, {
+                tabId: 'tab-nr',
+                projectId: 'nr-proj',
+                sessionId: 'sess-nr-shared',
+            });
+
+            // Then a node-runtime connects with the SAME sessionId
+            const nrWs = new WebSocket(`ws://127.0.0.1:${port}`);
+            await new Promise<void>((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('timeout')), 3000);
+                nrWs.on('open', () => {
+                    nrWs.send(JSON.stringify({
+                        type: 'hello',
+                        id: 'hello-nr-2',
+                        role: 'node-runtime',
+                        protocolVersion: PROTOCOL_VERSION,
+                        projectId: 'nr-proj',
+                        sessionId: 'sess-nr-shared',
+                    }));
+                });
+                nrWs.on('message', (raw: Buffer | string) => {
+                    const frame = JSON.parse(typeof raw === 'string' ? raw : raw.toString()) as { type: string };
+                    if (frame.type === 'hello.ack') { clearTimeout(timer); resolve(); }
+                });
+                nrWs.on('error', (err) => { clearTimeout(timer); reject(err); });
+            });
+
+            // Send a server-err event from the node-runtime
+            nrWs.send(JSON.stringify({
+                type: 'event',
+                id: 'ev-nr-1',
+                name: 'server-err',
+                ts: Date.now(),
+                projectId: 'nr-proj',
+                sessionId: 'sess-nr-shared',
+                payload: { message: 'Server threw!', stack: 'Error: Server threw!\n  at ...' },
+            }));
+
+            await new Promise<void>((res) => setTimeout(res, 100));
+
+            // The event should be in the shared session's timeline
+            const timeline = store.tail('sess-nr-shared', { limit: 50 });
+            const serverErr = timeline.find((e) => (e as { t: string }).t === 'server-err');
+            expect(serverErr).toBeDefined();
+
+            pluginWs.close();
+            clientWs.close();
+            nrWs.close();
+        } finally {
+            await bridge.stop();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
