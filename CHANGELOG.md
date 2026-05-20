@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] — 2026-05-20
+
+### Fixed — CI hybrid publish unblocks the three stuck tarballs
+
+v0.6.0 released 6 of 10 tarballs to npm. Three failed PUT with E404:
+- `@harnessa-fe/next` and `@harnessa-fe/react-jsx` — have trusted publisher configured on npmjs.com, which rejects token PUT.
+- `@harnessa-fe/node-runtime` — brand-new package, no trusted publisher, token couldn't create it through the same single-auth path.
+
+The release workflow now publishes in **two passes**:
+1. **OIDC** (no token in env) — works for trusted-publisher packages.
+2. **NPM_TOKEN** — picks up whatever pass 1 didn't.
+
+Flipping a package's trusted-publisher config on npmjs.com auto-routes it between modes. No code change inside the published packages.
+
 ## [0.6.0] — 2026-05-20
 
 ### Added — annotated screenshots travel with every task

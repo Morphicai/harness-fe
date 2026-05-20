@@ -1,6 +1,6 @@
 {
     "name": "@harnessa-fe/node-runtime",
-    "version": "0.6.0",
+    "version": "0.6.1",
     "description": "Node.js server-side SDK for Harnessa-FE. Captures server errors, console output, and Route Handler traces — links them to the browser session via a shared sessionId.",
     "type": "module",
     "license": "MIT",

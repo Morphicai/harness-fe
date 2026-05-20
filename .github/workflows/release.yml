@@ -8,8 +8,19 @@ on:
             - 'v*.*.*'
 
 # Strict least-privilege.
-#   id-token: write → required for OIDC / npm provenance
 #   contents: write → required by softprops/action-gh-release to create a release
+#   id-token: write → required for BOTH sigstore provenance (--provenance flag)
+#                     AND for OIDC trusted publishing.
+#
+# Hybrid publish strategy (see "Publish to npm" step below):
+#   Pass 1: OIDC (no token). Works for packages with trusted publisher
+#     configured on npmjs.com — currently @harnessa-fe/next and
+#     @harnessa-fe/react-jsx.
+#   Pass 2: NPM_TOKEN. Picks up everything pass 1 didn't (incl. new
+#     packages like @harnessa-fe/node-runtime and the original 7
+#     non-trusted ones).
+# Flip a package's trusted-publisher config on npmjs.com to migrate it
+# between modes — the workflow adapts automatically.
 permissions:
     contents: write
     id-token: write
@@ -112,31 +123,70 @@ jobs:
                   done
                   ls -la "$TARBALL_DIR"
 
-            - name: Publish to npm with provenance
-              # Auth: explicit NPM_TOKEN for now (until trusted publisher is
-              # configured for every package). Once all packages have trusted
-              # publishers on npmjs.com, drop NODE_AUTH_TOKEN and OIDC kicks
-              # in automatically via id-token: write.
-              # Provenance still attaches via --provenance flag.
+            - name: Publish to npm — hybrid auth (OIDC for trusted-publisher
+                  packages, NPM_TOKEN for the rest)
+              # Two-pass strategy that automatically picks the right auth
+              # mechanism per package:
+              #
+              #   Pass 1 (no NODE_AUTH_TOKEN in env):
+              #       For packages with a trusted publisher configured on
+              #       npmjs.com, npm CLI 11+ uses the GitHub Actions OIDC
+              #       token (id-token: write permission) and PUTs without
+              #       a token credential. Packages without trusted publisher
+              #       configured get a 4xx and fall through to pass 2.
+              #
+              #   Pass 2 (NODE_AUTH_TOKEN set):
+              #       Plain old token publish for whatever pass 1 didn't
+              #       cover. Both new (no-history) and existing packages
+              #       go through here.
+              #
+              # The reason we can't just always-NODE_AUTH_TOKEN: npmjs.com
+              # rejects token-based PUT with E404 once a package has a
+              # trusted publisher configured (it considers token publish
+              # unauthorized for that package). The reason we can't drop
+              # the token entirely: brand-new packages and packages without
+              # trusted publisher rely on it.
               env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
                   NPM_CONFIG_PROVENANCE: 'true'
+                  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
               run: |
-                  # NO `set -e` here — one package's failure (e.g. missing
-                  # trusted-publisher config) must not block the rest.
+                  # NO `set -e` here — one package's failure must not block the rest.
                   TARBALL_DIR="${{ github.workspace }}/tarballs"
                   PUBLISHED=()
+                  REMAINING=()
                   SKIPPED=()
+
+                  # Pass 1 — OIDC (no token). Trusted-publisher packages succeed here.
+                  echo "── pass 1: OIDC publish ──────────────────────"
                   for tgz in "$TARBALL_DIR"/*.tgz; do
                       name=$(basename "$tgz")
-                      echo "::group::publishing $name"
-                      if npm publish "$tgz" --access public --provenance; then
-                          PUBLISHED+=("$name")
+                      echo "::group::pass1 $name (OIDC)"
+                      # Explicitly unset auth so npm doesn't pick up the token from any default config.
+                      if env -u NODE_AUTH_TOKEN -u npm_config__authToken \
+                          npm publish "$tgz" --access public --provenance; then
+                          PUBLISHED+=("$name (oidc)")
                           echo "::endgroup::"
                       else
                           rc=$?
-                          SKIPPED+=("$name (exit $rc)")
-                          echo "::warning::failed to publish $name (exit $rc) — continuing"
+                          REMAINING+=("$tgz")
+                          echo "  → pass1 failed (exit $rc); will retry with token in pass 2"
+                          echo "::endgroup::"
+                      fi
+                  done
+
+                  # Pass 2 — token. Run for whatever pass 1 didn't cover.
+                  echo "── pass 2: token publish (${#REMAINING[@]} remaining) ──"
+                  for tgz in "${REMAINING[@]}"; do
+                      name=$(basename "$tgz")
+                      echo "::group::pass2 $name (token)"
+                      if NODE_AUTH_TOKEN="$NPM_TOKEN" \
+                          npm publish "$tgz" --access public --provenance; then
+                          PUBLISHED+=("$name (token)")
+                          echo "::endgroup::"
+                      else
+                          rc=$?
+                          SKIPPED+=("$name (token exit $rc)")
+                          echo "::warning::failed to publish $name on both passes (exit $rc)"
                           echo "::endgroup::"
                       fi
                   done
@@ -147,8 +197,7 @@ jobs:
                   echo "skipped (${#SKIPPED[@]}):"
                   for n in "${SKIPPED[@]}"; do echo "  ✗ $n"; done
 
-                  # Fail the job only if NOTHING published. A partial release is
-                  # acceptable when new packages lack trusted-publisher config.
+                  # Fail the job only if NOTHING published.
                   if [ ${#PUBLISHED[@]} -eq 0 ]; then
                       echo "::error::no packages published"
                       exit 1
