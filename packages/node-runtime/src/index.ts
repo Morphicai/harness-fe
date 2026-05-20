@@ -25,13 +25,12 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
-import { WebSocket } from 'ws';
 import {
-    DEFAULT_WS_PORT,
     PROTOCOL_VERSION,
     type EventFrame,
     type HelloAckFrame,
 } from '@harnessa-fe/protocol';
+import { selectTransport, type Transport } from './transport.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,6 +43,8 @@ export interface RegisterOptions {
     buildId?: string;
     /** Daemon WebSocket URL. Defaults to `ws://127.0.0.1:47729`. */
     mcpUrl?: string;
+    /** Daemon HTTP base URL (for HttpBatchTransport). Derived from mcpUrl when absent. */
+    baseUrl?: string;
     /**
      * Capture `console.*` output and forward to daemon as `server-log` events.
      * Default: off. Set `HARNESSA_FE_NODE_CONSOLE=1` env var to enable at
@@ -80,76 +81,14 @@ export function getRequestSessionId(): string | undefined {
 
 // ── SDK state ──────────────────────────────────────────────────────────────────
 
-let ws: WebSocket | undefined;
+let transport: Transport | undefined;
 let isRegistered = false;
-let reconnectAttempts = 0;
-let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 let registeredOpts: RegisterOptions | undefined;
-const MAX_RECONNECT_DELAY_MS = 30_000;
-
-// ── WebSocket connection ──────────────────────────────────────────────────────
-
-function connect(opts: RegisterOptions): void {
-    const url = opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
-
-    const socket = new WebSocket(url);
-    ws = socket;
-
-    socket.on('open', () => {
-        reconnectAttempts = 0;
-        // Send hello frame with role=node-runtime.
-        const hello = {
-            type: 'hello',
-            id: randomUUID(),
-            role: 'node-runtime' as const,
-            protocolVersion: PROTOCOL_VERSION,
-            projectId: opts.projectId,
-            displayName: opts.displayName ?? opts.projectId,
-            buildId: opts.buildId,
-        };
-        socket.send(JSON.stringify(hello));
-    });
-
-    socket.on('message', (raw: Buffer | string) => {
-        try {
-            const frame = JSON.parse(typeof raw === 'string' ? raw : raw.toString()) as { type: string };
-            if (frame.type === 'hello.ack') {
-                const ack = frame as HelloAckFrame;
-                void ack; // acknowledged — SDK is live
-            }
-        } catch {
-            // ignore parse errors
-        }
-    });
-
-    socket.on('close', () => {
-        ws = undefined;
-        scheduleReconnect(opts);
-    });
-
-    socket.on('error', () => {
-        // close event will follow; let reconnect logic handle it
-        ws = undefined;
-    });
-}
-
-function scheduleReconnect(opts: RegisterOptions): void {
-    if (reconnectTimer) return;
-    reconnectAttempts++;
-    const delay = Math.min(
-        500 * Math.pow(2, reconnectAttempts - 1),
-        MAX_RECONNECT_DELAY_MS,
-    );
-    reconnectTimer = setTimeout(() => {
-        reconnectTimer = undefined;
-        connect(opts);
-    }, delay);
-}
 
 // ── Core send helper ──────────────────────────────────────────────────────────
 
 function sendEvent(name: string, payload: unknown, ctx?: EventContext): void {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!transport) return;
     const frame: EventFrame = {
         type: 'event',
         id: randomUUID(),
@@ -160,11 +99,7 @@ function sendEvent(name: string, payload: unknown, ctx?: EventContext): void {
         sessionId: ctx?.sessionId ?? getRequestSessionId(),
         payload,
     };
-    try {
-        ws.send(JSON.stringify(frame));
-    } catch {
-        // swallow — dev tool, must not throw in production paths
-    }
+    transport.send(frame);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -174,19 +109,11 @@ function sendEvent(name: string, payload: unknown, ctx?: EventContext): void {
  * Allows test suites to re-register with a different config.
  */
 export function _resetForTest(): void {
-    if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = undefined;
-    }
-    if (ws) {
-        // Remove listeners BEFORE terminate so the 'close' handler doesn't
-        // fire scheduleReconnect() after we've already reset state.
-        try { ws.removeAllListeners(); } catch { /* ignore */ }
-        try { ws.terminate(); } catch { /* ignore */ }
-        ws = undefined;
+    if (transport) {
+        transport.close();
+        transport = undefined;
     }
     isRegistered = false;
-    reconnectAttempts = 0;
     registeredOpts = undefined;
 }
 
@@ -194,16 +121,32 @@ export function _resetForTest(): void {
  * Register the node-runtime SDK. Idempotent — safe to call multiple times;
  * only the first invocation has effect.
  *
- * Opens a long-lived WebSocket to the Harnessa-FE daemon, installs
- * `process.on('uncaughtException')` + `unhandledRejection` handlers, and
- * optionally intercepts `console.*`.
+ * Selects a transport automatically:
+ *   - Edge Runtime (NEXT_RUNTIME=edge) or HARNESSA_FE_TRANSPORT=http → HttpBatchTransport
+ *   - `ws` module available → WsTransport
+ *   - Fallback → HttpBatchTransport
+ *
+ * Installs `process.on('uncaughtException')` + `unhandledRejection` handlers,
+ * and optionally intercepts `console.*`.
  */
 export function register(opts: RegisterOptions): void {
     if (isRegistered) return;
     isRegistered = true;
     registeredOpts = opts;
 
-    connect(opts);
+    const hello = {
+        type: 'hello' as const,
+        id: randomUUID(),
+        role: 'node-runtime' as const,
+        protocolVersion: PROTOCOL_VERSION,
+        projectId: opts.projectId,
+        displayName: opts.displayName ?? opts.projectId,
+        buildId: opts.buildId,
+    };
+
+    transport = selectTransport(opts);
+    void transport.open(hello);
+
     installProcessHandlers();
 
     const captureConsole = opts.captureConsole ?? process.env.HARNESSA_FE_NODE_CONSOLE === '1';
@@ -321,3 +264,6 @@ function installConsoleCapture(): void {
         };
     }
 }
+
+// Re-export HelloAckFrame type for callers that type-guard WS frames
+export type { HelloAckFrame };

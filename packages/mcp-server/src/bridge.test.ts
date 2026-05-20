@@ -1490,3 +1490,171 @@ describe('Phase E: bridge accepts node-runtime hello', () => {
         }
     });
 });
+
+// ─── POST /events (HTTP-batch transport) ─────────────────────────────────────
+
+describe('Bridge — POST /events (HTTP batch transport)', () => {
+    it('persists events from POST /events to sessions/{sid}/timeline.jsonl', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'harnessa-http-batch-'));
+        const store = new JsonlStore(dir);
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store,
+            taskStore: null,
+            autoPurge: { enabled: false },
+        });
+        try {
+            await bridge.start();
+            const port = bridge.getBoundPort()!;
+
+            const body = JSON.stringify({
+                hello: {
+                    role: 'node-runtime',
+                    projectId: 'http-proj',
+                    sessionId: 'sess-http-1',
+                    buildId: 'build-x',
+                },
+                events: [
+                    { id: 'e1', name: 'server-err', ts: Date.now(), payload: { message: 'http error' } },
+                    { id: 'e2', name: 'server-log', ts: Date.now() + 1, payload: { level: 'info', args: ['hello'] } },
+                    { id: 'e3', name: 'server-action', ts: Date.now() + 2, payload: { status: 'ok', durationMs: 10 } },
+                ],
+            });
+
+            const res = await fetch(`http://127.0.0.1:${port}/events`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', host: `127.0.0.1:${port}` },
+                body,
+            });
+            expect(res.status).toBe(204);
+
+            // Wait for the async store write to land
+            await new Promise<void>((resolve) => setTimeout(resolve, 100));
+            await store.close();
+
+            const timeline = store.tail('sess-http-1', { n: 50 });
+            expect(timeline.length).toBeGreaterThanOrEqual(3);
+
+            const errEvent = timeline.find((e) => e.t === 'server-err');
+            expect(errEvent).toBeDefined();
+            expect((errEvent!.d as { message: string }).message).toBe('http error');
+
+            const logEvent = timeline.find((e) => e.t === 'server-log');
+            expect(logEvent).toBeDefined();
+
+            const actionEvent = timeline.find((e) => e.t === 'server-action');
+            expect(actionEvent).toBeDefined();
+        } finally {
+            await bridge.stop();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('GET /events/ping returns 200 with version', async () => {
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store: null, taskStore: null });
+        try {
+            await bridge.start();
+            const port = bridge.getBoundPort()!;
+            const res = await fetch(`http://127.0.0.1:${port}/events/ping`);
+            expect(res.status).toBe(200);
+            const json = await res.json() as { ok: boolean; version: string };
+            expect(json.ok).toBe(true);
+            expect(typeof json.version).toBe('string');
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('returns 400 for invalid batch body', async () => {
+        const bridge = new Bridge({ port: 0, host: '127.0.0.1', store: null, taskStore: null });
+        try {
+            await bridge.start();
+            const port = bridge.getBoundPort()!;
+            const res = await fetch(`http://127.0.0.1:${port}/events`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ hello: { role: 'runtime-client' }, events: [] }),
+            });
+            expect(res.status).toBe(400);
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('WS client and HTTP-batch client with same sessionId share SessionMeta.participants', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'harnessa-shared-sess-'));
+        const store = new JsonlStore(dir);
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store,
+            taskStore: null,
+            autoPurge: { enabled: false },
+        });
+        try {
+            await bridge.start();
+            const port = bridge.getBoundPort()!;
+            const sharedSessionId = 'sess-shared-ws-http';
+
+            // Connect a vite-plugin (builds project)
+            const pluginWs = new WebSocket(`ws://127.0.0.1:${port}`);
+            await new Promise<void>((resolve, reject) => {
+                pluginWs.once('open', () => resolve());
+                pluginWs.once('error', reject);
+            });
+            pluginWs.send(JSON.stringify({ type: 'hello', id: 'p1', role: 'vite-plugin', projectId: 'shared-proj' }));
+            await new Promise<void>((resolve) => { pluginWs.once('message', () => resolve()); });
+
+            // Connect runtime-client with the same sessionId
+            const clientWs = new WebSocket(`ws://127.0.0.1:${port}`);
+            await new Promise<void>((resolve, reject) => {
+                clientWs.once('open', () => resolve());
+                clientWs.once('error', reject);
+            });
+            clientWs.send(JSON.stringify({
+                type: 'hello', id: 'c1', role: 'runtime-client',
+                projectId: 'shared-proj', tabId: 'tab-shared', sessionId: sharedSessionId,
+            }));
+            await new Promise<void>((resolve) => { clientWs.once('message', () => resolve()); });
+
+            // POST HTTP batch with the SAME sessionId from node-runtime
+            const batchBody = JSON.stringify({
+                hello: {
+                    role: 'node-runtime',
+                    projectId: 'shared-proj',
+                    sessionId: sharedSessionId,
+                    buildId: 'build-shared',
+                },
+                events: [
+                    { id: 'ev1', name: 'server-err', ts: Date.now(), payload: { message: 'from http' } },
+                ],
+            });
+            const httpRes = await fetch(`http://127.0.0.1:${port}/events`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: batchBody,
+            });
+            expect(httpRes.status).toBe(204);
+
+            await new Promise<void>((resolve) => setTimeout(resolve, 100));
+
+            // Both the WS and HTTP paths should have written to the same timeline
+            const timeline = store.tail(sharedSessionId, { n: 50 });
+            const httpEvent = timeline.find((e) => e.t === 'server-err');
+            expect(httpEvent).toBeDefined();
+
+            // The session's participants should include 'shared-proj'
+            const sessionMeta = store.getSession(sharedSessionId);
+            expect(sessionMeta).toBeDefined();
+            const hasProject = sessionMeta!.participants.some((p) => p.projectId === 'shared-proj');
+            expect(hasProject).toBe(true);
+
+            pluginWs.close();
+            clientWs.close();
+        } finally {
+            await bridge.stop();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});

@@ -23,6 +23,10 @@
         "./auto": {
             "types": "./dist/auto.d.ts",
             "default": "./dist/auto.js"
+        },
+        "./auto-edge": {
+            "types": "./dist/auto-edge.d.ts",
+            "default": "./dist/auto-edge.js"
         }
     },
     "files": [
@@ -38,14 +42,22 @@
         "test": "vitest run"
     },
     "dependencies": {
-        "@harnessa-fe/protocol": "workspace:*",
+        "@harnessa-fe/protocol": "workspace:*"
+    },
+    "peerDependencies": {
         "ws": "^8.18.0"
+    },
+    "peerDependenciesMeta": {
+        "ws": {
+            "optional": true
+        }
     },
     "devDependencies": {
         "@types/node": "^22.0.0",
         "@types/ws": "^8.5.10",
         "typescript": "^5.6.0",
-        "vitest": "^2.1.9"
+        "vitest": "^2.1.9",
+        "ws": "^8.18.0"
     },
     "publishConfig": {
         "access": "public"
