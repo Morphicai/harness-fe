@@ -82,6 +82,20 @@ export class RuntimeClient {
     readonly tabId: string;
     readonly sessionId: string;
     readonly parentProjectId?: string;
+
+    /** Read-only accessors exposed for the in-page info panel. */
+    get projectId(): string { return this.opts.projectId; }
+    get buildId(): string | undefined { return this.opts.buildId; }
+    get displayName(): string | undefined { return this.opts.displayName; }
+    /** WebSocket state: 'connecting' | 'open' | 'closed'. */
+    getConnectionState(): 'connecting' | 'open' | 'closed' {
+        if (!this.ws) return 'closed';
+        switch (this.ws.readyState) {
+            case WebSocket.OPEN: return 'open';
+            case WebSocket.CONNECTING: return 'connecting';
+            default: return 'closed';
+        }
+    }
     private pageLoadSent = false;
     private readonly ctx: CommandContext = { capture: getCaptureStore() };
     private readonly recorder = new RrwebRecorder((chunk) => this.sendEvent(EVENT_NAME.RRWEB, chunk));
