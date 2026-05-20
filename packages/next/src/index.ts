@@ -21,3 +21,4 @@
  * webpack + Turbopack. Production builds drop the integration entirely.
  */
 export { HarnessaScript, type HarnessaScriptProps } from './script.js';
+export { getSessionId } from './sessionId.js';

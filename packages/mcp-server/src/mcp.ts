@@ -488,6 +488,35 @@ function registerTools(server: McpServer, bridge: IBridge): void {
             return ok({ ok: true, task });
         },
     );
+
+    server.registerTool(
+        'tasks.get_attachment',
+        {
+            description:
+                'Return a task screenshot attachment as a vision-ready image block. ' +
+                'Call after tasks.claim when the task summary includes an attachment pointer. ' +
+                'Compatible with Claude vision and GPT-4V.',
+            inputSchema: {
+                taskId: z.string().describe('Task id (from tasks.pending or tasks.claim).'),
+                attachmentId: z.string().describe('Attachment id (from task.attachments[].id).'),
+            },
+        },
+        async ({ taskId, attachmentId }) => {
+            const base64 = await bridge.getTaskAttachmentData(taskId, attachmentId);
+            if (!base64) {
+                throw new Error(`tasks.get_attachment: attachment not found (taskId=${taskId}, attachmentId=${attachmentId})`);
+            }
+            return {
+                content: [
+                    {
+                        type: 'image' as const,
+                        mimeType: 'image/png' as const,
+                        data: base64,
+                    },
+                ],
+            };
+        },
+    );
 }
 
 // ─── Store tools (session history, timeline, memory) ──────────────────────────

@@ -1,0 +1,62 @@
+{
+    "name": "@harnessa-fe/node-runtime",
+    "version": "0.5.0",
+    "description": "Node.js server-side SDK for Harnessa-FE. Captures server errors, console output, and Route Handler traces — links them to the browser session via a shared sessionId.",
+    "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "directory": "packages/node-runtime"
+    },
+    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "bugs": {
+        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+    },
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./auto": {
+            "types": "./dist/auto.d.ts",
+            "default": "./dist/auto.js"
+        }
+    },
+    "files": [
+        "dist",
+        "src",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch --preserveWatchOutput",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@harnessa-fe/protocol": "workspace:*",
+        "ws": "^8.18.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@types/ws": "^8.5.10",
+        "typescript": "^5.6.0",
+        "vitest": "^2.1.9"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "keywords": [
+        "harnessa-fe",
+        "node",
+        "server",
+        "next.js",
+        "mcp",
+        "agent",
+        "tracing"
+    ]
+}

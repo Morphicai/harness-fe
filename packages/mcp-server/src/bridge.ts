@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
 import { join as joinPath } from 'node:path';
 import { homedir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
     DEFAULT_WS_PORT,
     EVENT_NAME,
@@ -33,6 +34,7 @@ import {
     type QueryResponseFrame,
     type TabInfo,
     type Task,
+    type TaskAttachment,
     type TaskStatus,
     frameSchema,
 } from '@harnessa-fe/protocol';
@@ -43,6 +45,7 @@ import {
     JsonlStore,
     JsonTaskStore,
     JsonMemoryStore,
+    sanitizeId as sanitizeStoreId,
     type IStore,
     type ITaskStore,
     type IMemoryStore,
@@ -72,6 +75,11 @@ export interface IBridge {
      * Returns undefined when the bridge does not serve HTTP (e.g. follower mode).
      */
     getViewerBaseUrl(): string | undefined;
+    /**
+     * Read an attachment PNG for a task. Returns base64-encoded PNG or null.
+     * The task must exist in the in-memory map so we can look up its projectId.
+     */
+    getTaskAttachmentData(taskId: string, attachmentId: string): Promise<string | null>;
 }
 
 export interface SendCommandOptions {
@@ -115,6 +123,11 @@ export interface BridgeOptions {
      */
     memoryStore?: IMemoryStore | null;
     /**
+     * Root data directory for task attachment binaries. Defaults to the same
+     * ~/.harnessa/data directory used by the stores. Override in tests.
+     */
+    attachmentsDataDir?: string;
+    /**
      * Automatic retention policy enforcement.
      *
      * Without this, manual `session.purge` MCP calls are the only thing that
@@ -152,7 +165,8 @@ export class Bridge implements IBridge {
     private pending = new Map<string, PendingCommand>();
     private eventListeners = new Set<EventListener>();
     private tasks = new Map<string, Task>();
-    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore' | 'autoPurge'>>;
+    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore' | 'autoPurge' | 'attachmentsDataDir'>>;
+    private readonly attachDataDir: string;
     private autoPurgeOpts: Required<NonNullable<BridgeOptions['autoPurge']>>;
     /** Set by start() when auto-purge is enabled; cleared by stop(). */
     private autoPurgeTimer?: NodeJS.Timeout;
@@ -181,6 +195,7 @@ export class Bridge implements IBridge {
         this.memoryStore = opts.memoryStore === null
             ? new JsonMemoryStore(DEFAULT_DATA_DIR)
             : (opts.memoryStore ?? new JsonMemoryStore(DEFAULT_DATA_DIR));
+        this.attachDataDir = opts.attachmentsDataDir ?? DEFAULT_DATA_DIR;
         this.opts = {
             port: opts.port ?? DEFAULT_WS_PORT,
             host: opts.host ?? '127.0.0.1',
@@ -430,6 +445,12 @@ export class Bridge implements IBridge {
         return task;
     }
 
+    async getTaskAttachmentData(taskId: string, attachmentId: string): Promise<string | null> {
+        const task = this.tasks.get(taskId);
+        if (!task) return null;
+        return this.readTaskAttachment(task.projectId, taskId, attachmentId);
+    }
+
     async resolveTask(id: string, note?: string): Promise<Task | undefined> {
         const task = this.tasks.get(id);
         if (!task) return undefined;
@@ -476,19 +497,28 @@ export class Bridge implements IBridge {
             return;
         }
         const id = randomUUID().slice(0, 10);
+        const projectId = peer.projectId ?? frame.projectId ?? 'unknown';
+
+        // Process attachments: decode base64, write to disk, store pointer.
+        let persistedAttachments: TaskAttachment[] | undefined;
+        if (parsed.data.attachments && parsed.data.attachments.length > 0) {
+            persistedAttachments = this.writeTaskAttachments(projectId, id, parsed.data.attachments);
+        }
+
         const task: Task = {
             id,
             tabId,
             sessionId: peer.sessionId,
             visitorId: peer.visitorId,
             userId: peer.userId,
-            projectId: peer.projectId ?? frame.projectId ?? 'unknown',
+            projectId,
             url: parsed.data.url,
             status: 'pending',
             question: parsed.data.question,
             selector: parsed.data.selector,
             element: parsed.data.element,
             createdAt: frame.ts ?? Date.now(),
+            attachments: persistedAttachments,
         };
         this.tasks.set(id, task);
         if (this.tasks.size > TASK_QUEUE_CAP) {
@@ -497,6 +527,93 @@ export class Bridge implements IBridge {
             if (oldest !== undefined) this.tasks.delete(oldest);
         }
         this.persistTasks();
+    }
+
+    /**
+     * Write attachment data to disk and return persisted pointer objects.
+     * Drops attachments if the total decoded size exceeds 4 MB.
+     */
+    private writeTaskAttachments(projectId: string, taskId: string, attachments: TaskAttachment[]): TaskAttachment[] {
+        const MAX_BYTES = 4 * 1024 * 1024;
+        const result: TaskAttachment[] = [];
+
+        // Calculate total bytes first
+        let totalBytes = 0;
+        const buffers: Buffer[] = [];
+        for (const att of attachments) {
+            if (!att.data) continue;
+            try {
+                const buf = Buffer.from(att.data, 'base64');
+                totalBytes += buf.length;
+                buffers.push(buf);
+            } catch {
+                buffers.push(Buffer.alloc(0));
+            }
+        }
+
+        if (totalBytes > MAX_BYTES) {
+            process.stderr.write(
+                `[harnessa-fe] task ${taskId}: attachments total ${(totalBytes / 1024 / 1024).toFixed(2)} MB exceeds 4 MB limit — dropping attachments\n`,
+            );
+            return [];
+        }
+
+        const attachDir = joinPath(this.attachDataDir, 'projects', sanitizeStoreId(projectId), 'task-attachments', taskId);
+        try {
+            mkdirSync(attachDir, { recursive: true });
+        } catch {
+            return [];
+        }
+
+        let bufIdx = 0;
+        for (const att of attachments) {
+            if (!att.data) {
+                bufIdx++;
+                continue;
+            }
+            const buf = buffers[bufIdx++];
+            if (!buf || buf.length === 0) continue;
+            const filePath = joinPath(attachDir, `${att.id}.png`);
+            try {
+                writeFileSync(filePath, buf);
+                const relPath = `task-attachments/${taskId}/${att.id}.png`;
+                result.push({
+                    id: att.id,
+                    kind: att.kind,
+                    width: att.width,
+                    height: att.height,
+                    path: relPath,
+                    // data is intentionally omitted — tasks.json stays small
+                });
+            } catch (err) {
+                process.stderr.write(
+                    `[harnessa-fe] failed to write attachment ${att.id}: ${err instanceof Error ? err.message : String(err)}\n`,
+                );
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Read an attachment from disk for a given task.
+     * Returns the base64 data if found, null otherwise.
+     */
+    readTaskAttachment(projectId: string, taskId: string, attachmentId: string): string | null {
+        const filePath = joinPath(
+            this.attachDataDir,
+            'projects',
+            sanitizeStoreId(projectId),
+            'task-attachments',
+            taskId,
+            `${attachmentId}.png`,
+        );
+        if (!existsSync(filePath)) return null;
+        try {
+            const buf = readFileSync(filePath);
+            return buf.toString('base64');
+        } catch {
+            return null;
+        }
     }
 
     /**
@@ -802,10 +919,33 @@ export class Bridge implements IBridge {
                             participants,
                         });
                         this.connToStoreId.set(connectionId, sessionId);
+                    } else if (frame.role === 'node-runtime') {
+                        // Node SDK: server-side events are linked to the per-request sessionId
+                        // when present (the session was already created by the browser runtime-client).
+                        // Process-level events without a sessionId use a per-project orphan bucket.
+                        const sessionId = frame.sessionId
+                            ?? `server-orphans:${sanitizeStoreId(frame.projectId)}`;
+                        if (!frame.sessionId) {
+                            // Ensure the orphan bucket session exists. We use a synthetic
+                            // tabId so upsertSession's required field is satisfied.
+                            this.store.upsertSession(sessionId, {
+                                tabId: 'server-orphans',
+                                startedAt: Date.now(),
+                                participants: [{ projectId: frame.projectId, joinedAt: Date.now() }],
+                            });
+                        }
+                        // For the shared-session case, the runtime-client already created it;
+                        // no upsert needed — we just route events there via connToStoreId.
+                        this.connToStoreId.set(connectionId, sessionId);
                     }
                 }
-                // If store is null but taskStore is available, still load tasks for build plugins
-                if (!this.store && this.taskStore && (frame.role === 'vite-plugin' || frame.role === 'webpack-plugin')) {
+                // If store is null but taskStore is available, load tasks for build plugins
+                // and node-runtime (so MCP tools can serve tasks from both kinds of peers).
+                if (!this.store && this.taskStore && (
+                    frame.role === 'vite-plugin' ||
+                    frame.role === 'webpack-plugin' ||
+                    frame.role === 'node-runtime'
+                )) {
                     const projectId = frame.projectId;
                     if (projectId) this.loadTasksForProject(projectId);
                 }
@@ -851,7 +991,8 @@ export class Bridge implements IBridge {
                     // For build plugins storeId is the buildId — events from plugins
                     // are appended to the most recent session for that project.
                     let storeSessionId: string | undefined;
-                    if (peer.role === 'runtime-client') {
+                    if (peer.role === 'runtime-client' || peer.role === 'node-runtime') {
+                        // For these roles, storeId IS the sessionId (or the orphan bucket id).
                         storeSessionId = storeId;
                     } else if (storeId) {
                         // Build plugin: find most recent session for this project
@@ -1017,7 +1158,18 @@ export class Bridge implements IBridge {
                     if (args.status) mine = mine.filter((t) => t.status === args.status);
                     mine.sort((a, b) => b.createdAt - a.createdAt);
                     if (args.limit) mine = mine.slice(0, args.limit);
-                    reply({ ok: true, result: { tasks: mine } });
+                    // Inline first attachment's base64 if ≤ 200 KB
+                    const MAX_INLINE = 200 * 1024; // base64 chars
+                    const withThumbs = mine.map((t) => {
+                        if (!t.attachments || t.attachments.length === 0) return t;
+                        const first = t.attachments[0];
+                        if (!first.path) return t;
+                        const b64 = this.readTaskAttachment(t.projectId, t.id, first.id);
+                        if (!b64 || b64.length > MAX_INLINE) return t;
+                        const inlined = { ...first, data: b64 };
+                        return { ...t, attachments: [inlined, ...t.attachments.slice(1)] };
+                    });
+                    reply({ ok: true, result: { tasks: withThumbs } });
                     return;
                 }
                 case 'tasks.get': {

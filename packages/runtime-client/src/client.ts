@@ -83,6 +83,27 @@ function generateSessionId(): string {
     }
 }
 
+/**
+ * Attempt to read a server-generated sessionId from `window.__HARNESSA_FE_SEED__`
+ * or from `window.__HARNESSA_FE__.sessionId` (both written by `<HarnessaScript>`).
+ *
+ * When found, the client adopts that id instead of generating its own. This
+ * ensures server-side events emitted by `@harnessa-fe/node-runtime` during
+ * the same request and client-side events all land in the same
+ * `sessions/{sessionId}/timeline.jsonl` on the daemon.
+ *
+ * Returns `undefined` when no seed is present (e.g. app doesn't use
+ * `<HarnessaScript>` or running outside a browser).
+ */
+function tryAdoptServerSeed(): string | undefined {
+    if (typeof window === 'undefined') return undefined;
+    const w = window as unknown as {
+        __HARNESSA_FE_SEED__?: { sessionId?: string };
+        __HARNESSA_FE__?: { sessionId?: string };
+    };
+    return w.__HARNESSA_FE_SEED__?.sessionId ?? w.__HARNESSA_FE__?.sessionId;
+}
+
 // Re-export inheritance helper. Implementation lives in parent-inherit.ts
 // so its unit tests can import it without dragging the rrweb-dependent
 // recorder module into the test runtime.
@@ -135,7 +156,8 @@ export class RuntimeClient {
     constructor(private readonly opts: ClientOptions) {
         const inherited = _tryInheritFromParent();
         this.tabId = inherited.tabId ?? getOrCreateTabId();
-        this.sessionId = inherited.sessionId ?? generateSessionId();
+        // Priority: iframe parent seed > server seed > fresh generation.
+        this.sessionId = inherited.sessionId ?? tryAdoptServerSeed() ?? generateSessionId();
         // Explicit option wins over runtime auto-detection.
         this.parentProjectId = opts.parentProjectId ?? inherited.parentProjectId;
         // Same-origin iframes share a visitorId so the journey stitches across
@@ -384,6 +406,7 @@ export function readInjectedConfig(): ClientOptions {
             parentProjectId?: string;
             displayName?: string;
             userId?: string;
+            sessionId?: string;
         };
     };
     return {

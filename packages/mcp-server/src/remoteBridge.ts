@@ -133,6 +133,11 @@ export class RemoteBridge implements IBridge {
         return `http://${this.host}:${this.port}`;
     }
 
+    async getTaskAttachmentData(_taskId: string, _attachmentId: string): Promise<string | null> {
+        // Follower mode: attachment reads are not proxied in v0.6; direct leader access needed.
+        return null;
+    }
+
     /**
      * Returns a RemoteStore that proxies all store read/query operations to
      * the leader via the mcp.call channel. Write operations (openSession,

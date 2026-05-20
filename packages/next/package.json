@@ -23,6 +23,10 @@
         "./script": {
             "types": "./dist/script.d.ts",
             "default": "./dist/script.js"
+        },
+        "./config": {
+            "types": "./dist/config.d.ts",
+            "default": "./dist/config.js"
         }
     },
     "files": [
