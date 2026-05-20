@@ -1,6 +1,6 @@
 {
     "name": "@harnessa-fe/log",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Isomorphic structured logger for Harnessa-FE. Works in Server Components, Route Handlers, Server Actions, and Client Components — all events land in the same session timeline.",
     "type": "module",
     "license": "MIT",
