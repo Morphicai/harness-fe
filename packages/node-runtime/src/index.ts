@@ -71,14 +71,60 @@ export interface EventContext {
 const als = new AsyncLocalStorage<{ sessionId: string }>();
 
 /**
- * Returns the sessionId for the currently executing async context, or
- * `undefined` when called outside a traced request (e.g. process-level handlers).
+ * Lazy-cached reference to `@harnessa-fe/next`'s React `cache()`-backed
+ * sessionId getter. Primed asynchronously in `register()` and consulted
+ * synchronously thereafter so the console-capture path can read it
+ * without paying an `await` per log call.
  *
- * Node-runtime re-exports / mirrors `getSessionId` from `@harnessa-fe/next`
- * so that both can share the same session bucket without a circular dep.
+ * - `undefined` = not yet primed (very early calls miss this layer)
+ * - `null`      = @harnessa-fe/next not installed → permanently fall through
+ * - function    = ready; calling it returns the current request's sessionId
+ *                 if we're inside a Server Component render, else undefined
+ */
+let cachedNextGetter: (() => string | undefined) | null | undefined = undefined;
+
+async function primeNextSessionGetter(): Promise<void> {
+    if (cachedNextGetter !== undefined) return;
+    try {
+        const mod = (await import('@harnessa-fe/next/sessionId')) as {
+            getSessionId?: () => string;
+        };
+        cachedNextGetter = mod.getSessionId ?? null;
+    } catch {
+        cachedNextGetter = null;
+    }
+}
+
+/**
+ * Returns the sessionId for the currently executing request, or `undefined`
+ * outside any traced scope.
+ *
+ * Resolution order:
+ *   1. AsyncLocalStorage (populated by `withHarnessaTracing()` HOC)
+ *   2. React `cache()` via `@harnessa-fe/next/sessionId` — automatic inside
+ *      any Server Component render, Route Handler, or Server Action
+ *
+ * The `console.*` capture path calls this synchronously on every log; once
+ * `register()` has primed the next-getter (a one-time async import), this
+ * function is fully sync and adds only a single optional-chain check vs
+ * the previous ALS-only implementation.
  */
 export function getRequestSessionId(): string | undefined {
-    return als.getStore()?.sessionId;
+    // ALS wins because it's explicit user intent — if they bothered to wrap
+    // a handler with withHarnessaTracing, respect that.
+    const fromAls = als.getStore()?.sessionId;
+    if (fromAls !== undefined) return fromAls;
+    // Fall back to React cache() if it's primed and we're in a render scope.
+    if (cachedNextGetter) {
+        try {
+            return cachedNextGetter();
+        } catch {
+            // cache() can throw if invoked outside a React render scope on
+            // some React/Next combinations. Treat as "no sessionId here".
+            return undefined;
+        }
+    }
+    return undefined;
 }
 
 // ── SDK state ──────────────────────────────────────────────────────────────────
@@ -117,6 +163,7 @@ export function _resetForTest(): void {
     }
     isRegistered = false;
     registeredOpts = undefined;
+    cachedNextGetter = undefined;
 }
 
 /**
@@ -148,6 +195,13 @@ export function register(opts: RegisterOptions): void {
 
     transport = selectTransport(opts);
     void transport.open(hello);
+
+    // Prime the React cache()-backed sessionId getter for the
+    // synchronous console-capture path. One-time dynamic import, cached
+    // for the lifetime of the process. Fires-and-forgets — if it loses
+    // a race with the very first console.* call, that one falls through
+    // to ALS / undefined gracefully.
+    void primeNextSessionGetter();
 
     installProcessHandlers();
 
