@@ -23,6 +23,8 @@
         "restart:mcp": "bash scripts/restart-mcp.sh",
         "demo": "pnpm build && pnpm --filter harnessa-fe-react-demo dev",
         "e2e": "pnpm --filter harnessa-fe-react-demo e2e",
+        "graph": "turbo run build --graph",
+        "graph:html": "turbo run build --graph=dep-graph.html && echo '→ open dep-graph.html'",
         "changeset": "changeset",
         "version-packages": "changeset version",
         "release": "pnpm build && bash scripts/release-publish.sh"
