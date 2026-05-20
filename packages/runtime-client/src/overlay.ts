@@ -195,19 +195,31 @@ export function installOverlay(client: OverlayClient): void {
         if (!hoveredEl) return;
         lockedEl = hoveredEl;
         setHighlight(lockedEl);
+        // Go straight to the question step. Screenshots are now opt-in via
+        // the "Add screenshot" button inside the question panel — users
+        // shouldn't have to draw on every report.
         pendingAttachment = null;
-        setState('annotate');
+        const info = questionPanel.querySelector<HTMLElement>('[data-role=info]')!;
+        info.textContent = describeElement(lockedEl);
+        const textarea = questionPanel.querySelector<HTMLTextAreaElement>('textarea')!;
+        textarea.value = '';
+        renderAttachmentPreview();
+        setState('question');
+        setTimeout(() => textarea.focus(), 0);
     };
 
     const onKeyDown = (ev: KeyboardEvent) => {
         if (ev.key === 'Escape') {
             if (state === 'annotate') {
-                // Esc in annotate: return to picker mode, discard strokes
-                pendingAttachment = null;
+                // Esc in annotate: keep any prior attachment, just discard the
+                // in-progress strokes and return to the question step where
+                // the user came from. Re-entering annotate later will start
+                // a fresh canvas.
                 resetAnnotateStrokes();
-                setState('picker');
+                setState('question');
             } else if (state === 'picker' || state === 'question') {
                 lockedEl = null;
+                pendingAttachment = null;
                 setState('info');
             } else if (state === 'info') {
                 setState('idle');
@@ -542,24 +554,62 @@ export function installOverlay(client: OverlayClient): void {
         setState('idle');
     });
 
-    // ─── Annotate modal wiring ────────────────────────────────────────────
-    annotateModal.querySelector('[data-role=annotate-cancel]')!.addEventListener('click', () => {
+    // ─── Question panel ↔ Annotate modal wiring ──────────────────────────
+
+    // Re-render the attachment preview block based on `pendingAttachment`.
+    const renderAttachmentPreview = (): void => {
+        const area = questionPanel.querySelector<HTMLElement>('[data-role=attach-area]')!;
+        const addBtn = area.querySelector<HTMLButtonElement>('[data-role=add-shot]')!;
+        const preview = area.querySelector<HTMLElement>('[data-role=thumb-preview]')!;
+        const img = preview.querySelector<HTMLImageElement>('[data-role=thumb-img]')!;
+        const dims = preview.querySelector<HTMLElement>('[data-role=thumb-dims]')!;
+        if (pendingAttachment && pendingAttachment.data) {
+            addBtn.style.display = 'none';
+            preview.style.display = 'flex';
+            img.src = `data:image/png;base64,${pendingAttachment.data}`;
+            dims.textContent = `${pendingAttachment.width}×${pendingAttachment.height}`;
+        } else {
+            addBtn.style.display = 'inline-flex';
+            preview.style.display = 'none';
+            img.src = '';
+        }
+    };
+
+    questionPanel.querySelector('[data-role=add-shot]')!.addEventListener('click', () => {
+        // Launch the annotate modal. lockedEl is still set from picker.
+        if (!lockedEl) return;
+        setState('annotate');
+    });
+
+    questionPanel.querySelector('[data-role=thumb-edit]')!.addEventListener('click', () => {
+        // Discard current PNG; re-enter annotate to recapture.
         pendingAttachment = null;
         resetAnnotateStrokes();
-        setState('picker');
+        renderAttachmentPreview();
+        if (!lockedEl) return;
+        setState('annotate');
+    });
+
+    questionPanel.querySelector('[data-role=thumb-remove]')!.addEventListener('click', () => {
+        pendingAttachment = null;
+        renderAttachmentPreview();
+    });
+
+    annotateModal.querySelector('[data-role=annotate-cancel]')!.addEventListener('click', () => {
+        // Cancel the in-progress annotation; keep whatever pendingAttachment
+        // existed before this annotate cycle (typically null).
+        resetAnnotateStrokes();
+        setState('question');
     });
 
     annotateModal.querySelector('[data-role=annotate-done]')!.addEventListener('click', () => {
         void finalizeAnnotation().then((attachment) => {
-            pendingAttachment = attachment ?? null;
-            // Advance to question panel
-            if (lockedEl) {
-                const info = questionPanel.querySelector<HTMLElement>('[data-role=info]')!;
-                info.textContent = describeElement(lockedEl);
-            }
-            const textarea = questionPanel.querySelector<HTMLTextAreaElement>('textarea')!;
-            textarea.value = '';
+            if (attachment) pendingAttachment = attachment;
+            renderAttachmentPreview();
             setState('question');
+            const textarea = questionPanel.querySelector<HTMLTextAreaElement>('textarea')!;
+            // Don't clobber user's typed question. Focus the textarea so they
+            // can keep writing.
             setTimeout(() => textarea.focus(), 0);
         });
     });
@@ -1169,6 +1219,78 @@ function buildStyle(): HTMLStyleElement {
         .question .submit { background: #111827; color: #fff; }
         .question .submit:hover { background: #000; }
 
+        .question .attach-area {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: -2px;
+        }
+        .question .add-shot {
+            display: inline-flex;
+            align-self: flex-start;
+            align-items: center;
+            gap: 6px;
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px dashed #d1d5db;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font: 500 12px/1.2 system-ui, sans-serif;
+            cursor: pointer;
+            transition: background 0.12s ease, border-color 0.12s ease;
+        }
+        .question .add-shot:hover {
+            background: #e5e7eb;
+            border-color: #9ca3af;
+            border-style: solid;
+        }
+        .question .thumb-preview {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 6px;
+        }
+        .question .thumb-preview img {
+            max-width: 120px;
+            max-height: 90px;
+            object-fit: contain;
+            border-radius: 4px;
+            background: #fff;
+            display: block;
+        }
+        .question .thumb-preview .thumb-meta {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #6b7280;
+            flex: 1;
+            min-width: 0;
+        }
+        .question .thumb-preview .thumb-meta button {
+            background: transparent;
+            border: 1px solid transparent;
+            color: #6b7280;
+            font: 500 11px/1.2 system-ui, sans-serif;
+            padding: 3px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: left;
+        }
+        .question .thumb-preview .thumb-meta button:hover {
+            background: #f3f4f6;
+            color: #111;
+            border-color: #d1d5db;
+        }
+        .question .thumb-preview .thumb-remove:hover {
+            background: #fee2e2;
+            color: #991b1b;
+            border-color: #fecaca;
+        }
+
         .reports-card {
             position: fixed;
             right: 20px;
@@ -1530,6 +1652,17 @@ function buildQuestionPanel(): HTMLDivElement {
         <h3>What's wrong with this element?</h3>
         <div class="info" data-role="info"></div>
         <textarea placeholder="Describe the problem, expected behavior, or what the agent should do…"></textarea>
+        <div class="attach-area" data-role="attach-area">
+            <button class="add-shot" data-role="add-shot" type="button">📷 Add screenshot</button>
+            <div class="thumb-preview" data-role="thumb-preview" style="display: none;">
+                <img data-role="thumb-img" alt="screenshot preview" />
+                <div class="thumb-meta">
+                    <span data-role="thumb-dims"></span>
+                    <button class="thumb-edit" data-role="thumb-edit" type="button" title="Re-annotate">✎ Edit</button>
+                    <button class="thumb-remove" data-role="thumb-remove" type="button" title="Remove">×</button>
+                </div>
+            </div>
+        </div>
         <div class="row">
             <button class="cancel" data-role="cancel" type="button">Cancel</button>
             <button class="submit" data-role="submit" type="button">Submit</button>
