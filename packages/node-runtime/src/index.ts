@@ -47,8 +47,10 @@ export interface RegisterOptions {
     baseUrl?: string;
     /**
      * Capture `console.*` output and forward to daemon as `server-log` events.
-     * Default: off. Set `HARNESSA_FE_NODE_CONSOLE=1` env var to enable at
-     * runtime without touching code.
+     * Default: **on**. Set `HARNESSA_FE_NODE_CONSOLE=0` env var to disable
+     * (or pass `captureConsole: false` here) when you don't want auto
+     * forwarding — useful in noisy frameworks where you'd rather use
+     * `@harnessa-fe/log` exclusively for structured logs.
      */
     captureConsole?: boolean;
 }
@@ -149,7 +151,9 @@ export function register(opts: RegisterOptions): void {
 
     installProcessHandlers();
 
-    const captureConsole = opts.captureConsole ?? process.env.HARNESSA_FE_NODE_CONSOLE === '1';
+    // Default-on. Opt out via captureConsole: false OR HARNESSA_FE_NODE_CONSOLE=0.
+    const captureConsole = opts.captureConsole ??
+        (process.env.HARNESSA_FE_NODE_CONSOLE !== '0');
     if (captureConsole) {
         installConsoleCapture();
     }
