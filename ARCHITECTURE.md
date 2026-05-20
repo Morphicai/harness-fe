@@ -72,10 +72,27 @@ The parent runtime exposes itself on `window.__harnessa_fe_client__` and `window
 
 ### Runtime Client → MCP Server
 
-- Sends `hello` on page load: `{ projectId, parentProjectId?, displayName?, buildId, tabId, sessionId }`
-- Streams `console.*`, `fetch`/XHR, `window.error`, `unhandledrejection` events; each tagged with `projectId` + `sessionId` + `buildId`
-- Captures rrweb chunks for session replay
+- Sends `hello` on page load: `{ projectId, parentProjectId?, displayName?, buildId, tabId, sessionId, visitorId?, userId?, env? }`
+- Streams `console.*`, `fetch`/XHR, `window.error`, `unhandledrejection` events; each row tagged with `projectId` + `sessionId` + `buildId` + `visitorId`
+- Captures rrweb chunks per pageload (one `recording.jsonl` per `sessionId`)
+- Hosts the in-page overlay: "H" mark → info card → "Report a problem" picker → snapdom screenshot → arrow/text annotation → flattened PNG attachment on `task.submit`
 - Executes commands dispatched by the server (`page.click`, `page.type`, …)
+- Issues `query` frames (`tasks.mine` / `tasks.update` / `tasks.delete`) for the user's self-managed reports view; daemon enforces visitor-owner check
+
+### Node Runtime → MCP Server
+
+`@harnessa-fe/node-runtime` boots from Next's `instrumentation.ts` (or auto-injected via `withHarnessa(next.config)`). It picks a transport at startup:
+
+| Transport | When | Wire |
+|---|---|---|
+| **WS** | Node runtime (default) | Same WebSocket as the browser SDK, role `node-runtime` |
+| **HTTP-batch** | Edge Runtime (`process.env.NEXT_RUNTIME === 'edge'`) or `HARNESSA_FE_TRANSPORT=http`, or when `require('ws')` fails | `POST /events` on the daemon, batches every 500 ms / 50 events, retries on 5xx with exp backoff |
+
+Both transports emit the same `EventFrame` shape. Daemon's `bridge.ts` accepts `role: 'node-runtime'` hellos and joins the existing `SessionMeta` when sessionIds match the client side.
+
+**Session continuity** between server and client for a single refresh: `<HarnessaScript>` is a Server Component that calls a `React.cache()`-backed `getSessionId()` to allocate one stable id per request render, inlines a `<script>window.__HARNESSA_FE_SEED__ = { sessionId }</script>` before any client code runs, and the browser-side runtime adopts that seed via `tryAdoptServerSeed()`. The Node SDK reads from the same `cache()`, so server logs and client logs for one refresh land in **one** `~/.harnessa/data/sessions/{sessionId}/timeline.jsonl`.
+
+Errors captured by the Node SDK (default-on): `process.on('uncaughtException')` / `unhandledRejection`. Errors thrown inside a Server Component render are caught by the SDK's React error boundary integration. Console output is opt-in via `HARNESSA_FE_NODE_CONSOLE=1`. Route Handlers / Server Actions can be wrapped with `withHarnessaTracing(handler)` for per-call duration + error events.
 
 ### MCP Server → AI Agent (stdio MCP tools)
 
@@ -98,35 +115,41 @@ Tool groups:
 
 All data lives in `~/.harnessa/data/` — the daemon's global directory. Projects write only a single `.harnessa-id` to their own root.
 
-### Disk layout (v0.4+)
+### Disk layout (v0.7+)
 
 ```
 ~/.harnessa/data/
 ├── projects/
 │   └── {projectId}/
-│       ├── meta.json                   ProjectMeta — id, parentProjectId, displayName, tags
-│       ├── tasks.json                  Annotation task queue
-│       ├── memory.json                 Agent long-term key-value memory
-│       ├── notes.jsonl                 Project-level cross-session notes
-│       └── builds/
-│           └── {buildId}/meta.json     BuildMeta — gitSha, dirty, bundler, sourceDigest
+│       ├── meta.json                       ProjectMeta — id, parentProjectId, displayName, tags
+│       ├── tasks.json                      Annotation task queue
+│       ├── memory.json                     Agent long-term key-value memory
+│       ├── notes.jsonl                     Project-level cross-session notes
+│       ├── builds/
+│       │   └── {buildId}/meta.json         BuildMeta — gitSha, dirty, bundler, sourceDigest
+│       └── task-attachments/
+│           └── {taskId}/{attachmentId}.png Annotated screenshots (flattened)
 ├── tabs/
 │   └── {tabId}/
-│       └── meta.json                   TabMeta — userAgent, connectedAt; spans many sessions
+│       └── meta.json                       TabMeta — userAgent, connectedAt; spans many sessions
+├── visitors/
+│   └── {visitorId}/
+│       └── meta.json                       VisitorMeta — anonymous UUID + optional userId, env snapshot, journey index
 ├── sessions/
-│   └── {sessionId}/                    One pageload = one bucket
-│       ├── meta.json                   SessionMeta — tabId, url, participants[{ projectId, buildId }]
-│       ├── timeline.jsonl              Mixed parent+iframe events, each line tagged with projectId+buildId
-│       └── recording.jsonl             rrweb chunks for this pageload
-└── exports/                            Replay export bundles
+│   └── {sessionId}/                        One pageload = one bucket
+│       ├── meta.json                       SessionMeta — tabId, url, participants[{ projectId, buildId }]
+│       ├── timeline.jsonl                  Parent + iframe + server events, each line tagged with projectId+buildId+visitorId
+│       └── recording.jsonl                 rrweb chunks for this pageload
+└── exports/                                Replay export bundles (rrweb)
 ```
 
-**Key inversions vs v0.3**:
-- Sessions are now top-level (one pageload = one bucket), not nested under a "dev-run" bucket
-- `tabs/` and `projects/` are sibling top-level dirs holding metadata only — they don't own events
-- Every event line carries row-level `projectId` and `buildId` so cross-project queries filter row-side with no merge
-- Parent + same-origin iframe runtimes share `sessionId` (via `tryInheritFromParent`) → their events land in the **same** `timeline.jsonl`, ready for replay without K-way merge
-- Legacy v0.3.x layout is still read on demand; daemon warns on startup if it finds one and points to `rm -rf ~/.harnessa/data`
+**Key design properties**:
+- Sessions are top-level (one pageload = one bucket); `projects/`, `tabs/`, `visitors/` are sibling top-level dirs holding metadata only — they don't own events.
+- Every event line carries row-level `projectId`, `buildId`, `visitorId` so cross-cutting queries filter row-side with no merge.
+- Parent + same-origin iframe runtimes share `sessionId` (via `tryInheritFromParent`) → their events land in the **same** `timeline.jsonl`.
+- Server-side events from `@harnessa-fe/node-runtime` (Node OR Edge via HTTP-batch) land in the SAME `sessions/{sessionId}/timeline.jsonl` as the matching browser-side events for that pageload (via the `cache()` seed mechanism).
+- `visitors/` stitches user activity across refreshes / tabs / iframes; agents query via `visitor.list` / `visitor.get` / `visitor.journey`.
+- v0.7 dropped pre-1.0 read-compat for pre-0.4 disk layouts; existing data older than that needs `rm -rf ~/.harnessa/data`.
 
 ### Storage strategy
 

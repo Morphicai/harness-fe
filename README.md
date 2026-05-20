@@ -17,12 +17,15 @@
 
 ## Features
 
-- **Source-Aware Instrumentation** — Injects `data-morphix-loc` and `data-morphix-comp` attributes into JSX/Vue elements at build time, giving AI agents precise file:line:column references for every UI element.
-- **MCP Server Bridge** — A stdio-based MCP daemon that connects AI agents (Claude, Cursor, Kiro) to the browser runtime via WebSocket, enabling bidirectional command/event communication.
-- **Runtime Client** — A lightweight browser SDK that captures DOM snapshots, handles annotation overlays, and executes agent commands in the user's real browser session.
-- **Multi-Bundler Support** — Works with Vite (stable) and Webpack (in progress), sharing a common transform layer so every bundler gets the same instrumentation quality.
-- **Framework Agnostic** — Supports React out of the box with Vue 3 support in progress. The component detection layer adapts to each framework's internals.
-- **Zero Production Overhead** — All instrumentation, WebSocket connections, and runtime injection are automatically disabled in production builds.
+- **Source-Aware Instrumentation** — Injects `data-morphix-loc` and `data-morphix-comp` attributes into JSX / Vue elements (via build plugin OR `@harnessa-fe/react-jsx` `jsxImportSource`), giving AI agents precise file:line:column references for every UI element.
+- **MCP Server Bridge** — A stdio-based MCP daemon that connects AI agents (Claude, Cursor, Kiro) to browser + server runtimes via WebSocket / HTTP, enabling bidirectional command/event communication and a unified timeline per page-load.
+- **Browser Runtime + Overlay** — A lightweight browser SDK that captures console / network / errors / DOM (rrweb), exposes an in-page "H" overlay so users can file annotated screenshots (arrow + text on a snapdom-captured PNG), and surfaces a "My reports" view to manage their submissions.
+- **Server-Side Capture (Next.js)** — `@harnessa-fe/node-runtime` collects Server Component errors, Route Handler / Server Action durations, and uncaught Node exceptions. `<HarnessaScript>` is a Server Component that uses React `cache()` to bind the **same sessionId** across SSR and the client runtime — one refresh = one `sessions/{id}/timeline.jsonl`.
+- **Edge Runtime Compatible** — When Next emits an Edge worker bundle the SDK auto-switches to an HTTP-batch transport (`POST /events` on the daemon) so Cloudflare Workers / Vercel Edge routes flow into the same daemon as Node routes.
+- **Visitor Identity** — Anonymous, stable per-browser identifier (`localStorage`) + optional `userId` from the app's auth layer. Lets agents build a real user journey across refreshes, tabs, and same-origin iframes.
+- **Annotated Feedback Loop** — Users file tasks through the overlay; the screenshot's arrow + text annotations are flattened into the PNG so vision models read the annotations directly off pixels. Agents fetch the image via `tasks_get_attachment` as a native MCP image-content block.
+- **Multi-Bundler & Multi-Framework** — Stable on Vite + React, Webpack + React, Vite/Webpack + Vue 3, Next.js (App + Pages Router, webpack + Turbopack). Any React 17+ toolchain via `@harnessa-fe/react-jsx` `jsxImportSource`.
+- **Zero Production Overhead** — All instrumentation, WebSocket / HTTP connections, the overlay, and the Node SDK are gated behind `NODE_ENV === 'development'`.
 
 ## How It Works
 
@@ -83,43 +86,88 @@ npm install -D @harnessa-fe/vite @harnessa-fe/runtime
 yarn add -D @harnessa-fe/vite @harnessa-fe/runtime
 ```
 
-### Quick Start (5 steps)
+### Quick start — Vite + React (5 steps)
 
-1. **Install packages** — Add the Vite plugin and runtime client to your project (see commands above).
+1. **Install packages**:
+   ```bash
+   pnpm add -D @harnessa-fe/vite @harnessa-fe/runtime
+   ```
 
-2. **Configure Vite** — Add the plugin to your `vite.config.ts`:
+2. **Configure Vite** — add the plugin to your `vite.config.ts`:
    ```typescript
    import { defineConfig } from 'vite';
    import react from '@vitejs/plugin-react';
    import { harnessaFE } from '@harnessa-fe/vite';
-
-   export default defineConfig({
-     plugins: [react(), harnessaFE()],
-   });
+   export default defineConfig({ plugins: [react(), harnessaFE()] });
    ```
 
-3. **Start the MCP server** — Run the daemon so AI agents can connect:
+3. **Start the MCP server** — `npx @harnessa-fe/mcp-server`
+4. **Start your dev server** — `pnpm dev`
+5. **Connect your AI agent** — register the MCP server in your AI tool (Claude Code, Cursor, Kiro). The agent now sees and drives your running app.
+
+### Quick start — Next.js (App or Pages Router)
+
+For Next.js the recommended path is **plugin-less** (via `react-jsx` for source tagging + `next` for SSR session continuity). Two file touches.
+
+1. **Install**:
    ```bash
-   npx @harnessa-fe/mcp-server
+   pnpm add -D @harnessa-fe/next @harnessa-fe/react-jsx @harnessa-fe/runtime @harnessa-fe/node-runtime
    ```
 
-4. **Start your dev server** — Launch your app as usual:
-   ```bash
-   pnpm dev
+2. **`tsconfig.json`** — enable the source-tag JSX runtime:
+   ```jsonc
+   { "compilerOptions": { "jsxImportSource": "@harnessa-fe/react-jsx" } }
    ```
 
-5. **Connect your AI agent** — Configure your AI tool (Claude, Cursor, Kiro) to use the Harnessa-FE MCP server. The agent can now see and interact with your running application.
+3. **`next.config.mjs`** — wrap with `withHarnessa()`:
+   ```ts
+   import { withHarnessa } from '@harnessa-fe/next/config';
+   export default withHarnessa({/* …your config… */}, { projectId: 'my-app' });
+   ```
+
+4. **`app/layout.tsx`** — drop in the Server Component (yes, no `'use client'` needed):
+   ```tsx
+   import { HarnessaScript } from '@harnessa-fe/next';
+   import { getCurrentUser } from '@/lib/auth';
+   export default async function RootLayout({ children }) {
+       const user = await getCurrentUser().catch(() => null);
+       return (
+           <html><body>
+               <HarnessaScript
+                   projectId="my-app"
+                   userId={user?.id}
+                   buildId={process.env.NEXT_PUBLIC_GIT_SHA}
+               />
+               {children}
+           </body></html>
+       );
+   }
+   ```
+
+5. **Run the daemon** + **`pnpm dev`**. Two `peer connected` lines should show in the daemon log per refresh — one `role=node-runtime`, one `role=runtime-client`, **same sessionId**.
+
+### User feedback (in-page overlay)
+
+When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking opens the info card. From there users can:
+
+- **Copy snapshot** — markdown block with project / build / session / tab / url ready to paste to an agent.
+- **Report a problem** — picks an element → `snapdom` captures it with 32 px context → user draws arrows + text → flattened PNG ships as part of a `task.submit` event. Vision-capable agents read the annotations directly off the pixels.
+- **My reports** — list of this visitor's tasks across all sessions: status, agent's resolution note, inline edit, copy-for-agent, delete with two-click confirm.
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| [`@harnessa-fe/protocol`](./packages/protocol) | Shared types, schemas, and message definitions |
-| [`@harnessa-fe/mcp-server`](./packages/mcp-server) | MCP daemon with WebSocket bridge |
-| [`@harnessa-fe/runtime`](./packages/runtime-client) | Browser runtime client SDK |
+| [`@harnessa-fe/protocol`](./packages/protocol) | Shared types, Zod schemas, message + wire definitions |
+| [`@harnessa-fe/mcp-server`](./packages/mcp-server) | MCP daemon — WS bridge + HTTP `POST /events` for Edge + dashboard + replay viewer |
+| [`@harnessa-fe/runtime`](./packages/runtime-client) | Browser SDK — capture, rrweb, overlay, "Report a problem", "My reports" |
+| [`@harnessa-fe/node-runtime`](./packages/node-runtime) | Node SDK — Server Component / Route Handler / uncaught error capture. Dual transport: WS in Node runtime, HTTP-batch in Edge runtime |
+| [`@harnessa-fe/next`](./packages/next) | Next.js integration — `<HarnessaScript>` server component, `withHarnessa()` next-config wrapper |
+| [`@harnessa-fe/react-jsx`](./packages/react-jsx) | `jsxImportSource` runtime — source-aware tagging for ANY React toolchain, no bundler plugin needed |
 | [`@harnessa-fe/vite`](./packages/vite-plugin) | Vite plugin |
 | [`@harnessa-fe/webpack`](./packages/webpack-plugin) | Webpack plugin |
 | [`@harnessa-fe/unplugin`](./packages/unplugin) | Core unplugin (shared by all bundler plugins) |
+| [`@harnessa-fe/skill`](./packages/agent-skill) | Curated agent playbook — install into Claude Code / Cursor / Kiro to teach the agent how to use harnessa-fe |
 
 ## Documentation
 
