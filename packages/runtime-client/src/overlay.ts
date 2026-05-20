@@ -14,7 +14,8 @@
  * or out. State machine: idle → info → (picker → question) → flash → idle.
  */
 
-import { EVENT_NAME, type TaskSubmitPayload } from '@harnessa-fe/protocol';
+import { EVENT_NAME, type TaskSubmitPayload, type TaskAttachment } from '@harnessa-fe/protocol';
+import { snapdom } from '@zumer/snapdom';
 
 const HOST_ID = '__harnessa_fe_overlay__';
 const MAX_OUTER_HTML = 2048;
@@ -89,6 +90,8 @@ interface TaskSummary {
     claimedAt?: number;
     resolvedAt?: number;
     note?: string;
+    /** Attachment pointers or (for fresh tasks.mine) first-attachment inline base64. */
+    attachments?: Array<{ id: string; kind: string; width: number; height: number; path?: string; data?: string }>;
 }
 
 export function installOverlay(client: OverlayClient): void {
@@ -105,9 +108,10 @@ export function installOverlay(client: OverlayClient): void {
     const infoCard = buildInfoCard();
     const reportsCard = buildReportsCard();
     const pickerBar = buildPickerBar();
+    const annotateModal = buildAnnotateModal();
     const questionPanel = buildQuestionPanel();
     const highlight = buildHighlight();
-    root.append(fab, infoCard, reportsCard, pickerBar, questionPanel, highlight);
+    root.append(fab, infoCard, reportsCard, pickerBar, annotateModal, questionPanel, highlight);
 
     const mount = () => {
         if (!document.body) return false;
@@ -119,21 +123,24 @@ export function installOverlay(client: OverlayClient): void {
     }
 
     // ─── State machine ────────────────────────────────────────────────────
-    type State = 'idle' | 'info' | 'reports' | 'picker' | 'question';
+    type State = 'idle' | 'info' | 'reports' | 'picker' | 'annotate' | 'question';
     let state: State = 'idle';
     let hoveredEl: Element | null = null;
     let lockedEl: Element | null = null;
     let statusPollTimer: number | undefined;
+    /** Flattened PNG from the annotate step; null if user skipped. */
+    let pendingAttachment: TaskAttachment | null = null;
 
     const setState = (next: State) => {
         state = next;
         infoCard.style.display = next === 'info' ? 'flex' : 'none';
         reportsCard.style.display = next === 'reports' ? 'flex' : 'none';
         pickerBar.style.display = next === 'picker' ? 'flex' : 'none';
+        annotateModal.style.display = next === 'annotate' ? 'flex' : 'none';
         questionPanel.style.display = next === 'question' ? 'flex' : 'none';
         document.documentElement.style.cursor = next === 'picker' ? 'crosshair' : '';
-        fab.dataset.state = next === 'picker' ? 'active' : 'idle';
-        if (next !== 'picker' && next !== 'question') {
+        fab.dataset.state = (next === 'picker' || next === 'annotate') ? 'active' : 'idle';
+        if (next !== 'picker' && next !== 'question' && next !== 'annotate') {
             highlight.style.display = 'none';
         }
         if (next === 'info') {
@@ -147,6 +154,9 @@ export function installOverlay(client: OverlayClient): void {
         }
         if (next === 'reports') {
             void refreshReports();
+        }
+        if (next === 'annotate' && lockedEl) {
+            void enterAnnotate(lockedEl);
         }
     };
 
@@ -185,17 +195,18 @@ export function installOverlay(client: OverlayClient): void {
         if (!hoveredEl) return;
         lockedEl = hoveredEl;
         setHighlight(lockedEl);
-        setState('question');
-        const info = questionPanel.querySelector<HTMLElement>('[data-role=info]')!;
-        info.textContent = describeElement(lockedEl);
-        const textarea = questionPanel.querySelector<HTMLTextAreaElement>('textarea')!;
-        textarea.value = '';
-        setTimeout(() => textarea.focus(), 0);
+        pendingAttachment = null;
+        setState('annotate');
     };
 
     const onKeyDown = (ev: KeyboardEvent) => {
         if (ev.key === 'Escape') {
-            if (state === 'picker' || state === 'question') {
+            if (state === 'annotate') {
+                // Esc in annotate: return to picker mode, discard strokes
+                pendingAttachment = null;
+                resetAnnotateStrokes();
+                setState('picker');
+            } else if (state === 'picker' || state === 'question') {
                 lockedEl = null;
                 setState('info');
             } else if (state === 'info') {
@@ -341,6 +352,7 @@ export function installOverlay(client: OverlayClient): void {
                </div>`
             : `<div class="q">${escapeHtml(t.question)}</div>
                ${t.note ? `<div class="note">↳ ${escapeHtml(t.note)}</div>` : ''}
+               ${t.attachments?.[0]?.data ? `<img class="task-thumb" data-action="thumb" data-id="${escapeAttr(t.id)}" src="data:image/png;base64,${escapeAttr(t.attachments[0].data)}" alt="screenshot" title="Click to enlarge" />` : ''}
                <div class="meta">${escapeHtml(fileBit)}${fileBit && url ? ' · ' : ''}${escapeHtml(url)}</div>
                <div class="row-actions">
                  ${t.status !== 'resolved' ? `<button class="rl-btn" data-action="edit" data-id="${escapeAttr(t.id)}">edit</button>` : ''}
@@ -383,6 +395,13 @@ export function installOverlay(client: OverlayClient): void {
                 }
                 return;
             }
+            case 'thumb': {
+                const att = task.attachments?.[0];
+                if (att?.data) {
+                    showLightbox(root, `data:image/png;base64,${att.data}`);
+                }
+                return;
+            }
             case 'copy':
                 void copyText(buildTaskSnapshot(task));
                 return;
@@ -421,6 +440,13 @@ export function installOverlay(client: OverlayClient): void {
         if (t.selector.comp) lines.push(`- component: \`${t.selector.comp}\``);
         lines.push(`- url: ${t.url}`);
         lines.push(`- submitted: ${new Date(t.createdAt).toISOString()}`);
+        if (t.attachments && t.attachments.length > 0) {
+            for (const att of t.attachments) {
+                const dims = att.width && att.height ? ` (${att.width}×${att.height})` : '';
+                const pathStr = att.path ?? `task-attachments/${t.id}/${att.id}.png`;
+                lines.push(`- attachment: ${pathStr}${dims}`);
+            }
+        }
         lines.push('');
         lines.push(`**question:** ${t.question}`);
         if (t.note) {
@@ -431,9 +457,26 @@ export function installOverlay(client: OverlayClient): void {
         lines.push('Agent commands:');
         lines.push('```');
         lines.push(`mcp call tasks.claim { "taskId": "${t.id}" }`);
+        if (t.attachments?.[0]) {
+            lines.push(`mcp call tasks.get_attachment { "taskId": "${t.id}", "attachmentId": "${t.attachments[0].id}" }`);
+        }
         if (t.selector.loc) lines.push(`mcp call project.where_is { "loc": "${t.selector.loc}" }`);
         lines.push('```');
         return lines.join('\n') + '\n';
+    };
+
+    /** Show a full-screen lightbox in the shadow DOM. Click anywhere to close. */
+    const showLightbox = (shadowRoot: ShadowRoot, src: string): void => {
+        const existing = shadowRoot.querySelector('.thumb-lightbox');
+        if (existing) { existing.remove(); return; }
+        const lb = document.createElement('div');
+        lb.className = 'thumb-lightbox';
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = 'Screenshot annotation';
+        lb.appendChild(img);
+        lb.addEventListener('click', () => lb.remove());
+        shadowRoot.appendChild(lb);
     };
 
     // ─── Wire interactions ───────────────────────────────────────────────
@@ -473,7 +516,10 @@ export function installOverlay(client: OverlayClient): void {
         });
     }
 
-    pickerBar.querySelector('[data-role=cancel]')!.addEventListener('click', () => setState('info'));
+    pickerBar.querySelector('[data-role=cancel]')!.addEventListener('click', () => {
+        lockedEl = null;
+        setState('info');
+    });
 
     questionPanel.querySelector('[data-role=cancel]')!.addEventListener('click', () => {
         lockedEl = null;
@@ -488,16 +534,371 @@ export function installOverlay(client: OverlayClient): void {
             textarea.focus();
             return;
         }
-        const payload = buildPayload(lockedEl, question);
+        const payload = buildPayload(lockedEl, question, pendingAttachment ?? undefined);
         client.sendEvent(EVENT_NAME.TASK_SUBMIT, payload);
         flashFab(fab);
         lockedEl = null;
+        pendingAttachment = null;
         setState('idle');
+    });
+
+    // ─── Annotate modal wiring ────────────────────────────────────────────
+    annotateModal.querySelector('[data-role=annotate-cancel]')!.addEventListener('click', () => {
+        pendingAttachment = null;
+        resetAnnotateStrokes();
+        setState('picker');
+    });
+
+    annotateModal.querySelector('[data-role=annotate-done]')!.addEventListener('click', () => {
+        void finalizeAnnotation().then((attachment) => {
+            pendingAttachment = attachment ?? null;
+            // Advance to question panel
+            if (lockedEl) {
+                const info = questionPanel.querySelector<HTMLElement>('[data-role=info]')!;
+                info.textContent = describeElement(lockedEl);
+            }
+            const textarea = questionPanel.querySelector<HTMLTextAreaElement>('textarea')!;
+            textarea.value = '';
+            setState('question');
+            setTimeout(() => textarea.focus(), 0);
+        });
     });
 
     document.addEventListener('mousemove', onMouseMove, true);
     document.addEventListener('click', onClickCapture, true);
     document.addEventListener('keydown', onKeyDown, true);
+}
+
+// ─── Annotate engine ─────────────────────────────────────────────────────────
+//
+// Module-level state for the annotation canvas. The annotate flow is entered
+// once per task report; module scope is fine because installOverlay is called
+// once per page.
+
+type AnnotateTool = 'arrow' | 'text';
+type AnnotateColor = 'red' | 'blue' | 'yellow' | 'green' | 'black';
+
+const ANNOTATE_COLORS: Record<AnnotateColor, string> = {
+    red: '#ef4444',
+    blue: '#3b82f6',
+    yellow: '#eab308',
+    green: '#22c55e',
+    black: '#111827',
+};
+
+interface ArrowStroke {
+    kind: 'arrow';
+    color: string;
+    x1: number; y1: number;
+    x2: number; y2: number;
+}
+
+interface TextStroke {
+    kind: 'text';
+    color: string;
+    x: number; y: number;
+    text: string;
+}
+
+type Stroke = ArrowStroke | TextStroke;
+
+let _annotateCanvas: HTMLCanvasElement | null = null;
+let _annotateCtx: CanvasRenderingContext2D | null = null;
+let _annotateBackground: HTMLCanvasElement | null = null;
+let _annotateStrokes: Stroke[] = [];
+let _annotateTool: AnnotateTool = 'arrow';
+let _annotateColor: AnnotateColor = 'red';
+
+function resetAnnotateStrokes(): void {
+    _annotateStrokes = [];
+    _annotateTool = 'arrow';
+    _annotateColor = 'red';
+    _annotateCanvas = null;
+    _annotateCtx = null;
+    _annotateBackground = null;
+}
+
+function drawArrow(
+    ctx: CanvasRenderingContext2D,
+    x1: number, y1: number,
+    x2: number, y2: number,
+    color: string,
+): void {
+    const headLen = 14;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    // Arrowhead triangle at endpoint
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(
+        x2 - headLen * Math.cos(angle - Math.PI / 6),
+        y2 - headLen * Math.sin(angle - Math.PI / 6),
+    );
+    ctx.lineTo(
+        x2 - headLen * Math.cos(angle + Math.PI / 6),
+        y2 - headLen * Math.sin(angle + Math.PI / 6),
+    );
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawTextLabel(
+    ctx: CanvasRenderingContext2D,
+    x: number, y: number,
+    text: string,
+    color: string,
+): void {
+    ctx.save();
+    ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+    const metrics = ctx.measureText(text);
+    const pad = 4;
+    const bw = metrics.width + pad * 2;
+    const bh = 20;
+    // White background for readability
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(x - pad, y - bh + pad, bw, bh);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+}
+
+export function replayStrokes(
+    ctx: CanvasRenderingContext2D,
+    bgCanvas: HTMLCanvasElement,
+    strokes: Stroke[],
+): void {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.drawImage(bgCanvas, 0, 0);
+    for (const s of strokes) {
+        if (s.kind === 'arrow') {
+            drawArrow(ctx, s.x1, s.y1, s.x2, s.y2, s.color);
+        } else {
+            drawTextLabel(ctx, s.x, s.y, s.text, s.color);
+        }
+    }
+}
+
+async function enterAnnotate(el: Element): Promise<void> {
+    // Find the annotate canvas in the shadow DOM
+    const host = document.getElementById(HOST_ID);
+    if (!host) return;
+    const modal = host.shadowRoot!.querySelector<HTMLElement>('.annotate-modal');
+    if (!modal) return;
+
+    let bgCanvas: HTMLCanvasElement;
+
+    try {
+        // Capture the element with a fast pass; snapdom doesn't have a padding option
+        // so we capture as-is. The captured area is the element's bounding box.
+        const result = await snapdom(el as HTMLElement, { fast: true });
+        bgCanvas = await result.toCanvas();
+    } catch {
+        // snapdom failed (test env, cross-origin, etc.); create blank canvas
+        const rect = el.getBoundingClientRect();
+        bgCanvas = document.createElement('canvas');
+        bgCanvas.width = Math.max(1, Math.round(rect.width + 64));
+        bgCanvas.height = Math.max(1, Math.round(rect.height + 64));
+    }
+
+    const canvasSlot = modal.querySelector<HTMLElement>('.annotate-canvas-wrap');
+    if (!canvasSlot) return;
+    // Replace canvas node
+    const canvas = document.createElement('canvas');
+    canvas.className = 'annotate-canvas';
+    canvas.width = bgCanvas.width;
+    canvas.height = bgCanvas.height;
+    canvasSlot.innerHTML = '';
+    canvasSlot.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(bgCanvas, 0, 0);
+
+    _annotateCanvas = canvas;
+    _annotateCtx = ctx;
+    _annotateBackground = bgCanvas;
+    _annotateStrokes = [];
+    _annotateTool = 'arrow';
+    _annotateColor = 'red';
+
+    updateAnnotateToolbar(modal);
+    wireAnnotateCanvas(canvas, ctx, bgCanvas, modal);
+}
+
+function updateAnnotateToolbar(modal: HTMLElement): void {
+    modal.querySelectorAll<HTMLElement>('[data-role=annotate-tool]').forEach((btn) => {
+        btn.dataset.active = btn.dataset.tool === _annotateTool ? '1' : '';
+    });
+    modal.querySelectorAll<HTMLElement>('[data-role=annotate-color]').forEach((sw) => {
+        sw.dataset.active = sw.dataset.color === _annotateColor ? '1' : '';
+    });
+}
+
+function wireAnnotateCanvas(
+    canvas: HTMLCanvasElement,
+    ctx: CanvasRenderingContext2D,
+    bgCanvas: HTMLCanvasElement,
+    modal: HTMLElement,
+): void {
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+
+    const getXY = (ev: PointerEvent): { x: number; y: number } => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (ev.clientX - rect.left) * scaleX,
+            y: (ev.clientY - rect.top) * scaleY,
+        };
+    };
+
+    canvas.addEventListener('pointerdown', (ev: PointerEvent) => {
+        ev.preventDefault();
+        const { x, y } = getXY(ev);
+        if (_annotateTool === 'arrow') {
+            dragging = true;
+            startX = x;
+            startY = y;
+        } else {
+            spawnTextInput(canvas, ctx, bgCanvas, x, y, modal);
+        }
+    });
+
+    canvas.addEventListener('pointermove', (ev: PointerEvent) => {
+        if (!dragging || _annotateTool !== 'arrow') return;
+        ev.preventDefault();
+        const { x, y } = getXY(ev);
+        replayStrokes(ctx, bgCanvas, _annotateStrokes);
+        drawArrow(ctx, startX, startY, x, y, ANNOTATE_COLORS[_annotateColor]);
+    });
+
+    canvas.addEventListener('pointerup', (ev: PointerEvent) => {
+        if (!dragging || _annotateTool !== 'arrow') return;
+        dragging = false;
+        ev.preventDefault();
+        const { x, y } = getXY(ev);
+        if (Math.abs(x - startX) < 3 && Math.abs(y - startY) < 3) return; // too short
+        _annotateStrokes.push({
+            kind: 'arrow',
+            color: ANNOTATE_COLORS[_annotateColor],
+            x1: startX, y1: startY,
+            x2: x, y2: y,
+        });
+        replayStrokes(ctx, bgCanvas, _annotateStrokes);
+    });
+
+    // Toolbar button wiring
+    modal.querySelectorAll<HTMLElement>('[data-role=annotate-tool]').forEach((btn) => {
+        btn.onclick = () => {
+            _annotateTool = (btn.dataset.tool as AnnotateTool) ?? 'arrow';
+            updateAnnotateToolbar(modal);
+        };
+    });
+    modal.querySelectorAll<HTMLElement>('[data-role=annotate-color]').forEach((sw) => {
+        sw.onclick = () => {
+            _annotateColor = (sw.dataset.color as AnnotateColor) ?? 'red';
+            updateAnnotateToolbar(modal);
+        };
+    });
+    const undoBtn = modal.querySelector<HTMLElement>('[data-role=annotate-undo]');
+    if (undoBtn) {
+        undoBtn.onclick = () => {
+            _annotateStrokes.pop();
+            replayStrokes(ctx, bgCanvas, _annotateStrokes);
+        };
+    }
+}
+
+function spawnTextInput(
+    canvas: HTMLCanvasElement,
+    ctx: CanvasRenderingContext2D,
+    bgCanvas: HTMLCanvasElement,
+    x: number,
+    y: number,
+    modal: HTMLElement,
+): void {
+    modal.querySelector('.annotate-text-input')?.remove();
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'annotate-text-input';
+    input.maxLength = 140;
+    input.placeholder = 'Type label…';
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width / canvas.width;
+    const scaleY = rect.height / canvas.height;
+    input.style.cssText = `
+        position: fixed;
+        left: ${rect.left + x * scaleX}px;
+        top: ${rect.top + y * scaleY - 20}px;
+        z-index: 2147483647;
+        font: bold 13px system-ui, sans-serif;
+        border: 1px solid #3b82f6;
+        border-radius: 4px;
+        padding: 2px 6px;
+        background: #fff;
+        color: #111;
+        outline: none;
+        min-width: 120px;
+    `;
+
+    modal.appendChild(input);
+    setTimeout(() => input.focus(), 0);
+
+    const commit = () => {
+        const text = input.value.trim();
+        input.remove();
+        if (!text) return;
+        _annotateStrokes.push({
+            kind: 'text',
+            color: ANNOTATE_COLORS[_annotateColor],
+            x, y,
+            text,
+        });
+        replayStrokes(ctx, bgCanvas, _annotateStrokes);
+    };
+
+    input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); input.remove(); }
+    });
+    input.addEventListener('blur', commit);
+}
+
+/**
+ * Flatten strokes onto the background canvas and return as a TaskAttachment.
+ * Exported for testing.
+ */
+export async function finalizeAnnotation(): Promise<TaskAttachment | null> {
+    if (!_annotateCanvas || !_annotateCtx || !_annotateBackground) return null;
+    const ctx = _annotateCtx;
+    const bgCanvas = _annotateBackground;
+    const canvas = _annotateCanvas;
+    replayStrokes(ctx, bgCanvas, _annotateStrokes);
+    const dataUrl = canvas.toDataURL('image/png', 0.85);
+    const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+    const id = `att_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const att: TaskAttachment = {
+        id,
+        kind: 'screenshot',
+        data: base64,
+        width: canvas.width,
+        height: canvas.height,
+    };
+    resetAnnotateStrokes();
+    return att;
 }
 
 // ─── DOM builders ────────────────────────────────────────────────────────
@@ -904,6 +1305,122 @@ function buildStyle(): HTMLStyleElement {
             0%, 100% { opacity: 1; }
             50%      { opacity: 0.4; }
         }
+
+        /* ── Annotate modal ── */
+        .annotate-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.72);
+            z-index: 2147483646;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .annotate-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #1f2937;
+            border-radius: 8px;
+            padding: 6px 10px;
+        }
+        .annotate-toolbar button {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid transparent;
+            border-radius: 5px;
+            color: #e5e7eb;
+            cursor: pointer;
+            font: 12px/1 system-ui, sans-serif;
+            padding: 4px 9px;
+            transition: background 0.12s ease;
+        }
+        .annotate-toolbar button:hover { background: rgba(255,255,255,0.15); }
+        .annotate-toolbar button[data-active="1"] {
+            background: rgba(255,255,255,0.22);
+            border-color: rgba(255,255,255,0.3);
+        }
+        .annotate-swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            outline: none;
+            flex-shrink: 0;
+            display: inline-block;
+        }
+        .annotate-swatch[data-active="1"] { border-color: #fff; }
+        .annotate-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.15); }
+        .annotate-canvas-wrap {
+            max-width: 100%;
+            max-height: calc(100vh - 120px);
+            overflow: auto;
+            border-radius: 6px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .annotate-canvas {
+            display: block;
+            cursor: crosshair;
+            max-width: 100%;
+        }
+        .annotate-hint {
+            color: #9ca3af;
+            font: 11px system-ui, sans-serif;
+        }
+        .annotate-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .annotate-actions button {
+            border-radius: 7px;
+            padding: 8px 16px;
+            font: 500 13px system-ui, sans-serif;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .annotate-actions .ann-cancel {
+            background: rgba(255,255,255,0.08);
+            color: #d1d5db;
+            border-color: rgba(255,255,255,0.15);
+        }
+        .annotate-actions .ann-cancel:hover { background: rgba(255,255,255,0.14); }
+        .annotate-actions .ann-done {
+            background: #2563eb;
+            color: #fff;
+        }
+        .annotate-actions .ann-done:hover { background: #1d4ed8; }
+
+        /* thumbnail in reports */
+        .task-thumb {
+            max-height: 80px;
+            max-width: 120px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid #e5e7eb;
+            object-fit: contain;
+            margin-top: 4px;
+        }
+        /* lightbox */
+        .thumb-lightbox {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 2147483647;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+        }
+        .thumb-lightbox img {
+            max-width: 90vw;
+            max-height: 90vh;
+            border-radius: 8px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+        }
     `;
     return style;
 }
@@ -976,6 +1493,36 @@ function buildPickerBar(): HTMLDivElement {
     return bar;
 }
 
+function buildAnnotateModal(): HTMLDivElement {
+    const modal = document.createElement('div');
+    modal.className = 'annotate-modal';
+    modal.innerHTML = `
+        <div class="annotate-toolbar">
+            <button data-role="annotate-tool" data-tool="arrow" title="Arrow tool">↗ Arrow</button>
+            <button data-role="annotate-tool" data-tool="text" title="Text tool">T Text</button>
+            <button data-role="annotate-undo" title="Undo last stroke">↩ Undo</button>
+            <span class="annotate-sep"></span>
+            <span class="annotate-swatch" data-role="annotate-color" data-color="red"
+                  style="background:#ef4444" title="Red"></span>
+            <span class="annotate-swatch" data-role="annotate-color" data-color="blue"
+                  style="background:#3b82f6" title="Blue"></span>
+            <span class="annotate-swatch" data-role="annotate-color" data-color="yellow"
+                  style="background:#eab308" title="Yellow"></span>
+            <span class="annotate-swatch" data-role="annotate-color" data-color="green"
+                  style="background:#22c55e" title="Green"></span>
+            <span class="annotate-swatch" data-role="annotate-color" data-color="black"
+                  style="background:#111827" title="Black"></span>
+        </div>
+        <div class="annotate-canvas-wrap"></div>
+        <div class="annotate-hint">Draw arrows or add text, then click Done · Esc to go back</div>
+        <div class="annotate-actions">
+            <button class="ann-cancel" data-role="annotate-cancel" type="button">Cancel</button>
+            <button class="ann-done" data-role="annotate-done" type="button">Done</button>
+        </div>
+    `;
+    return modal;
+}
+
 function buildQuestionPanel(): HTMLDivElement {
     const panel = document.createElement('div');
     panel.className = 'question';
@@ -1011,7 +1558,7 @@ function describeElement(el: Element): string {
     return parts.join(' · ');
 }
 
-function buildPayload(el: Element, question: string): TaskSubmitPayload {
+function buildPayload(el: Element, question: string, attachment?: TaskAttachment): TaskSubmitPayload {
     const rect = el.getBoundingClientRect();
     return {
         question,
@@ -1026,6 +1573,7 @@ function buildPayload(el: Element, question: string): TaskSubmitPayload {
             outerHTML: truncate(stripInternalAttrs(el.outerHTML), MAX_OUTER_HTML),
             rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         },
+        attachments: attachment ? [attachment] : undefined,
     };
 }
 

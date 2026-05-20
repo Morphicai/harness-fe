@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest';
 import { Window } from 'happy-dom';
-import { installOverlay, buildCssPath, type OverlayClient } from './overlay.js';
+import { installOverlay, buildCssPath, replayStrokes, finalizeAnnotation, type OverlayClient } from './overlay.js';
 
 function setupDom(): { win: Window; doc: Document } {
     const win = new Window();
@@ -155,6 +155,48 @@ describe('installOverlay', () => {
         installOverlay(client);
         const hosts = document.querySelectorAll('#__harnessa_fe_overlay__');
         expect(hosts.length).toBe(1);
+    });
+});
+
+describe('annotate engine', () => {
+    it('replayStrokes draws background + strokes onto canvas without throwing', () => {
+        // Stub minimal canvas/ctx
+        const drawn: string[] = [];
+        const ctx = {
+            canvas: { width: 100, height: 80 },
+            clearRect: () => { drawn.push('clearRect'); },
+            drawImage: () => { drawn.push('drawImage'); },
+            save: () => {},
+            restore: () => {},
+            beginPath: () => {},
+            moveTo: () => {},
+            lineTo: () => {},
+            stroke: () => {},
+            fill: () => {},
+            closePath: () => {},
+            fillRect: () => {},
+            fillText: () => {},
+            measureText: () => ({ width: 50 }),
+            strokeStyle: '',
+            fillStyle: '',
+            lineWidth: 0,
+            lineCap: '',
+            font: '',
+        } as unknown as CanvasRenderingContext2D;
+        const bg = {} as HTMLCanvasElement;
+        const strokes = [
+            { kind: 'arrow' as const, color: '#ef4444', x1: 0, y1: 0, x2: 50, y2: 50 },
+            { kind: 'text' as const, color: '#3b82f6', x: 20, y: 20, text: 'hi' },
+        ];
+        expect(() => replayStrokes(ctx, bg, strokes)).not.toThrow();
+        expect(drawn).toContain('clearRect');
+        expect(drawn).toContain('drawImage');
+    });
+
+    it('finalizeAnnotation returns null when no canvas is loaded', async () => {
+        // After resetAnnotateStrokes (initial state), finalizeAnnotation should return null
+        const result = await finalizeAnnotation();
+        expect(result).toBeNull();
     });
 });
 

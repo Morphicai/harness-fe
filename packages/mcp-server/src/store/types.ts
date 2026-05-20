@@ -39,6 +39,9 @@ export type EventType =
     | 'note'         // project-level note written by agent/user
     | 'load'         // page-load initial snapshot
     | 'storage'      // localStorage/sessionStorage/cookie mutation
+    | 'server-log'   // Node.js console log from node-runtime SDK
+    | 'server-err'   // Node.js uncaughtException / unhandledRejection from node-runtime SDK
+    | 'server-action'// Route Handler / Server Action timing from withHarnessaTracing()
     | string;        // extensible — future types don't need schema changes
 
 /** A single event line in a JSONL file. Carries row-level projectId/buildId tags. */
