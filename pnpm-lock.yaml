@@ -229,6 +229,25 @@ importers:
 
   packages/agent-skill: {}
 
+  packages/log:
+    dependencies:
+      '@harnessa-fe/node-runtime':
+        specifier: '>=0.7.0'
+        version: 0.7.0(ws@8.20.1)
+      '@harnessa-fe/runtime':
+        specifier: '>=0.6.0'
+        version: 0.6.4
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.19.19)(happy-dom@20.9.0)(terser@5.47.1)
+
   packages/mcp-server:
     dependencies:
       '@harnessa-fe/protocol':
@@ -1346,6 +1365,20 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@harnessa-fe/node-runtime@0.7.0':
+    resolution: {integrity: sha512-GuXD8Txw2m4XhMLRIwZtZdf2m/P4OIr/uLz+ou+6q/zZT8ooD9j02fMm+YNV0RWuPXGSIZUn6fWXA0+Gb2YGqA==}
+    peerDependencies:
+      ws: ^8.18.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+
+  '@harnessa-fe/protocol@0.7.0':
+    resolution: {integrity: sha512-v4BFKxXjP5kksffrY4ou2hoMBSli4U3tX5RGlSfY5uBYiDLJKq7jh0IXIM5adb73yoK5xMS5JXvim12Gtgdw9A==}
+
+  '@harnessa-fe/runtime@0.6.4':
+    resolution: {integrity: sha512-xeFWKYKEdNAjYEYi6pi4ZM+U4U84Qr4mcY9bmC9Mi6qAaCVpQ9GB6jFBSG+ss5+eeHJ0u0G76ASk59SaksHAaw==}
 
   '@hono/node-server@1.19.14':
     resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
@@ -5311,6 +5344,22 @@ snapshots:
 
   '@esbuild/win32-x64@0.27.7':
     optional: true
+
+  '@harnessa-fe/node-runtime@0.7.0(ws@8.20.1)':
+    dependencies:
+      '@harnessa-fe/protocol': 0.7.0
+    optionalDependencies:
+      ws: 8.20.1
+
+  '@harnessa-fe/protocol@0.7.0':
+    dependencies:
+      zod: 4.4.3
+
+  '@harnessa-fe/runtime@0.6.4':
+    dependencies:
+      '@harnessa-fe/protocol': 0.7.0
+      '@zumer/snapdom': 2.12.0
+      rrweb: 2.0.0-alpha.4
 
   '@hono/node-server@1.19.14(hono@4.12.18)':
     dependencies:

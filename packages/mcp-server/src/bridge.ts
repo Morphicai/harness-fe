@@ -472,9 +472,11 @@ export class Bridge implements IBridge {
             // Persist each event
             for (const ev of events) {
                 const evName: string = typeof ev.name === 'string' ? ev.name : 'unknown';
+                // app.log events get the canonical short type code 'app-log'
+                const evType: string = evName === 'app.log' ? 'app-log' : evName;
                 this.store.appendEvent(sessionId, {
                     ts: typeof ev.ts === 'number' ? ev.ts : Date.now(),
-                    t: evName,
+                    t: evType,
                     projectId,
                     buildId: ev.buildId ?? hello.buildId,
                     d: ev.payload,
@@ -1176,9 +1178,14 @@ export class Bridge implements IBridge {
                                 });
                             }
                         } else {
+                            // app.log events from @harnessa-fe/log get the canonical
+                            // short type code 'app-log' (consistent with 'server-log',
+                            // 'server-err', 'server-action') rather than the raw frame
+                            // name 'app.log' with a dot.
+                            const eventType: string = frame.name === 'app.log' ? 'app-log' : frame.name as string;
                             this.store.appendEvent(storeSessionId, {
                                 ts: frame.ts ?? Date.now(),
-                                t: frame.name as string,
+                                t: eventType,
                                 tab: tabId,
                                 projectId,
                                 buildId,
