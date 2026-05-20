@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-05-20
+
+### Added — annotated screenshots travel with every task
+
+Reporting a problem now opens an **annotation step** between picking an element and writing the question. The overlay captures the locked element (plus 32 px context margin) with **`@zumer/snapdom`** (SVG-first capture, font-crisp), drops the user into a fullscreen canvas modal with `↗ Arrow / T Text / ↩ Undo / Done` and five color swatches, and **flattens** the user's strokes back into the PNG before submitting. Vision-capable agents (Claude / GPT-4V) read the annotations directly off the pixels — no parallel structured-annotation stream is sent (it would be redundant).
+
+Wire:
+- `Task` and `TaskSubmitPayload` gain `attachments?: TaskAttachment[]`. On the wire, `data` is base64. After daemon-side write, it's stripped and replaced with `path`.
+- Daemon writes binary to `~/.harnessa/data/projects/{projectId}/task-attachments/{taskId}/{attachmentId}.png`. tasks.json stays small (JSON-only).
+- 4 MB cap per task, applied across all attachments. Oversized writes are dropped with a stderr warning.
+- New MCP tool **`tasks_get_attachment({ taskId, attachmentId })`** returns the image as an MCP image-content block (`{ type: 'image', mimeType: 'image/png', data: base64 }`) — the form Claude / GPT-4V consume natively.
+- "My reports" view shows thumbnails inline (first attachment, base64 inlined for ≤200 KB images) + click-to-lightbox.
+
+### Added — SSR / Node-side logs with single sessionId across server + client
+
+Until now, anything Next.js did on the server (Server Component renders, Route Handler errors, Server Actions, uncaught process exceptions) was invisible to the daemon. v0.6.0 ships a Node SDK and stitches server-side events into the **same** `sessions/{sessionId}/timeline.jsonl` as the client-side runtime for the same refresh.
+
+How it works:
+- **`<HarnessaScript>` is now a Server Component** that uses React `cache()` to allocate one stable per-request sessionId, then renders an inline `<script>` setting `window.__HARNESSA_FE_SEED__.sessionId` before any client code runs. The boot logic moved to a sibling `<HarnessaScriptClient>` (`'use client'`).
+- **`RuntimeClient` adopts the server seed** via `tryAdoptServerSeed()` before falling back to `generateSessionId()`. Inheritance order: parent-iframe seed → server seed → fresh generation.
+- **New package `@harnessa-fe/node-runtime`** loadable from Next's `instrumentation.ts`. Exports:
+  - `register(opts)` — opens WS with `role: 'node-runtime'`, installs `process.on('uncaughtException' | 'unhandledRejection')`.
+  - `reportError(err, ctx?)` — explicit reporter; emits `t: 'server-err'`.
+  - `reportLog(level, args, ctx?)` — explicit reporter; emits `t: 'server-log'`. Opt-in console patch via `HARNESSA_FE_NODE_CONSOLE=1`.
+  - `withHarnessaTracing(handler)` — HOC for Route Handlers / Server Actions; times the call, catches errors, emits `t: 'server-action'`.
+- **Build-time wrapper** `@harnessa-fe/next/config` exports `withHarnessa(nextConfig, opts)` — adds `experimental.instrumentationHook`, injects `@harnessa-fe/node-runtime/auto` into the server bundle, passes config via env vars. Zero-file alternative to writing `instrumentation.ts` by hand.
+- **Bridge accepts `node-runtime` role** — joins the existing client SessionMeta when sessionIds match; orphan events go to `sessions/server-orphans/timeline.jsonl`.
+
+Out of scope (deferred to 0.7): Edge Runtime route handlers (no Node `process` / `ws`), static `next export`, build-time pre-render orphans.
+
+### Changed — token-only npm publish (CI)
+
+CI's release workflow no longer pretends to support OIDC trusted publishing. The two stuck packages (`@harnessa-fe/next`, `@harnessa-fe/react-jsx`) were failing PUT-with-token because trusted-publisher config on npmjs.com rejects token auth. **Manual one-time step** required on upgrade: delete the trusted-publisher config for those two packages on npmjs.com. `id-token: write` permission stays for sigstore provenance (independent of trusted publishing).
+
+### Protocol
+
+- `peerRoleSchema` adds `'node-runtime'`.
+- `EventType` adds `'server-log'`, `'server-err'`, `'server-action'`.
+- `taskAttachmentSchema` is new; `TaskSubmitPayload.attachments?` and `Task.attachments?` are additive.
+
+All additions are optional — old daemons and old clients interoperate gracefully.
+
 ## [0.5.0] — 2026-05-20
 
 ### Added — visitor identity + in-page "My reports"

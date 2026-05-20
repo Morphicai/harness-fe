@@ -1,6 +1,6 @@
 {
     "name": "@harnessa-fe/webpack",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "Webpack plugin for Harnessa-FE: source-aware transforms, runtime injection, and MCP bridge.",
     "type": "module",
     "license": "MIT",
