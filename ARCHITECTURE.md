@@ -98,28 +98,35 @@ Tool groups:
 
 All data lives in `~/.harnessa/data/` — the daemon's global directory. Projects write only a single `.harnessa-id` to their own root.
 
-### Disk layout (v0.2)
+### Disk layout (v0.4+)
 
 ```
 ~/.harnessa/data/
-└── {projectId}/
-    ├── meta.json                       ProjectMeta — id, parentProjectId, displayName, tags
-    ├── tasks.json
-    ├── memory.json
-    ├── builds/
-    │   └── {buildId}/meta.json         BuildMeta — gitSha, dirty, bundler, sourceDigest
-    └── sessions/                       (legacy "dev-server-run" bucket — being renamed in a future minor)
-        └── {runId}/
-            ├── meta.json
-            ├── timeline.jsonl
-            └── tabs/{tabId}/
-                ├── meta.json
-                ├── timeline.jsonl
-                ├── loads.jsonl         (per-pageload meta = new "session" concept)
-                └── recording.jsonl
+├── projects/
+│   └── {projectId}/
+│       ├── meta.json                   ProjectMeta — id, parentProjectId, displayName, tags
+│       ├── tasks.json                  Annotation task queue
+│       ├── memory.json                 Agent long-term key-value memory
+│       ├── notes.jsonl                 Project-level cross-session notes
+│       └── builds/
+│           └── {buildId}/meta.json     BuildMeta — gitSha, dirty, bundler, sourceDigest
+├── tabs/
+│   └── {tabId}/
+│       └── meta.json                   TabMeta — userAgent, connectedAt; spans many sessions
+├── sessions/
+│   └── {sessionId}/                    One pageload = one bucket
+│       ├── meta.json                   SessionMeta — tabId, url, participants[{ projectId, buildId }]
+│       ├── timeline.jsonl              Mixed parent+iframe events, each line tagged with projectId+buildId
+│       └── recording.jsonl             rrweb chunks for this pageload
+└── exports/                            Replay export bundles
 ```
 
-> The narrative-level "session" (one page-load) currently lives in `loads.jsonl` for backwards compat with v0.1 storage. A future minor will rename it on disk to match the API.
+**Key inversions vs v0.3**:
+- Sessions are now top-level (one pageload = one bucket), not nested under a "dev-run" bucket
+- `tabs/` and `projects/` are sibling top-level dirs holding metadata only — they don't own events
+- Every event line carries row-level `projectId` and `buildId` so cross-project queries filter row-side with no merge
+- Parent + same-origin iframe runtimes share `sessionId` (via `tryInheritFromParent`) → their events land in the **same** `timeline.jsonl`, ready for replay without K-way merge
+- Legacy v0.3.x layout is still read on demand; daemon warns on startup if it finds one and points to `rm -rf ~/.harnessa/data`
 
 ### Storage strategy
 
