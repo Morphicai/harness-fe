@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] — 2026-05-20
+
+### Fixed — `@harnessa-fe/node-runtime` first publish
+
+0.6.1 published 9 of 10 tarballs. `@harnessa-fe/node-runtime` failed pass 2 because the old `NPM_TOKEN` lacked org-level "create new packages" permission. Token replaced with one scoped `Read and write` on `@harnessa-fe` org. No code change.
+
 ## [0.6.1] — 2026-05-20
 
 ### Fixed — CI hybrid publish unblocks the three stuck tarballs

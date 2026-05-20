@@ -1,6 +1,6 @@
 {
     "name": "@harnessa-fe/protocol",
-    "version": "0.6.1",
+    "version": "0.6.2",
     "description": "Shared types + Zod schemas across mcp-server, vite-plugin, runtime-client.",
     "type": "module",
     "license": "MIT",
