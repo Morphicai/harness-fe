@@ -51,26 +51,8 @@
         "typecheck": "tsc --noEmit",
         "test": "vitest run"
     },
-    "peerDependencies": {
-        "@harnessa-fe/node-runtime": ">=1.0.0",
-        "@harnessa-fe/runtime": ">=1.0.0",
-        "@harnessa-fe/next": ">=1.0.0"
-    },
-    "peerDependenciesMeta": {
-        "@harnessa-fe/node-runtime": {
-            "optional": true
-        },
-        "@harnessa-fe/runtime": {
-            "optional": true
-        },
-        "@harnessa-fe/next": {
-            "optional": true
-        }
-    },
     "devDependencies": {
         "@harnessa-fe/node-runtime": "workspace:*",
-        "@harnessa-fe/runtime": "workspace:*",
-        "@harnessa-fe/next": "workspace:*",
         "@types/node": "^22.0.0",
         "typescript": "^5.6.0",
         "vitest": "^2.1.9"

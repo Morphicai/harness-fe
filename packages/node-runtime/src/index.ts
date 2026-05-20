@@ -71,28 +71,28 @@ export interface EventContext {
 const als = new AsyncLocalStorage<{ sessionId: string }>();
 
 /**
- * Lazy-cached reference to `@harnessa-fe/next`'s React `cache()`-backed
- * sessionId getter. Primed asynchronously in `register()` and consulted
- * synchronously thereafter so the console-capture path can read it
- * without paying an `await` per log call.
+ * Optional adapter-supplied sessionId resolver. Framework adapters (e.g.
+ * `@harnessa-fe/next`) call `setSessionIdProvider()` on module load to plug
+ * in a request-scoped getter — for Next, that's a `cache()`-backed function
+ * that returns a fresh sessionId per Server Component render scope.
  *
- * - `undefined` = not yet primed (very early calls miss this layer)
- * - `null`      = @harnessa-fe/next not installed → permanently fall through
- * - function    = ready; calling it returns the current request's sessionId
- *                 if we're inside a Server Component render, else undefined
+ * Stays `null` when no adapter has registered → server-side `console.*` and
+ * `reportLog` calls outside `withHarnessaTracing()` will emit as orphans
+ * (sessionId undefined), which is correct: better than misattributing.
+ *
+ * This is the dependency-injection direction (L2 framework adapter → L1
+ * runtime SDK), which keeps node-runtime React-agnostic.
  */
-let cachedNextGetter: (() => string | undefined) | null | undefined = undefined;
+let sessionIdProvider: (() => string | undefined) | null = null;
 
-async function primeNextSessionGetter(): Promise<void> {
-    if (cachedNextGetter !== undefined) return;
-    try {
-        const mod = (await import('@harnessa-fe/next/sessionId')) as {
-            getSessionId?: () => string;
-        };
-        cachedNextGetter = mod.getSessionId ?? null;
-    } catch {
-        cachedNextGetter = null;
-    }
+/**
+ * Register an adapter-supplied sessionId resolver. Called by framework
+ * adapters once on module load (side-effectful import). Subsequent calls
+ * overwrite the previous provider — last one wins; in practice only one
+ * adapter is loaded per process.
+ */
+export function setSessionIdProvider(fn: (() => string | undefined) | null): void {
+    sessionIdProvider = fn;
 }
 
 /**
@@ -101,26 +101,22 @@ async function primeNextSessionGetter(): Promise<void> {
  *
  * Resolution order:
  *   1. AsyncLocalStorage (populated by `withHarnessaTracing()` HOC)
- *   2. React `cache()` via `@harnessa-fe/next/sessionId` — automatic inside
- *      any Server Component render, Route Handler, or Server Action
- *
- * The `console.*` capture path calls this synchronously on every log; once
- * `register()` has primed the next-getter (a one-time async import), this
- * function is fully sync and adds only a single optional-chain check vs
- * the previous ALS-only implementation.
+ *   2. Adapter-supplied provider — for Next this is a React `cache()`-backed
+ *      getter, automatic inside any Server Component render, Route Handler,
+ *      or Server Action. Adapter pushes itself in via `setSessionIdProvider`.
  */
 export function getRequestSessionId(): string | undefined {
     // ALS wins because it's explicit user intent — if they bothered to wrap
     // a handler with withHarnessaTracing, respect that.
     const fromAls = als.getStore()?.sessionId;
     if (fromAls !== undefined) return fromAls;
-    // Fall back to React cache() if it's primed and we're in a render scope.
-    if (cachedNextGetter) {
+    if (sessionIdProvider) {
         try {
-            return cachedNextGetter();
+            return sessionIdProvider();
         } catch {
-            // cache() can throw if invoked outside a React render scope on
-            // some React/Next combinations. Treat as "no sessionId here".
+            // The adapter's getter can throw outside its expected scope
+            // (e.g. React `cache()` invoked outside a render). Treat as
+            // "no sessionId here" rather than propagating.
             return undefined;
         }
     }
@@ -163,7 +159,7 @@ export function _resetForTest(): void {
     }
     isRegistered = false;
     registeredOpts = undefined;
-    cachedNextGetter = undefined;
+    sessionIdProvider = null;
 }
 
 /**
@@ -195,13 +191,6 @@ export function register(opts: RegisterOptions): void {
 
     transport = selectTransport(opts);
     void transport.open(hello);
-
-    // Prime the React cache()-backed sessionId getter for the
-    // synchronous console-capture path. One-time dynamic import, cached
-    // for the lifetime of the process. Fires-and-forgets — if it loses
-    // a race with the very first console.* call, that one falls through
-    // to ALS / undefined gracefully.
-    void primeNextSessionGetter();
 
     installProcessHandlers();
 
