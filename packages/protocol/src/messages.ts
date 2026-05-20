@@ -10,7 +10,7 @@ import { returnSizeSchema, selectorSchema } from './selectors.js';
 
 // ─── Identity ───────────────────────────────────────────────────────────────
 
-export const peerRoleSchema = z.enum(['vite-plugin', 'webpack-plugin', 'runtime-client']);
+export const peerRoleSchema = z.enum(['vite-plugin', 'webpack-plugin', 'runtime-client', 'node-runtime']);
 export type PeerRole = z.infer<typeof peerRoleSchema>;
 
 /**
@@ -385,12 +385,38 @@ export const taskElementSchema = z.object({
 });
 export type TaskElement = z.infer<typeof taskElementSchema>;
 
+// ─── Task attachment (screenshot annotation) ────────────────────────────────
+
+export const taskAttachmentSchema = z.object({
+    /** Stable id — daemon uses this as the on-disk filename. */
+    id: z.string(),
+    /** 'screenshot' for v0.6.0; reserved for 'dom-snapshot' / 'video' later. */
+    kind: z.enum(['screenshot']),
+    /**
+     * Base64-encoded PNG (annotations already flattened in). ≤ 4 MB total
+     * per task — the daemon enforces this on the write path.
+     * Omitted in persisted pointers (daemon stores path instead).
+     */
+    data: z.string().optional(),
+    /** Image dimensions (CSS px). */
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    /**
+     * Relative path from data dir. Present only in the persisted (daemon-side)
+     * pointer form; absent on the wire from runtime-client.
+     */
+    path: z.string().optional(),
+});
+export type TaskAttachment = z.infer<typeof taskAttachmentSchema>;
+
 /** Wire payload for `event { name: "task.submit" }` from runtime → daemon. */
 export const taskSubmitPayloadSchema = z.object({
     question: z.string(),
     url: z.string(),
     selector: taskSelectorSchema,
     element: taskElementSchema,
+    /** Annotated screenshot(s). Omitted when user skips annotation. */
+    attachments: z.array(taskAttachmentSchema).optional(),
 });
 export type TaskSubmitPayload = z.infer<typeof taskSubmitPayloadSchema>;
 
@@ -421,6 +447,8 @@ export interface Task {
     claimedAt?: number;
     resolvedAt?: number;
     note?: string;
+    /** Attachment pointers (daemon side) or inline attachments (wire). */
+    attachments?: TaskAttachment[];
 }
 
 // ─── Common command arg shapes ──────────────────────────────────────────────
