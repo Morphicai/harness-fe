@@ -35,7 +35,8 @@
     },
     "peerDependencies": {
         "@harnessa-fe/node-runtime": ">=0.7.0",
-        "@harnessa-fe/runtime": ">=0.6.0"
+        "@harnessa-fe/runtime": ">=0.6.0",
+        "@harnessa-fe/next": ">=0.8.0"
     },
     "peerDependenciesMeta": {
         "@harnessa-fe/node-runtime": {
@@ -43,9 +44,15 @@
         },
         "@harnessa-fe/runtime": {
             "optional": true
+        },
+        "@harnessa-fe/next": {
+            "optional": true
         }
     },
     "devDependencies": {
+        "@harnessa-fe/node-runtime": "workspace:*",
+        "@harnessa-fe/runtime": "workspace:*",
+        "@harnessa-fe/next": "workspace:*",
         "@types/node": "^22.0.0",
         "typescript": "^5.6.0",
         "vitest": "^2.1.9"
