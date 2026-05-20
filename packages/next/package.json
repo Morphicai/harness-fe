@@ -27,6 +27,10 @@
         "./config": {
             "types": "./dist/config.d.ts",
             "default": "./dist/config.js"
+        },
+        "./sessionId": {
+            "types": "./dist/sessionId.d.ts",
+            "default": "./dist/sessionId.js"
         }
     },
     "files": [
