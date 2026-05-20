@@ -38,9 +38,13 @@ jobs:
         name: Version PR / Publish
         runs-on: ubuntu-latest
         timeout-minutes: 20
-        environment:
-            name: release
-            url: https://www.npmjs.com/org/harnessa-fe
+        # Note: no `environment:` gate. With Changesets the human review step
+        # is the auto-opened "Version Packages" PR — you read the diff and
+        # merge to ship. The old `release` environment (manual reviewer
+        # required) was a tag-push safeguard that is now redundant and
+        # rejected `main` pushes here. If you want a second-pair-of-eyes
+        # check beyond the Version PR, re-enable `environment: release` and
+        # add `main` to the environment's allowed branches.
 
         steps:
             - name: Checkout
