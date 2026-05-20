@@ -1115,11 +1115,14 @@ export class Bridge implements IBridge {
                     }
                     if (storeSessionId) {
                         const tabId = frame.tabId ?? peer.tabId;
-                        // Row-level stamps for multi-project mixed timelines
+                        // Row-level stamps for multi-project / multi-visitor mixed timelines.
+                        // Prefer the frame's own values (set by the runtime per-event)
+                        // and fall back to the registered peer's identity.
                         const projectId = peer.projectId;
                         const buildId = (peer.role === 'vite-plugin' || peer.role === 'webpack-plugin')
                             ? storeId
-                            : undefined;
+                            : (frame.buildId ?? undefined);
+                        const visitorId = frame.visitorId ?? peer.visitorId;
 
                         if (frame.name === EVENT_NAME.PAGE_LOAD && tabId) {
                             const parsed = pageLoadPayloadSchema.safeParse(frame.payload);
@@ -1149,7 +1152,7 @@ export class Bridge implements IBridge {
                             });
                             this.store.appendEvent(storeSessionId, {
                                 ts, t: 'load', tab: tabId,
-                                projectId, buildId,
+                                projectId, buildId, visitorId,
                                 d: frame.payload,
                             });
                         } else if (frame.name === EVENT_NAME.RRWEB && tabId) {
@@ -1163,6 +1166,7 @@ export class Bridge implements IBridge {
                                     tab: tabId,
                                     projectId,
                                     buildId,
+                                    visitorId,
                                     d: {
                                         chunkId: parsed.data.chunkId,
                                         startTs: parsed.data.startTs,
@@ -1178,6 +1182,7 @@ export class Bridge implements IBridge {
                                 tab: tabId,
                                 projectId,
                                 buildId,
+                                visitorId,
                                 d: frame.payload,
                             });
                         }
