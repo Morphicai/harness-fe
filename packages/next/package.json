@@ -1,6 +1,6 @@
 {
     "name": "@harnessa-fe/next",
-    "version": "0.7.1",
+    "version": "0.8.0",
     "description": "Next.js integration for Harnessa-FE. Drop-in <HarnessaScript /> server component that loads the runtime client and seeds window config — no webpack hooks, no SWC plugin, works with App Router + Pages Router + webpack + Turbopack.",
     "type": "module",
     "license": "MIT",
@@ -47,7 +47,9 @@
         "react": "^17.0.0 || ^18.0.0 || ^19.0.0"
     },
     "peerDependenciesMeta": {
-        "@harnessa-fe/node-runtime": { "optional": true }
+        "@harnessa-fe/node-runtime": {
+            "optional": true
+        }
     },
     "devDependencies": {
         "@types/react": "^18.3.0",
