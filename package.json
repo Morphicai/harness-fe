@@ -22,9 +22,13 @@
         "start:mcp": "pnpm --filter @harnessa-fe/mcp-server start",
         "restart:mcp": "bash scripts/restart-mcp.sh",
         "demo": "pnpm build && pnpm --filter harnessa-fe-react-demo dev",
-        "e2e": "pnpm --filter harnessa-fe-react-demo e2e"
+        "e2e": "pnpm --filter harnessa-fe-react-demo e2e",
+        "changeset": "changeset",
+        "version-packages": "changeset version",
+        "release": "pnpm build && bash scripts/release-publish.sh"
     },
     "devDependencies": {
+        "@changesets/cli": "^2.31.0",
         "@types/node": "^22.0.0",
         "happy-dom": "^20.9.0",
         "turbo": "^2.9.12",

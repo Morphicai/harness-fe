@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed — release flow uses Changesets
+
+Switched version management and publishing from manual lockstep bumps to
+[Changesets](https://github.com/changesets/changesets). Day-to-day flow:
+
+1. In your feature PR run `pnpm changeset` to declare which packages
+   changed at what semver level. Commit the generated `.changeset/*.md`.
+2. Merge the PR. The release workflow on `main` opens (or updates) a
+   "chore(release): version packages" PR with the pending bumps.
+3. Review and merge that PR. The workflow then runs publish — the
+   hybrid OIDC + token strategy is preserved via
+   `scripts/release-publish.sh`.
+
+Per-package versions are now allowed to drift (e.g. `@harnessa-fe/protocol`
+can stay on 0.6.x while `@harnessa-fe/runtime` jumps to 0.8.x). Existing
+0.6.2 versions are the migration baseline; future bumps are
+changeset-driven.
+
 ## [0.6.2] — 2026-05-20
 
 ### Fixed — `@harnessa-fe/node-runtime` first publish
