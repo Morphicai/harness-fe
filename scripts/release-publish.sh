@@ -18,19 +18,33 @@ rm -rf "$TARBALL_DIR"
 mkdir -p "$TARBALL_DIR"
 
 echo "── packing all non-private workspace packages ─────────────"
+PUBLISHED=()
+REMAINING=()
+SKIPPED=()
+ALREADY=()
+
 for pkg in packages/*/; do
     is_private=$(node -p "require('./$pkg/package.json').private === true" 2>/dev/null || echo false)
     if [ "$is_private" = "true" ]; then
         echo "  - skipped (private): $pkg"
         continue
     fi
+    # Skip packs whose current version is already on the registry — saves a
+    # round-trip and prevents the workflow from reporting "no packages
+    # published" failure on docs-only / script-only commits where the
+    # changesets/action runs `publish` but no versions actually changed.
+    pkg_name=$(node -p "require('./$pkg/package.json').name" 2>/dev/null)
+    pkg_version=$(node -p "require('./$pkg/package.json').version" 2>/dev/null)
+    if [ -n "$pkg_name" ] && [ -n "$pkg_version" ]; then
+        existing=$(npm view "$pkg_name@$pkg_version" version 2>/dev/null || true)
+        if [ "$existing" = "$pkg_version" ]; then
+            ALREADY+=("$pkg_name@$pkg_version")
+            continue
+        fi
+    fi
     ( cd "$pkg" && pnpm pack --pack-destination "$TARBALL_DIR" >/dev/null )
 done
-ls -la "$TARBALL_DIR"
-
-PUBLISHED=()
-REMAINING=()
-SKIPPED=()
+ls -la "$TARBALL_DIR" 2>/dev/null || true
 
 # Pass A — OIDC (no token).
 echo ""
@@ -85,12 +99,20 @@ echo ""
 echo "── publish summary ─────────────────────────────────────────"
 echo "published (${#PUBLISHED[@]}):"
 for n in "${PUBLISHED[@]}"; do echo "  ✓ $n"; done
+if [ ${#ALREADY[@]} -gt 0 ]; then
+    echo "already up to date (${#ALREADY[@]}):"
+    for n in "${ALREADY[@]}"; do echo "  · $n"; done
+fi
 if [ ${#SKIPPED[@]} -gt 0 ]; then
     echo "skipped (${#SKIPPED[@]}):"
     for n in "${SKIPPED[@]}"; do echo "  ✗ $n"; done
 fi
 
-if [ ${#PUBLISHED[@]} -eq 0 ]; then
-    echo "::error::no packages published"
+# Don't fail when nothing got published BUT everything is already at its
+# registry version (docs-only / script-only commits where Changesets
+# correctly produced no version bumps). Fail only when there are real
+# skips AND nothing succeeded.
+if [ ${#PUBLISHED[@]} -eq 0 ] && [ ${#SKIPPED[@]} -gt 0 ]; then
+    echo "::error::no packages published and ${#SKIPPED[@]} skipped"
     exit 1
 fi
