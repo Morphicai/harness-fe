@@ -5,7 +5,7 @@
  * Idempotent: importing twice is a no-op.
  */
 
-import { installAnnotationOverlay } from './annotation.js';
+import { installOverlay } from './overlay.js';
 import { RuntimeClient, readInjectedConfig } from './client.js';
 
 const w = window as unknown as {
@@ -19,7 +19,7 @@ if (typeof window !== 'undefined' && !w.__harnessa_fe_started__) {
     const cfg = readInjectedConfig();
     const client = new RuntimeClient(cfg);
     client.start();
-    installAnnotationOverlay(client);
+    installOverlay(client);
     // Expose for debugging + same-origin iframe inheritance.
     // Same-origin children read `window.parent.__hfe_session_id__` and
     // `window.parent.__harnessa_fe_client__.tabId` in tryInheritFromParent()

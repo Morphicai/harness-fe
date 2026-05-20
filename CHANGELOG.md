@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-05-20
+
+### Changed — unified in-page overlay (`@harnessa-fe/runtime`)
+
+The blue "?" annotation FAB has been replaced by a single, calmer **"H" mark** in the bottom-right corner. Clicking it opens a compact info card that consolidates everything users used to have to dig through DevTools for:
+
+- **Top bar** — project · buildId · connection status (animated green dot when daemon is reachable, amber-blinking while connecting, grey when offline)
+- **Identity pills** — sessionId, tabId, buildId. Click any pill to copy that single value to the clipboard (visual confirmation: pill flashes green for ~1 s).
+- **Current URL** (truncated to path) — full URL on title hover.
+- **"Report a problem"** — the legacy element-picker flow, now reachable as the primary CTA inside the card. Same `task.submit` wire payload, same `selector.loc` / `selector.comp` / `selector.css` shape — no breaking change for agents.
+- **"Copy snapshot"** — copies a tight markdown block (project, build, session, tab, url, time, daemon status) ready to paste into a teammate's chat or an agent prompt.
+
+Keyboard:
+- `Cmd/Ctrl + Shift + H` — toggle the card from anywhere
+- `Esc` — close the card / exit the picker
+
+The legacy `installAnnotationOverlay` export is gone; the runtime now installs `installOverlay` instead. Build/Wire/Protocol layers untouched — purely a renderer rewrite.
+
+### Added — `RuntimeClient` accessors
+
+`projectId`, `buildId`, `displayName`, `getConnectionState()` are now exposed on the `RuntimeClient` instance (read-only) so the overlay (and external integrations) can surface live state without reaching into private fields.
+
 ## [0.4.0] — 2026-05-20
 
 ### Changed — storage layout refactor (IStore v2)
