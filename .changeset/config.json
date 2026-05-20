@@ -3,7 +3,20 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],
-  "linked": [],
+  "linked": [
+    [
+      "@harnessa-fe/protocol",
+      "@harnessa-fe/mcp-server",
+      "@harnessa-fe/runtime",
+      "@harnessa-fe/node-runtime",
+      "@harnessa-fe/next",
+      "@harnessa-fe/log",
+      "@harnessa-fe/react-jsx",
+      "@harnessa-fe/vite",
+      "@harnessa-fe/webpack",
+      "@harnessa-fe/unplugin"
+    ]
+  ],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
