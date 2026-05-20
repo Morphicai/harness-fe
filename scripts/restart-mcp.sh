@@ -24,13 +24,19 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PID_FILE="${HARNESSA_PID_FILE:-$HOME/.harnessa/mcp.pid}"
 LOG_FILE="${HARNESSA_LOG_FILE:-$HOME/.harnessa/mcp.log}"
 # Parse port from HARNESSA_FE_URL (e.g. ws://host:47729/) — fallback 47729.
+# Bash regex instead of sed because BSD sed (macOS default) chokes on the
+# `; t; ` test/branch idiom GNU sed handles fine.
 URL_VAR="${HARNESSA_FE_URL:-ws://127.0.0.1:47729}"
-PORT="$(echo "$URL_VAR" | sed -E 's|^[a-z]+://[^:/]+:([0-9]+).*|\1|; t; s|.*|47729|')"
+if [[ "$URL_VAR" =~ ^[a-z]+://[^:/]+:([0-9]+) ]]; then
+    PORT="${BASH_REMATCH[1]}"
+else
+    PORT=47729
+fi
 CLI_PATH="$REPO_ROOT/packages/mcp-server/dist/cli.js"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "[restart-mcp] building mcp-server..."
-pnpm --filter @morphixai/harnessa-fe.mcp-server build
+pnpm --filter @harnessa-fe/mcp-server build
 echo "[restart-mcp] build succeeded"
 
 # ── 2. Kill any previous instance ─────────────────────────────────────────────
