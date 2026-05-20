@@ -261,6 +261,20 @@ export const queryResponseFrameSchema = z.object({
 });
 export type QueryResponseFrame = z.infer<typeof queryResponseFrameSchema>;
 
+// ─── HTTP batch transport (Edge Runtime) ────────────────────────────────────
+//
+// Used by HttpBatchTransport to POST events from Node/Edge environments where
+// a persistent WebSocket is not available. The body carries a hello snapshot
+// plus a batch of event frames — daemon treats it as a stateless hello+events.
+
+export const httpBatchSchema = z.object({
+    hello: helloFrameSchema.partial({ type: true, id: true }).merge(
+        z.object({ role: z.literal('node-runtime') }),
+    ),
+    events: z.array(eventFrameSchema.partial({ type: true })),
+});
+export type HttpBatch = z.infer<typeof httpBatchSchema>;
+
 export const frameSchema = z.discriminatedUnion('type', [
     helloFrameSchema,
     helloAckFrameSchema,

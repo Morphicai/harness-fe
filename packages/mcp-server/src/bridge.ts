@@ -28,6 +28,7 @@ import {
     type EventFrame,
     type Frame,
     type HelloAckFrame,
+    type HttpBatch,
     type McpCallFrame,
     type McpReturnFrame,
     type QueryFrame,
@@ -41,6 +42,7 @@ import {
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
 import { createReplayHandler } from './replayViewer.js';
 import { createDashboardHandler } from './dashboard.js';
+import { createEventsHandler } from './eventsHandler.js';
 import {
     JsonlStore,
     JsonTaskStore,
@@ -211,18 +213,29 @@ export class Bridge implements IBridge {
         };
         this.loadTasks();
 
-        // Auto-install dashboard + replay viewer HTTP handlers when a store is present.
-        if (this.store) {
-            const store = this.store;
-            const replay = createReplayHandler(store);
-            const dashboard = createDashboardHandler(store, () => this.getViewerBaseUrl());
-            this.setHttpHandler(async (req, res) => {
-                if (replay(req, res)) return;
-                if (await dashboard(req, res)) return;
-                res.statusCode = 404;
-                res.setHeader('content-type', 'text/plain; charset=utf-8');
-                res.end('Not Found');
-            });
+        // Auto-install dashboard + replay viewer + events HTTP handlers.
+        {
+            const events = createEventsHandler(this);
+            if (this.store) {
+                const store = this.store;
+                const replay = createReplayHandler(store);
+                const dashboard = createDashboardHandler(store, () => this.getViewerBaseUrl());
+                this.setHttpHandler(async (req, res) => {
+                    if (replay(req, res)) return;
+                    if (await dashboard(req, res)) return;
+                    if (await events(req, res)) return;
+                    res.statusCode = 404;
+                    res.setHeader('content-type', 'text/plain; charset=utf-8');
+                    res.end('Not Found');
+                });
+            } else {
+                this.setHttpHandler(async (req, res) => {
+                    if (await events(req, res)) return;
+                    res.statusCode = 404;
+                    res.setHeader('content-type', 'text/plain; charset=utf-8');
+                    res.end('Not Found');
+                });
+            }
         }
     }
 
@@ -417,6 +430,96 @@ export class Bridge implements IBridge {
     onEvent(listener: EventListener): () => void {
         this.eventListeners.add(listener);
         return () => this.eventListeners.delete(listener);
+    }
+
+    /**
+     * Handle an HTTP-batch POST /events request (Edge Runtime path).
+     *
+     * Stateless: each call is a self-contained hello+events sequence.
+     * The hello is used to register the peer (or look up the existing session)
+     * and the events are persisted to the session timeline — same paths as the
+     * WS handler.
+     */
+    handleHttpBatch(
+        hello: HttpBatch['hello'],
+        events: HttpBatch['events'],
+    ): void {
+        const projectId = hello.projectId;
+        const sessionId = hello.sessionId ?? `server-orphans:${sanitizeStoreId(projectId)}`;
+
+        // Persist to store if available
+        if (this.store) {
+            // Upsert project metadata
+            if (hello.displayName !== undefined) {
+                try {
+                    this.store.upsertProject(projectId, {
+                        displayName: hello.displayName,
+                    });
+                } catch {
+                    // ignore cycle / validation errors
+                }
+            }
+
+            // Ensure session exists — if sessionId was provided by caller the
+            // runtime-client typically already created it; we use upsertSession
+            // so a server-only session (no browser client) also gets bootstrapped.
+            this.store.upsertSession(sessionId, {
+                tabId: 'http-batch',
+                startedAt: Date.now(),
+                participants: [{ projectId, buildId: hello.buildId, joinedAt: Date.now() }],
+            });
+
+            // Persist each event
+            for (const ev of events) {
+                const evName: string = typeof ev.name === 'string' ? ev.name : 'unknown';
+                this.store.appendEvent(sessionId, {
+                    ts: typeof ev.ts === 'number' ? ev.ts : Date.now(),
+                    t: evName,
+                    projectId,
+                    buildId: ev.buildId ?? hello.buildId,
+                    d: ev.payload,
+                });
+            }
+        }
+
+        // Fire event listeners so MCP tools can observe HTTP-batch events in real time
+        for (const ev of events) {
+            const evName: string = typeof ev.name === 'string' ? ev.name : 'unknown';
+            const fullFrame: import('@harnessa-fe/protocol').EventFrame = {
+                type: 'event',
+                id: ev.id ?? randomUUID(),
+                name: evName,
+                ts: typeof ev.ts === 'number' ? ev.ts : Date.now(),
+                projectId,
+                sessionId,
+                buildId: ev.buildId ?? hello.buildId,
+                payload: ev.payload,
+            };
+            // Use a synthetic PeerSession so listeners have consistent shape
+            const syntheticPeer: import('./sessionRouter.js').PeerSession = {
+                connectionId: `http:${sessionId}`,
+                role: 'node-runtime',
+                projectId,
+                tabId: undefined,
+                sessionId,
+                visitorId: undefined,
+                userId: hello.userId,
+                page: undefined,
+                lastActive: Date.now(),
+            };
+            for (const listener of this.eventListeners) {
+                try {
+                    listener(fullFrame, syntheticPeer);
+                } catch {
+                    /* swallow */
+                }
+            }
+        }
+
+        process.stderr.write(
+            `[harnessa-fe] http-batch: project=${projectId}` +
+            ` session=${sessionId.slice(0, 8)} events=${events.length}\n`,
+        );
     }
 
     async listTabs(): Promise<TabInfo[]> {
@@ -659,10 +762,9 @@ export class Bridge implements IBridge {
         // For runtime-client, storeId is the sessionId; for plugins storeId is the buildId.
         // Commands are sent to runtime-clients, so storeId here is always a sessionId.
         const storeSessionId = (session.role === 'runtime-client') ? storeId : undefined;
-        const loadId = session.sessionId;
         if (this.store && storeSessionId) {
             this.store.appendEvent(storeSessionId, {
-                ts: cmdTs, t: 'cmd', tab: session.tabId, load: loadId,
+                ts: cmdTs, t: 'cmd', tab: session.tabId,
                 d: { id, command, args, target },
             });
         }
@@ -674,7 +776,7 @@ export class Bridge implements IBridge {
                 // Persist timeout as failed response
                 if (this.store && storeSessionId) {
                     this.store.appendEvent(storeSessionId, {
-                        ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId,
+                        ts: Date.now(), t: 'resp', tab: session.tabId,
                         d: { id, ok: false, error: `timeout after ${timeoutMs}ms`, durationMs: timeoutMs },
                     });
                 }
@@ -686,7 +788,7 @@ export class Bridge implements IBridge {
                     if (this.store && storeSessionId) {
                         const safeResult = stripLargePayloads(result);
                         this.store.appendEvent(storeSessionId, {
-                            ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId,
+                            ts: Date.now(), t: 'resp', tab: session.tabId,
                             d: { id, ok: true, result: safeResult, durationMs: Date.now() - cmdTs },
                         });
                     }
@@ -696,7 +798,7 @@ export class Bridge implements IBridge {
                     // Persist error response
                     if (this.store && storeSessionId) {
                         this.store.appendEvent(storeSessionId, {
-                            ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId,
+                            ts: Date.now(), t: 'resp', tab: session.tabId,
                             d: { id, ok: false, error: err.message, durationMs: Date.now() - cmdTs },
                         });
                     }
@@ -1013,7 +1115,6 @@ export class Bridge implements IBridge {
                     }
                     if (storeSessionId) {
                         const tabId = frame.tabId ?? peer.tabId;
-                        const loadId = tabId ? peer.sessionId : undefined;
                         // Row-level stamps for multi-project mixed timelines
                         const projectId = peer.projectId;
                         const buildId = (peer.role === 'vite-plugin' || peer.role === 'webpack-plugin')
@@ -1047,7 +1148,7 @@ export class Bridge implements IBridge {
                                 },
                             });
                             this.store.appendEvent(storeSessionId, {
-                                ts, t: 'load', tab: tabId, load: loadId,
+                                ts, t: 'load', tab: tabId,
                                 projectId, buildId,
                                 d: frame.payload,
                             });
@@ -1060,7 +1161,6 @@ export class Bridge implements IBridge {
                                     ts: frame.ts ?? Date.now(),
                                     t: 'rrweb',
                                     tab: tabId,
-                                    load: loadId,
                                     projectId,
                                     buildId,
                                     d: {
@@ -1076,7 +1176,6 @@ export class Bridge implements IBridge {
                                 ts: frame.ts ?? Date.now(),
                                 t: frame.name as string,
                                 tab: tabId,
-                                load: loadId,
                                 projectId,
                                 buildId,
                                 d: frame.payload,
@@ -1088,7 +1187,6 @@ export class Bridge implements IBridge {
                                 ts: frame.ts ?? Date.now(),
                                 t: 'rrweb:marker',
                                 tab: tabId,
-                                load: loadId,
                                 projectId,
                                 buildId,
                                 d: marker,

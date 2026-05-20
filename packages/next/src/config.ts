@@ -62,11 +62,25 @@ class HarnessaNodeRuntimePlugin {
             entry?: unknown;
             plugins?: unknown[];
             resolve?: { alias?: Record<string, unknown> };
+            name?: string;
+            target?: string | string[];
         };
+        context?: string;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         [key: string]: any;
     }): void {
-        const autoEntry = '@harnessa-fe/node-runtime/auto';
+        // Detect edge runtime bundle — webpack target is 'webworker' for edge,
+        // or the compilation name contains 'edge' (Next.js heuristic).
+        const target = compiler.options?.target;
+        const targetStr = Array.isArray(target) ? target.join(',') : String(target ?? '');
+        const compName = compiler.options?.name ?? '';
+        const isEdge =
+            targetStr.includes('webworker') ||
+            compName.toLowerCase().includes('edge');
+
+        const autoEntry = isEdge
+            ? '@harnessa-fe/node-runtime/auto-edge'
+            : '@harnessa-fe/node-runtime/auto';
 
         // Inject HARNESSA_FE_* env vars so the auto entry can read them.
         compiler.hooks.environment.tap('HarnessaNodeRuntimePlugin', () => {
@@ -86,7 +100,7 @@ class HarnessaNodeRuntimePlugin {
             ) => { apply: (compiler: unknown) => void };
         };
         new webpack.EntryPlugin(
-            compiler.context as string || process.cwd(),
+            (compiler.context as string) || process.cwd(),
             autoEntry,
             { name: undefined }, // add to default entry
         ).apply(compiler);
@@ -116,8 +130,13 @@ export function withHarnessa(
             webpackContext: Record<string, any>,
         ) {
             // Next.js calls webpack() for both client and server builds.
-            // We only inject into the server (Node.js) build.
-            const isServer: boolean = webpackContext.isServer ?? webpackContext.nextRuntime === 'nodejs';
+            // Inject into both Node.js server builds AND edge runtime builds.
+            // The plugin itself detects which autoEntry to use based on compiler.options.target.
+            const nextRuntime: string = webpackContext.nextRuntime ?? '';
+            const isServer: boolean =
+                (webpackContext.isServer ?? false) ||
+                nextRuntime === 'nodejs' ||
+                nextRuntime === 'edge';
             if (isServer) {
                 config.plugins = config.plugins ?? [];
                 config.plugins.push(new HarnessaNodeRuntimePlugin(opts));
