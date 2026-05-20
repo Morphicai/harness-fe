@@ -181,6 +181,43 @@ export function reportLog(
 }
 
 /**
+ * Context for an explicit app-log event emitted by `@harnessa-fe/log`.
+ *
+ * Distinct from `EventContext` (which is for auto-captured events) so the
+ * bridge can write a separate `t: 'app-log'` row. The `scope` field comes
+ * from the logger's scope chain; `ts` is the timestamp captured at the
+ * logger call site.
+ */
+export interface AppLogContext {
+    /** Per-request sessionId. Read fresh via getRequestSessionId() in @harnessa-fe/log/node-emit. */
+    sessionId?: string;
+    /** Dot-separated logger scope, e.g. "cart.checkout". */
+    scope?: string;
+    /** Unix timestamp ms from the log call site. */
+    ts?: number;
+}
+
+/**
+ * Report an explicit app log line to the daemon as an `app.log` event.
+ *
+ * Called by `@harnessa-fe/log`'s node-emit path — not for console capture.
+ * Emits `name: 'app.log'` so the bridge writes a `t: 'app-log'` row,
+ * distinguishable from auto-captured `server-log` rows.
+ *
+ * args are stored as-is (not stringified) so structured objects are preserved
+ * in the JSONL payload for agent consumption.
+ */
+export function reportAppLog(
+    level: 'log' | 'info' | 'warn' | 'error' | 'debug',
+    args: unknown[],
+    ctx?: AppLogContext,
+): void {
+    sendEvent('app.log', { level, args, scope: ctx?.scope }, {
+        sessionId: ctx?.sessionId,
+    });
+}
+
+/**
  * Higher-order component for Next.js Route Handlers and Server Actions.
  *
  * Wraps `handler` in:

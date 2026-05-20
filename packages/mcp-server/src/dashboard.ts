@@ -65,6 +65,7 @@ const CSS = `
   .tag-log { background: #1a2c3d; color: #8bd1ff; }
   .tag-net { background: #1f3320; color: #8be08b; }
   .tag-cmd { background: #2b1f3d; color: #c9a3ff; }
+  .tag-applog { background: #2a1f3d; color: #d4aaff; }
   .tag-other { background: #2a2d35; color: #aab0bd; }
   button, .btn { background: #2a5cf7; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; font: inherit; cursor: pointer; font-size: 12px; font-weight: 600; }
   button:hover, .btn:hover { background: #4172ff; }
@@ -96,6 +97,7 @@ function timelineRowTag(t: string): string {
     if (t === 'log' || t === 'node:log') return `<span class="tag tag-log">${escapeHtml(t)}</span>`;
     if (t === 'req' || t === 'res') return `<span class="tag tag-net">${escapeHtml(t)}</span>`;
     if (t === 'cmd' || t === 'resp') return `<span class="tag tag-cmd">${escapeHtml(t)}</span>`;
+    if (t === 'app-log') return '<span class="tag tag-applog">app-log</span>';
     return `<span class="tag tag-other">${escapeHtml(t)}</span>`;
 }
 

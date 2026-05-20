@@ -42,6 +42,7 @@ export type EventType =
     | 'server-log'   // Node.js console log from node-runtime SDK
     | 'server-err'   // Node.js uncaughtException / unhandledRejection from node-runtime SDK
     | 'server-action'// Route Handler / Server Action timing from withHarnessaTracing()
+    | 'app-log'      // Explicit log call via @harnessa-fe/log (user-initiated, distinct from auto-captured console)
     | string;        // extensible — future types don't need schema changes
 
 /** A single event line in a JSONL file. Carries row-level projectId/buildId tags. */
