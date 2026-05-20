@@ -265,6 +265,9 @@ importers:
 
   packages/next:
     devDependencies:
+      '@harnessa-fe/node-runtime':
+        specifier: workspace:*
+        version: link:../node-runtime
       '@harnessa-fe/runtime':
         specifier: workspace:*
         version: link:../runtime-client
