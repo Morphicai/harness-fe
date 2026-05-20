@@ -8,11 +8,13 @@ graph LR
     MCP["⚡ MCP Server"]
     Plugin["🔧 Build Plugin"]
     Runtime["🌐 Runtime Client"]
+    NRT["🖥️ Node Runtime"]
     Store["💾 Persistence (IStore)"]
 
     Agent <-->|stdio MCP| MCP
     MCP <-->|WebSocket| Plugin
     MCP <-->|WebSocket| Runtime
+    MCP <-->|WS or HTTP-batch| NRT
     MCP -->|read/write| Store
 ```
 
@@ -20,9 +22,14 @@ graph LR
 |-------|---------|---------------|
 | Build Plugin | `@harnessa-fe/vite` / `.webpack` | Source-aware transform at build time; forward HMR + Node.js logs; report `projectId` / `buildId` / `parentProjectId` to daemon |
 | Runtime Client | `@harnessa-fe/runtime` | Capture browser events (console / network / errors / rrweb); execute agent commands; **inherit identity from same-origin parent iframe** |
+| Node Runtime | `@harnessa-fe/node-runtime` | Server-side capture (`uncaughtException`, `unhandledRejection`, `console.*`, Route Handler traces); ALS + provider-based `sessionId` resolution; dual transport (WS / HTTP-batch for Edge) |
+| Framework Adapter | `@harnessa-fe/next` | Bridges Next.js into the runtime: `<HarnessaScript>` Server Component seeds the same `sessionId` into SSR HTML and the client; `setSessionIdProvider` DI plugs Next's `cache()`-backed getter into node-runtime |
+| User API | `@harnessa-fe/log` | Isomorphic structured logger; same `log.info(...)` in Server Components, Route Handlers, and Client Components; delegates `sessionId` resolution to the runtimes |
 | MCP Server | `@harnessa-fe/mcp-server` | Global daemon; bridges agent ↔ peers; owns persistence (`IStore`) + project tree |
 | Unplugin Core | `@harnessa-fe/unplugin` | Shared transform + WebSocket lifecycle for every bundler; resolves `buildId` |
 | Protocol | `@harnessa-fe/protocol` | Wire frames + Zod schemas + URL helpers |
+| JSX Runtime | `@harnessa-fe/react-jsx` | `jsxImportSource` adapter that tags every React element with `data-morphix-loc` / `data-morphix-comp` — works in any React 17+ toolchain without a bundler plugin |
+| Agent Playbook | `@harnessa-fe/skill` | Standalone npm — drops a `SKILL.md` into agent projects teaching them how to use the Harnessa MCP toolset |
 
 The MCP server is a **global daemon** — not tied to any single project. Multiple projects share one process.
 
@@ -59,6 +66,79 @@ When the runtime boots inside a same-origin iframe, `tryInheritFromParent()` rea
 Cross-origin parent → `SecurityError` caught silently → child generates its own identity.
 
 The parent runtime exposes itself on `window.__harnessa_fe_client__` and `window.__hfe_session_id__` precisely so children can read these.
+
+---
+
+## sessionId resolution (server side)
+
+The defining property of Harnessa: **one page-load = one sessionId, and every event from that page-load (server + client + iframe) carries it**. The mechanism on the server side is layered:
+
+```
+                              getRequestSessionId()
+                                       │
+                       ┌───────────────┴───────────────┐
+                       ▼                               ▼
+        1. AsyncLocalStorage                  2. Adapter-supplied provider
+           (explicit user intent —             (Next: React cache()-backed
+            withHarnessaTracing wraps           getter; pushed in via
+            a handler)                          setSessionIdProvider)
+                       │                               │
+                       └───────────┬───────────────────┘
+                                   ▼
+                       3. undefined → orphan event
+                       (filed under sessions/server-orphans/)
+```
+
+**Why ALS wins**: explicit user intent. If a developer wraps a handler in `withHarnessaTracing`, they want that exact id used.
+
+**The DI direction matters**: `@harnessa-fe/node-runtime` does NOT import `@harnessa-fe/next`. Instead, the Next adapter's `sessionId.ts` module has a side-effect `try { require('@harnessa-fe/node-runtime').setSessionIdProvider(getSessionId) }` that fires on first `<HarnessaScript>` render. Dependency direction is L2 framework adapter → L1 runtime SDK (correct); node-runtime stays React-agnostic.
+
+**One-request lifecycle**:
+
+```
+request arrives
+  │
+  ▼
+<HarnessaScript> renders (Server Component)
+  ├─ ensureNodeRuntimeBooted() ─ first-render-only register() of node-runtime
+  ├─ side-effect import './sessionId.js' ─ setSessionIdProvider(getSessionId)
+  └─ getSessionId() ────────► cache() allocates sid-X for this render scope
+                                                │
+                                                ▼
+                                       seed: window.__HARNESSA_FE_SEED__ = { sessionId: 'sid-X' }
+                                                │
+Server Component renders, fires console.log    │
+        └─► node-runtime.getRequestSessionId() reads provider → 'sid-X'
+                                                │
+HTML reaches browser                            │
+        └─► <HarnessaScriptClient> hydrates → adopts seed → window.__harnessa_fe_client__.sessionId = 'sid-X'
+                                                │
+Client console.log / log.info                  │
+        └─► runtime-client.sendEvent stamps 'sid-X'
+                                                ▼
+                          One sessions/sid-X/timeline.jsonl with all events
+```
+
+**Cross-request isolation**: React `cache()` is request-scoped via `AsyncLocalStorage` under the hood. Two tabs hitting the same Next process in parallel get separate cache scopes; their `console.log` / `log.info` rows go to separate session timelines. Verified by `@harnessa-fe/node-runtime` test suite (28 cases, including a `Promise.all([renderA, renderB])` interleaved-`console.log` case).
+
+**Orphans are correct**: a `log.info()` from a background timer, cold-start init, or post-response callback has no request to belong to. Marking it `sessionId: undefined` and filing under `server-orphans/` is more honest than guessing.
+
+---
+
+## Event types
+
+| Event | Source | Tagged as |
+|---|---|---|
+| `console` | Browser `console.*` (auto-captured by runtime-client) | `t: 'console'` |
+| `network` | Browser `fetch` / XHR (auto-captured) | `t: 'network'` |
+| `app-log` | Explicit `log.*` calls via `@harnessa-fe/log` (browser or server) | `t: 'app-log'` |
+| `server-log` | Server-side `console.*` (auto-captured by node-runtime) | `t: 'server-log'` |
+| `server-err` | `uncaughtException` / `unhandledRejection` / explicit `reportError` | `t: 'server-err'` |
+| `server-action` | Handler wrapped in `withHarnessaTracing` — duration + status | `t: 'server-action'` |
+| `task` | User submitting an annotated screenshot via the overlay | `t: 'task'` |
+| `rrweb` | Browser DOM snapshots (one chunk every few seconds) | written to `recording.jsonl` |
+
+`app-log` vs `server-log` distinction lets agents answer "show me the developer's explicit `log.warn` calls" separately from "all server output including framework noise".
 
 ---
 
