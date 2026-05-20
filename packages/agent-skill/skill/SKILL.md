@@ -100,8 +100,31 @@ Key invariants you can rely on:
 
 | Tool | Use case |
 |---|---|
-| `tasks_pending` | What the user has clicked-and-annotated as a task |
-| `tasks_claim(id)` / `tasks_resolve(id)` | Claim & complete |
+| `tasks_pending` | What the user has clicked-and-annotated as a task. Returns id / question / url / selector / **attachments[]** (id + dims, no bytes) |
+| `tasks_claim(id)` | Claim the task; returns full Task incl. element outerHTML, attachment pointers |
+| `tasks_resolve(id, note?)` | Mark complete; optional note shown back to the user in their "My reports" view |
+| **`tasks_get_attachment({taskId, attachmentId})`** | Fetch the annotated screenshot as an **MCP image-content block** — `{ type: 'image', mimeType: 'image/png', data: base64 }`. Vision-capable LLMs (Claude / GPT-4V) can attach it directly. The annotations (arrow, text) are already flattened into the pixels |
+
+### Visitor identity & user journey
+
+`visitorId` is an anonymous, stable per-browser id (`localStorage.__hfe_visitor_id__`, per-origin). Optional `userId` is app-supplied (e.g. from auth) for cross-device aggregation. Both stitched across refreshes, tabs, and same-origin iframes.
+
+| Tool | Use case |
+|---|---|
+| `visitor.list({ projectId?, limit? })` | All visitors the daemon has seen, newest activity first |
+| `visitor.get(visitorId)` | One visitor's metadata: firstSeenAt / lastSeenAt / sessionCount / projectIds / **lastEnv** (UA, language, timezone, viewport, colorScheme) |
+| `visitor.journey({ visitorId, limit? })` | Chronological sessions for this visitor — answer "what did this person actually do?" |
+
+### Server-side capture (Next.js, role = `node-runtime`)
+
+For Next.js apps wired with `@harnessa-fe/node-runtime` + `<HarnessaScript>`, server-side events show up in the **same** `sessions/{sessionId}/timeline.jsonl` as the client-side events for that same refresh (continuity via React `cache()`).
+
+Event types you'll see on server-side rows (`t` field):
+- `server-log` — Node `console.*` (opt-in via `HARNESSA_FE_NODE_CONSOLE=1`)
+- `server-err` — `process.on('uncaughtException' | 'unhandledRejection')` + Server Component render errors
+- `server-action` — durations / errors from Route Handlers + Server Actions wrapped with `withHarnessaTracing(handler)`
+
+When debugging a Next.js bug, the rule of thumb: **filter `session.timeline({ sessionId })` for server-* events first**. Server errors usually precede client hydration failures. If the project has no `node-runtime` connected, server logs are silently missing — tell the user to wrap their next config with `withHarnessa(...)`.
 
 ## Source-aware selectors
 
@@ -168,8 +191,7 @@ change class names or DOM structure.
 
 ## Common gotchas
 
-- **`project.sessions` is deprecated** — prefer `project.list` + `build.list`. Both list projects, but `project.sessions` mixes dimensions.
-- **`sessionId` ≠ build/dev-run id** — `sessionId` is one page-load. The "dev-server run" concept is `buildId`. Names changed in v0.2; old MCP recordings may use `loadId` (alias for `sessionId`).
+- **`sessionId` ≠ build / dev-run id** — `sessionId` is one page-load. The "dev-server run" / source-code snapshot concept is `buildId`. Filter by `sessionId` to see one refresh's worth of activity (server-side + client-side merged). Filter by `buildId` to see "what code was running across all sessions during this dev run".
 - **HMR doesn't change `buildId`** — only a fresh `pnpm dev` does. So during one debugging session you'll usually see one buildId, multiple sessionIds.
 - **Cross-origin iframe** — identity inheritance silently degrades. Child gets its own `tabId`/`sessionId`. Tell the user this is expected; suggest same-origin via vite proxy if they need correlation.
 
@@ -179,11 +201,34 @@ change class names or DOM structure.
 - "Multiple tabs are connected, which one?" → call `tab_list`, show the user the `url` field, ask which.
 - "Multiple projects share this tabId" — common in micro-frontends. Use `project.tree` to show the hierarchy; ask which sub-app the user's bug is in.
 
+## Decision flow 5: User filed a task via the in-page overlay
+
+The runtime ships a small "H" overlay button. When a user picks an element + draws an arrow + types a description, the task arrives via `tasks_pending`. To act on it:
+
+1. `tasks_pending({ status: 'pending' })` → list the queue
+2. `tasks_claim(taskId)` → get the full Task (selector.loc gives file:line, element.outerHTML gives DOM context)
+3. `tasks_get_attachment({ taskId, attachmentId })` → grab the annotated screenshot. The arrows + text annotations are already drawn on the image; pass it directly into your vision call.
+4. `session.timeline({ sessionId: task.sessionId })` → see what the user was doing before + after the report (console errors, network failures, server-side `server-err` rows)
+5. Form a fix. Use `project_where_is` / `project_source` to navigate to the source. Apply.
+6. `tasks_resolve(taskId, "Fixed in PR #234")` → user sees the note in their "My reports" view next time they open the overlay.
+
 ## Quick reference: install & wire-up
 
-The host project needs three things:
-1. `npm i -D @harnessa-fe/vite @harnessa-fe/runtime` (or `.webpack`)
+The host project picks one of three integration paths:
+
+**Vite / Webpack (plugin-based, traditional)**:
+1. `pnpm add -D @harnessa-fe/vite @harnessa-fe/runtime` (or `@harnessa-fe/webpack`)
 2. `plugins: [react(), harnessaFE()]` in their bundler config
-3. The MCP daemon configured: `npx @harnessa-fe/mcp-server` in `.mcp.json` / Claude Code settings
+3. Daemon: `npx @harnessa-fe/mcp-server` in `.mcp.json` / Claude Code settings
+
+**Next.js (recommended — plugin-less, supports SSR session continuity)**:
+1. `pnpm add -D @harnessa-fe/next @harnessa-fe/react-jsx @harnessa-fe/runtime @harnessa-fe/node-runtime`
+2. `tsconfig.json`: `"jsxImportSource": "@harnessa-fe/react-jsx"` (gives `data-morphix-loc` on every JSX element)
+3. `next.config.mjs`: `export default withHarnessa(config, { projectId })`
+4. `app/layout.tsx`: `<HarnessaScript projectId="…" userId={user?.id} />`
+5. Same MCP daemon config as above.
+
+**Any other React toolchain (Remix / Astro / Vite + custom)**:
+- Just `tsconfig.json`'s `jsxImportSource` + `@harnessa-fe/runtime` boot script. No `node-runtime` (which is Next-specific). Browser-side capture works fully.
 
 Once the dev server is running, `tab_list` returns at least one tab and you can use the rest of the catalog.
