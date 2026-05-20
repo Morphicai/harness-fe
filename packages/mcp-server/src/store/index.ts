@@ -1,4 +1,4 @@
-export { JsonlStore } from './JsonlStore.js';
+export { JsonlStore, sanitizeId } from './JsonlStore.js';
 export { WriteQueue } from './WriteQueue.js';
 export { JsonTaskStore } from './JsonTaskStore.js';
 export { JsonMemoryStore } from './JsonMemoryStore.js';
@@ -14,7 +14,8 @@ export type {
     BuildMeta,
     SessionMeta,
     TabMeta,
-    LoadMeta,
+    LegacyBuildSessionMeta,
+    LegacyLoadMeta,
     SessionSummary,
     TailOptions,
     SearchOptions,

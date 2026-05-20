@@ -154,8 +154,11 @@ export class Bridge implements IBridge {
     private autoPurgeOpts: Required<NonNullable<BridgeOptions['autoPurge']>>;
     /** Set by start() when auto-purge is enabled; cleared by stop(). */
     private autoPurgeTimer?: NodeJS.Timeout;
-    /** Map from connectionId → sessionId in the store */
-    private connToStoreSession = new Map<string, string>();
+    /**
+     * Map from connectionId → buildId (for build-plugin connections)
+     * or sessionId (for runtime-client connections).
+     */
+    private connToStoreId = new Map<string, string>();
     /** Connections that already logged a "no store session" warning. */
     private warnedNoSession = new Set<string>();
     /**
@@ -165,10 +168,10 @@ export class Bridge implements IBridge {
      */
     private graceTimers = new Map<string, NodeJS.Timeout>();
     /**
-     * Pending session end info: projectId → { sessionId, closedAt }.
-     * Tracks sessions waiting for the grace period to expire.
+     * Pending build end info: projectId → { buildId, closedAt }.
+     * Tracks builds waiting for the grace period to expire.
      */
-    private pendingEndSession = new Map<string, { sessionId: string; closedAt: number }>();
+    private pendingEndBuild = new Map<string, { buildId: string; closedAt: number }>();
 
     constructor(opts: BridgeOptions = {}) {
         this.store = opts.store === null ? null : (opts.store ?? new JsonlStore());
@@ -439,21 +442,17 @@ export class Bridge implements IBridge {
 
     private persistTaskEvent(task: Task, eventType: string): void {
         if (!this.store) return;
-        // Find the store session for this task's project
-        const sessions = this.store.listSessions(task.projectId, 1);
-        const storeSessionId = sessions[0]?.id;
-        if (!storeSessionId) return;
-        this.store.append(
-            storeSessionId,
-            {
-                ts: Date.now(),
-                t: eventType,
-                tab: task.tabId,
-                load: task.sessionId,
-                d: { id: task.id, status: task.status, question: task.question, note: task.note },
-            },
-            task.tabId,
-        );
+        // Find the most recent session for this task's project
+        const sessions = this.store.listSessions({ projectId: task.projectId, limit: 1 });
+        const sessionId = sessions[0]?.id;
+        if (!sessionId) return;
+        this.store.appendEvent(sessionId, {
+            ts: Date.now(),
+            t: eventType,
+            tab: task.tabId,
+            load: task.sessionId,
+            d: { id: task.id, status: task.status, question: task.question, note: task.note },
+        });
     }
 
     private recordTask(frame: EventFrame, peer: PeerSession): void {
@@ -534,15 +533,17 @@ export class Bridge implements IBridge {
             args,
         };
 
-        // Persist command to store
-        const storeSessionId = this.connToStoreSession.get(session.connectionId);
+        // Persist command to store — runtime-client connections store a sessionId
+        const storeId = this.connToStoreId.get(session.connectionId);
+        // For runtime-client, storeId is the sessionId; for plugins storeId is the buildId.
+        // Commands are sent to runtime-clients, so storeId here is always a sessionId.
+        const storeSessionId = (session.role === 'runtime-client') ? storeId : undefined;
         const loadId = session.sessionId;
         if (this.store && storeSessionId) {
-            this.store.append(
-                storeSessionId,
-                { ts: cmdTs, t: 'cmd', tab: session.tabId, load: loadId, d: { id, command, args, target } },
-                session.tabId,
-            );
+            this.store.appendEvent(storeSessionId, {
+                ts: cmdTs, t: 'cmd', tab: session.tabId, load: loadId,
+                d: { id, command, args, target },
+            });
         }
 
         const timeoutMs = opts.timeoutMs ?? COMMAND_TIMEOUT_MS;
@@ -551,11 +552,10 @@ export class Bridge implements IBridge {
                 this.pending.delete(id);
                 // Persist timeout as failed response
                 if (this.store && storeSessionId) {
-                    this.store.append(
-                        storeSessionId,
-                        { ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId, d: { id, ok: false, error: `timeout after ${timeoutMs}ms`, durationMs: timeoutMs } },
-                        session.tabId,
-                    );
+                    this.store.appendEvent(storeSessionId, {
+                        ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId,
+                        d: { id, ok: false, error: `timeout after ${timeoutMs}ms`, durationMs: timeoutMs },
+                    });
                 }
                 reject(new Error(`bridge: command "${command}" timed out after ${timeoutMs}ms`));
             }, timeoutMs);
@@ -564,22 +564,20 @@ export class Bridge implements IBridge {
                     // Persist successful response (strip screenshot dataUrl to save space)
                     if (this.store && storeSessionId) {
                         const safeResult = stripLargePayloads(result);
-                        this.store.append(
-                            storeSessionId,
-                            { ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId, d: { id, ok: true, result: safeResult, durationMs: Date.now() - cmdTs } },
-                            session.tabId,
-                        );
+                        this.store.appendEvent(storeSessionId, {
+                            ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId,
+                            d: { id, ok: true, result: safeResult, durationMs: Date.now() - cmdTs },
+                        });
                     }
                     resolve(result);
                 },
                 reject: (err) => {
                     // Persist error response
                     if (this.store && storeSessionId) {
-                        this.store.append(
-                            storeSessionId,
-                            { ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId, d: { id, ok: false, error: err.message, durationMs: Date.now() - cmdTs } },
-                            session.tabId,
-                        );
+                        this.store.appendEvent(storeSessionId, {
+                            ts: Date.now(), t: 'resp', tab: session.tabId, load: loadId,
+                            d: { id, ok: false, error: err.message, durationMs: Date.now() - cmdTs },
+                        });
                     }
                     reject(err);
                 },
@@ -596,24 +594,18 @@ export class Bridge implements IBridge {
     }
 
     /**
-     * Returns true if there is an active (non-ended) session for the given projectId.
-     * Checks both in-memory grace period sessions and the store.
+     * Returns true if there is an active build for the given projectId.
+     * Checks both in-memory grace period builds and the store.
      */
-    private hasActiveSession(projectId: string): boolean {
-        // Check if there's a session in the grace period (still considered active)
-        if (this.pendingEndSession.has(projectId)) return true;
-        // Check if any connection currently maps to a session for this project
-        for (const [connId] of this.connToStoreSession) {
+    private hasActiveBuild(projectId: string): boolean {
+        // Check if there's a build in the grace period (still considered active)
+        if (this.pendingEndBuild.has(projectId)) return true;
+        // Check if any connection currently maps to a build for this project
+        for (const [connId] of this.connToStoreId) {
             const peer = this.router.getByConnectionId(connId);
             if (peer?.projectId === projectId && (peer.role === 'vite-plugin' || peer.role === 'webpack-plugin')) {
                 return true;
             }
-        }
-        // Fall back to store: check if there's a session without endedAt
-        if (this.store) {
-            const sessions = this.store.listSessions(projectId, 1);
-            const latest = sessions[0];
-            if (latest && latest.endedAt === undefined) return true;
         }
         return false;
     }
@@ -638,34 +630,36 @@ export class Bridge implements IBridge {
             this.sockets.delete(connectionId);
             this.warnedNoSession.delete(connectionId);
             // Close store session/tab if applicable
-            const storeSessionId = this.connToStoreSession.get(connectionId);
-            if (storeSessionId && this.store) {
+            const storeId = this.connToStoreId.get(connectionId);
+            if (storeId && this.store) {
                 const peer = this.router.getByConnectionId(connectionId);
                 if (peer?.role === 'runtime-client' && peer.tabId) {
-                    // Close the most recent open load before closing the tab.
-                    this.store.closeLatestLoad(storeSessionId, peer.tabId);
-                    this.store.closeTab(storeSessionId, peer.tabId);
-                    this.connToStoreSession.delete(connectionId);
+                    // Close the session and tab for this runtime-client.
+                    // storeId is the sessionId for runtime-clients.
+                    this.store.closeSession(storeId);
+                    this.store.closeTab(peer.tabId);
+                    this.connToStoreId.delete(connectionId);
                 } else if (peer?.role === 'vite-plugin' || peer?.role === 'webpack-plugin') {
-                    // Start grace period instead of closing session immediately
+                    // storeId is the buildId for build-plugins.
+                    // Start grace period instead of closing build immediately.
                     const projectId = peer.projectId;
                     if (projectId) {
                         const closedAt = Date.now();
-                        this.pendingEndSession.set(projectId, { sessionId: storeSessionId, closedAt });
+                        this.pendingEndBuild.set(projectId, { buildId: storeId, closedAt });
                         const timer = setTimeout(() => {
                             this.graceTimers.delete(projectId);
-                            const pending = this.pendingEndSession.get(projectId);
-                            if (pending && pending.sessionId === storeSessionId) {
-                                this.pendingEndSession.delete(projectId);
-                                this.store?.closeSession(storeSessionId, pending.closedAt);
+                            const pending = this.pendingEndBuild.get(projectId);
+                            if (pending && pending.buildId === storeId) {
+                                this.pendingEndBuild.delete(projectId);
+                                this.store?.closeBuild(storeId, pending.closedAt);
                             }
                         }, 30_000);
                         this.graceTimers.set(projectId, timer);
                     } else {
-                        // No projectId — close session immediately
-                        this.store.closeSession(storeSessionId);
+                        // No projectId — close build immediately
+                        this.store.closeBuild(storeId);
                     }
-                    this.connToStoreSession.delete(connectionId);
+                    this.connToStoreId.delete(connectionId);
                 }
             }
             this.router.unregister(connectionId);
@@ -734,15 +728,11 @@ export class Bridge implements IBridge {
                             );
                         }
                     }
-                    // Build artifact: record buildId metadata on first sight.
-                    if (frame.buildId) {
+                    // Build artifact: record buildId metadata on first sight (runtime-client only;
+                    // plugin openBuild() already handles the build-plugin case).
+                    if (frame.buildId && frame.role === 'runtime-client') {
                         this.store.upsertBuild(frame.projectId, frame.buildId, {
-                            bundler:
-                                frame.role === 'vite-plugin'
-                                    ? 'vite'
-                                    : frame.role === 'webpack-plugin'
-                                    ? 'webpack'
-                                    : undefined,
+                            bundler: undefined,
                         });
                     }
 
@@ -750,42 +740,42 @@ export class Bridge implements IBridge {
                         const projectId = frame.projectId;
                         // Check if there's a pending grace period for this project
                         const pendingTimer = projectId ? this.graceTimers.get(projectId) : undefined;
-                        const pendingSession = projectId ? this.pendingEndSession.get(projectId) : undefined;
-                        if (pendingTimer !== undefined && pendingSession !== undefined && projectId) {
-                            // Reconnect within grace period — cancel timer and reuse existing session
+                        const pendingBuild = projectId ? this.pendingEndBuild.get(projectId) : undefined;
+                        if (pendingTimer !== undefined && pendingBuild !== undefined && projectId) {
+                            // Reconnect within grace period — cancel timer and reuse existing build
                             clearTimeout(pendingTimer);
                             this.graceTimers.delete(projectId);
-                            this.pendingEndSession.delete(projectId);
-                            this.connToStoreSession.set(connectionId, pendingSession.sessionId);
+                            this.pendingEndBuild.delete(projectId);
+                            this.connToStoreId.set(connectionId, pendingBuild.buildId);
                         } else {
-                            // New session
-                            const storeSessionId = this.store.openSession(frame.projectId, {
-                                peerRole: frame.role,
-                                metadata: { role: frame.role },
+                            // Open a new build for this dev-server start
+                            const buildId = this.store.openBuild(frame.projectId, {
+                                bundler: frame.role === 'vite-plugin' ? 'vite' : 'webpack',
                             });
-                            this.connToStoreSession.set(connectionId, storeSessionId);
+                            this.connToStoreId.set(connectionId, buildId);
                         }
                     } else if (frame.role === 'runtime-client' && frame.tabId) {
-                        // Prefer reusing an existing session opened by a plugin
-                        // (so dev events and runtime events land in the same
-                        // timeline). If none exists — which is the normal case
-                        // for jsxImportSource / production deploys — open a new
-                        // session here so events still persist.
-                        const sessions = this.store.listSessions(frame.projectId, 1);
-                        let storeSessionId = sessions[0]?.id;
-                        if (!storeSessionId) {
-                            storeSessionId = this.store.openSession(frame.projectId, {
-                                peerRole: 'runtime-client',
-                                metadata: { role: 'runtime-client' },
-                            });
-                        }
-                        this.connToStoreSession.set(connectionId, storeSessionId);
-                        this.store.openTab(storeSessionId, {
-                            id: frame.tabId,
-                            url: frame.page?.url,
-                            title: frame.page?.title,
+                        // Runtime-client: upsert the pageload session identified by frame.sessionId.
+                        // frame.sessionId is the shared sessionId (shared across same-origin iframes).
+                        const sessionId = frame.sessionId ?? randomUUID();
+                        this.store.upsertTab(frame.tabId, {
+                            connectedAt: Date.now(),
                             userAgent: frame.page?.userAgent,
                         });
+                        // Build participants list: use frame.buildId if the plugin already told us about it
+                        const participants: Array<{ projectId: string; buildId?: string; joinedAt: number }> = [
+                            { projectId: frame.projectId, buildId: frame.buildId, joinedAt: Date.now() },
+                        ];
+                        this.store.upsertSession(sessionId, {
+                            tabId: frame.tabId,
+                            startedAt: Date.now(),
+                            url: frame.page?.url,
+                            title: frame.page?.title,
+                            referrer: undefined,
+                            userAgent: frame.page?.userAgent,
+                            participants,
+                        });
+                        this.connToStoreId.set(connectionId, sessionId);
                     }
                 }
                 // If store is null but taskStore is available, still load tasks for build plugins
@@ -830,7 +820,19 @@ export class Bridge implements IBridge {
                 }
                 // Persist to store
                 if (this.store) {
-                    const storeSessionId = this.connToStoreSession.get(connectionId);
+                    const storeId = this.connToStoreId.get(connectionId);
+                    // For runtime-clients storeId is the sessionId.
+                    // For build plugins storeId is the buildId — events from plugins
+                    // are appended to the most recent session for that project.
+                    let storeSessionId: string | undefined;
+                    if (peer.role === 'runtime-client') {
+                        storeSessionId = storeId;
+                    } else if (storeId) {
+                        // Build plugin: find most recent session for this project
+                        const sessions = this.store.listSessions({ projectId: peer.projectId, limit: 1 });
+                        storeSessionId = sessions[0]?.id;
+                    }
+
                     if (!storeSessionId) {
                         // Should not happen after the hello-time bootstrap above.
                         // Warn once per connection so silent data loss surfaces.
@@ -844,25 +846,22 @@ export class Bridge implements IBridge {
                     }
                     if (storeSessionId) {
                         const tabId = frame.tabId ?? peer.tabId;
-                        // Tab-scoped events MUST carry the peer's loadId — the
-                        // store enforces the `tab ⇒ load` invariant.
                         const loadId = tabId ? peer.sessionId : undefined;
-                        if (frame.name === EVENT_NAME.PAGE_LOAD && tabId && loadId) {
+                        // Row-level stamps for multi-project mixed timelines
+                        const projectId = peer.projectId;
+                        const buildId = (peer.role === 'vite-plugin' || peer.role === 'webpack-plugin')
+                            ? storeId
+                            : undefined;
+
+                        if (frame.name === EVENT_NAME.PAGE_LOAD && tabId) {
                             const parsed = pageLoadPayloadSchema.safeParse(frame.payload);
                             const ts = frame.ts ?? Date.now();
-                            // Persist the full snapshot on the timeline and a
-                            // compact LoadMeta row to loads.jsonl. The store
-                            // rewrites the previous open load's endedAt.
-                            this.store.append(
-                                storeSessionId,
-                                { ts, t: 'load', tab: tabId, load: loadId, d: frame.payload },
-                                tabId,
-                            );
                             const page = parsed.success ? parsed.data.page : undefined;
                             const viewport = parsed.success ? parsed.data.viewport : undefined;
                             const storageData = parsed.success ? parsed.data.storage : undefined;
-                            this.store.openLoad(storeSessionId, tabId, {
-                                id: loadId,
+                            // Update session meta with page info
+                            this.store.upsertSession(storeSessionId, {
+                                tabId: tabId,
                                 startedAt: ts,
                                 url: page?.url ?? peer.page?.url,
                                 title: page?.title ?? peer.page?.title,
@@ -880,58 +879,53 @@ export class Bridge implements IBridge {
                                     storageTruncated: storageData?.truncated,
                                 },
                             });
+                            this.store.appendEvent(storeSessionId, {
+                                ts, t: 'load', tab: tabId, load: loadId,
+                                projectId, buildId,
+                                d: frame.payload,
+                            });
                         } else if (frame.name === EVENT_NAME.RRWEB && tabId) {
                             const parsed = rrwebChunkPayloadSchema.safeParse(frame.payload);
                             if (parsed.success) {
-                                // 0.3.0: pass loadId so each pageload writes to its
-                                // own loads/{loadId}/recording.jsonl. Without it,
-                                // refreshes pile chunks (FullSnapshot + incrementals
-                                // from multiple pageloads) into one file and replay
-                                // slicing renders blank.
-                                this.store.appendRecording(storeSessionId, tabId, parsed.data, loadId);
-                                this.store.append(
-                                    storeSessionId,
-                                    {
-                                        ts: frame.ts ?? Date.now(),
-                                        t: 'rrweb',
-                                        tab: tabId,
-                                        load: loadId,
-                                        d: {
-                                            chunkId: parsed.data.chunkId,
-                                            startTs: parsed.data.startTs,
-                                            endTs: parsed.data.endTs,
-                                            eventCount: parsed.data.eventCount,
-                                        },
-                                    },
-                                    tabId,
-                                );
-                            }
-                        } else {
-                            this.store.append(
-                                storeSessionId,
-                                {
+                                // v0.4.0: each session has one recording.jsonl — no tabId/loadId needed
+                                this.store.appendRecording(storeSessionId, parsed.data);
+                                this.store.appendEvent(storeSessionId, {
                                     ts: frame.ts ?? Date.now(),
-                                    t: frame.name as string,
+                                    t: 'rrweb',
                                     tab: tabId,
                                     load: loadId,
-                                    d: frame.payload,
-                                },
-                                tabId,
-                            );
+                                    projectId,
+                                    buildId,
+                                    d: {
+                                        chunkId: parsed.data.chunkId,
+                                        startTs: parsed.data.startTs,
+                                        endTs: parsed.data.endTs,
+                                        eventCount: parsed.data.eventCount,
+                                    },
+                                });
+                            }
+                        } else {
+                            this.store.appendEvent(storeSessionId, {
+                                ts: frame.ts ?? Date.now(),
+                                t: frame.name as string,
+                                tab: tabId,
+                                load: loadId,
+                                projectId,
+                                buildId,
+                                d: frame.payload,
+                            });
                         }
                         const marker = deriveRecordingMarker(frame, tabId);
                         if (marker) {
-                            this.store.append(
-                                storeSessionId,
-                                {
-                                    ts: frame.ts ?? Date.now(),
-                                    t: 'rrweb:marker',
-                                    tab: tabId,
-                                    load: loadId,
-                                    d: marker,
-                                },
-                                tabId,
-                            );
+                            this.store.appendEvent(storeSessionId, {
+                                ts: frame.ts ?? Date.now(),
+                                t: 'rrweb:marker',
+                                tab: tabId,
+                                load: loadId,
+                                projectId,
+                                buildId,
+                                d: marker,
+                            });
                         }
                     }
                 }
@@ -1006,8 +1000,8 @@ export class Bridge implements IBridge {
             }
             case 'storeListSessions': {
                 if (!this.store) throw new Error('bridge: store is not enabled');
-                const a = args as { projectId: string; limit?: number };
-                return this.store.listSessions(a.projectId, a.limit);
+                const a = args as { projectId?: string; tabId?: string; buildId?: string; limit?: number };
+                return this.store.listSessions({ projectId: a.projectId, tabId: a.tabId, buildId: a.buildId, limit: a.limit });
             }
             case 'storeSummary': {
                 if (!this.store) throw new Error('bridge: store is not enabled');
@@ -1019,9 +1013,8 @@ export class Bridge implements IBridge {
                 const a = args as {
                     sessionId: string;
                     opts?: import('./store/index.js').TailOptions;
-                    tabId?: string;
                 };
-                return this.store.tail(a.sessionId, a.opts, a.tabId);
+                return this.store.tail(a.sessionId, a.opts);
             }
             case 'storeSearch': {
                 if (!this.store) throw new Error('bridge: store is not enabled');
@@ -1029,19 +1022,18 @@ export class Bridge implements IBridge {
                     sessionId: string;
                     query: string;
                     opts?: import('./store/index.js').SearchOptions;
-                    tabId?: string;
                 };
-                return this.store.search(a.sessionId, a.query, a.opts, a.tabId);
+                return this.store.search(a.sessionId, a.query, a.opts);
             }
             case 'storeRecordingsList': {
                 if (!this.store) throw new Error('bridge: store is not enabled');
-                const a = args as { sessionId: string; tabId?: string };
-                return this.store.listRecordings(a.sessionId, a.tabId);
+                const a = args as { sessionId: string };
+                return this.store.listRecordings(a.sessionId);
             }
             case 'storeRecordingsSlice': {
                 if (!this.store) throw new Error('bridge: store is not enabled');
-                const a = args as { sessionId: string; since: number; until: number; tabId?: string };
-                return this.store.sliceRecordings(a.sessionId, a.since, a.until, a.tabId);
+                const a = args as { sessionId: string; since: number; until: number };
+                return this.store.sliceRecordings(a.sessionId, a.since, a.until);
             }
             case 'storeReplayCreate': {
                 if (!this.store) throw new Error('bridge: store is not enabled');

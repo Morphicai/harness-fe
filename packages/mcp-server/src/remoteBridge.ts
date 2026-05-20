@@ -22,7 +22,6 @@ import type {
     BuildMeta,
     IMemoryStore,
     IStore,
-    LoadMeta,
     MemoryEntry,
     ProjectMeta,
     ProjectTreeNode,
@@ -279,30 +278,30 @@ class RemoteStore implements IStore {
         return this.bridge.invokeRemote('storeListProjects', {}) as Promise<ProjectMeta[]>;
     }
 
-    async listSessionsAsync(projectId: string, limit?: number): Promise<SessionMeta[]> {
-        return this.bridge.invokeRemote('storeListSessions', { projectId, limit }) as Promise<SessionMeta[]>;
+    async listSessionsAsync(opts?: { projectId?: string; tabId?: string; buildId?: string; limit?: number }): Promise<SessionMeta[]> {
+        return this.bridge.invokeRemote('storeListSessions', opts ?? {}) as Promise<SessionMeta[]>;
     }
 
     async summaryAsync(sessionId: string): Promise<SessionSummary> {
         return this.bridge.invokeRemote('storeSummary', { sessionId }) as Promise<SessionSummary>;
     }
 
-    async tailAsync(sessionId: string, opts?: TailOptions, tabId?: string): Promise<StoreEvent[]> {
-        return this.bridge.invokeRemote('storeTail', { sessionId, opts, tabId }) as Promise<StoreEvent[]>;
+    async tailAsync(sessionId: string, opts?: TailOptions): Promise<StoreEvent[]> {
+        return this.bridge.invokeRemote('storeTail', { sessionId, opts }) as Promise<StoreEvent[]>;
     }
 
-    async searchAsync(sessionId: string, query: string, opts?: SearchOptions, tabId?: string): Promise<StoreEvent[]> {
-        return this.bridge.invokeRemote('storeSearch', { sessionId, query, opts, tabId }) as Promise<StoreEvent[]>;
+    async searchAsync(sessionId: string, query: string, opts?: SearchOptions): Promise<StoreEvent[]> {
+        return this.bridge.invokeRemote('storeSearch', { sessionId, query, opts }) as Promise<StoreEvent[]>;
     }
 
-    async listRecordingsAsync(sessionId: string, tabId?: string): Promise<RecordingChunkSummary[]> {
-        return this.bridge.invokeRemote('storeRecordingsList', { sessionId, tabId }) as Promise<RecordingChunkSummary[]>;
+    async listRecordingsAsync(sessionId: string): Promise<RecordingChunkSummary[]> {
+        return this.bridge.invokeRemote('storeRecordingsList', { sessionId }) as Promise<RecordingChunkSummary[]>;
     }
 
-    async sliceRecordingsAsync(sessionId: string, since: number, until: number, tabId?: string): Promise<RecordingChunk[]> {
+    async sliceRecordingsAsync(sessionId: string, since: number, until: number): Promise<RecordingChunk[]> {
         return this.bridge.invokeRemote(
             'storeRecordingsSlice',
-            { sessionId, since, until, tabId },
+            { sessionId, since, until },
         ) as Promise<RecordingChunk[]>;
     }
 
@@ -326,41 +325,52 @@ class RemoteStore implements IStore {
     // These satisfy the interface but throw — the MCP tool handlers in mcp.ts
     // use the async variants above when running in follower mode.
 
+    // Build lifecycle
+    openBuild(_p: string, _patch?: Partial<Omit<BuildMeta, 'id' | 'projectId' | 'builtAt'>>): string { throw notSupported('openBuild'); }
+    closeBuild(_b: string, _c?: number): void { throw notSupported('closeBuild'); }
+
+    // Tab lifecycle
+    upsertTab(_t: string, _patch: Partial<Omit<TabMeta, 'id'>>): TabMeta { throw notSupported('upsertTab'); }
+    getTab(_t: string): TabMeta | undefined { throw notSupported('getTab'); }
+    closeTab(_t: string, _d?: number): void { throw notSupported('closeTab'); }
+
+    // Session lifecycle
+    upsertSession(_s: string, _m: Partial<Omit<SessionMeta, 'id'>> & { tabId: string; startedAt: number }): SessionMeta { throw notSupported('upsertSession'); }
+    closeSession(_s: string, _e?: number): void { throw notSupported('closeSession'); }
+    getSession(_id: string): SessionMeta | undefined { throw notSupported('getSession'); }
+    listSessions(_opts?: { tabId?: string; projectId?: string; buildId?: string; limit?: number }): SessionMeta[] { throw notSupported('listSessions'); }
+
+    // Write
+    appendEvent(_s: string, _e: StoreEvent): void { throw notSupported('appendEvent'); }
+    appendEventBatch(_s: string, _e: StoreEvent[]): void { throw notSupported('appendEventBatch'); }
+    appendRecording(_s: string, _c: unknown): void { throw notSupported('appendRecording'); }
+    writeNote(_p: string, _k: string, _v: string): void { throw notSupported('writeNote'); }
+
+    // Project metadata
     listProjects(): ProjectMeta[] { throw notSupported('listProjects'); }
     upsertProject(_p: string, _patch: Partial<Omit<ProjectMeta, 'id' | 'createdAt'>>): ProjectMeta { throw notSupported('upsertProject'); }
     getProject(_p: string): ProjectMeta | undefined { throw notSupported('getProject'); }
+    getProjectTree(_r?: string): ProjectTreeNode[] { throw notSupported('getProjectTree'); }
+
+    // Build metadata
     upsertBuild(_p: string, _b: string, _patch: Partial<Omit<BuildMeta, 'id' | 'projectId'>>): BuildMeta { throw notSupported('upsertBuild'); }
     getBuild(_p: string, _b: string): BuildMeta | undefined { throw notSupported('getBuild'); }
     listBuilds(_p: string, _l?: number): BuildMeta[] { throw notSupported('listBuilds'); }
-    getProjectTree(_r?: string): ProjectTreeNode[] { throw notSupported('getProjectTree'); }
-    listSessions(_p: string, _l?: number): SessionMeta[] { throw notSupported('listSessions'); }
-    getSession(_id: string): SessionMeta | undefined { throw notSupported('getSession'); }
-    tail(_s: string, _o?: TailOptions, _t?: string): StoreEvent[] { throw notSupported('tail'); }
-    search(_s: string, _q: string, _o?: SearchOptions, _t?: string): StoreEvent[] { throw notSupported('search'); }
-    listRecordings(_s: string, _t?: string): RecordingChunkSummary[] { throw notSupported('listRecordings'); }
-    sliceRecordings(_s: string, _since: number, _until: number, _t?: string): RecordingChunk[] { throw notSupported('sliceRecordings'); }
-    listLoads(_s: string, _t: string): LoadMeta[] { throw notSupported('listLoads'); }
-    getLoad(_s: string, _t: string, _l: string): LoadMeta | undefined { throw notSupported('getLoad'); }
-    sliceRecordingsByLoad(_s: string, _t: string, _l: string): RecordingChunk[] { throw notSupported('sliceRecordingsByLoad'); }
-    summary(_s: string): SessionSummary { throw notSupported('summary'); }
-    purge(_p?: RetentionPolicy): PurgeResult { throw notSupported('purge'); }
-    listNotes(_p: string): Array<{ key: string; value: string; ts: number }> { throw notSupported('listNotes'); }
 
-    // Write operations — not available in follower mode
-    openSession(_p: string, _m: Omit<SessionMeta, 'id' | 'projectId' | 'startedAt'>): string { throw notSupported('openSession'); }
-    closeSession(_s: string, _c?: number): void { throw notSupported('closeSession'); }
-    openTab(_s: string, _t: Omit<TabMeta, 'sessionId' | 'connectedAt'>): void { throw notSupported('openTab'); }
-    closeTab(_s: string, _t: string): void { throw notSupported('closeTab'); }
-    openLoad(_s: string, _t: string, _m: Omit<LoadMeta, 'tabId' | 'sessionId' | 'endedAt'>): void { throw notSupported('openLoad'); }
-    closeLatestLoad(_s: string, _t: string, _e?: number): void { throw notSupported('closeLatestLoad'); }
-    append(_s: string, _e: StoreEvent, _t?: string): void { throw notSupported('append'); }
-    appendBatch(_s: string, _e: StoreEvent[], _t?: string): void { throw notSupported('appendBatch'); }
-    appendRecording(_s: string, _t: string, _c: unknown): void { throw notSupported('appendRecording'); }
-    writeNote(_p: string, _k: string, _v: string): void { throw notSupported('writeNote'); }
+    // Read
+    tail(_s: string, _o?: TailOptions): StoreEvent[] { throw notSupported('tail'); }
+    search(_s: string, _q: string, _o?: SearchOptions): StoreEvent[] { throw notSupported('search'); }
+    listRecordings(_s: string): RecordingChunkSummary[] { throw notSupported('listRecordings'); }
+    sliceRecordings(_s: string, _since: number, _until: number): RecordingChunk[] { throw notSupported('sliceRecordings'); }
     writeExport(_i: Parameters<IStore['writeExport']>[0]): ReplayExportMeta { throw notSupported('writeExport'); }
     getExport(_id: string): ReplayExportMeta | undefined { throw notSupported('getExport'); }
     readExportEvents(_id: string): unknown[] | undefined { throw notSupported('readExportEvents'); }
     listExports(_p: string, _l?: number): ReplayExportMeta[] { throw notSupported('listExports'); }
+    summary(_s: string): SessionSummary { throw notSupported('summary'); }
+    listNotes(_p: string): Array<{ key: string; value: string; ts: number }> { throw notSupported('listNotes'); }
+
+    // Maintenance
+    purge(_p?: RetentionPolicy): PurgeResult { throw notSupported('purge'); }
     close(): void { /* no-op for remote */ }
 }
 

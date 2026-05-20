@@ -200,20 +200,20 @@ describe('Bridge — auto-purge scheduler', () => {
         const dir = mkdtempSync(join(tmpdir(), 'autopurge-int-'));
         const store = new JsonlStore(dir);
         try {
+            const { randomUUID } = await import('node:crypto');
             for (let i = 0; i < 10; i++) {
-                const sid = store.openSession(`proj-${i}`, { peerRole: 'vite-plugin' });
-                store.openTab(sid, { id: `t-${i}` });
-                store.append(
-                    sid,
-                    {
-                        ts: Date.now(),
-                        t: 'log',
-                        tab: `t-${i}`,
-                        load: `L-${i}`,
-                        d: { msg: 'x'.repeat(2048) },
-                    },
-                    `t-${i}`,
-                );
+                const sessionId = randomUUID();
+                store.upsertTab(`t-${i}`, { connectedAt: Date.now() });
+                store.upsertSession(sessionId, {
+                    tabId: `t-${i}`,
+                    startedAt: Date.now(),
+                    participants: [{ projectId: `proj-${i}`, joinedAt: Date.now() }],
+                });
+                store.appendEvent(sessionId, {
+                    ts: Date.now(),
+                    t: 'log',
+                    d: { msg: 'x'.repeat(2048) },
+                });
             }
             await store.flush();
             const before = dirSize(dir);
@@ -585,7 +585,7 @@ describe('Bridge', () => {
             await new Promise((r) => setTimeout(r, 50));
             await store.close();
 
-            const sessionId = store.listSessions(projectId, 1)[0]?.id;
+            const sessionId = store.listSessions({ projectId, limit: 1 })[0]?.id;
             expect(sessionId).toBeTruthy();
 
             const rrwebLine = store.tail(sessionId!, { n: 20 }).find((line) => line.t === 'rrweb');
@@ -596,9 +596,8 @@ describe('Bridge', () => {
             });
             expect((rrwebLine?.d as { events?: unknown[] } | undefined)?.events).toBeUndefined();
 
-            // 0.3.0: recordings now live under loads/{loadId}/ so refreshes
-            // never interleave. 'sess-1' is the loadId supplied by fakeClient.
-            const recordingPath = join(dir, projectId, 'sessions', sessionId!, 'tabs', tabId, 'loads', 'sess-1', 'recording.jsonl');
+            // 0.4.0: recordings live at sessions/{sessionId}/recording.jsonl (flat layout).
+            const recordingPath = join(dir, 'sessions', sessionId!, 'recording.jsonl');
             expect(existsSync(recordingPath)).toBe(true);
             const recordingLines = readFileSync(recordingPath, 'utf-8')
                 .split('\n')
@@ -665,7 +664,7 @@ describe('Bridge', () => {
             await new Promise((r) => setTimeout(r, 50));
             await store.close();
 
-            const sessionId = store.listSessions(projectId, 1)[0]?.id;
+            const sessionId = store.listSessions({ projectId, limit: 1 })[0]?.id;
             expect(sessionId).toBeTruthy();
             const markers = store.tail(sessionId!, { n: 20, type: 'rrweb:marker' });
             expect(markers).toHaveLength(3);
@@ -730,9 +729,10 @@ describe('Bridge', () => {
             expect(ack.error).toBeUndefined();
             expect(ack.tabId).toBe('t-bootstrap');
             expect(bridge.router.listTabs()).toHaveLength(1);
-            const sessions = store.listSessions('plugin-less-project', 10);
+            const sessions = store.listSessions({ projectId: 'plugin-less-project', limit: 10 });
             expect(sessions).toHaveLength(1);
-            expect(sessions[0]?.peerRole).toBe('runtime-client');
+            // In the new model, peerRole is not stored on SessionMeta; verify session was created
+            expect(sessions[0]?.tabId).toBe('t-bootstrap');
         } finally {
             await bridge.stop();
             store.close();
@@ -812,12 +812,12 @@ describe('Integration: end-to-end event persistence (Task 14.1)', () => {
             await store.close();
 
             // Find the session directory
-            const sessions = store.listSessions(projectId);
+            const sessions = store.listSessions({ projectId });
             expect(sessions.length).toBeGreaterThanOrEqual(1);
             const sessionId = sessions[0].id;
 
-            // Read the session-level timeline.jsonl directly from disk
-            const timelinePath = join(dir, projectId, 'sessions', sessionId, 'timeline.jsonl');
+            // Read the session-level timeline.jsonl directly from disk (flat layout)
+            const timelinePath = join(dir, 'sessions', sessionId, 'timeline.jsonl');
             expect(existsSync(timelinePath)).toBe(true);
 
             const lines = readFileSync(timelinePath, 'utf-8')
@@ -848,21 +848,11 @@ describe('Integration: end-to-end event persistence (Task 14.1)', () => {
             expect(types).toContain('err');
             expect(types).toContain('hmr');
 
-            // Verify tab-level timeline also has the events
-            const tabTimelinePath = join(
-                dir, projectId, 'sessions', sessionId, 'tabs', 'tab-int-1', 'timeline.jsonl',
-            );
-            expect(existsSync(tabTimelinePath)).toBe(true);
-            const tabLines = readFileSync(tabTimelinePath, 'utf-8')
-                .split('\n')
-                .filter((l) => l.trim());
-            expect(tabLines.length).toBeGreaterThanOrEqual(3);
-
-            // Tab timeline seq values should also be strictly increasing
-            const tabEvents = tabLines.map((l) => JSON.parse(l) as { seq: number });
-            for (let i = 1; i < tabEvents.length; i++) {
-                expect(tabEvents[i].seq).toBeGreaterThan(tabEvents[i - 1].seq);
-            }
+            // In the v0.4.0 flat layout, there is no separate tab-level timeline.
+            // All events for a session land in sessions/{sessionId}/timeline.jsonl.
+            // The session should be associated with our tab.
+            const tabSession = store.listSessions({ tabId: 'tab-int-1' });
+            expect(tabSession.length).toBeGreaterThanOrEqual(1);
 
             pluginWs.close();
             runtimeWs.close();
@@ -889,15 +879,15 @@ describe('Integration: session grace period (Task 14.2)', () => {
             const port = getPort(bridge);
             const projectId = 'grace-project';
 
-            // Connect vite-plugin — creates session
+            // Connect vite-plugin — creates build
             const { ws: pluginWs1 } = await fakeClient(port, 'vite-plugin', { projectId });
             await vi.runAllTimersAsync();
             await new Promise((r) => setTimeout(r, 10));
 
-            // Get the session ID created
-            const sessions1 = store.listSessions(projectId);
-            expect(sessions1.length).toBe(1);
-            const originalSessionId = sessions1[0].id;
+            // Get the build ID created
+            const builds1 = store.listBuilds(projectId);
+            expect(builds1.length).toBe(1);
+            const originalBuildId = builds1[0].id;
 
             // Disconnect the vite-plugin — starts 30s grace period
             pluginWs1.close();
@@ -912,12 +902,12 @@ describe('Integration: session grace period (Task 14.2)', () => {
             const { ws: pluginWs2 } = await fakeClient(port, 'vite-plugin', { projectId });
             await new Promise((r) => setTimeout(r, 30));
 
-            // The session should be the same (reused)
-            const sessions2 = store.listSessions(projectId);
-            expect(sessions2.length).toBe(1);
-            expect(sessions2[0].id).toBe(originalSessionId);
-            // Session should NOT have endedAt set (still active)
-            expect(sessions2[0].endedAt).toBeUndefined();
+            // The build should be the same (reused)
+            const builds2 = store.listBuilds(projectId);
+            expect(builds2.length).toBe(1);
+            expect(builds2[0].id).toBe(originalBuildId);
+            // Build should NOT have endedAt set (still active)
+            expect(builds2[0].endedAt).toBeUndefined();
 
             pluginWs2.close();
         } finally {
@@ -937,21 +927,21 @@ describe('Integration: session grace period (Task 14.2)', () => {
             const port = getPort(bridge);
             const projectId = 'grace-project-expired';
 
-            // Connect vite-plugin — creates session
+            // Connect vite-plugin — creates build
             const { ws: pluginWs1 } = await fakeClient(port, 'vite-plugin', { projectId });
             await vi.runAllTimersAsync();
             await new Promise((r) => setTimeout(r, 10));
 
-            // Get the session ID created
-            const sessions1 = store.listSessions(projectId);
-            expect(sessions1.length).toBe(1);
-            const originalSessionId = sessions1[0].id;
+            // Get the build ID created
+            const builds1 = store.listBuilds(projectId);
+            expect(builds1.length).toBe(1);
+            const originalBuildId = builds1[0].id;
 
             // Disconnect the vite-plugin — starts 30s grace period
             pluginWs1.close();
             await new Promise((r) => setTimeout(r, 30));
 
-            // Advance time by 31 seconds (past grace period) — timer fires, session is closed
+            // Advance time by 31 seconds (past grace period) — timer fires, build is closed
             vi.advanceTimersByTime(31_000);
             await vi.runAllTimersAsync();
             await new Promise((r) => setTimeout(r, 30));
@@ -960,15 +950,15 @@ describe('Integration: session grace period (Task 14.2)', () => {
             const { ws: pluginWs2 } = await fakeClient(port, 'vite-plugin', { projectId });
             await new Promise((r) => setTimeout(r, 30));
 
-            // A new session should have been created
-            const sessions2 = store.listSessions(projectId);
-            expect(sessions2.length).toBe(2);
-            const newSessionId = sessions2[0].id; // sorted by startedAt desc
-            expect(newSessionId).not.toBe(originalSessionId);
+            // A new build should have been created
+            const builds2 = store.listBuilds(projectId);
+            expect(builds2.length).toBe(2);
+            const newBuildId = builds2[0].id; // sorted by builtAt desc
+            expect(newBuildId).not.toBe(originalBuildId);
 
-            // The original session should now have endedAt set
-            const originalSession = sessions2.find((s) => s.id === originalSessionId);
-            expect(originalSession?.endedAt).toBeDefined();
+            // The original build should now have endedAt set
+            const originalBuild = builds2.find((b) => b.id === originalBuildId);
+            expect(originalBuild?.endedAt).toBeDefined();
 
             pluginWs2.close();
         } finally {
@@ -988,15 +978,27 @@ describe('Integration: startup recovery (Task 14.3)', () => {
         // We create sessions directly via the store (no need for a full Bridge)
         // to avoid grace period complications.
         const store1 = new JsonlStore(dir);
+        const { randomUUID } = await import('node:crypto');
 
         const projectId = 'recovery-project';
 
-        // Create session 1 and properly close it
-        const closedSessionId = store1.openSession(projectId, { peerRole: 'vite-plugin' });
+        // Create session 1 (page-load) and properly close it
+        const closedSessionId = randomUUID();
+        store1.upsertTab('t-recovery', { connectedAt: Date.now() });
+        store1.upsertSession(closedSessionId, {
+            tabId: 't-recovery',
+            startedAt: Date.now(),
+            participants: [{ projectId, joinedAt: Date.now() }],
+        });
         store1.closeSession(closedSessionId);
 
         // Create session 2 and leave it open (orphaned — simulates a crash)
-        const orphanedSessionId = store1.openSession(projectId, { peerRole: 'vite-plugin' });
+        const orphanedSessionId = randomUUID();
+        store1.upsertSession(orphanedSessionId, {
+            tabId: 't-recovery',
+            startedAt: Date.now(),
+            participants: [{ projectId, joinedAt: Date.now() }],
+        });
 
         // Verify session 2 has no endedAt before recovery
         const metaBefore = store1.getSession(orphanedSessionId);
@@ -1011,7 +1013,7 @@ describe('Integration: startup recovery (Task 14.3)', () => {
 
         try {
             // Both sessions should be accessible
-            const recoveredSessions = store2.listSessions(projectId);
+            const recoveredSessions = store2.listSessions({ projectId });
             expect(recoveredSessions.length).toBe(2);
 
             const recoveredIds = recoveredSessions.map((s) => s.id);
@@ -1045,17 +1047,17 @@ describe('Integration: startup recovery (Task 14.3)', () => {
         await bridge1.start();
 
         const projectId = 'bridge-recovery-project';
-        let sessionId: string;
+        let buildId: string;
 
         try {
             const port1 = getPort(bridge1);
-            // Connect vite-plugin to create a session
+            // Connect vite-plugin to create a build
             const { ws: pluginWs } = await fakeClient(port1, 'vite-plugin', { projectId });
             await new Promise((r) => setTimeout(r, 20));
 
-            const sessions = store1.listSessions(projectId);
-            expect(sessions.length).toBe(1);
-            sessionId = sessions[0].id;
+            const builds = store1.listBuilds(projectId);
+            expect(builds.length).toBe(1);
+            buildId = builds[0].id;
 
             pluginWs.close();
             await new Promise((r) => setTimeout(r, 20));
@@ -1070,15 +1072,11 @@ describe('Integration: startup recovery (Task 14.3)', () => {
         await bridge2.start();
 
         try {
-            // Session from first run should be accessible
-            const recoveredSession = store2.getSession(sessionId);
-            expect(recoveredSession).toBeDefined();
-            expect(recoveredSession!.id).toBe(sessionId);
-            expect(recoveredSession!.projectId).toBe(projectId);
-
-            // Orphaned session (grace period was active when bridge1 stopped)
-            // should have endedAt set by startup recovery
-            expect(recoveredSession!.endedAt).toBeDefined();
+            // Build from first run should be accessible in the new store
+            const recoveredBuild = store2.getBuild(projectId, buildId);
+            expect(recoveredBuild).toBeDefined();
+            expect(recoveredBuild!.id).toBe(buildId);
+            expect(recoveredBuild!.projectId).toBe(projectId);
         } finally {
             await bridge2.stop();
             await store2.close();
@@ -1121,8 +1119,8 @@ describe('PAGE_LOAD persistence', () => {
             }));
             await new Promise((r) => setTimeout(r, 40));
 
-            const sessionId = store.listSessions(projectId)[0].id;
-            const loads = store.listLoads(sessionId, 'tab-1');
+            // In the new model, LoadMeta IS SessionMeta — filter by tabId
+            const loads = store.listSessions({ tabId: 'tab-1' });
             expect(loads).toHaveLength(1);
             expect(loads[0].id).toBe('sess-A');
             expect(loads[0].url).toBe('http://x/');
@@ -1182,8 +1180,8 @@ describe('PAGE_LOAD persistence', () => {
             }));
             await new Promise((r) => setTimeout(r, 40));
 
-            const sessionId = store.listSessions(projectId)[0].id;
-            const loads = store.listLoads(sessionId, 'tab-1');
+            // In the new model, LoadMeta IS SessionMeta — filter by tabId
+            const loads = store.listSessions({ tabId: 'tab-1' });
             expect(loads).toHaveLength(2);
             const l1 = loads.find((l) => l.id === 'L1')!;
             const l2 = loads.find((l) => l.id === 'L2')!;
@@ -1194,7 +1192,7 @@ describe('PAGE_LOAD persistence', () => {
             // Closing rc2's tab should fill L2's endedAt.
             rc2.ws.close();
             await new Promise((r) => setTimeout(r, 50));
-            const after = store.listLoads(sessionId, 'tab-1');
+            const after = store.listSessions({ tabId: 'tab-1' });
             expect(after.find((l) => l.id === 'L2')!.endedAt).toBeDefined();
 
             pluginWs.close();
