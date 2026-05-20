@@ -71,6 +71,12 @@ export interface StoreEvent {
      * Row-level build ID. Stamped by the bridge.
      */
     buildId?: string;
+    /**
+     * Row-level visitor ID. Stamped by the bridge from the registered peer
+     * or the frame's own `visitorId`. Lets agents filter timeline by
+     * "everything from this user" without join lookups.
+     */
+    visitorId?: string;
     /** Event payload — structure depends on `t`. */
     d?: unknown;
 }
