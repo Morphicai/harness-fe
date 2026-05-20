@@ -1,5 +1,12 @@
 # @harnessa-fe/next
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [88af49d]
+  - @harnessa-fe/runtime@0.6.4
+
 ## 0.7.0
 
 ### Minor Changes
