@@ -52,11 +52,12 @@ graph LR
 
 | Environment | Version | Status |
 |-------------|---------|--------|
-| Vite + React | 5.x – 7.x | ✅ Stable |
-| Webpack + React | 5.x | ✅ Stable |
+| Vite + React | 5.x – 7.x | ✅ Stable (`@harnessa-fe/vite`) |
+| Webpack + React | 5.x | ✅ Stable (`@harnessa-fe/webpack`) |
 | Vite + Vue 3 | 5.x – 7.x | ✅ Stable |
 | Webpack + Vue 3 | 5.x | ✅ Stable |
-| Next.js (Webpack) | 13+ | 📋 Planned |
+| Next.js (App + Pages Router) | 13+ | ✅ Stable (`@harnessa-fe/next` + `@harnessa-fe/react-jsx`) |
+| Any React toolchain (Remix, Astro, Turbopack, …) | React 17+ | ✅ Stable via `@harnessa-fe/react-jsx` jsxImportSource |
 
 ## Getting Started
 
