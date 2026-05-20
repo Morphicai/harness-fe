@@ -11,12 +11,13 @@
  *   {dataDir}/sessions/{sessionId}/meta.json       ← one per pageload
  *   {dataDir}/sessions/{sessionId}/timeline.jsonl  ← mixed parent+child events
  *   {dataDir}/sessions/{sessionId}/recording.jsonl ← rrweb chunks
+ *   {dataDir}/visitors/{visitorId}/meta.json       ← per-browser identity (0.5+)
  *
  * Legacy layout (v0.3.x, read-only fallback — daemon warns on startup):
  *   {dataDir}/{projectId}/sessions/{buildId}/tabs/{tabId}/...
  */
 
-import type { Task } from '@harnessa-fe/protocol';
+import type { Task, VisitorEnv } from '@harnessa-fe/protocol';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 
@@ -186,6 +187,27 @@ export interface LegacyLoadMeta {
         storageKeys?: { local?: number; session?: number; cookie?: number };
         storageTruncated?: boolean;
     };
+}
+
+/**
+ * Per-visitor identity. Lives at visitors/{visitorId}/meta.json. Stitches a
+ * user's activity across pageloads / refreshes / tabs.
+ */
+export interface VisitorMeta {
+    /** visitorId — anonymous UUID persisted in browser localStorage. */
+    id: string;
+    /** App-supplied identifier (latest non-empty value wins). */
+    userId?: string;
+    firstSeenAt: number;
+    lastSeenAt: number;
+    /** Distinct sessions (pageloads) attributed to this visitor. */
+    sessionCount: number;
+    /** LRU-capped list of distinct tabIds seen (max 50). */
+    tabIds: string[];
+    /** Distinct projects this visitor has touched (max 50). */
+    projectIds: string[];
+    /** Last-seen environment snapshot. */
+    lastEnv?: VisitorEnv;
 }
 
 // ─── Query options ────────────────────────────────────────────────────────────
@@ -436,6 +458,34 @@ export interface IStore {
 
     /** Get a forest (or sub-tree from `rootId`) from parentProjectId links. */
     getProjectTree(rootId?: string): ProjectTreeNode[];
+
+    // ── Visitor metadata (0.5+) ─────────────────────────────────────────────
+
+    /**
+     * Upsert visitor metadata. Merges with existing meta:
+     *   - `firstSeenAt` preserved; `lastSeenAt` advances
+     *   - `sessionCount` increments when caller passes `incrementSession: true`
+     *   - `tabIds` / `projectIds` deduped and LRU-capped at 50
+     *   - `userId` overwritten if patch carries a non-empty value
+     *   - `lastEnv` overwritten if patch carries one
+     */
+    upsertVisitor(
+        visitorId: string,
+        patch: {
+            userId?: string;
+            seenAt?: number;
+            incrementSession?: boolean;
+            addTabId?: string;
+            addProjectId?: string;
+            lastEnv?: VisitorEnv;
+        },
+    ): VisitorMeta;
+
+    /** Read a single visitor's metadata. */
+    getVisitor(visitorId: string): VisitorMeta | undefined;
+
+    /** List known visitors, newest lastSeenAt first. */
+    listVisitors(opts?: { projectId?: string; limit?: number }): VisitorMeta[];
 
     // ── Read ───────────────────────────────────────────────────────────────
 

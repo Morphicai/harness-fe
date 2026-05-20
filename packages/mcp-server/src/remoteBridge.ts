@@ -357,6 +357,11 @@ class RemoteStore implements IStore {
     getBuild(_p: string, _b: string): BuildMeta | undefined { throw notSupported('getBuild'); }
     listBuilds(_p: string, _l?: number): BuildMeta[] { throw notSupported('listBuilds'); }
 
+    // Visitor metadata (0.5+) — followers don't proxy yet; leader-only for now.
+    upsertVisitor(_v: string, _patch: Parameters<IStore['upsertVisitor']>[1]): ReturnType<IStore['upsertVisitor']> { throw notSupported('upsertVisitor'); }
+    getVisitor(_v: string): ReturnType<IStore['getVisitor']> { throw notSupported('getVisitor'); }
+    listVisitors(_opts?: Parameters<IStore['listVisitors']>[0]): ReturnType<IStore['listVisitors']> { throw notSupported('listVisitors'); }
+
     // Read
     tail(_s: string, _o?: TailOptions): StoreEvent[] { throw notSupported('tail'); }
     search(_s: string, _q: string, _o?: SearchOptions): StoreEvent[] { throw notSupported('search'); }
