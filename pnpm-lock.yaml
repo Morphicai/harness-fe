@@ -311,9 +311,6 @@ importers:
         specifier: workspace:*
         version: link:../protocol
     devDependencies:
-      '@harnessa-fe/next':
-        specifier: workspace:*
-        version: link:../next
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
