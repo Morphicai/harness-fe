@@ -146,6 +146,25 @@ For Next.js the recommended path is **plugin-less** (via `react-jsx` for source 
 
 5. **Run the daemon** + **`pnpm dev`**. Two `peer connected` lines should show in the daemon log per refresh — one `role=node-runtime`, one `role=runtime-client`, **same sessionId**.
 
+### Optional — structured logs with `@harnessa-fe/log`
+
+For explicit logs (instead of relying on auto-captured `console.*`), use the isomorphic logger. Same import works in Server Components, Route Handlers, Server Actions, and Client Components — events from both server and client land in the same session timeline.
+
+```bash
+pnpm add @harnessa-fe/log
+```
+
+```tsx
+import { log } from '@harnessa-fe/log';
+
+// Anywhere — Server Component, Route Handler, Client Component, shared util
+log.info('Cart loaded', { items: items.length });
+log.scope('checkout').warn('Stripe latency high', { ms: latency });
+log.error('Webhook failed', err);
+```
+
+Agents can ask "show me all `log.warn(...)` in this session" because `log` events are tagged `app-log` — distinct from auto-captured `server-log` / browser `console`. See [`packages/log/README.md`](./packages/log/README.md) for details.
+
 ### User feedback (in-page overlay)
 
 When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking opens the info card. From there users can:
@@ -163,6 +182,7 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 | [`@harnessa-fe/runtime`](./packages/runtime-client) | Browser SDK — capture, rrweb, overlay, "Report a problem", "My reports" |
 | [`@harnessa-fe/node-runtime`](./packages/node-runtime) | Node SDK — Server Component / Route Handler / uncaught error capture. Dual transport: WS in Node runtime, HTTP-batch in Edge runtime |
 | [`@harnessa-fe/next`](./packages/next) | Next.js integration — `<HarnessaScript>` server component, `withHarnessa()` next-config wrapper |
+| [`@harnessa-fe/log`](./packages/log) | Isomorphic structured logger — same `log.info/warn/error` works in Server Components, Route Handlers, and Client Components; same `sessionId` everywhere |
 | [`@harnessa-fe/react-jsx`](./packages/react-jsx) | `jsxImportSource` runtime — source-aware tagging for ANY React toolchain, no bundler plugin needed |
 | [`@harnessa-fe/vite`](./packages/vite-plugin) | Vite plugin |
 | [`@harnessa-fe/webpack`](./packages/webpack-plugin) | Webpack plugin |
@@ -171,8 +191,9 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 
 ## Documentation
 
+- [**ARCHITECTURE.md**](./ARCHITECTURE.md) — Package responsibilities, data flow diagrams, sessionId resolution chain, and protocol reference
+- [**docs/troubleshooting.md**](./docs/troubleshooting.md) — Events not showing? sessionId mismatch? Where do timeline files live? Start here
 - [**CONTRIBUTING.md**](./CONTRIBUTING.md) — Development setup, commit conventions, and PR process
-- [**ARCHITECTURE.md**](./ARCHITECTURE.md) — Package responsibilities, data flow diagrams, and protocol reference
 - [**ROADMAP.md**](./ROADMAP.md) — Project milestones and planned features
 
 ## License

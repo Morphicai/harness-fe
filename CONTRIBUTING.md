@@ -25,12 +25,21 @@ packages/
   vite-plugin/      # vite adapter (thin wrapper over unplugin)
   webpack-plugin/   # webpack adapter
   runtime-client/   # browser SDK
-  mcp-server/       # daemon: stdio MCP + WS bridge + persistence
+  node-runtime/     # node + edge server SDK (errors, console, ALS + DI sessionId)
+  next/             # next.js integration (Server Component + next.config wrapper)
+  log/              # isomorphic structured logger (user-facing API)
+  react-jsx/        # jsxImportSource runtime for source-tagging
+  agent-skill/      # standalone SKILL.md playbook for AI agents
+  mcp-server/       # daemon: stdio MCP + WS bridge + HTTP-batch + persistence
 examples/
   react-demo/       # Vite + React playground
   vue-demo/         # Vite + Vue 3 playground
   webpack-demo/     # Webpack + React playground
+  webpack5-vue3-demo/ # Webpack 5 + Vue 3 playground
+  iframe-demo/      # Same-origin iframe identity inheritance
 ```
+
+For an interactive view of the build graph: `pnpm graph` (DOT to stdout) or `pnpm graph:html` (writes `dep-graph.html`).
 
 ## Common commands
 
