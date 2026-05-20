@@ -1,5 +1,13 @@
 # @harnessa-fe/log
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies [d2b1733]
+  - @harnessa-fe/node-runtime@0.9.0
+  - @harnessa-fe/next@2.0.0
+
 ## 1.0.0
 
 ### Minor Changes
