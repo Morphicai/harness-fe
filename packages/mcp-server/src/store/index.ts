@@ -14,8 +14,6 @@ export type {
     BuildMeta,
     SessionMeta,
     TabMeta,
-    LegacyBuildSessionMeta,
-    LegacyLoadMeta,
     SessionSummary,
     TailOptions,
     SearchOptions,

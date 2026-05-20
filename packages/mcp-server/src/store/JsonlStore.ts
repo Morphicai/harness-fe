@@ -39,8 +39,6 @@ import { homedir } from 'node:os';
 import type {
     BuildMeta,
     IStore,
-    LegacyBuildSessionMeta,
-    LegacyLoadMeta,
     ProjectMeta,
     ProjectTreeNode,
     PurgeResult,
@@ -180,10 +178,14 @@ function parseRecordingChunkLine(
     const parsed = parseJsonLine<Record<string, unknown>>(line);
     if (!parsed || !Array.isArray(parsed.events)) return undefined;
 
-    const chunkId =
-        typeof parsed.chunkId === 'string'
-            ? parsed.chunkId
-            : `legacy_${index.toString().padStart(6, '0')}`;
+    if (typeof parsed.chunkId !== 'string') {
+        process.stderr.write(
+            `[harnessa-fe] recording chunk at index ${index} is missing chunkId — skipping (pre-0.4 data). ` +
+            `Run \`rm -rf ~/.harnessa/data\` to clear legacy data.\n`,
+        );
+        return undefined;
+    }
+    const chunkId = parsed.chunkId;
     const startTs =
         typeof parsed.startTs === 'number'
             ? parsed.startTs
@@ -287,33 +289,7 @@ export class JsonlStore implements IStore {
         const serverStartTimestamp = Date.now();
         this.dataDir = resolve(dataDir ?? DEFAULT_DATA_DIR);
         ensureDir(this.dataDir);
-        this._detectLegacyLayout();
         this._rebuildIndexes(serverStartTimestamp);
-    }
-
-    /** Warn if old v0.3.x layout directories exist under dataDir. */
-    private _detectLegacyLayout(): void {
-        if (!existsSync(this.dataDir)) return;
-        try {
-            for (const entry of readdirSync(this.dataDir, { withFileTypes: true })) {
-                if (!entry.isDirectory()) continue;
-                const name = String(entry.name);
-                // Old layout: top-level dirs that are NOT our new reserved names
-                if (name === 'projects' || name === 'tabs' || name === 'sessions' || name === 'exports') continue;
-                // Check if it looks like an old projectId dir (has sessions/ sub)
-                const sessionsPath = join(this.dataDir, name, 'sessions');
-                if (existsSync(sessionsPath)) {
-                    process.stderr.write(
-                        `[harnessa-fe] WARNING: Legacy v0.3.x storage layout detected at ${join(this.dataDir, name)}. ` +
-                        `The v0.4.0 store uses a new flat layout (projects/ tabs/ sessions/). ` +
-                        `Old data is no longer accessible. Run \`rm -rf ~/.harnessa/data\` to clear it and start fresh.\n`,
-                    );
-                    break;
-                }
-            }
-        } catch {
-            // ignore scan errors
-        }
     }
 
     /** Scan disk to rebuild in-memory indexes. Mark orphaned sessions (no endedAt). */
@@ -854,7 +830,7 @@ export class JsonlStore implements IStore {
 
         const filePath = this.sessionTimeline(sessionId);
         const n = opts.n ?? 50;
-        const multiplier = opts.type || opts.since || opts.until || opts.loadId || opts.projectId ? 5 : 1;
+        const multiplier = opts.type || opts.since || opts.until || opts.projectId ? 5 : 1;
         const rawLines = readLastNLines(filePath, n * multiplier);
 
         const events: StoreEvent[] = [];
@@ -863,7 +839,6 @@ export class JsonlStore implements IStore {
             if (!event) continue;
             if (!matchesType(event, opts.type)) continue;
             if (!matchesTimeRange(event, opts.since, opts.until)) continue;
-            if (opts.loadId && event.load !== opts.loadId) continue;
             if (opts.projectId && event.projectId !== opts.projectId) continue;
             events.push(event);
         }
@@ -884,7 +859,6 @@ export class JsonlStore implements IStore {
             const event = parseEvent(line);
             if (!event) continue;
             if (!matchesType(event, opts.type)) continue;
-            if (opts.loadId && event.load !== opts.loadId) continue;
             results.push(event);
             if (results.length >= limit) break;
         }

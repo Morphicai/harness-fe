@@ -157,42 +157,6 @@ export interface SessionMeta {
 }
 
 /**
- * @deprecated v0.3.x type — represents a "dev-run handle".
- * Kept for reading legacy disk data written by v0.3.x daemons.
- * @internal
- */
-export interface LegacyBuildSessionMeta {
-    id: string;
-    projectId: string;
-    peerRole: string;
-    startedAt: number;
-    endedAt?: number;
-    metadata?: Record<string, unknown>;
-}
-
-/**
- * @deprecated v0.3.x type — per-load metadata.
- * Kept for reading legacy loads.jsonl files.
- * @internal
- */
-export interface LegacyLoadMeta {
-    id: string;
-    tabId: string;
-    sessionId: string;
-    startedAt: number;
-    endedAt?: number;
-    url?: string;
-    title?: string;
-    referrer?: string;
-    userAgent?: string;
-    initial?: {
-        viewport?: { w: number; h: number; dpr: number };
-        storageKeys?: { local?: number; session?: number; cookie?: number };
-        storageTruncated?: boolean;
-    };
-}
-
-/**
  * Per-visitor identity. Lives at visitors/{visitorId}/meta.json. Stitches a
  * user's activity across pageloads / refreshes / tabs.
  */
@@ -224,10 +188,6 @@ export interface TailOptions {
     since?: number;
     /** Only return events before this timestamp. */
     until?: number;
-    /**
-     * @deprecated Kept for backward compat with v0.3.x callers.
-     */
-    loadId?: string;
     /** Filter by projectId (useful for multi-project session timelines). */
     projectId?: string;
 }
@@ -237,10 +197,6 @@ export interface SearchOptions {
     type?: EventType | EventType[];
     /** Max results. Default 50. */
     limit?: number;
-    /**
-     * @deprecated Use projectId filter instead.
-     */
-    loadId?: string;
 }
 
 export interface RecordingChunkSummary {

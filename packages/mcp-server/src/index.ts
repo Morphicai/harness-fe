@@ -9,6 +9,4 @@ export type {
     BuildMeta,
     SessionMeta,
     TabMeta,
-    LegacyBuildSessionMeta,
-    LegacyLoadMeta,
 } from './store/index.js';
