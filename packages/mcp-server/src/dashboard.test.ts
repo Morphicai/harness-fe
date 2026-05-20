@@ -30,11 +30,20 @@ async function bootBridge() {
 }
 
 function seed(store: JsonlStore, projectId: string) {
-    const sessId = store.openSession(projectId, { peerRole: 'vite-plugin' });
-    store.openTab(sessId, { id: 'tab-1', url: 'http://localhost:5173/', title: 'Demo' });
-    store.append(sessId, { ts: 1000, t: 'log', load: 'L1', d: { args: ['hello'] } }, 'tab-1');
-    store.append(sessId, { ts: 1100, t: 'err', load: 'L1', d: { message: 'boom' } }, 'tab-1');
-    store.appendRecording(sessId, 'tab-1', {
+    const { randomUUID } = require('node:crypto') as typeof import('node:crypto');
+    const sessionId = randomUUID();
+    store.upsertProject(projectId, { displayName: projectId });
+    store.upsertTab('tab-1', { connectedAt: Date.now(), userAgent: 'test-agent' });
+    store.upsertSession(sessionId, {
+        tabId: 'tab-1',
+        startedAt: Date.now(),
+        url: 'http://localhost:5173/',
+        title: 'Demo',
+        participants: [{ projectId, joinedAt: Date.now() }],
+    });
+    store.appendEvent(sessionId, { ts: 1000, t: 'log', d: { args: ['hello'] } });
+    store.appendEvent(sessionId, { ts: 1100, t: 'err', d: { message: 'boom' } });
+    store.appendRecording(sessionId, {
         chunkId: 'rrc_a', startTs: 1000, endTs: 2000, eventCount: 3,
         events: [
             { type: 4, data: {}, timestamp: 1000 },
@@ -42,7 +51,7 @@ function seed(store: JsonlStore, projectId: string) {
             { type: 3, data: {}, timestamp: 2000 },
         ],
     });
-    return sessId;
+    return sessionId;
 }
 
 describe('Dashboard HTTP routes', () => {
@@ -133,7 +142,14 @@ describe('Dashboard HTTP routes', () => {
     it('POST /sessions/:id/replay shows a friendly error when the window is empty', async () => {
         const { bridge, store, port } = await bootBridge();
         try {
-            const sessId = store.openSession('my-app', { peerRole: 'vite-plugin' });
+            const { randomUUID } = require('node:crypto') as typeof import('node:crypto');
+            const sessId = randomUUID();
+            store.upsertTab('tab-empty', { connectedAt: Date.now() });
+            store.upsertSession(sessId, {
+                tabId: 'tab-empty',
+                startedAt: Date.now(),
+                participants: [{ projectId: 'my-app', joinedAt: Date.now() }],
+            });
             // intentionally no recordings
             await store.flush();
             const body = new URLSearchParams({ since: '0', until: '1' }).toString();

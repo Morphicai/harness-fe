@@ -1,19 +1,21 @@
 /**
- * JsonlStore — JSONL-based persistence layer.
+ * JsonlStore — JSONL-based persistence layer (v0.4.0 layout).
  *
- * Timeline writes are async-batched via WriteQueue (non-blocking).
- * Reads use a simple tail-from-end approach for recent events,
- * and full-file scan for search/filter operations.
+ * New layout (v0.4.0):
+ *   {dataDir}/projects/{projectId}/meta.json
+ *   {dataDir}/projects/{projectId}/notes.jsonl
+ *   {dataDir}/projects/{projectId}/builds/{buildId}/meta.json
+ *   {dataDir}/tabs/{tabId}/meta.json
+ *   {dataDir}/sessions/{sessionId}/meta.json
+ *   {dataDir}/sessions/{sessionId}/timeline.jsonl
+ *   {dataDir}/sessions/{sessionId}/recording.jsonl
+ *   {dataDir}/exports/index.jsonl
+ *   {dataDir}/exports/{exportId}.rrweb.json
  *
- * Directory layout:
- *   {dataDir}/{projectId}/meta.json
- *   {dataDir}/{projectId}/notes.jsonl
- *   {dataDir}/{projectId}/sessions/{sessionId}/meta.json
- *   {dataDir}/{projectId}/sessions/{sessionId}/timeline.jsonl
- *   {dataDir}/{projectId}/sessions/{sessionId}/tabs/{tabId}/timeline.jsonl
- *   {dataDir}/{projectId}/sessions/{sessionId}/tabs/{tabId}/recording.jsonl
- *   {dataDir}/{projectId}/exports/index.jsonl                       export metadata
- *   {dataDir}/{projectId}/exports/{exportId}.rrweb.json             replay events
+ * Legacy layout (v0.3.x, read-only fallback):
+ *   {dataDir}/{projectId}/sessions/{buildId}/tabs/{tabId}/...
+ *   On startup, if legacy dirs are detected a warning is emitted pointing
+ *   users to `rm -rf ~/.harnessa/data`.
  */
 
 import {
@@ -37,7 +39,8 @@ import { homedir } from 'node:os';
 import type {
     BuildMeta,
     IStore,
-    LoadMeta,
+    LegacyBuildSessionMeta,
+    LegacyLoadMeta,
     ProjectMeta,
     ProjectTreeNode,
     PurgeResult,
@@ -54,12 +57,12 @@ import type {
 } from './types.js';
 
 const DEFAULT_DATA_DIR = join(homedir(), '.harnessa', 'data');
-const DEFAULT_RETENTION: Required<RetentionPolicy> = {
+const DEFAULT_RETENTION = {
     maxAgeDays: 7,
-    maxSessionsPerProject: 20,
+    maxSessions: 200,
     recordingRetentionDays: 3,
-    maxRecordingChunksPerTab: 500,
-    maxRecordingBytesPerTab: 250 * 1024 * 1024,
+    maxRecordingChunksPerSession: 500,
+    maxRecordingBytesPerSession: 250 * 1024 * 1024,
     preserveMarkedChunks: true,
     maxExportsPerProject: 50,
     maxExportBytesPerProject: 200 * 1024 * 1024,
@@ -88,24 +91,18 @@ function appendJsonl(path: string, obj: unknown): void {
     appendFileSync(path, JSON.stringify(obj) + '\n', 'utf-8');
 }
 
-/**
- * Read the last N lines from a file efficiently.
- * Reads from the end in chunks to avoid loading the whole file.
- */
 function readLastNLines(filePath: string, n: number): string[] {
     if (!existsSync(filePath)) return [];
-    const CHUNK = 16 * 1024; // 16KB chunks
+    const CHUNK = 16 * 1024;
     const { size } = statSync(filePath);
     if (size === 0) return [];
 
-    // For small files just read everything
     if (size <= CHUNK * 2) {
         const content = readFileSync(filePath, 'utf-8');
         const lines = content.split('\n').filter((l) => l.trim());
         return lines.slice(-n);
     }
 
-    // Read from end in chunks until we have enough lines
     const fd = openSync(filePath, 'r');
     try {
         let pos = size;
@@ -204,26 +201,8 @@ function parseRecordingChunkLine(
     };
 }
 
-/**
- * Reject meta upserts that would write more than this many bytes of
- * open-ended user data (`tags` + `metadata`). Protects against agents or
- * misconfigured plugins inflating meta.json files to MBs.
- */
 const META_EXTENSION_LIMIT_BYTES = 16 * 1024;
-
-/**
- * Drop a single timeline event when its JSON encoding exceeds this size.
- * Typical events are ~200B–2KB. 256KB lets through giant console payloads
- * (e.g. JSON.dump of a small object tree) but stops "console.log(window)"-
- * style accidents from filling timeline.jsonl with megabytes per row.
- */
 const MAX_EVENT_BYTES = 256 * 1024;
-
-/**
- * Drop an rrweb recording chunk when its JSON encoding exceeds this size.
- * Full-snapshot frames can legitimately be ~500KB on rich pages. 2MB
- * tolerates the worst real cases and catches misbehaving recorders.
- */
 const MAX_RECORDING_CHUNK_BYTES = 2 * 1024 * 1024;
 
 function enforceExtensionBudget(meta: { tags?: unknown; metadata?: unknown }, label: string): void {
@@ -246,25 +225,6 @@ function matchesTimeRange(event: StoreEvent, since?: number, until?: number): bo
     if (since !== undefined && event.ts < since) return false;
     if (until !== undefined && event.ts > until) return false;
     return true;
-}
-
-/**
- * Enforce the `tab ⇒ load` invariant: every tab-scoped event must carry a
- * loadId so it can be attributed to a specific page load. Session-scoped
- * events (no tab, e.g. build-plugin hmr / node:log) MUST NOT carry one.
- */
-function validateLoadInvariant(event: StoreEvent, tabId: string | undefined): void {
-    const hasTab = !!(tabId ?? event.tab);
-    if (hasTab && !event.load) {
-        throw new Error(
-            `JsonlStore.append: tab-scoped event "${event.t}" missing required load field`,
-        );
-    }
-    if (!hasTab && event.load) {
-        throw new Error(
-            `JsonlStore.append: session-scoped event "${event.t}" must not carry a load field`,
-        );
-    }
 }
 
 function dirSize(dir: string): number {
@@ -294,295 +254,314 @@ export class JsonlStore implements IStore {
     private readonly dataDir: string;
     private readonly writeQueue = new WriteQueue();
 
+    /**
+     * In-memory index: sessionId → SessionMeta (rebuilt on startup, kept in sync).
+     * Enables O(1) session lookup without disk reads.
+     */
+    private sessionIndex = new Map<string, SessionMeta>();
+
+    /**
+     * In-memory index: buildId → projectId (from openBuild / upsertBuild).
+     * Enables resolving project from buildId for legacy bridge compat.
+     */
+    private buildIndex = new Map<string, string>(); // buildId → projectId
+
     constructor(dataDir?: string) {
         const serverStartTimestamp = Date.now();
         this.dataDir = resolve(dataDir ?? DEFAULT_DATA_DIR);
         ensureDir(this.dataDir);
-
-        // Startup recovery: rebuild sessionIndex from disk and mark orphaned sessions
-        this._recoverSessions(serverStartTimestamp);
+        this._detectLegacyLayout();
+        this._rebuildIndexes(serverStartTimestamp);
     }
 
-    /**
-     * Scan all project directories and their sessions on disk.
-     * Rebuilds the in-memory sessionIndex and marks any session that lacks
-     * `endedAt` as orphaned (crashed) by setting endedAt = serverStartTimestamp.
-     */
-    private _recoverSessions(serverStartTimestamp: number): void {
+    /** Warn if old v0.3.x layout directories exist under dataDir. */
+    private _detectLegacyLayout(): void {
         if (!existsSync(this.dataDir)) return;
-
-        let projectEntries: import('node:fs').Dirent[];
         try {
-            projectEntries = readdirSync(this.dataDir, { withFileTypes: true }) as import('node:fs').Dirent[];
+            for (const entry of readdirSync(this.dataDir, { withFileTypes: true })) {
+                if (!entry.isDirectory()) continue;
+                const name = String(entry.name);
+                // Old layout: top-level dirs that are NOT our new reserved names
+                if (name === 'projects' || name === 'tabs' || name === 'sessions' || name === 'exports') continue;
+                // Check if it looks like an old projectId dir (has sessions/ sub)
+                const sessionsPath = join(this.dataDir, name, 'sessions');
+                if (existsSync(sessionsPath)) {
+                    process.stderr.write(
+                        `[harnessa-fe] WARNING: Legacy v0.3.x storage layout detected at ${join(this.dataDir, name)}. ` +
+                        `The v0.4.0 store uses a new flat layout (projects/ tabs/ sessions/). ` +
+                        `Old data is no longer accessible. Run \`rm -rf ~/.harnessa/data\` to clear it and start fresh.\n`,
+                    );
+                    break;
+                }
+            }
+        } catch {
+            // ignore scan errors
+        }
+    }
+
+    /** Scan disk to rebuild in-memory indexes. Mark orphaned sessions (no endedAt). */
+    private _rebuildIndexes(serverStartTimestamp: number): void {
+        const sessionsDir = join(this.dataDir, 'sessions');
+        if (!existsSync(sessionsDir)) return;
+
+        let entries: import('node:fs').Dirent[];
+        try {
+            entries = readdirSync(sessionsDir, { withFileTypes: true }) as import('node:fs').Dirent[];
         } catch {
             return;
         }
 
-        for (const projEntry of projectEntries) {
-            if (!projEntry.isDirectory()) continue;
-            const sessionsDir = join(this.dataDir, String(projEntry.name), 'sessions');
-            if (!existsSync(sessionsDir)) continue;
+        for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            const metaPath = join(sessionsDir, String(entry.name), 'meta.json');
+            const meta = readJson<SessionMeta>(metaPath);
+            if (!meta || !meta.id) continue;
 
-            let sessionEntries: import('node:fs').Dirent[];
-            try {
-                sessionEntries = readdirSync(sessionsDir, { withFileTypes: true }) as import('node:fs').Dirent[];
-            } catch {
-                continue;
+            // Mark orphaned sessions (crashed daemons)
+            if (meta.endedAt === undefined) {
+                meta.endedAt = serverStartTimestamp;
+                try {
+                    writeJson(metaPath, meta);
+                } catch (err) {
+                    console.error(
+                        `[JsonlStore] startup recovery: failed to write endedAt for session ${meta.id}:`,
+                        err,
+                    );
+                }
             }
 
-            for (const sessEntry of sessionEntries) {
-                if (!sessEntry.isDirectory()) continue;
-                const metaPath = join(sessionsDir, String(sessEntry.name), 'meta.json');
-                const meta = readJson<SessionMeta>(metaPath);
-                if (!meta || !meta.id || !meta.projectId) continue;
+            this.sessionIndex.set(meta.id, meta);
+        }
 
-                // Rebuild the in-memory index
-                this.sessionIndex.set(meta.id, meta.projectId);
-
-                // Mark orphaned sessions (no endedAt = crashed/unclean shutdown)
-                if (meta.endedAt === undefined) {
-                    meta.endedAt = serverStartTimestamp;
-                    try {
-                        writeJson(metaPath, meta);
-                    } catch (err) {
-                        console.error(
-                            `[JsonlStore] startup recovery: failed to write endedAt for session ${meta.id}:`,
-                            err,
-                        );
+        // Rebuild buildIndex from projects/*/builds/*/meta.json
+        const projectsDir = join(this.dataDir, 'projects');
+        if (!existsSync(projectsDir)) return;
+        try {
+            for (const projEntry of readdirSync(projectsDir, { withFileTypes: true })) {
+                if (!projEntry.isDirectory()) continue;
+                const buildsDir = join(projectsDir, String(projEntry.name), 'builds');
+                if (!existsSync(buildsDir)) continue;
+                for (const buildEntry of readdirSync(buildsDir, { withFileTypes: true })) {
+                    if (!buildEntry.isDirectory()) continue;
+                    const buildMeta = readJson<BuildMeta>(join(buildsDir, String(buildEntry.name), 'meta.json'));
+                    if (buildMeta?.id) {
+                        this.buildIndex.set(buildMeta.id, String(projEntry.name));
                     }
                 }
             }
+        } catch {
+            // ignore
         }
     }
 
     // ── Path helpers ──────────────────────────────────────────────────────
 
+    private projectsDir(): string {
+        return join(this.dataDir, 'projects');
+    }
+
     private projectDir(projectId: string): string {
-        return join(this.dataDir, sanitizeId(projectId));
+        return join(this.projectsDir(), sanitizeId(projectId));
     }
 
-    private sessionDir(projectId: string, sessionId: string): string {
-        return join(this.projectDir(projectId), 'sessions', sessionId);
+    private buildDir(projectId: string, buildId: string): string {
+        return join(this.projectDir(projectId), 'builds', sanitizeId(buildId));
     }
 
-    private tabDir(projectId: string, sessionId: string, tabId: string): string {
-        return join(this.sessionDir(projectId, sessionId), 'tabs', sanitizeId(tabId));
+    private tabsDir(): string {
+        return join(this.dataDir, 'tabs');
     }
 
-    private sessionTimeline(projectId: string, sessionId: string): string {
-        return join(this.sessionDir(projectId, sessionId), 'timeline.jsonl');
+    private tabDir(tabId: string): string {
+        return join(this.tabsDir(), sanitizeId(tabId));
     }
 
-    private tabTimeline(projectId: string, sessionId: string, tabId: string): string {
-        return join(this.tabDir(projectId, sessionId, tabId), 'timeline.jsonl');
+    private sessionsDir(): string {
+        return join(this.dataDir, 'sessions');
     }
 
-    private tabRecording(projectId: string, sessionId: string, tabId: string): string {
-        return join(this.tabDir(projectId, sessionId, tabId), 'recording.jsonl');
+    private sessionDir(sessionId: string): string {
+        return join(this.sessionsDir(), sanitizeId(sessionId));
     }
 
-    private loadDir(projectId: string, sessionId: string, tabId: string, loadId: string): string {
-        return join(this.tabDir(projectId, sessionId, tabId), 'loads', loadId);
+    private sessionTimeline(sessionId: string): string {
+        return join(this.sessionDir(sessionId), 'timeline.jsonl');
     }
 
-    private loadRecording(projectId: string, sessionId: string, tabId: string, loadId: string): string {
-        return join(this.loadDir(projectId, sessionId, tabId, loadId), 'recording.jsonl');
+    private sessionRecording(sessionId: string): string {
+        return join(this.sessionDir(sessionId), 'recording.jsonl');
     }
 
-    /**
-     * Enumerate per-load recording paths for a tab. Each pageload now writes
-     * rrweb chunks into its own `loads/{loadId}/recording.jsonl` so refreshes
-     * never interleave FullSnapshot baselines from different pageloads. The
-     * legacy `tabs/{tabId}/recording.jsonl` (pre-0.3.0) is still read when
-     * present so old data remains queryable until purge GCs it.
-     */
-    private listLoadRecordingPaths(projectId: string, sessionId: string, tabId: string): Array<{ loadId: string | undefined; path: string }> {
-        const paths: Array<{ loadId: string | undefined; path: string }> = [];
-        const legacy = this.tabRecording(projectId, sessionId, tabId);
-        if (existsSync(legacy)) paths.push({ loadId: undefined, path: legacy });
-        const loadsRoot = join(this.tabDir(projectId, sessionId, tabId), 'loads');
-        if (existsSync(loadsRoot)) {
-            try {
-                for (const loadId of readdirSync(loadsRoot)) {
-                    const p = this.loadRecording(projectId, sessionId, tabId, loadId);
-                    if (existsSync(p)) paths.push({ loadId, path: p });
-                }
-            } catch {
-                /* directory disappeared; ignore */
+    private exportsDir(): string {
+        return join(this.dataDir, 'exports');
+    }
+
+    private exportIndex(): string {
+        return join(this.exportsDir(), 'index.jsonl');
+    }
+
+    private exportEventsPath(exportId: string): string {
+        return join(this.exportsDir(), `${sanitizeId(exportId)}.rrweb.json`);
+    }
+
+    // ── Build lifecycle ───────────────────────────────────────────────────
+
+    openBuild(projectId: string, patch: Partial<Omit<BuildMeta, 'id' | 'projectId' | 'builtAt'>> = {}): string {
+        const buildId = randomUUID().slice(0, 8);
+        this.upsertBuild(projectId, buildId, patch);
+        // Also ensure project meta exists
+        const projMetaPath = join(this.projectDir(projectId), 'meta.json');
+        if (!existsSync(projMetaPath)) {
+            this.upsertProject(projectId, {});
+        } else {
+            // Touch lastActiveAt
+            const existing = readJson<ProjectMeta>(projMetaPath);
+            if (existing) {
+                existing.lastActiveAt = Date.now();
+                writeJson(projMetaPath, existing);
             }
         }
-        return paths;
+        return buildId;
     }
 
-    private tabLoadsFile(projectId: string, sessionId: string, tabId: string): string {
-        return join(this.tabDir(projectId, sessionId, tabId), 'loads.jsonl');
-    }
-
-    private exportDir(projectId: string): string {
-        return join(this.projectDir(projectId), 'exports');
-    }
-
-    private exportIndex(projectId: string): string {
-        return join(this.exportDir(projectId), 'index.jsonl');
-    }
-
-    private exportEventsPath(projectId: string, exportId: string): string {
-        return join(this.exportDir(projectId), `${sanitizeId(exportId)}.rrweb.json`);
-    }
-
-    /** Reverse lookup: exportId → projectId. Built lazily, scans project dirs. */
-    private findExportProject(exportId: string): string | undefined {
-        for (const proj of this.listProjects()) {
-            const indexPath = this.exportIndex(proj.id);
-            if (!existsSync(indexPath)) continue;
-            for (const line of readAllLines(indexPath)) {
-                try {
-                    const meta = JSON.parse(line) as ReplayExportMeta;
-                    if (meta?.exportId === exportId) return proj.id;
-                } catch {
-                    /* swallow malformed line */
-                }
-            }
-        }
-        return undefined;
-    }
-
-    // ── Session lookup (sessionId → projectId) ────────────────────────────
-
-    private sessionIndex = new Map<string, string>(); // sessionId → projectId
-
-    private resolveProject(sessionId: string): string | undefined {
-        return this.sessionIndex.get(sessionId);
-    }
-
-    // ── Session lifecycle ─────────────────────────────────────────────────
-
-    openSession(
-        projectId: string,
-        meta: Omit<SessionMeta, 'id' | 'projectId' | 'startedAt'>,
-    ): string {
-        const sessionId = randomUUID().slice(0, 8);
-        const projDir = this.projectDir(projectId);
-        ensureDir(projDir);
-
-        // Upsert project meta (preserve previously written fields like
-        // parentProjectId / displayName / tags — only touch lifecycle stamps).
-        const projMetaPath = join(projDir, 'meta.json');
-        const existing = readJson<ProjectMeta>(projMetaPath);
-        const projMeta: ProjectMeta = {
-            ...existing,
-            id: projectId,
-            createdAt: existing?.createdAt ?? Date.now(),
-            lastActiveAt: Date.now(),
-        };
-        writeJson(projMetaPath, projMeta);
-
-        // Create session directory + meta
-        const sessDir = this.sessionDir(projectId, sessionId);
-        ensureDir(sessDir);
-        const sessMeta: SessionMeta = {
-            id: sessionId,
-            projectId,
-            startedAt: Date.now(),
-            ...meta,
-        };
-        writeJson(join(sessDir, 'meta.json'), sessMeta);
-
-        this.sessionIndex.set(sessionId, projectId);
-        return sessionId;
-    }
-
-    closeSession(sessionId: string, closedAt?: number): void {
-        const projectId = this.resolveProject(sessionId);
+    closeBuild(buildId: string, closedAt?: number): void {
+        const projectId = this.buildIndex.get(buildId);
         if (!projectId) return;
-        const metaPath = join(this.sessionDir(projectId, sessionId), 'meta.json');
-        const meta = readJson<SessionMeta>(metaPath);
+        const metaPath = join(this.buildDir(projectId, buildId), 'meta.json');
+        const meta = readJson<BuildMeta>(metaPath);
         if (!meta) return;
         meta.endedAt = closedAt ?? Date.now();
         writeJson(metaPath, meta);
     }
 
-    openTab(sessionId: string, tab: Omit<TabMeta, 'sessionId' | 'connectedAt'>): void {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return;
-        const tabDir = this.tabDir(projectId, sessionId, tab.id);
-        ensureDir(tabDir);
-        const tabMeta: TabMeta = {
-            ...tab,
-            sessionId,
+    // ── Tab lifecycle ─────────────────────────────────────────────────────
+
+    upsertTab(tabId: string, patch: Partial<Omit<TabMeta, 'id'>>): TabMeta {
+        const dir = this.tabDir(tabId);
+        ensureDir(dir);
+        const metaPath = join(dir, 'meta.json');
+        const existing = readJson<TabMeta>(metaPath);
+        const merged: TabMeta = {
             connectedAt: Date.now(),
+            ...existing,
+            ...patch,
+            id: tabId,
         };
-        writeJson(join(tabDir, 'meta.json'), tabMeta);
+        writeJson(metaPath, merged);
+        return merged;
     }
 
-    closeTab(sessionId: string, tabId: string): void {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return;
-        const metaPath = join(this.tabDir(projectId, sessionId, tabId), 'meta.json');
+    getTab(tabId: string): TabMeta | undefined {
+        return readJson<TabMeta>(join(this.tabDir(tabId), 'meta.json')) ?? undefined;
+    }
+
+    closeTab(tabId: string, disconnectedAt?: number): void {
+        const metaPath = join(this.tabDir(tabId), 'meta.json');
         const meta = readJson<TabMeta>(metaPath);
         if (!meta) return;
-        meta.disconnectedAt = Date.now();
+        meta.disconnectedAt = disconnectedAt ?? Date.now();
         writeJson(metaPath, meta);
     }
 
-    openLoad(
-        sessionId: string,
-        tabId: string,
-        meta: Omit<LoadMeta, 'tabId' | 'sessionId' | 'endedAt'>,
-    ): void {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return;
-        const tabDir = this.tabDir(projectId, sessionId, tabId);
-        ensureDir(tabDir);
-        // Close prior open load on this tab — endedAt = new load's startedAt.
-        this.closeLatestLoad(sessionId, tabId, meta.startedAt);
-        const row: LoadMeta = { ...meta, tabId, sessionId };
-        appendJsonl(this.tabLoadsFile(projectId, sessionId, tabId), row);
-    }
+    // ── Session lifecycle (pageload) ──────────────────────────────────────
 
-    closeLatestLoad(sessionId: string, tabId: string, endedAt: number = Date.now()): void {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return;
-        const loadsPath = this.tabLoadsFile(projectId, sessionId, tabId);
-        if (!existsSync(loadsPath)) return;
-        const lines = readAllLines(loadsPath);
-        if (!lines.length) return;
-        // Find last row with no endedAt and rewrite the file in place.
-        const rows = lines
-            .map((l) => {
-                try {
-                    return JSON.parse(l) as LoadMeta;
-                } catch {
-                    return undefined;
-                }
-            })
-            .filter((r): r is LoadMeta => !!r);
-        let rewrote = false;
-        for (let i = rows.length - 1; i >= 0; i--) {
-            const row = rows[i];
-            if (row.endedAt === undefined) {
-                row.endedAt = endedAt;
-                rewrote = true;
-                break;
+    upsertSession(
+        sessionId: string,
+        meta: Partial<Omit<SessionMeta, 'id'>> & { tabId: string; startedAt: number },
+    ): SessionMeta {
+        const dir = this.sessionDir(sessionId);
+        ensureDir(dir);
+        const metaPath = join(dir, 'meta.json');
+        const existing = readJson<SessionMeta>(metaPath);
+
+        // Merge participants: add new ones not already in the list
+        const existingParticipants = existing?.participants ?? [];
+        const incomingParticipants = meta.participants ?? [];
+        const merged: SessionMeta = {
+            participants: [],
+            ...existing,
+            ...meta,
+            id: sessionId,
+        };
+        // Reset participants — we'll rebuild via dedup loop below
+        merged.participants = [];
+        // Build merged participants list
+        const seen = new Set<string>();
+        for (const p of existingParticipants) {
+            const key = `${p.projectId}::${p.buildId ?? ''}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                merged.participants.push(p);
             }
         }
-        if (!rewrote) return;
-        writeFileSync(
-            loadsPath,
-            rows.map((r) => JSON.stringify(r)).join('\n') + '\n',
-            'utf-8',
-        );
+        for (const p of incomingParticipants) {
+            const key = `${p.projectId}::${p.buildId ?? ''}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                merged.participants.push(p);
+            }
+        }
+
+        writeJson(metaPath, merged);
+        this.sessionIndex.set(sessionId, merged);
+        return merged;
+    }
+
+    closeSession(sessionId: string, endedAt?: number): void {
+        const metaPath = join(this.sessionDir(sessionId), 'meta.json');
+        const meta = readJson<SessionMeta>(metaPath);
+        if (!meta) return;
+        meta.endedAt = endedAt ?? Date.now();
+        writeJson(metaPath, meta);
+        // Update in-memory index
+        const cached = this.sessionIndex.get(sessionId);
+        if (cached) {
+            cached.endedAt = meta.endedAt;
+        }
+    }
+
+    getSession(sessionId: string): SessionMeta | undefined {
+        // Check in-memory index first
+        const cached = this.sessionIndex.get(sessionId);
+        if (cached) return cached;
+        // Fall back to disk
+        const meta = readJson<SessionMeta>(join(this.sessionDir(sessionId), 'meta.json'));
+        if (meta) {
+            this.sessionIndex.set(sessionId, meta);
+        }
+        return meta ?? undefined;
+    }
+
+    listSessions(opts: { tabId?: string; projectId?: string; buildId?: string; limit?: number } = {}): SessionMeta[] {
+        const { tabId, projectId, buildId, limit = 50 } = opts;
+        const sessionsDir = this.sessionsDir();
+        if (!existsSync(sessionsDir)) return [];
+
+        const sessions: SessionMeta[] = [];
+        try {
+            for (const entry of readdirSync(sessionsDir, { withFileTypes: true })) {
+                if (!entry.isDirectory()) continue;
+                const meta = readJson<SessionMeta>(join(sessionsDir, String(entry.name), 'meta.json'));
+                if (!meta) continue;
+                // Update index
+                this.sessionIndex.set(meta.id, meta);
+                // Apply filters
+                if (tabId && meta.tabId !== tabId) continue;
+                if (projectId && !meta.participants.some((p) => p.projectId === projectId)) continue;
+                if (buildId && !meta.participants.some((p) => p.buildId === buildId)) continue;
+                sessions.push(meta);
+            }
+        } catch {
+            // ignore scan errors
+        }
+
+        return sessions.sort((a, b) => b.startedAt - a.startedAt).slice(0, limit);
     }
 
     // ── Write ─────────────────────────────────────────────────────────────
 
-    append(sessionId: string, event: StoreEvent, tabId?: string): void {
-        validateLoadInvariant(event, tabId);
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return;
-        // Single-event size guard. Drops + warns rather than throwing so one
-        // huge payload (e.g. a malformed page that JSON-dumps a megabyte of
-        // state into a console.log) can't crash the daemon.
+    appendEvent(sessionId: string, event: StoreEvent): void {
+        if (!this.getSession(sessionId)) return;
         const line = JSON.stringify(event);
         if (Buffer.byteLength(line, 'utf-8') > MAX_EVENT_BYTES) {
             process.stderr.write(
@@ -590,26 +569,12 @@ export class JsonlStore implements IStore {
             );
             return;
         }
-
-        // Always write to session timeline
-        this.writeQueue.enqueue(this.sessionTimeline(projectId, sessionId), sessionId, line);
-
-        // Also write to tab timeline if tabId provided
-        if (tabId) {
-            const tabDir = this.tabDir(projectId, sessionId, tabId);
-            ensureDir(tabDir);
-            this.writeQueue.enqueue(this.tabTimeline(projectId, sessionId, tabId), sessionId, line);
-        }
+        this.writeQueue.enqueue(this.sessionTimeline(sessionId), sessionId, line);
     }
 
-    appendBatch(sessionId: string, events: StoreEvent[], tabId?: string): void {
+    appendEventBatch(sessionId: string, events: StoreEvent[]): void {
         if (!events.length) return;
-        for (const event of events) validateLoadInvariant(event, tabId);
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return;
-
-        // Enqueue each event individually — WriteQueue handles batching.
-        // Apply the same size guard as `append()`.
+        if (!this.getSession(sessionId)) return;
         for (const event of events) {
             const line = JSON.stringify(event);
             if (Buffer.byteLength(line, 'utf-8') > MAX_EVENT_BYTES) {
@@ -618,26 +583,13 @@ export class JsonlStore implements IStore {
                 );
                 continue;
             }
-            this.writeQueue.enqueue(this.sessionTimeline(projectId, sessionId), sessionId, line);
-            if (tabId) {
-                const tabDir = this.tabDir(projectId, sessionId, tabId);
-                ensureDir(tabDir);
-                this.writeQueue.enqueue(
-                    this.tabTimeline(projectId, sessionId, tabId),
-                    sessionId,
-                    line,
-                );
-            }
+            this.writeQueue.enqueue(this.sessionTimeline(sessionId), sessionId, line);
         }
     }
 
-    appendRecording(sessionId: string, tabId: string, chunk: unknown, loadId?: string): void {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return;
+    appendRecording(sessionId: string, chunk: unknown): void {
+        if (!this.getSession(sessionId)) return;
         const line = Array.isArray(chunk) ? { ts: Date.now(), events: chunk } : chunk;
-        // rrweb chunk size guard. rrweb full-snapshots can grow large on
-        // first capture (style sheets etc.). Anything past the ceiling is a
-        // sign the page is mis-using rrweb — drop the chunk + warn.
         const serialized = JSON.stringify(line);
         if (Buffer.byteLength(serialized, 'utf-8') > MAX_RECORDING_CHUNK_BYTES) {
             process.stderr.write(
@@ -645,37 +597,18 @@ export class JsonlStore implements IStore {
             );
             return;
         }
-        // 0.3.0: rrweb chunks are now scoped per-pageload. Each refresh on
-        // the same tab gets its own loads/{loadId}/recording.jsonl, so the
-        // initial FullSnapshot of pageload N doesn't get tangled with the
-        // incremental mutations of pageload N+1. Caller passes the runtime
-        // sessionId (a.k.a. loadId) which uniquely identifies one pageload.
-        //
-        // When `loadId` is missing — only happens for pre-0.3.0 callers in
-        // tests or during a daemon downgrade — fall back to the legacy
-        // per-tab path so we never silently drop data.
-        const target = loadId
-            ? this.loadRecording(projectId, sessionId, tabId, loadId)
-            : this.tabRecording(projectId, sessionId, tabId);
-        ensureDir(loadId
-            ? this.loadDir(projectId, sessionId, tabId, loadId)
-            : this.tabDir(projectId, sessionId, tabId));
-        // Each chunk is one line in recording.jsonl.
-        // Write ONLY to recording.jsonl — NOT to session or tab timeline
+        const target = this.sessionRecording(sessionId);
+        ensureDir(this.sessionDir(sessionId));
         this.writeQueue.enqueue(target, sessionId, serialized);
     }
 
     writeNote(projectId: string, key: string, value: string): void {
         const projDir = this.projectDir(projectId);
         ensureDir(projDir);
-        appendJsonl(join(projDir, 'notes.jsonl'), {
-            ts: Date.now(),
-            key,
-            value,
-        });
+        appendJsonl(join(projDir, 'notes.jsonl'), { ts: Date.now(), key, value });
     }
 
-    // ── Project metadata (v0.2: parent/displayName/tags) ───────────────────
+    // ── Project metadata ───────────────────────────────────────────────────
 
     upsertProject(
         projectId: string,
@@ -686,14 +619,13 @@ export class JsonlStore implements IStore {
         const metaPath = join(projDir, 'meta.json');
         const existing = readJson<ProjectMeta>(metaPath);
 
-        // Cycle detection — refuse parent assignments that would close a loop.
+        // Cycle detection
         if (patch.parentProjectId !== undefined && patch.parentProjectId !== null) {
             if (patch.parentProjectId === projectId) {
                 throw new Error(
                     `[harnessa-fe] refused to set parentProjectId=${projectId} on itself`,
                 );
             }
-            // Walk up the candidate parent's chain; if we encounter `projectId`, it's a cycle.
             const visited = new Set<string>();
             let cursor: string | undefined = patch.parentProjectId;
             while (cursor) {
@@ -718,30 +650,41 @@ export class JsonlStore implements IStore {
             createdAt: existing?.createdAt ?? Date.now(),
             lastActiveAt: Date.now(),
         };
-        // Open-ended fields (tags / metadata) accept anything the caller passes.
-        // Refuse to persist if the combined extension fields would push the
-        // meta.json past a safe ceiling — protects against agents stuffing
-        // megabytes into project metadata.
         enforceExtensionBudget(merged, `project ${projectId}`);
         writeJson(metaPath, merged);
         return merged;
     }
 
     getProject(projectId: string): ProjectMeta | undefined {
-        const meta = readJson<ProjectMeta>(join(this.projectDir(projectId), 'meta.json'));
-        return meta ?? undefined;
+        return readJson<ProjectMeta>(join(this.projectDir(projectId), 'meta.json')) ?? undefined;
     }
 
-    // ── Build metadata (v0.2: source-code snapshot id) ─────────────────────
+    listProjects(): ProjectMeta[] {
+        const projectsDir = this.projectsDir();
+        if (!existsSync(projectsDir)) return [];
+        const projects: ProjectMeta[] = [];
+        try {
+            for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+                if (!entry.isDirectory()) continue;
+                const meta = readJson<ProjectMeta>(join(projectsDir, String(entry.name), 'meta.json'));
+                if (meta) projects.push(meta);
+            }
+        } catch {
+            // ignore
+        }
+        return projects.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+    }
+
+    // ── Build metadata ─────────────────────────────────────────────────────
 
     upsertBuild(
         projectId: string,
         buildId: string,
         patch: Partial<Omit<BuildMeta, 'id' | 'projectId'>>,
     ): BuildMeta {
-        const buildDir = join(this.projectDir(projectId), 'builds', sanitizeId(buildId));
-        ensureDir(buildDir);
-        const metaPath = join(buildDir, 'meta.json');
+        const dir = this.buildDir(projectId, buildId);
+        ensureDir(dir);
+        const metaPath = join(dir, 'meta.json');
         const existing = readJson<BuildMeta>(metaPath);
         const merged: BuildMeta = {
             ...existing,
@@ -752,38 +695,32 @@ export class JsonlStore implements IStore {
         };
         enforceExtensionBudget(merged, `build ${projectId}/${buildId}`);
         writeJson(metaPath, merged);
+        this.buildIndex.set(buildId, projectId);
         return merged;
     }
 
     getBuild(projectId: string, buildId: string): BuildMeta | undefined {
-        const meta = readJson<BuildMeta>(
-            join(this.projectDir(projectId), 'builds', sanitizeId(buildId), 'meta.json'),
-        );
-        return meta ?? undefined;
+        return readJson<BuildMeta>(join(this.buildDir(projectId, buildId), 'meta.json')) ?? undefined;
     }
 
     listBuilds(projectId: string, limit = 50): BuildMeta[] {
         const buildsDir = join(this.projectDir(projectId), 'builds');
         if (!existsSync(buildsDir)) return [];
         const builds: BuildMeta[] = [];
-        for (const entry of readdirSync(buildsDir, { withFileTypes: true })) {
-            if (!entry.isDirectory()) continue;
-            const meta = readJson<BuildMeta>(join(buildsDir, entry.name, 'meta.json'));
-            if (meta) builds.push(meta);
+        try {
+            for (const entry of readdirSync(buildsDir, { withFileTypes: true })) {
+                if (!entry.isDirectory()) continue;
+                const meta = readJson<BuildMeta>(join(buildsDir, String(entry.name), 'meta.json'));
+                if (meta) builds.push(meta);
+            }
+        } catch {
+            // ignore
         }
         return builds.sort((a, b) => b.builtAt - a.builtAt).slice(0, limit);
     }
 
     // ── Project tree ───────────────────────────────────────────────────────
 
-    /**
-     * Assemble the project forest from `parentProjectId` links.
-     *
-     * Iterative (no recursion) so a 10,000-level deep tree won't blow the
-     * stack. A `visited` set additionally guards against any stale cycle
-     * that slipped past upsertProject's check (e.g. from a hand-edited
-     * meta.json).
-     */
     getProjectTree(rootId?: string): ProjectTreeNode[] {
         const all = this.listProjects();
         const byParent = new Map<string, ProjectMeta[]>();
@@ -801,8 +738,6 @@ export class JsonlStore implements IStore {
             ? all.filter((p) => p.id === rootId)
             : all.filter((p) => !p.parentProjectId);
 
-        // Build all nodes up-front (id-keyed) so we can stitch children into
-        // their parents in a second pass without recursion.
         const nodeOf = new Map<string, ProjectTreeNode>();
         const queue: ProjectMeta[] = [...seedRoots];
         const visited = new Set<string>();
@@ -810,16 +745,10 @@ export class JsonlStore implements IStore {
             const p = queue.shift()!;
             if (visited.has(p.id)) continue;
             visited.add(p.id);
-            nodeOf.set(p.id, {
-                id: p.id,
-                displayName: p.displayName,
-                tags: p.tags,
-                children: [],
-            });
+            nodeOf.set(p.id, { id: p.id, displayName: p.displayName, tags: p.tags, children: [] });
             const kids = (byParent.get(p.id) ?? []).slice().sort(sortByLabel);
             for (const k of kids) queue.push(k);
         }
-        // Stitch.
         for (const p of all) {
             if (!nodeOf.has(p.id) || !p.parentProjectId) continue;
             const parent = nodeOf.get(p.parentProjectId);
@@ -835,64 +764,12 @@ export class JsonlStore implements IStore {
 
     // ── Read ──────────────────────────────────────────────────────────────
 
-    listProjects(): ProjectMeta[] {
-        if (!existsSync(this.dataDir)) return [];
-        const projects: ProjectMeta[] = [];
-        for (const entry of readdirSync(this.dataDir, { withFileTypes: true })) {
-            if (!entry.isDirectory()) continue;
-            const meta = readJson<ProjectMeta>(join(this.dataDir, entry.name, 'meta.json'));
-            if (meta) projects.push(meta);
-        }
-        return projects.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
-    }
+    tail(sessionId: string, opts: TailOptions = {}): StoreEvent[] {
+        if (!this.getSession(sessionId)) return [];
 
-    listSessions(projectId: string, limit = 20): SessionMeta[] {
-        const sessionsDir = join(this.projectDir(projectId), 'sessions');
-        if (!existsSync(sessionsDir)) return [];
-        const sessions: SessionMeta[] = [];
-        for (const entry of readdirSync(sessionsDir, { withFileTypes: true })) {
-            if (!entry.isDirectory()) continue;
-            const meta = readJson<SessionMeta>(
-                join(sessionsDir, entry.name, 'meta.json'),
-            );
-            if (meta) {
-                sessions.push(meta);
-                // Rebuild index from disk (useful after restart)
-                this.sessionIndex.set(meta.id, projectId);
-            }
-        }
-        return sessions
-            .sort((a, b) => b.startedAt - a.startedAt)
-            .slice(0, limit);
-    }
-
-    getSession(sessionId: string): SessionMeta | undefined {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) {
-            // Try to find by scanning (after restart)
-            for (const proj of this.listProjects()) {
-                const sessions = this.listSessions(proj.id);
-                const found = sessions.find((s) => s.id === sessionId);
-                if (found) return found;
-            }
-            return undefined;
-        }
-        return readJson<SessionMeta>(
-            join(this.sessionDir(projectId, sessionId), 'meta.json'),
-        );
-    }
-
-    tail(sessionId: string, opts: TailOptions = {}, tabId?: string): StoreEvent[] {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return [];
-
-        const filePath = tabId
-            ? this.tabTimeline(projectId, sessionId, tabId)
-            : this.sessionTimeline(projectId, sessionId);
-
+        const filePath = this.sessionTimeline(sessionId);
         const n = opts.n ?? 50;
-        // Read more lines than needed to account for filtering
-        const multiplier = opts.type || opts.since || opts.until || opts.loadId ? 5 : 1;
+        const multiplier = opts.type || opts.since || opts.until || opts.loadId || opts.projectId ? 5 : 1;
         const rawLines = readLastNLines(filePath, n * multiplier);
 
         const events: StoreEvent[] = [];
@@ -902,25 +779,17 @@ export class JsonlStore implements IStore {
             if (!matchesType(event, opts.type)) continue;
             if (!matchesTimeRange(event, opts.since, opts.until)) continue;
             if (opts.loadId && event.load !== opts.loadId) continue;
+            if (opts.projectId && event.projectId !== opts.projectId) continue;
             events.push(event);
         }
 
         return events.slice(-n);
     }
 
-    search(
-        sessionId: string,
-        query: string,
-        opts: SearchOptions = {},
-        tabId?: string,
-    ): StoreEvent[] {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return [];
+    search(sessionId: string, query: string, opts: SearchOptions = {}): StoreEvent[] {
+        if (!this.getSession(sessionId)) return [];
 
-        const filePath = tabId
-            ? this.tabTimeline(projectId, sessionId, tabId)
-            : this.sessionTimeline(projectId, sessionId);
-
+        const filePath = this.sessionTimeline(sessionId);
         const limit = opts.limit ?? 50;
         const lowerQuery = query.toLowerCase();
         const results: StoreEvent[] = [];
@@ -938,85 +807,52 @@ export class JsonlStore implements IStore {
         return results;
     }
 
-    listRecordings(sessionId: string, tabId?: string): RecordingChunkSummary[] {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return [];
+    listRecordings(sessionId: string): RecordingChunkSummary[] {
+        if (!this.getSession(sessionId)) return [];
 
-        const tabIds = tabId ? [tabId] : this.listTabIds(projectId, sessionId);
+        const recPath = this.sessionRecording(sessionId);
         const chunks: RecordingChunkSummary[] = [];
+        const sessionMeta = this.getSession(sessionId);
+        const tabId = sessionMeta?.tabId ?? '';
 
-        for (const currentTabId of tabIds) {
-            for (const { path } of this.listLoadRecordingPaths(projectId, sessionId, currentTabId)) {
-                readAllLines(path).forEach((line, index) => {
-                    const chunk = parseRecordingChunkLine(line, currentTabId, 0, index);
-                    if (!chunk) return;
-                    chunks.push({
-                        chunkId: chunk.chunkId,
-                        tabId: currentTabId,
-                        startTs: chunk.startTs,
-                        endTs: chunk.endTs,
-                        eventCount: chunk.eventCount,
-                    });
-                });
-            }
-        }
+        readAllLines(recPath).forEach((line, index) => {
+            const chunk = parseRecordingChunkLine(line, tabId, 0, index);
+            if (!chunk) return;
+            chunks.push({
+                chunkId: chunk.chunkId,
+                tabId: chunk.tabId,
+                startTs: chunk.startTs,
+                endTs: chunk.endTs,
+                eventCount: chunk.eventCount,
+            });
+        });
 
         return chunks.sort((a, b) => a.startTs - b.startTs);
     }
 
-    sliceRecordings(sessionId: string, since: number, until: number, tabId?: string): RecordingChunk[] {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return [];
+    sliceRecordings(sessionId: string, since: number, until: number): RecordingChunk[] {
+        if (!this.getSession(sessionId)) return [];
 
-        const tabIds = tabId ? [tabId] : this.listTabIds(projectId, sessionId);
+        const recPath = this.sessionRecording(sessionId);
+        const sessionMeta = this.getSession(sessionId);
+        const tabId = sessionMeta?.tabId ?? '';
         const chunks: RecordingChunk[] = [];
 
-        for (const currentTabId of tabIds) {
-            for (const { path } of this.listLoadRecordingPaths(projectId, sessionId, currentTabId)) {
-                readAllLines(path).forEach((line, index) => {
-                    const chunk = parseRecordingChunkLine(line, currentTabId, 0, index);
-                    if (!chunk) return;
-                    if (chunk.endTs < since || chunk.startTs > until) return;
-                    chunks.push({
-                        chunkId: chunk.chunkId,
-                        tabId: currentTabId,
-                        startTs: chunk.startTs,
-                        endTs: chunk.endTs,
-                        eventCount: chunk.eventCount,
-                        events: chunk.events,
-                    });
-                });
-            }
-        }
+        readAllLines(recPath).forEach((line, index) => {
+            const chunk = parseRecordingChunkLine(line, tabId, 0, index);
+            if (!chunk) return;
+            if (chunk.endTs < since || chunk.startTs > until) return;
+            chunks.push({
+                chunkId: chunk.chunkId,
+                tabId: chunk.tabId,
+                startTs: chunk.startTs,
+                endTs: chunk.endTs,
+                eventCount: chunk.eventCount,
+                events: chunk.events,
+            });
+        });
 
         return chunks.sort((a, b) => a.startTs - b.startTs);
-    }
-
-    listLoads(sessionId: string, tabId: string): LoadMeta[] {
-        const projectId = this.resolveProject(sessionId);
-        if (!projectId) return [];
-        const loadsPath = this.tabLoadsFile(projectId, sessionId, tabId);
-        if (!existsSync(loadsPath)) return [];
-        const rows: LoadMeta[] = [];
-        for (const line of readAllLines(loadsPath)) {
-            try {
-                rows.push(JSON.parse(line) as LoadMeta);
-            } catch {
-                /* skip malformed */
-            }
-        }
-        return rows.sort((a, b) => b.startedAt - a.startedAt);
-    }
-
-    getLoad(sessionId: string, tabId: string, loadId: string): LoadMeta | undefined {
-        return this.listLoads(sessionId, tabId).find((r) => r.id === loadId);
-    }
-
-    sliceRecordingsByLoad(sessionId: string, tabId: string, loadId: string): RecordingChunk[] {
-        const load = this.getLoad(sessionId, tabId, loadId);
-        if (!load) return [];
-        const until = load.endedAt ?? Date.now();
-        return this.sliceRecordings(sessionId, load.startedAt, until, tabId);
     }
 
     writeExport(input: {
@@ -1030,15 +866,15 @@ export class JsonlStore implements IStore {
         endTs: number;
         chunkCount: number;
     }): ReplayExportMeta {
-        const projectId = this.resolveProject(input.sessionId);
-        if (!projectId) {
-            throw new Error(`writeExport: unknown sessionId ${input.sessionId}`);
-        }
+        // Determine projectId from session participants
+        const session = this.getSession(input.sessionId);
+        const projectId = session?.participants[0]?.projectId ?? 'unknown';
+
         const exportId = `exp_${randomUUID().slice(0, 12)}`;
-        const exportDir = this.exportDir(projectId);
+        const exportDir = this.exportsDir();
         ensureDir(exportDir);
 
-        const eventsPath = this.exportEventsPath(projectId, exportId);
+        const eventsPath = this.exportEventsPath(exportId);
         const payload = JSON.stringify(input.events);
         writeFileSync(eventsPath, payload, 'utf-8');
 
@@ -1057,14 +893,13 @@ export class JsonlStore implements IStore {
             bytes: Buffer.byteLength(payload, 'utf-8'),
             createdAt: Date.now(),
         };
-        appendJsonl(this.exportIndex(projectId), meta);
+        appendJsonl(this.exportIndex(), meta);
         return meta;
     }
 
     getExport(exportId: string): ReplayExportMeta | undefined {
-        const projectId = this.findExportProject(exportId);
-        if (!projectId) return undefined;
-        const indexPath = this.exportIndex(projectId);
+        const indexPath = this.exportIndex();
+        if (!existsSync(indexPath)) return undefined;
         let latest: ReplayExportMeta | undefined;
         for (const line of readAllLines(indexPath)) {
             try {
@@ -1078,9 +913,7 @@ export class JsonlStore implements IStore {
     }
 
     readExportEvents(exportId: string): unknown[] | undefined {
-        const projectId = this.findExportProject(exportId);
-        if (!projectId) return undefined;
-        const eventsPath = this.exportEventsPath(projectId, exportId);
+        const eventsPath = this.exportEventsPath(exportId);
         if (!existsSync(eventsPath)) return undefined;
         try {
             const parsed = JSON.parse(readFileSync(eventsPath, 'utf-8'));
@@ -1091,19 +924,20 @@ export class JsonlStore implements IStore {
     }
 
     listExports(projectId: string, limit?: number): ReplayExportMeta[] {
-        const indexPath = this.exportIndex(projectId);
+        const indexPath = this.exportIndex();
         if (!existsSync(indexPath)) return [];
-        const metas: ReplayExportMeta[] = [];
-        // Index is append-only; later lines win for duplicate exportIds (shouldn't happen, but defensive).
         const seen = new Map<string, ReplayExportMeta>();
         for (const line of readAllLines(indexPath)) {
             try {
                 const meta = JSON.parse(line) as ReplayExportMeta;
-                if (meta?.exportId) seen.set(meta.exportId, meta);
+                if (meta?.exportId && (projectId === 'all' || meta.projectId === projectId)) {
+                    seen.set(meta.exportId, meta);
+                }
             } catch {
                 /* swallow */
             }
         }
+        const metas: ReplayExportMeta[] = [];
         for (const meta of seen.values()) metas.push(meta);
         metas.sort((a, b) => b.createdAt - a.createdAt);
         return typeof limit === 'number' ? metas.slice(0, limit) : metas;
@@ -1111,41 +945,31 @@ export class JsonlStore implements IStore {
 
     summary(sessionId: string): SessionSummary {
         const session = this.getSession(sessionId);
-        const projectId = this.resolveProject(sessionId);
 
         const counts: Partial<Record<string, number>> = {};
         let lastError: StoreEvent | undefined;
         let lastActivity: number | undefined;
 
-        if (projectId) {
-            const filePath = this.sessionTimeline(projectId, sessionId);
-            for (const line of readAllLines(filePath)) {
-                const event = parseEvent(line);
-                if (!event) continue;
-                counts[event.t] = (counts[event.t] ?? 0) + 1;
-                if (event.t === 'err') lastError = event;
-                if (!lastActivity || event.ts > lastActivity) lastActivity = event.ts;
-            }
+        const filePath = this.sessionTimeline(sessionId);
+        for (const line of readAllLines(filePath)) {
+            const event = parseEvent(line);
+            if (!event) continue;
+            counts[event.t] = (counts[event.t] ?? 0) + 1;
+            if (event.t === 'err') lastError = event;
+            if (!lastActivity || event.ts > lastActivity) lastActivity = event.ts;
         }
 
-        // List tabs
-        const tabs: string[] = [];
-        if (projectId) {
-            const tabsDir = join(this.sessionDir(projectId, sessionId), 'tabs');
-            if (existsSync(tabsDir)) {
-                for (const entry of readdirSync(tabsDir, { withFileTypes: true })) {
-                    if (entry.isDirectory()) tabs.push(entry.name);
-                }
-            }
-        }
+        const tabs: string[] = session ? [session.tabId].filter(Boolean) : [];
+
+        const fallbackSession: SessionMeta = {
+            id: sessionId,
+            tabId: 'unknown',
+            startedAt: 0,
+            participants: [],
+        };
 
         return {
-            session: session ?? {
-                id: sessionId,
-                projectId: projectId ?? 'unknown',
-                peerRole: 'unknown',
-                startedAt: 0,
-            },
+            session: session ?? fallbackSession,
             counts,
             lastError,
             lastActivity,
@@ -1160,7 +984,6 @@ export class JsonlStore implements IStore {
             const parsed = parseEvent(line) as unknown as { key: string; value: string; ts: number } | undefined;
             if (parsed?.key) notes.push(parsed);
         }
-        // Return latest value per key — iterate all and keep the last seen (highest ts)
         const latest = new Map<string, { key: string; value: string; ts: number }>();
         for (const note of notes) {
             const existing = latest.get(note.key);
@@ -1169,21 +992,23 @@ export class JsonlStore implements IStore {
         return [...latest.values()].sort((a, b) => b.ts - a.ts);
     }
 
-    private listTabIds(projectId: string, sessionId: string): string[] {
-        const tabsDir = join(this.sessionDir(projectId, sessionId), 'tabs');
-        if (!existsSync(tabsDir)) return [];
-        return readdirSync(tabsDir, { withFileTypes: true })
-            .filter((entry) => entry.isDirectory())
-            .map((entry) => entry.name);
-    }
-
     // ── Maintenance ───────────────────────────────────────────────────────
 
     purge(policy: RetentionPolicy = {}): PurgeResult {
-        const p: Required<RetentionPolicy> = { ...DEFAULT_RETENTION, ...policy };
+        // Normalize aliases
+        const maxSessions = policy.maxSessions ?? policy.maxSessionsPerProject ?? DEFAULT_RETENTION.maxSessions;
+        const maxAgeDays = policy.maxAgeDays ?? DEFAULT_RETENTION.maxAgeDays;
+        const recordingRetentionDays = policy.recordingRetentionDays ?? DEFAULT_RETENTION.recordingRetentionDays;
+        const maxChunks = policy.maxRecordingChunksPerSession ?? policy.maxRecordingChunksPerTab ?? DEFAULT_RETENTION.maxRecordingChunksPerSession;
+        const maxBytes = policy.maxRecordingBytesPerSession ?? policy.maxRecordingBytesPerTab ?? DEFAULT_RETENTION.maxRecordingBytesPerSession;
+        const preserveMarkedChunks = policy.preserveMarkedChunks ?? DEFAULT_RETENTION.preserveMarkedChunks;
+        const maxExportsPerProject = policy.maxExportsPerProject ?? DEFAULT_RETENTION.maxExportsPerProject;
+        const maxExportBytesPerProject = policy.maxExportBytesPerProject ?? DEFAULT_RETENTION.maxExportBytesPerProject;
+        const maxBuildsPerProject = policy.maxBuildsPerProject ?? DEFAULT_RETENTION.maxBuildsPerProject;
+
         const now = Date.now();
-        const maxAge = p.maxAgeDays * 86400000;
-        const recMaxAge = p.recordingRetentionDays * 86400000;
+        const maxAge = maxAgeDays * 86400000;
+        const recMaxAge = recordingRetentionDays * 86400000;
 
         let sessionsDeleted = 0;
         let recordingsDeleted = 0;
@@ -1191,14 +1016,15 @@ export class JsonlStore implements IStore {
         let bytesFreed = 0;
         let buildsDeleted = 0;
 
-        for (const proj of this.listProjects()) {
-            const sessions = this.listSessions(proj.id, 1000);
+        const sessionsDir = this.sessionsDir();
+        if (existsSync(sessionsDir)) {
+            const allSessions = this.listSessions({ limit: Number.MAX_SAFE_INTEGER });
 
             // Delete sessions older than maxAge
-            for (const sess of sessions) {
+            for (const sess of allSessions) {
                 const age = now - sess.startedAt;
                 if (age > maxAge) {
-                    const dir = this.sessionDir(proj.id, sess.id);
+                    const dir = this.sessionDir(sess.id);
                     const size = dirSize(dir);
                     rmrf(dir);
                     this.sessionIndex.delete(sess.id);
@@ -1207,12 +1033,12 @@ export class JsonlStore implements IStore {
                 }
             }
 
-            // Keep only the most recent N sessions
-            const remaining = this.listSessions(proj.id, 1000);
-            if (remaining.length > p.maxSessionsPerProject) {
-                const toDelete = remaining.slice(p.maxSessionsPerProject);
+            // Keep only the most recent maxSessions
+            const remaining = this.listSessions({ limit: Number.MAX_SAFE_INTEGER });
+            if (remaining.length > maxSessions) {
+                const toDelete = remaining.slice(maxSessions);
                 for (const sess of toDelete) {
-                    const dir = this.sessionDir(proj.id, sess.id);
+                    const dir = this.sessionDir(sess.id);
                     const size = dirSize(dir);
                     rmrf(dir);
                     this.sessionIndex.delete(sess.id);
@@ -1221,66 +1047,40 @@ export class JsonlStore implements IStore {
                 }
             }
 
-            // Trim recording data per tab while preserving timeline history.
-            // 0.3.0 layout: tabs/{tabId}/loads/{loadId}/recording.jsonl —
-            // prune each per-load file independently so retention is enforced
-            // *within* a pageload and across pageloads (count + bytes caps
-            // are per tab, summed across its loads). Also handles the legacy
-            // tabs/{tabId}/recording.jsonl for installs that still have data
-            // from before the per-load split.
-            for (const sess of this.listSessions(proj.id, 1000)) {
-                const tabsDir = join(this.sessionDir(proj.id, sess.id), 'tabs');
-                if (!existsSync(tabsDir)) continue;
-                for (const tabEntry of readdirSync(tabsDir, { withFileTypes: true })) {
-                    if (!tabEntry.isDirectory()) continue;
-                    const tabName = tabEntry.name;
-                    const recordingFiles: string[] = [];
-                    const legacy = join(tabsDir, tabName, 'recording.jsonl');
-                    if (existsSync(legacy)) recordingFiles.push(legacy);
-                    const loadsDir = join(tabsDir, tabName, 'loads');
-                    if (existsSync(loadsDir)) {
-                        try {
-                            for (const loadEntry of readdirSync(loadsDir, { withFileTypes: true })) {
-                                if (!loadEntry.isDirectory()) continue;
-                                const p2 = join(loadsDir, loadEntry.name, 'recording.jsonl');
-                                if (existsSync(p2)) recordingFiles.push(p2);
-                            }
-                        } catch {
-                            /* directory disappeared mid-scan; ignore */
-                        }
-                    }
-                    for (const recPath of recordingFiles) {
-                        const result = this.pruneRecordingFile(
-                            recPath,
-                            this.tabTimeline(proj.id, sess.id, tabName),
-                            now,
-                            recMaxAge,
-                            p,
-                        );
-                        bytesFreed += result.bytesFreed;
-                        recordingsDeleted += result.chunksDeleted;
-                    }
-                }
+            // Trim recording data per session
+            for (const sess of this.listSessions({ limit: Number.MAX_SAFE_INTEGER })) {
+                const recPath = this.sessionRecording(sess.id);
+                if (!existsSync(recPath)) continue;
+                const timelinePath = this.sessionTimeline(sess.id);
+                const result = this.pruneRecordingFile(
+                    recPath,
+                    timelinePath,
+                    now,
+                    recMaxAge,
+                    maxChunks,
+                    maxBytes,
+                    preserveMarkedChunks,
+                );
+                bytesFreed += result.bytesFreed;
+                recordingsDeleted += result.chunksDeleted;
             }
+        }
 
-            // Trim exports per project: enforce count + byte ceilings (oldest first).
-            const exportResult = this.pruneExportsForProject(
-                proj.id,
-                p.maxExportsPerProject,
-                p.maxExportBytesPerProject,
-            );
-            exportsDeleted += exportResult.exportsDeleted;
-            bytesFreed += exportResult.bytesFreed;
+        // Trim exports
+        const exportResult = this.pruneExports(maxExportsPerProject, maxExportBytesPerProject);
+        exportsDeleted += exportResult.exportsDeleted;
+        bytesFreed += exportResult.bytesFreed;
 
-            // Trim BuildMeta directories per project. listBuilds returns newest
-            // first by builtAt; anything past `maxBuildsPerProject` is pruned.
+        // Trim builds per project
+        for (const proj of this.listProjects()) {
             const allBuilds = this.listBuilds(proj.id, Number.MAX_SAFE_INTEGER);
-            if (allBuilds.length > p.maxBuildsPerProject) {
-                const stale = allBuilds.slice(p.maxBuildsPerProject);
+            if (allBuilds.length > maxBuildsPerProject) {
+                const stale = allBuilds.slice(maxBuildsPerProject);
                 for (const b of stale) {
-                    const dir = join(this.projectDir(proj.id), 'builds', sanitizeId(b.id));
+                    const dir = this.buildDir(proj.id, b.id);
                     const size = dirSize(dir);
                     rmrf(dir);
+                    this.buildIndex.delete(b.id);
                     bytesFreed += size;
                     buildsDeleted++;
                 }
@@ -1290,66 +1090,81 @@ export class JsonlStore implements IStore {
         return { sessionsDeleted, recordingsDeleted, exportsDeleted, bytesFreed, buildsDeleted };
     }
 
-    private pruneExportsForProject(
-        projectId: string,
+    private pruneExports(
         maxExports: number,
         maxBytes: number,
     ): { exportsDeleted: number; bytesFreed: number } {
-        const exports = this.listExports(projectId); // newest first
-        if (exports.length === 0) return { exportsDeleted: 0, bytesFreed: 0 };
+        // Collect all exports across all projects
+        const indexPath = this.exportIndex();
+        if (!existsSync(indexPath)) return { exportsDeleted: 0, bytesFreed: 0 };
 
-        const keep: ReplayExportMeta[] = [];
-        const drop: ReplayExportMeta[] = [];
-        let runningBytes = 0;
-        for (const meta of exports) {
-            const fits = keep.length < maxExports && runningBytes + meta.bytes <= maxBytes;
-            if (fits) {
-                keep.push(meta);
-                runningBytes += meta.bytes;
-            } else {
-                drop.push(meta);
+        // Group by project
+        const byProject = new Map<string, ReplayExportMeta[]>();
+        for (const line of readAllLines(indexPath)) {
+            try {
+                const meta = JSON.parse(line) as ReplayExportMeta;
+                if (!meta?.exportId) continue;
+                const arr = byProject.get(meta.projectId) ?? [];
+                arr.push(meta);
+                byProject.set(meta.projectId, arr);
+            } catch {
+                /* swallow */
             }
         }
-        if (drop.length === 0) return { exportsDeleted: 0, bytesFreed: 0 };
 
-        let bytesFreed = 0;
-        for (const meta of drop) {
-            const eventsPath = this.exportEventsPath(projectId, meta.exportId);
-            if (existsSync(eventsPath)) {
-                const size = statSync(eventsPath).size;
-                try {
-                    unlinkSync(eventsPath);
-                    bytesFreed += size;
-                } catch {
-                    /* swallow */
+        let totalDeleted = 0;
+        let totalFreed = 0;
+        const keepIds = new Set<string>();
+
+        for (const [, exports] of byProject) {
+            exports.sort((a, b) => b.createdAt - a.createdAt);
+            let runningBytes = 0;
+            for (const meta of exports) {
+                const fits = keepIds.size < maxExports && runningBytes + meta.bytes <= maxBytes;
+                if (fits) {
+                    keepIds.add(meta.exportId);
+                    runningBytes += meta.bytes;
+                } else {
+                    // Delete this export's events file
+                    const eventsPath = this.exportEventsPath(meta.exportId);
+                    if (existsSync(eventsPath)) {
+                        const size = statSync(eventsPath).size;
+                        try { unlinkSync(eventsPath); totalFreed += size; } catch { /* swallow */ }
+                    }
+                    totalDeleted++;
                 }
             }
         }
 
-        // Rewrite index keeping only surviving entries.
-        const indexPath = this.exportIndex(projectId);
-        if (keep.length === 0) {
-            try { unlinkSync(indexPath); } catch { /* swallow */ }
-        } else {
-            // Preserve original insertion order (oldest first) so future appends still work naturally.
-            keep.sort((a, b) => a.createdAt - b.createdAt);
-            const body = keep.map((m) => JSON.stringify(m)).join('\n') + '\n';
-            writeFileSync(indexPath, body, 'utf-8');
+        if (totalDeleted > 0) {
+            // Rewrite index keeping only surviving entries
+            const allLines = readAllLines(indexPath);
+            const kept = allLines.filter((line) => {
+                try {
+                    const meta = JSON.parse(line) as ReplayExportMeta;
+                    return keepIds.has(meta.exportId);
+                } catch {
+                    return false;
+                }
+            });
+            if (kept.length === 0) {
+                try { unlinkSync(indexPath); } catch { /* swallow */ }
+            } else {
+                writeFileSync(indexPath, kept.join('\n') + '\n', 'utf-8');
+            }
         }
 
-        return { exportsDeleted: drop.length, bytesFreed };
+        return { exportsDeleted: totalDeleted, bytesFreed: totalFreed };
     }
 
     /**
-     * Flush all pending Write_Queue entries to disk.
-     * Call this in tests before reading back events via tail()/search().
+     * Flush all pending WriteQueue entries to disk. Used in tests.
      */
     async flush(): Promise<void> {
         await this.writeQueue.drain();
     }
 
     async close(): Promise<void> {
-        // Drain the Write_Queue to ensure all pending events are flushed to disk
         try {
             await this.writeQueue.drain();
         } catch (err) {
@@ -1359,16 +1174,18 @@ export class JsonlStore implements IStore {
 
     private pruneRecordingFile(
         recPath: string,
-        tabTimelinePath: string,
+        timelinePath: string,
         now: number,
         recMaxAge: number,
-        policy: Required<RetentionPolicy>,
+        maxChunks: number,
+        maxBytesLimit: number,
+        preserveMarkedChunks: boolean,
     ): { chunksDeleted: number; bytesFreed: number } {
         const lines = readAllLines(recPath);
         if (lines.length === 0) return { chunksDeleted: 0, bytesFreed: 0 };
         const fallbackAgeTs = statSync(recPath).mtimeMs;
 
-        const markerTimestamps = this.readMarkerTimestamps(tabTimelinePath);
+        const markerTimestamps = this.readMarkerTimestamps(timelinePath);
         const chunks: RecordingChunkRecord[] = [];
 
         lines.forEach((line, index) => {
@@ -1391,11 +1208,11 @@ export class JsonlStore implements IStore {
         const chooseRemovalCandidate = (): RecordingChunkRecord | undefined => {
             if (kept.length === 0) return undefined;
             const sorted = [...kept].sort((a, b) => a.startTs - b.startTs);
-            if (!policy.preserveMarkedChunks) return sorted[0];
+            if (!preserveMarkedChunks) return sorted[0];
             return sorted.find((chunk) => !chunk.marked) ?? sorted[0];
         };
 
-        while (kept.length > policy.maxRecordingChunksPerTab) {
+        while (kept.length > maxChunks) {
             const candidate = chooseRemovalCandidate();
             if (!candidate) break;
             removed.add(candidate.chunkId);
@@ -1403,7 +1220,7 @@ export class JsonlStore implements IStore {
         }
 
         let totalBytes = kept.reduce((sum, chunk) => sum + chunk.bytes, 0);
-        while (totalBytes > policy.maxRecordingBytesPerTab) {
+        while (totalBytes > maxBytesLimit) {
             const candidate = chooseRemovalCandidate();
             if (!candidate) break;
             removed.add(candidate.chunkId);
@@ -1426,9 +1243,9 @@ export class JsonlStore implements IStore {
         return { chunksDeleted: removed.size, bytesFreed };
     }
 
-    private readMarkerTimestamps(tabTimelinePath: string): number[] {
+    private readMarkerTimestamps(timelinePath: string): number[] {
         const timestamps: number[] = [];
-        for (const line of readAllLines(tabTimelinePath)) {
+        for (const line of readAllLines(timelinePath)) {
             const event = parseEvent(line);
             if (!event || event.t !== 'rrweb:marker') continue;
             timestamps.push(event.ts);

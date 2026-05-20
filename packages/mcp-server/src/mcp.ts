@@ -503,7 +503,7 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
             },
         },
         async ({ projectId, limit }) => {
-            const sessions = store.listSessions(projectId, limit ?? 10);
+            const sessions = store.listSessions({ projectId, limit: limit ?? 10 });
             return ok(sessions);
         },
     );
@@ -525,28 +525,30 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
     server.registerTool(
         'session.tail',
         {
-            description: 'Read the last N events from a session timeline. Optionally filter by event type.',
+            description: 'Read the last N events from a session timeline. Optionally filter by event type or projectId.',
             inputSchema: {
                 sessionId: z.string(),
                 n: z.number().int().positive().default(50).optional(),
                 type: z.union([z.string(), z.array(z.string())]).optional()
                     .describe('Filter by event type(s): log, err, req, res, cmd, resp, hmr, task, node:log, node:err'),
-                tabId: z.string().optional().describe('If provided, reads from the tab timeline instead of session timeline'),
+                projectId: z.string().optional().describe('Filter events by projectId (useful for multi-project sessions)'),
                 since: z.number().optional().describe('Only events after this Unix timestamp (ms)'),
                 until: z.number().optional().describe('Only events before this Unix timestamp (ms)'),
             },
         },
-        async ({ sessionId, n, type, tabId, since, until }) => {
+        async ({ sessionId, n, type, projectId, since, until }) => {
             try {
                 const session = store.getSession(sessionId);
                 if (!session) {
                     return ok({ error: 'session not found', sessionId });
                 }
-                const events = store.tail(
-                    sessionId,
-                    { n: n ?? 50, type: type as string | string[] | undefined, since, until },
-                    tabId,
-                );
+                const events = store.tail(sessionId, {
+                    n: n ?? 50,
+                    type: type as string | string[] | undefined,
+                    since,
+                    until,
+                    projectId,
+                });
                 return ok(events);
             } catch {
                 return ok({ error: 'session not found', sessionId });
@@ -563,21 +565,18 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
                 query: z.string().describe('Substring to search for in event payloads'),
                 type: z.union([z.string(), z.array(z.string())]).optional(),
                 limit: z.number().int().positive().default(50).optional(),
-                tabId: z.string().optional(),
             },
         },
-        async ({ sessionId, query, type, limit, tabId }) => {
+        async ({ sessionId, query, type, limit }) => {
             try {
                 const session = store.getSession(sessionId);
                 if (!session) {
                     return ok({ error: 'session not found', sessionId });
                 }
-                const events = store.search(
-                    sessionId,
-                    query,
-                    { type: type as string | string[] | undefined, limit: limit ?? 50 },
-                    tabId,
-                );
+                const events = store.search(sessionId, query, {
+                    type: type as string | string[] | undefined,
+                    limit: limit ?? 50,
+                });
                 return ok(events);
             } catch {
                 return ok({ error: 'session not found', sessionId });
@@ -595,7 +594,7 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
             const projects = store.listProjects();
             const result = projects.map((p) => ({
                 ...p,
-                recentSessions: store.listSessions(p.id, 3),
+                recentSessions: store.listSessions({ projectId: p.id, limit: 3 }),
             }));
             return ok(result);
         },
@@ -683,18 +682,17 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
     server.registerTool(
         'session.recordings.list',
         {
-            description: 'List rrweb recording chunks available for a session or tab.',
+            description: 'List rrweb recording chunks available for a session.',
             inputSchema: {
                 sessionId: z.string(),
-                tabId: z.string().optional().describe('Optional tab ID to narrow results'),
             },
         },
-        async ({ sessionId, tabId }) => {
+        async ({ sessionId }) => {
             const session = store.getSession(sessionId);
             if (!session) {
                 return ok({ error: 'session not found', sessionId });
             }
-            const chunks = store.listRecordings(sessionId, tabId);
+            const chunks = store.listRecordings(sessionId);
             return ok({ chunks, intervals: meltRecordingIntervals(chunks) });
         },
     );
@@ -707,10 +705,9 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
                 sessionId: z.string(),
                 ts: z.number().describe('Center timestamp in Unix ms'),
                 windowMs: z.number().int().positive().default(15_000).optional(),
-                tabId: z.string().optional(),
             },
         },
-        async ({ sessionId, ts, windowMs, tabId }) => {
+        async ({ sessionId, ts, windowMs }) => {
             const session = store.getSession(sessionId);
             if (!session) {
                 return ok({ error: 'session not found', sessionId });
@@ -718,13 +715,10 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
             const radius = windowMs ?? 15_000;
             const since = ts - radius;
             const until = ts + radius;
-            const chunks = store.listRecordings(sessionId, tabId)
+            const chunks = store.listRecordings(sessionId)
                 .filter((chunk) => chunk.endTs >= since && chunk.startTs <= until);
-            const markers = store.tail(
-                sessionId,
-                { n: 200, type: 'rrweb:marker', since, until },
-                tabId,
-            ).filter((marker) => chunks.some((chunk) => chunk.endTs >= marker.ts && chunk.startTs <= marker.ts));
+            const markers = store.tail(sessionId, { n: 200, type: 'rrweb:marker', since, until })
+                .filter((marker) => chunks.some((chunk) => chunk.endTs >= marker.ts && chunk.startTs <= marker.ts));
             return ok({ since, until, chunks, intervals: meltRecordingIntervals(chunks), markers });
         },
     );
@@ -737,15 +731,14 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
                 sessionId: z.string(),
                 since: z.number().describe('Start timestamp in Unix ms'),
                 until: z.number().describe('End timestamp in Unix ms'),
-                tabId: z.string().optional(),
             },
         },
-        async ({ sessionId, since, until, tabId }) => {
+        async ({ sessionId, since, until }) => {
             const session = store.getSession(sessionId);
             if (!session) {
                 return ok({ error: 'session not found', sessionId });
             }
-            const chunks = store.sliceRecordings(sessionId, since, until, tabId);
+            const chunks = store.sliceRecordings(sessionId, since, until);
             return ok({ since, until, chunks, intervals: meltRecordingIntervals(chunks) });
         },
     );
@@ -885,12 +878,12 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
 function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void {
     const remoteStore = bridge.getStore() as ReturnType<RemoteBridge['getStore']> & {
         listProjectsAsync(): Promise<unknown>;
-        listSessionsAsync(projectId: string, limit?: number): Promise<unknown>;
+        listSessionsAsync(opts?: { projectId?: string; tabId?: string; buildId?: string; limit?: number }): Promise<unknown>;
         summaryAsync(sessionId: string): Promise<unknown>;
-        tailAsync(sessionId: string, opts?: unknown, tabId?: string): Promise<unknown>;
-        searchAsync(sessionId: string, query: string, opts?: unknown, tabId?: string): Promise<unknown>;
-        listRecordingsAsync(sessionId: string, tabId?: string): Promise<unknown>;
-        sliceRecordingsAsync(sessionId: string, since: number, until: number, tabId?: string): Promise<unknown>;
+        tailAsync(sessionId: string, opts?: unknown): Promise<unknown>;
+        searchAsync(sessionId: string, query: string, opts?: unknown): Promise<unknown>;
+        listRecordingsAsync(sessionId: string): Promise<unknown>;
+        sliceRecordingsAsync(sessionId: string, since: number, until: number): Promise<unknown>;
         replayCreateAsync(args: unknown): Promise<unknown>;
         purgeAsync(policy?: unknown): Promise<unknown>;
     };
@@ -911,7 +904,7 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
             },
         },
         async ({ projectId, limit }) => {
-            const sessions = await remoteStore.listSessionsAsync(projectId, limit ?? 10);
+            const sessions = await remoteStore.listSessionsAsync({ projectId, limit: limit ?? 10 });
             return ok(sessions);
         },
     );
@@ -933,22 +926,21 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
     server.registerTool(
         'session.tail',
         {
-            description: 'Read the last N events from a session timeline. Optionally filter by event type.',
+            description: 'Read the last N events from a session timeline. Optionally filter by event type or projectId.',
             inputSchema: {
                 sessionId: z.string(),
                 n: z.number().int().positive().default(50).optional(),
                 type: z.union([z.string(), z.array(z.string())]).optional()
                     .describe('Filter by event type(s): log, err, req, res, cmd, resp, hmr, task, node:log, node:err'),
-                tabId: z.string().optional().describe('If provided, reads from the tab timeline instead of session timeline'),
+                projectId: z.string().optional().describe('Filter events by projectId (useful for multi-project sessions)'),
                 since: z.number().optional().describe('Only events after this Unix timestamp (ms)'),
                 until: z.number().optional().describe('Only events before this Unix timestamp (ms)'),
             },
         },
-        async ({ sessionId, n, type, tabId, since, until }) => {
+        async ({ sessionId, n, type, projectId, since, until }) => {
             const events = await remoteStore.tailAsync(
                 sessionId,
-                { n: n ?? 50, type: type as string | string[] | undefined, since, until },
-                tabId,
+                { n: n ?? 50, type: type as string | string[] | undefined, projectId, since, until },
             );
             return ok(events);
         },
@@ -963,15 +955,13 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
                 query: z.string().describe('Substring to search for in event payloads'),
                 type: z.union([z.string(), z.array(z.string())]).optional(),
                 limit: z.number().int().positive().default(50).optional(),
-                tabId: z.string().optional(),
             },
         },
-        async ({ sessionId, query, type, limit, tabId }) => {
+        async ({ sessionId, query, type, limit }) => {
             const events = await remoteStore.searchAsync(
                 sessionId,
                 query,
                 { type: type as string | string[] | undefined, limit: limit ?? 50 },
-                tabId,
             );
             return ok(events);
         },
@@ -988,7 +978,7 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
             const result = await Promise.all(
                 projects.map(async (p) => ({
                     ...p,
-                    recentSessions: await remoteStore.listSessionsAsync(p.id, 3),
+                    recentSessions: await remoteStore.listSessionsAsync({ projectId: p.id, limit: 3 }),
                 })),
             );
             return ok(result);
@@ -998,14 +988,13 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
     server.registerTool(
         'session.recordings.list',
         {
-            description: 'List rrweb recording chunks available for a session or tab.',
+            description: 'List rrweb recording chunks available for a session.',
             inputSchema: {
                 sessionId: z.string(),
-                tabId: z.string().optional().describe('Optional tab ID to narrow results'),
             },
         },
-        async ({ sessionId, tabId }) => {
-            const chunks = await remoteStore.listRecordingsAsync(sessionId, tabId);
+        async ({ sessionId }) => {
+            const chunks = await remoteStore.listRecordingsAsync(sessionId);
             return ok({ chunks, intervals: meltRecordingIntervals(chunks as Array<{
                 startTs: number;
                 endTs: number;
@@ -1024,21 +1013,19 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
                 sessionId: z.string(),
                 ts: z.number().describe('Center timestamp in Unix ms'),
                 windowMs: z.number().int().positive().default(15_000).optional(),
-                tabId: z.string().optional(),
             },
         },
-        async ({ sessionId, ts, windowMs, tabId }) => {
+        async ({ sessionId, ts, windowMs }) => {
             const radius = windowMs ?? 15_000;
             const since = ts - radius;
             const until = ts + radius;
-            const chunks = await remoteStore.listRecordingsAsync(sessionId, tabId) as Array<{
+            const chunks = await remoteStore.listRecordingsAsync(sessionId) as Array<{
                 startTs: number;
                 endTs: number;
             }>;
             const markers = await remoteStore.tailAsync(
                 sessionId,
                 { n: 200, type: 'rrweb:marker', since, until },
-                tabId,
             ) as Array<{ ts: number }>;
             return ok({
                 since,
@@ -1068,11 +1055,10 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
                 sessionId: z.string(),
                 since: z.number().describe('Start timestamp in Unix ms'),
                 until: z.number().describe('End timestamp in Unix ms'),
-                tabId: z.string().optional(),
             },
         },
-        async ({ sessionId, since, until, tabId }) => {
-            const chunks = await remoteStore.sliceRecordingsAsync(sessionId, since, until, tabId);
+        async ({ sessionId, since, until }) => {
+            const chunks = await remoteStore.sliceRecordingsAsync(sessionId, since, until);
             return ok({
                 since,
                 until,

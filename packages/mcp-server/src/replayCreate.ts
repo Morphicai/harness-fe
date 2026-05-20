@@ -79,7 +79,7 @@ export function createReplayExport(
         };
     }
 
-    const chunks = store.sliceRecordings(sessionId, resolvedSince, resolvedUntil, tabId);
+    const chunks = store.sliceRecordings(sessionId, resolvedSince, resolvedUntil);
     if (chunks.length === 0) {
         return {
             error: 'no rrweb chunks found in window',
@@ -121,7 +121,7 @@ export function createReplayExport(
     // earlier DOM state and roll mutations forward into the window.
     if (!events.some(isFullSnapshotEvent) && resolvedSince > 0) {
         const priorChunks = store
-            .sliceRecordings(sessionId, 0, resolvedSince - 1, scopedTabId)
+            .sliceRecordings(sessionId, 0, resolvedSince - 1)
             .filter((c) => c.tabId === scopedTabId)
             .sort((a, b) => a.startTs - b.startTs);
         // Walk backwards from the chunk closest to window start; the first

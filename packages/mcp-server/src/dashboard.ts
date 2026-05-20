@@ -114,12 +114,12 @@ function renderProjectList(store: IStore): string {
         return page('Harnessa', '', '<section><h2>Projects</h2><div class="empty">No projects yet. Start a dev server with the harnessa-fe plugin.</div></section>');
     }
     const rows = projects.map((p) => {
-        const sessions = store.listSessions(p.id, 5);
+        const sessions = store.listSessions({ projectId: p.id, limit: 5 });
         const sessionList = sessions.length === 0
             ? '<span class="muted">no sessions yet</span>'
             : sessions.map((s) => {
                 const closed = s.endedAt ? ` <span class="muted">· closed ${fmtTs(s.endedAt)}</span>` : ' <span class="tag tag-net">live</span>';
-                return `<div><a href="/sessions/${encodeURIComponent(s.id)}"><code>${escapeHtml(s.id)}</code></a> <span class="muted">${escapeHtml(s.peerRole)} · started ${fmtTs(s.startedAt)}</span>${closed}</div>`;
+                return `<div><a href="/sessions/${encodeURIComponent(s.id)}"><code>${escapeHtml(s.id)}</code></a> <span class="muted">started ${fmtTs(s.startedAt)}</span>${closed}</div>`;
             }).join('');
         return `<tr>
             <td><code>${escapeHtml(p.id)}</code></td>
@@ -151,8 +151,9 @@ function renderSessionDetail(store: IStore, session: SessionMeta): string {
     }
     // Timeline (last 50 of any type)
     const timeline = store.tail(sessionId, { n: 50 });
-    // Exports for this project
-    const exports = store.listExports(session.projectId, 25).filter((m) => m.sessionId === sessionId);
+    // Exports for this project (derive projectId from first participant)
+    const sessionProjectId = session.participants[0]?.projectId ?? 'unknown';
+    const exports = store.listExports(sessionProjectId, 25).filter((m) => m.sessionId === sessionId);
 
     const tabsRows = tabIds.length === 0
         ? '<tr><td colspan="3" class="empty">No tabs registered.</td></tr>'
@@ -201,14 +202,14 @@ function renderSessionDetail(store: IStore, session: SessionMeta): string {
 
     return page(
         `Session ${sessionId}`,
-        `<a href="/">projects</a> · <code>${escapeHtml(session.projectId)}</code> · session <code>${escapeHtml(sessionId)}</code>`,
+        `<a href="/">projects</a> · <code>${escapeHtml(sessionProjectId)}</code> · session <code>${escapeHtml(sessionId)}</code>`,
         `
 <section>
   <h2>Session</h2>
   <table>
     <tbody>
-      <tr><th>Project</th><td><code>${escapeHtml(session.projectId)}</code></td></tr>
-      <tr><th>Peer role</th><td>${escapeHtml(session.peerRole)}</td></tr>
+      <tr><th>Project</th><td><code>${escapeHtml(sessionProjectId)}</code></td></tr>
+      <tr><th>Tab</th><td><code>${escapeHtml(session.tabId)}</code></td></tr>
       <tr><th>Started</th><td>${fmtTs(session.startedAt)}</td></tr>
       <tr><th>Ended</th><td>${session.endedAt ? fmtTs(session.endedAt) : '<span class="tag tag-net">live</span>'}</td></tr>
       <tr><th>Counts</th><td>${Object.entries(summary.counts ?? {}).map(([k, v]) => `<code>${escapeHtml(k)}</code>=${v}`).join(' ') || '<span class="muted">—</span>'}</td></tr>

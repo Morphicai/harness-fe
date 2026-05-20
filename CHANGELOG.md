@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-05-20
+
+### Changed — storage layout refactor (IStore v2)
+
+Renamed store types and flipped the storage layout to use page-load sessions as the primary event unit:
+
+- `LoadMeta` renamed to `SessionMeta`; old `SessionMeta` (dev-run handle) renamed to `BuildMeta`
+- `IStore.openSession()` → `openBuild()`, `closeSession()` for builds → `closeBuild()`
+- `IStore.openLoad()` → `upsertSession()`, `listLoads()` → `listSessions({ tabId })`
+- Storage layout: flat `sessions/{sessionId}/` replaces `{projectId}/sessions/{buildId}/tabs/{tabId}/loads/{loadId}/`
+- `upsertSession` dedup bug fixed: participants array was being doubled on repeated upserts
+- `ensureDir` added before session timeline writes to prevent ENOENT on first write
+- Dashboard project list now uses `listProjects()` (requires `upsertProject` to be called)
+- Tests updated to new IStore API; grace-period tests now verify builds via `listBuilds()`
+
 ## [0.3.0] — 2026-05-20
 
 ### Changed — rrweb recordings are now isolated per pageload
