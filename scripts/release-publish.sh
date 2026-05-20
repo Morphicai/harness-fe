@@ -46,6 +46,74 @@ for pkg in packages/*/; do
 done
 ls -la "$TARBALL_DIR" 2>/dev/null || true
 
+# Parse pkg name + version from a tarball's embedded package.json.
+extract_pkg() {
+    local tgz="$1"
+    tar -xzOf "$tgz" package/package.json 2>/dev/null | node -e "
+        let data='';process.stdin.on('data',c=>data+=c).on('end',()=>{
+            const j=JSON.parse(data);
+            process.stdout.write(j.name+'\n'+j.version+'\n');
+        });
+    " 2>/dev/null
+}
+
+# Publish one tarball. Handles the "version-being-published is lower than
+# current `latest`" case (npm refuses to implicitly move the `latest` tag
+# backwards) by publishing under a staging tag first, then explicitly
+# moving `latest` via `npm dist-tag add`.
+#
+# Args: $1 = tgz path, $2 = "oidc" | "token"
+publish_one() {
+    local tgz="$1"
+    local mode="$2"
+    local name version
+    { name=$(extract_pkg "$tgz" | head -1); version=$(extract_pkg "$tgz" | tail -1); } 2>/dev/null
+    local env_prefix
+    if [ "$mode" = "oidc" ]; then
+        env_prefix="env -u NODE_AUTH_TOKEN -u npm_config__authToken"
+    else
+        env_prefix="env NODE_AUTH_TOKEN=$NPM_TOKEN"
+    fi
+
+    set +e
+    local output
+    output=$($env_prefix npm publish "$tgz" --access public --provenance 2>&1)
+    local rc=$?
+    set -e
+    echo "$output"
+
+    if [ $rc -eq 0 ]; then
+        return 0
+    fi
+
+    # Detect "version lower than current latest" — npm 11+ message form.
+    if echo "$output" | grep -q "Cannot implicitly apply the \"latest\" tag"; then
+        echo "  → 'latest' tag is on a higher version; publishing under staging tag then dist-tag override."
+        local staging_tag="staging-$(date +%s)"
+        set +e
+        $env_prefix npm publish "$tgz" --access public --provenance --tag="$staging_tag"
+        rc=$?
+        set -e
+        if [ $rc -ne 0 ]; then
+            echo "  → staging publish also failed (exit $rc)"
+            return $rc
+        fi
+        if [ -n "$name" ] && [ -n "$version" ]; then
+            echo "  → moving latest tag to $name@$version"
+            set +e
+            $env_prefix npm dist-tag add "$name@$version" latest
+            rc=$?
+            set -e
+            if [ $rc -ne 0 ]; then
+                echo "  → dist-tag add failed (exit $rc); package is published under $staging_tag only"
+            fi
+        fi
+        return $rc
+    fi
+
+    return $rc
+}
+
 # Pass A — OIDC (no token).
 echo ""
 echo "── pass A: OIDC publish ───────────────────────────────────"
@@ -53,8 +121,7 @@ for tgz in "$TARBALL_DIR"/*.tgz; do
     name=$(basename "$tgz")
     echo "::group::pass-A $name (OIDC)"
     set +e
-    env -u NODE_AUTH_TOKEN -u npm_config__authToken \
-        npm publish "$tgz" --access public --provenance
+    publish_one "$tgz" oidc
     rc=$?
     set -e
     if [ $rc -eq 0 ]; then
@@ -80,8 +147,7 @@ if [ ${#REMAINING[@]} -gt 0 ]; then
             name=$(basename "$tgz")
             echo "::group::pass-B $name (token)"
             set +e
-            NODE_AUTH_TOKEN="$NPM_TOKEN" \
-                npm publish "$tgz" --access public --provenance
+            publish_one "$tgz" token
             rc=$?
             set -e
             if [ $rc -eq 0 ]; then
