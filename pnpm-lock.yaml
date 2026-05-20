@@ -231,15 +231,9 @@ importers:
 
   packages/log:
     devDependencies:
-      '@harnessa-fe/next':
-        specifier: workspace:*
-        version: link:../next
       '@harnessa-fe/node-runtime':
         specifier: workspace:*
         version: link:../node-runtime
-      '@harnessa-fe/runtime':
-        specifier: workspace:*
-        version: link:../runtime-client
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19

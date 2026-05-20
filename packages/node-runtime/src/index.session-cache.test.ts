@@ -1,34 +1,35 @@
 /**
- * Tests for the cache()-backed sessionId fallback path.
+ * Tests for the adapter-supplied sessionId provider path.
+ *
+ * Architecture: framework adapters (e.g. @harnessa-fe/next) push a request-
+ * scoped sessionId resolver into node-runtime via `setSessionIdProvider()`.
+ * For Next this is a React `cache()`-backed getter. node-runtime stays
+ * React-agnostic; dependency direction is L2 → L1 (correct).
  *
  * Verifies that:
- *   1. getRequestSessionId() falls back to @harnessa-fe/next/sessionId.getSessionId()
- *      (React cache()) when ALS is empty.
- *   2. ALS wins over cache() when both are populated.
- *   3. Auto-captured console.* events inherit sessionId from cache(), so
- *      a Server Component's `console.log(...)` lands on the right session.
- *   4. When cache() returns undefined and ALS is empty, the event is emitted
- *      as orphan (sessionId undefined) — not misattributed.
+ *   1. getRequestSessionId() returns the provider's value when ALS is empty.
+ *   2. ALS wins over provider when both are populated.
+ *   3. Auto-captured console.* events inherit sessionId from the provider,
+ *      so Server Component `console.log(...)` lands on the right session.
+ *   4. When the provider returns undefined and ALS is empty, the event is
+ *      emitted as orphan (sessionId undefined) — not misattributed.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { WebSocketServer } from 'ws';
 
-// IMPORTANT: vi.mock is hoisted, so this rewires the dynamic
-// `import('@harnessa-fe/next/sessionId')` inside register() to point at our
-// fake getter. The factory must return the exact shape consumed by
-// primeNextSessionGetter().
-const mockGetSessionId = vi.fn<() => string | undefined>(() => undefined);
-vi.mock('@harnessa-fe/next/sessionId', () => ({
-    getSessionId: mockGetSessionId,
-}));
-
 import {
     register,
     getRequestSessionId,
+    setSessionIdProvider,
     withHarnessaTracing,
     _resetForTest,
 } from './index.js';
+
+// Stand-in for `@harnessa-fe/next/sessionId.getSessionId` — tests inject
+// it via setSessionIdProvider, exactly the way the real Next adapter does
+// on module load.
+const mockGetSessionId = vi.fn<() => string | undefined>(() => undefined);
 
 interface Frame {
     type: string;
@@ -64,7 +65,10 @@ async function closeServer(): Promise<void> {
 beforeAll(async () => {
     await spawnTestServer();
     register({ projectId: 'cache-test', mcpUrl: `ws://127.0.0.1:${port}` });
-    // Let primeNextSessionGetter() resolve + WS handshake complete.
+    // Mimic what @harnessa-fe/next's sessionId.ts side-effect does on
+    // module load — plug the mock getter in via the public DI API.
+    setSessionIdProvider(() => mockGetSessionId());
+    // Let WS handshake complete.
     await new Promise<void>((r) => setTimeout(r, 200));
 });
 
@@ -79,25 +83,25 @@ beforeEach(() => {
     received.length = 0;
 });
 
-describe('getRequestSessionId() cache() fallback', () => {
-    it('returns sessionId from React cache() when ALS is empty', () => {
+describe('getRequestSessionId() adapter provider fallback', () => {
+    it('returns sessionId from adapter provider when ALS is empty', () => {
         mockGetSessionId.mockReturnValue('cache-sid-1');
         expect(getRequestSessionId()).toBe('cache-sid-1');
     });
 
-    it('returns undefined when cache() getter returns undefined and ALS is empty', () => {
+    it('returns undefined when provider returns undefined and ALS is empty', () => {
         mockGetSessionId.mockReturnValue(undefined);
         expect(getRequestSessionId()).toBeUndefined();
     });
 
-    it('swallows exceptions thrown by cache() getter (out-of-render-scope)', () => {
+    it('swallows exceptions thrown by provider (out-of-render-scope)', () => {
         mockGetSessionId.mockImplementation(() => {
             throw new Error('not in a React render scope');
         });
         expect(getRequestSessionId()).toBeUndefined();
     });
 
-    it('ALS sessionId wins over cache() when both are populated', async () => {
+    it('ALS sessionId wins over adapter provider when both are populated', async () => {
         mockGetSessionId.mockReturnValue('cache-sid');
         const handler = withHarnessaTracing(async () => getRequestSessionId());
         const req = {
@@ -110,8 +114,8 @@ describe('getRequestSessionId() cache() fallback', () => {
     });
 });
 
-describe('console capture inherits sessionId from cache()', () => {
-    it('console.log inside cache() scope emits server-log with that sessionId', async () => {
+describe('console capture inherits sessionId from adapter provider', () => {
+    it('console.log inside provider scope emits server-log with that sessionId', async () => {
         mockGetSessionId.mockReturnValue('render-sid-A');
         console.log('payload-A');
         await new Promise<void>((r) => setTimeout(r, 80));
@@ -125,7 +129,7 @@ describe('console capture inherits sessionId from cache()', () => {
         expect(evt!.sessionId).toBe('render-sid-A');
     });
 
-    it('orphan console.log (no ALS, cache() returns undefined) has sessionId undefined', async () => {
+    it('orphan console.log (no ALS, provider returns undefined) has sessionId undefined', async () => {
         mockGetSessionId.mockReturnValue(undefined);
         console.log('payload-orphan');
         await new Promise<void>((r) => setTimeout(r, 80));
@@ -139,7 +143,7 @@ describe('console capture inherits sessionId from cache()', () => {
         expect(evt!.sessionId).toBeUndefined();
     });
 
-    it('two concurrent renders with different cache() values do not cross-contaminate', async () => {
+    it('two concurrent renders with different provider values do not cross-contaminate', async () => {
         // Simulate two interleaved Server Component renders by swapping
         // mock return between calls. Each console.log reads the getter
         // FRESH at emit-time — no closure over stale identity.

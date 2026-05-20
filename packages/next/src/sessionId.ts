@@ -39,3 +39,28 @@ function generateId(): string {
  * Returns `undefined` in non-React contexts (e.g. process-level handlers).
  */
 export const getSessionId: () => string = wrapWithCache(generateId);
+
+// Side-effect: push this getter into node-runtime so auto-captured
+// `console.*` calls during Server Component renders inherit the same
+// per-request sessionId. Dependency direction is L2 → L1 (correct);
+// node-runtime stays React-agnostic.
+//
+// Wrapped in try/catch because node-runtime is an optional peer dep —
+// if the host project hasn't installed it, this is a silent no-op.
+try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const nrt = require('@harnessa-fe/node-runtime') as {
+        setSessionIdProvider?: (fn: () => string | undefined) => void;
+    };
+    nrt.setSessionIdProvider?.(() => {
+        try {
+            return getSessionId();
+        } catch {
+            // `cache()` invoked outside a React render scope on some
+            // React/Next combinations throws — treat as "no sessionId".
+            return undefined;
+        }
+    });
+} catch {
+    // @harnessa-fe/node-runtime not installed — fine, log + Next still work
+}
