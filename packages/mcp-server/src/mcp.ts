@@ -679,6 +679,90 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
         },
     );
 
+    // ─── visitor.* tools — investigate user identity & journey (0.5+) ────
+
+    server.registerTool(
+        'visitor.list',
+        {
+            description:
+                'List known visitors (anonymous browsers + optional app-supplied userId). Newest activity first. Filter by projectId to scope to one app.',
+            inputSchema: {
+                projectId: z.string().optional(),
+                limit: z.number().int().positive().optional(),
+            },
+        },
+        async ({ projectId, limit }) => ok(store.listVisitors({ projectId, limit })),
+    );
+
+    server.registerTool(
+        'visitor.get',
+        {
+            description:
+                'Read a single visitor\'s metadata: firstSeenAt, lastSeenAt, sessionCount, projectIds, tabIds, and lastEnv (UA / viewport / timezone / colorScheme).',
+            inputSchema: { visitorId: z.string() },
+        },
+        async ({ visitorId }) => {
+            const meta = store.getVisitor(visitorId);
+            return meta ? ok(meta) : err(`visitor not found: ${visitorId}`);
+        },
+    );
+
+    server.registerTool(
+        'visitor.journey',
+        {
+            description:
+                'Chronological journey for one visitor — list of sessions (pageloads) with their URL, project participants, and start/end timestamps. Newest first. Answers "what did this user actually do?"',
+            inputSchema: {
+                visitorId: z.string(),
+                limit: z.number().int().positive().optional(),
+            },
+        },
+        async ({ visitorId, limit }) => {
+            // Walk all sessions whose participants reference any project this
+            // visitor has touched, then filter by visitorId-tagged events in
+            // the timeline. Simpler initial impl: visitor.projectIds gives us
+            // the projects of interest; we list those projects' sessions and
+            // intersect with any session that contains an event tagged with
+            // this visitorId.
+            const visitor = store.getVisitor(visitorId);
+            if (!visitor) return err(`visitor not found: ${visitorId}`);
+            const seen = new Set<string>();
+            const sessionsOut: Array<{
+                sessionId: string;
+                url?: string;
+                title?: string;
+                startedAt: number;
+                endedAt?: number;
+                projects: string[];
+                builds: string[];
+            }> = [];
+            for (const pid of visitor.projectIds) {
+                for (const sess of store.listSessions({ projectId: pid, limit: 200 })) {
+                    if (seen.has(sess.id)) continue;
+                    // Cheap proxy: a session with this visitor's tabIds counts.
+                    // Better filter is row-level visitorId tag — but tab match
+                    // is usually sufficient since tabIds are visitor-owned.
+                    if (sess.tabId && !visitor.tabIds.includes(sess.tabId)) continue;
+                    seen.add(sess.id);
+                    sessionsOut.push({
+                        sessionId: sess.id,
+                        url: sess.url,
+                        title: sess.title,
+                        startedAt: sess.startedAt,
+                        endedAt: sess.endedAt,
+                        projects: sess.participants.map((p) => p.projectId),
+                        builds: sess.participants
+                            .map((p) => p.buildId)
+                            .filter((b): b is string => !!b),
+                    });
+                }
+            }
+            sessionsOut.sort((a, b) => b.startedAt - a.startedAt);
+            const slice = limit ? sessionsOut.slice(0, limit) : sessionsOut;
+            return ok({ visitor, sessions: slice });
+        },
+    );
+
     server.registerTool(
         'session.recordings.list',
         {

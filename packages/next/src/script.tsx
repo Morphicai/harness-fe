@@ -26,6 +26,16 @@ export interface HarnessaScriptProps {
     /** MCP daemon WebSocket URL. Defaults to `ws://127.0.0.1:47729`. */
     mcpUrl?: string;
     /**
+     * App-supplied user identifier (e.g. `user.id` from supabase /
+     * NextAuth / Auth0). Attached to the visitor record on the daemon
+     * side. Empty / undefined for anonymous traffic — the daemon still
+     * stitches the journey via the localStorage-based `visitorId`.
+     *
+     * Privacy reminder: this is sent to your local daemon. Don't pass
+     * raw emails unless you understand who can read `~/.harnessa/data/`.
+     */
+    userId?: string;
+    /**
      * Build artifact id — stamped on every event so agents can answer
      * "which code version was running when this happened?". Optional.
      *
@@ -52,6 +62,7 @@ declare global {
             displayName?: string;
             mcpUrl?: string;
             buildId?: string;
+            userId?: string;
         };
         __HARNESSA_FE_NEXT_BOOTED__?: boolean;
     }
@@ -70,6 +81,7 @@ export function HarnessaScript(props: HarnessaScriptProps): null {
             displayName: props.displayName ?? props.projectId,
             mcpUrl: props.mcpUrl ?? 'ws://127.0.0.1:47729',
             buildId: props.buildId,
+            userId: props.userId,
         };
         // Dynamic import: bundles the runtime into client chunks because
         // this whole file is 'use client'. The import is async; first

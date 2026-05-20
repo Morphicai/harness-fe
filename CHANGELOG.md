@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-05-20
+
+### Added — visitor identity + in-page "My reports"
+
+A user submitting feedback used to be invisible — every refresh emitted a new sessionId, every tab a new tabId, and once the user clicked "Submit" the overlay forgot. This release stitches that whole story together:
+
+- **`visitorId` — stable anonymous identifier.** Persisted in `localStorage.__hfe_visitor_id__` (per-origin, per-browser). Same-origin iframes inherit it from `window.parent` so the journey stays unified across micro-frontends. No canvas / WebGL / AudioContext fingerprinting — only an opaque UUID.
+- **Optional `userId`.** `HarnessaScript` gained a `userId?: string` prop so apps with auth (supabase / NextAuth / Auth0 / …) can pass the logged-in user's id through `window.__HARNESSA_FE__.userId`. The daemon attaches the latest non-empty value to `VisitorMeta.userId`.
+- **`VisitorEnv` snapshot on every hello.** Captures UA, language, languages, timezone, timezoneOffsetMin, screen (width/height/dpr/colorDepth), viewport, colorScheme, reducedMotion, platform. Stored under `~/.harnessa/data/visitors/{visitorId}/meta.json` alongside firstSeenAt / lastSeenAt / sessionCount / LRU-capped tabIds + projectIds.
+- **Row-level visitor tag on events.** `EventFrame.visitorId` is stamped on every send so timeline filters / journeys can intersect without joins.
+- **"📁 My reports" in the overlay.** A new view inside the existing info card (slide-in from the same FAB) lists this visitor's tasks across all their sessions: status badge (pending / claimed / resolved), question, agent's resolution note (when present), source location, submitted-X-ago. Each row supports **edit** (inline textarea — pending/claimed only), **copy** (task-specific markdown ready for an agent), and **delete** (two-click confirm for safety). Empty state guides users to "Report a problem" if they haven't filed any yet.
+- **Request/reply channel `query` / `query.response`.** New protocol frame so the runtime can fetch and mutate the visitor's own data without going through MCP. Whitelisted methods: `tasks.mine`, `tasks.get`, `tasks.update`, `tasks.delete`. Server-side owner check refuses to touch tasks whose `visitorId` doesn't match the caller's.
+- **MCP tools `visitor.list` / `visitor.get` / `visitor.journey`.** Agents can investigate who hit the daemon: list known visitors, fetch one visitor's full metadata + last env, and walk their journey chronologically (sessions with url / start / participants).
+- **`RuntimeClient` gained accessors** `visitorId` and `userId`.
+
+### Privacy
+
+- Anonymous by default — `userId` is opt-in via the prop.
+- `localStorage.__hfe_visitor_id__` lives per origin; clearing site data wipes it.
+- The visitor record only stores what the runtime explicitly sent; the daemon never enriches with IP, server-side geolocation, or fingerprintable browser features beyond what's listed above.
+- The dev-only overlay opts itself out of every common session-recording / RUM vendor (rrweb, PostHog, Sentry, Datadog, FullStory, LogRocket, Hotjar, Smartlook, Clarity, Heap) so its identifiers can't leak through someone else's pipeline. `outerHTML` snapshots also strip the `data-morphix-*` instrumentation attributes before being sent to agents — they're internal tooling artifacts, not part of the host app's JSX.
+
+### Protocol
+
+- `HelloFrame` adds optional `visitorId`, `userId`, `env`.
+- `EventFrame` adds optional `visitorId`.
+- `Task` adds optional `visitorId`, `userId`, `updatedAt`.
+- Two new frame types: `query` and `query.response` (additive — old daemons / clients ignore them).
+- All additions are optional; 0.4.x clients and 0.4.x daemons interoperate cleanly with this release.
+
+### Migration
+
+No on-disk migration needed; existing tasks without `visitorId` simply won't appear in any visitor's "My reports" (they'll still show in MCP `tasks_pending`). Existing daemons can read 0.5 client traffic and existing 0.4 clients can talk to a 0.5 daemon — both directions handle the optional fields gracefully.
+
 ## [0.4.1] — 2026-05-20
 
 ### Changed — unified in-page overlay (`@harnessa-fe/runtime`)

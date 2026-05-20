@@ -13,6 +13,35 @@ import { returnSizeSchema, selectorSchema } from './selectors.js';
 export const peerRoleSchema = z.enum(['vite-plugin', 'webpack-plugin', 'runtime-client']);
 export type PeerRole = z.infer<typeof peerRoleSchema>;
 
+/**
+ * Per-visitor environment snapshot — captured once on hello and re-sent on
+ * each fresh pageload (it can change: viewport on resize, colorScheme on
+ * preferences, etc.). The daemon merges latest into VisitorMeta.lastEnv.
+ *
+ * No canvas/WebGL/AudioContext fingerprinting; just enumerable browser env.
+ */
+export const visitorEnvSchema = z.object({
+    userAgent: z.string(),
+    language: z.string(),
+    languages: z.array(z.string()),
+    timezone: z.string(),
+    timezoneOffsetMin: z.number(),
+    screen: z.object({
+        width: z.number(),
+        height: z.number(),
+        dpr: z.number(),
+        colorDepth: z.number().optional(),
+    }),
+    viewport: z.object({
+        width: z.number(),
+        height: z.number(),
+    }),
+    colorScheme: z.enum(['light', 'dark', 'unknown']),
+    reducedMotion: z.boolean(),
+    platform: z.string().optional(),
+});
+export type VisitorEnv = z.infer<typeof visitorEnvSchema>;
+
 export const helloFrameSchema = z.object({
     type: z.literal('hello'),
     id: z.string(),
@@ -41,6 +70,20 @@ export const helloFrameSchema = z.object({
      * Build-plugin roles MUST NOT set it.
      */
     sessionId: z.string().optional(),
+    /**
+     * Stable per-browser identifier (anonymous UUID, persisted in
+     * `localStorage.__hfe_visitor_id__`). Lets the daemon stitch a user's
+     * activity across pageloads / refreshes / tabs. Per-origin.
+     */
+    visitorId: z.string().optional(),
+    /**
+     * App-supplied identifier (e.g. `supabase.user.id`). Optional — when the
+     * app exposes it via `HarnessaScript userId=…`, daemon attaches it to
+     * VisitorMeta. Empty / undefined for anonymous traffic.
+     */
+    userId: z.string().optional(),
+    /** Per-session environment fingerprint. */
+    env: visitorEnvSchema.optional(),
     /** Optional page metadata for runtime-client. */
     page: z
         .object({
@@ -108,6 +151,11 @@ export const eventFrameSchema = z.object({
     sessionId: z.string().optional(),
     /** Build id — identifies the source-code snapshot that produced this event. */
     buildId: z.string().optional(),
+    /**
+     * Row-level visitor tag. Stamped by the runtime on every send. Lets the
+     * daemon filter events / build journeys without an index lookup.
+     */
+    visitorId: z.string().optional(),
     /** e.g. 'console', 'network', 'error', 'route', 'hmr', 'user-action', 'rrweb' */
     name: z.string(),
     ts: z.number(),
@@ -176,6 +224,43 @@ export const mcpReturnFrameSchema = z.object({
 });
 export type McpReturnFrame = z.infer<typeof mcpReturnFrameSchema>;
 
+// ─── Query channel (runtime-client → daemon, request/reply) ─────────────
+//
+// Whitelisted query methods so the in-page overlay can fetch the visitor's
+// own task list and mutate it without going through MCP. The owner check
+// happens server-side: queries are accepted only when `task.visitorId`
+// matches the calling peer's `visitorId`.
+
+export const queryMethodSchema = z.enum([
+    'tasks.mine',
+    'tasks.get',
+    'tasks.update',
+    'tasks.delete',
+]);
+export type QueryMethod = z.infer<typeof queryMethodSchema>;
+
+export const queryFrameSchema = z.object({
+    type: z.literal('query'),
+    id: z.string(),
+    method: queryMethodSchema,
+    args: z.unknown().optional(),
+});
+export type QueryFrame = z.infer<typeof queryFrameSchema>;
+
+export const queryResponseFrameSchema = z.object({
+    type: z.literal('query.response'),
+    id: z.string(),
+    ok: z.boolean(),
+    result: z.unknown().optional(),
+    error: z
+        .object({
+            code: z.string().optional(),
+            message: z.string(),
+        })
+        .optional(),
+});
+export type QueryResponseFrame = z.infer<typeof queryResponseFrameSchema>;
+
 export const frameSchema = z.discriminatedUnion('type', [
     helloFrameSchema,
     helloAckFrameSchema,
@@ -184,6 +269,8 @@ export const frameSchema = z.discriminatedUnion('type', [
     eventFrameSchema,
     mcpCallFrameSchema,
     mcpReturnFrameSchema,
+    queryFrameSchema,
+    queryResponseFrameSchema,
 ]);
 export type Frame = z.infer<typeof frameSchema>;
 
@@ -314,6 +401,14 @@ export interface Task {
     tabId: string;
     /** Session (page load) that produced this task; used to attribute claim/resolve events too. */
     sessionId?: string;
+    /**
+     * Visitor who submitted this task. Used for the in-page "My reports"
+     * view (filtered by visitorId) and for owner checks on
+     * tasks.update / tasks.delete queries.
+     */
+    visitorId?: string;
+    /** App-supplied user id at submission time, if any. */
+    userId?: string;
     projectId: string;
     url: string;
     status: TaskStatus;
@@ -321,6 +416,8 @@ export interface Task {
     selector: TaskSelector;
     element: TaskElement;
     createdAt: number;
+    /** Last edit timestamp from a tasks.update query. Unset on create. */
+    updatedAt?: number;
     claimedAt?: number;
     resolvedAt?: number;
     note?: string;

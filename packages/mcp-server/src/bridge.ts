@@ -29,6 +29,8 @@ import {
     type HelloAckFrame,
     type McpCallFrame,
     type McpReturnFrame,
+    type QueryFrame,
+    type QueryResponseFrame,
     type TabInfo,
     type Task,
     type TaskStatus,
@@ -478,6 +480,8 @@ export class Bridge implements IBridge {
             id,
             tabId,
             sessionId: peer.sessionId,
+            visitorId: peer.visitorId,
+            userId: peer.userId,
             projectId: peer.projectId ?? frame.projectId ?? 'unknown',
             url: parsed.data.url,
             status: 'pending',
@@ -703,6 +707,8 @@ export class Bridge implements IBridge {
                     projectId: frame.projectId,
                     tabId: frame.tabId,
                     sessionId: frame.sessionId,
+                    visitorId: frame.visitorId,
+                    userId: frame.userId,
                     connectionId,
                     page: frame.page,
                 });
@@ -734,6 +740,26 @@ export class Bridge implements IBridge {
                         this.store.upsertBuild(frame.projectId, frame.buildId, {
                             bundler: undefined,
                         });
+                    }
+                    // Visitor metadata (0.5+) — write once per hello. The
+                    // runtime sends visitorId+env on every connect; we count
+                    // sessions only on runtime-client hellos to avoid
+                    // double-counting plugin reconnects.
+                    if (frame.visitorId && frame.role === 'runtime-client') {
+                        try {
+                            this.store.upsertVisitor(frame.visitorId, {
+                                userId: frame.userId,
+                                incrementSession: true,
+                                addTabId: frame.tabId,
+                                addProjectId: frame.projectId,
+                                lastEnv: frame.env,
+                            });
+                        } catch (err) {
+                            console.warn(
+                                '[harnessa-fe] upsertVisitor failed:',
+                                err instanceof Error ? err.message : err,
+                            );
+                        }
                     }
 
                     if (frame.role === 'vite-plugin' || frame.role === 'webpack-plugin') {
@@ -942,11 +968,128 @@ export class Bridge implements IBridge {
                 void this.handleMcpCall(ws, frame);
                 break;
             }
+            case 'query': {
+                void this.handleQuery(ws, connectionId, frame);
+                break;
+            }
             case 'hello.ack':
             case 'command':
             case 'mcp.return':
+            case 'query.response':
                 // Server doesn't expect to receive these; ignore.
                 break;
+        }
+    }
+
+    /**
+     * Runtime → daemon query dispatcher (0.5+). Whitelisted methods only.
+     * Owner check: tasks.update / tasks.get / tasks.delete refuse to touch
+     * tasks whose `visitorId` doesn't match the caller's `peer.visitorId`.
+     */
+    private async handleQuery(ws: WebSocket, connectionId: string, frame: QueryFrame): Promise<void> {
+        const reply = (body: Omit<QueryResponseFrame, 'type' | 'id'>): void => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            const out: QueryResponseFrame = { type: 'query.response', id: frame.id, ...body };
+            try { ws.send(JSON.stringify(out)); } catch { /* swallow */ }
+        };
+        const peer = this.router.getByConnectionId(connectionId);
+        if (!peer) {
+            reply({ ok: false, error: { code: 'unauthenticated', message: 'no peer for connection' } });
+            return;
+        }
+        if (peer.role !== 'runtime-client' || !peer.visitorId) {
+            reply({ ok: false, error: { code: 'forbidden', message: 'only runtime-client with visitorId may query' } });
+            return;
+        }
+        if (!this.taskStore) {
+            reply({ ok: false, error: { code: 'unavailable', message: 'no task store' } });
+            return;
+        }
+        const projectId = peer.projectId;
+        const callerVisitor = peer.visitorId;
+
+        try {
+            switch (frame.method) {
+                case 'tasks.mine': {
+                    const args = (frame.args ?? {}) as { status?: string; limit?: number };
+                    const all = this.taskStore.loadTasks(projectId);
+                    let mine = all.filter((t) => t.visitorId === callerVisitor);
+                    if (args.status) mine = mine.filter((t) => t.status === args.status);
+                    mine.sort((a, b) => b.createdAt - a.createdAt);
+                    if (args.limit) mine = mine.slice(0, args.limit);
+                    reply({ ok: true, result: { tasks: mine } });
+                    return;
+                }
+                case 'tasks.get': {
+                    const args = (frame.args ?? {}) as { id?: string };
+                    if (!args.id) {
+                        reply({ ok: false, error: { code: 'bad_request', message: 'id required' } });
+                        return;
+                    }
+                    const task = this.taskStore.loadTasks(projectId).find((t) => t.id === args.id);
+                    if (!task) {
+                        reply({ ok: false, error: { code: 'not_found', message: `no task ${args.id}` } });
+                        return;
+                    }
+                    if (task.visitorId !== callerVisitor) {
+                        reply({ ok: false, error: { code: 'forbidden', message: 'not your task' } });
+                        return;
+                    }
+                    reply({ ok: true, result: { task } });
+                    return;
+                }
+                case 'tasks.update': {
+                    const args = (frame.args ?? {}) as { id?: string; question?: string };
+                    if (!args.id || typeof args.question !== 'string') {
+                        reply({ ok: false, error: { code: 'bad_request', message: 'id + question required' } });
+                        return;
+                    }
+                    const tasks = this.taskStore.loadTasks(projectId);
+                    const idx = tasks.findIndex((t) => t.id === args.id);
+                    if (idx === -1) {
+                        reply({ ok: false, error: { code: 'not_found', message: `no task ${args.id}` } });
+                        return;
+                    }
+                    if (tasks[idx].visitorId !== callerVisitor) {
+                        reply({ ok: false, error: { code: 'forbidden', message: 'not your task' } });
+                        return;
+                    }
+                    tasks[idx] = { ...tasks[idx], question: args.question.trim(), updatedAt: Date.now() };
+                    this.taskStore.saveTasks(projectId, tasks);
+                    reply({ ok: true, result: { task: tasks[idx] } });
+                    return;
+                }
+                case 'tasks.delete': {
+                    const args = (frame.args ?? {}) as { id?: string };
+                    if (!args.id) {
+                        reply({ ok: false, error: { code: 'bad_request', message: 'id required' } });
+                        return;
+                    }
+                    const tasks = this.taskStore.loadTasks(projectId);
+                    const target = tasks.find((t) => t.id === args.id);
+                    if (!target) {
+                        reply({ ok: false, error: { code: 'not_found', message: `no task ${args.id}` } });
+                        return;
+                    }
+                    if (target.visitorId !== callerVisitor) {
+                        reply({ ok: false, error: { code: 'forbidden', message: 'not your task' } });
+                        return;
+                    }
+                    const remaining = tasks.filter((t) => t.id !== args.id);
+                    this.taskStore.saveTasks(projectId, remaining);
+                    // Also remove from in-memory queue so MCP tasks.pending stays in sync.
+                    this.tasks.delete(args.id);
+                    reply({ ok: true, result: { deleted: args.id } });
+                    return;
+                }
+                default:
+                    reply({ ok: false, error: { code: 'unknown_method', message: `unknown query method` } });
+            }
+        } catch (err) {
+            reply({
+                ok: false,
+                error: { code: 'internal', message: err instanceof Error ? err.message : String(err) },
+            });
         }
     }
 

@@ -54,7 +54,24 @@ import type {
     StoreEvent,
     TabMeta,
     TailOptions,
+    VisitorMeta,
 } from './types.js';
+import type { VisitorEnv } from '@harnessa-fe/protocol';
+
+/**
+ * Append to a deduped LRU list capped at `max` entries. Pushing an existing
+ * value moves it to the tail (most-recent). Used for VisitorMeta.tabIds and
+ * VisitorMeta.projectIds so noisy demo sites don't grow these unboundedly.
+ */
+function lruAppend(existing: string[] | undefined, value: string | undefined, max: number): string[] {
+    const list = existing ? [...existing] : [];
+    if (!value) return list;
+    const idx = list.indexOf(value);
+    if (idx >= 0) list.splice(idx, 1);
+    list.push(value);
+    while (list.length > max) list.shift();
+    return list;
+}
 
 const DEFAULT_DATA_DIR = join(homedir(), '.harnessa', 'data');
 const DEFAULT_RETENTION = {
@@ -368,6 +385,14 @@ export class JsonlStore implements IStore {
         return join(this.projectDir(projectId), 'builds', sanitizeId(buildId));
     }
 
+    private visitorsDir(): string {
+        return join(this.dataDir, 'visitors');
+    }
+
+    private visitorDir(visitorId: string): string {
+        return join(this.visitorsDir(), sanitizeId(visitorId));
+    }
+
     private tabsDir(): string {
         return join(this.dataDir, 'tabs');
     }
@@ -673,6 +698,66 @@ export class JsonlStore implements IStore {
             // ignore
         }
         return projects.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+    }
+
+    // ── Visitor metadata (0.5+) ─────────────────────────────────────────────
+
+    upsertVisitor(
+        visitorId: string,
+        patch: {
+            userId?: string;
+            seenAt?: number;
+            incrementSession?: boolean;
+            addTabId?: string;
+            addProjectId?: string;
+            lastEnv?: VisitorEnv;
+        },
+    ): VisitorMeta {
+        const dir = this.visitorDir(visitorId);
+        ensureDir(dir);
+        const metaPath = join(dir, 'meta.json');
+        const existing = readJson<VisitorMeta>(metaPath);
+        const now = patch.seenAt ?? Date.now();
+
+        const tabIds = lruAppend(existing?.tabIds, patch.addTabId, 50);
+        const projectIds = lruAppend(existing?.projectIds, patch.addProjectId, 50);
+
+        const merged: VisitorMeta = {
+            id: visitorId,
+            // userId: prefer fresh non-empty value; otherwise preserve existing
+            userId: patch.userId && patch.userId.length > 0 ? patch.userId : existing?.userId,
+            firstSeenAt: existing?.firstSeenAt ?? now,
+            lastSeenAt: now,
+            sessionCount: (existing?.sessionCount ?? 0) + (patch.incrementSession ? 1 : 0),
+            tabIds,
+            projectIds,
+            lastEnv: patch.lastEnv ?? existing?.lastEnv,
+        };
+        writeJson(metaPath, merged);
+        return merged;
+    }
+
+    getVisitor(visitorId: string): VisitorMeta | undefined {
+        return readJson<VisitorMeta>(join(this.visitorDir(visitorId), 'meta.json')) ?? undefined;
+    }
+
+    listVisitors(opts: { projectId?: string; limit?: number } = {}): VisitorMeta[] {
+        const dir = this.visitorsDir();
+        if (!existsSync(dir)) return [];
+        const out: VisitorMeta[] = [];
+        try {
+            for (const entry of readdirSync(dir, { withFileTypes: true })) {
+                if (!entry.isDirectory()) continue;
+                const meta = readJson<VisitorMeta>(join(dir, String(entry.name), 'meta.json'));
+                if (!meta) continue;
+                if (opts.projectId && !meta.projectIds.includes(opts.projectId)) continue;
+                out.push(meta);
+            }
+        } catch {
+            // ignore
+        }
+        out.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+        return opts.limit ? out.slice(0, opts.limit) : out;
     }
 
     // ── Build metadata ─────────────────────────────────────────────────────

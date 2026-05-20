@@ -21,6 +21,13 @@ import { getCaptureStore } from './capture.js';
 import { commandHandlers, type CommandContext } from './commands.js';
 import { RrwebRecorder } from './recording.js';
 import { collectPageLoadSnapshot } from './snapshot.js';
+import {
+    collectEnv,
+    getOrCreateVisitorId,
+    publishVisitorIdToWindow,
+    tryInheritVisitorFromParent,
+} from './visitor.js';
+import type { QueryFrame, QueryMethod, QueryResponseFrame } from '@harnessa-fe/protocol';
 
 export interface ClientOptions {
     projectId: string;
@@ -38,6 +45,12 @@ export interface ClientOptions {
     parentProjectId?: string;
     /** Optional human-readable name; mostly used by the project tree. */
     displayName?: string;
+    /**
+     * App-supplied user identifier (e.g. supabase.user.id, auth0 sub, …).
+     * Optional. When absent, traffic is treated as anonymous (only stitched
+     * by visitorId). Propagated by HarnessaScript via window.__HARNESSA_FE__.userId.
+     */
+    userId?: string;
 }
 
 const TAB_ID_KEY = '__hfe_tab_id__';
@@ -81,12 +94,14 @@ export class RuntimeClient {
     private ws?: WebSocket;
     readonly tabId: string;
     readonly sessionId: string;
+    readonly visitorId: string;
     readonly parentProjectId?: string;
 
     /** Read-only accessors exposed for the in-page info panel. */
     get projectId(): string { return this.opts.projectId; }
     get buildId(): string | undefined { return this.opts.buildId; }
     get displayName(): string | undefined { return this.opts.displayName; }
+    get userId(): string | undefined { return this.opts.userId; }
     /** WebSocket state: 'connecting' | 'open' | 'closed'. */
     getConnectionState(): 'connecting' | 'open' | 'closed' {
         if (!this.ws) return 'closed';
@@ -123,6 +138,11 @@ export class RuntimeClient {
         this.sessionId = inherited.sessionId ?? generateSessionId();
         // Explicit option wins over runtime auto-detection.
         this.parentProjectId = opts.parentProjectId ?? inherited.parentProjectId;
+        // Same-origin iframes share a visitorId so the journey stitches across
+        // micro-frontends. Cross-origin children fall back to their own.
+        const inheritedVisitor = tryInheritVisitorFromParent();
+        this.visitorId = inheritedVisitor ?? getOrCreateVisitorId();
+        publishVisitorIdToWindow(this.visitorId);
     }
 
 
@@ -166,6 +186,9 @@ export class RuntimeClient {
             buildId: this.opts.buildId,
             tabId: this.tabId,
             sessionId: this.sessionId,
+            visitorId: this.visitorId,
+            userId: this.opts.userId,
+            env: collectEnv(),
             page: {
                 url: location.href,
                 title: document.title,
@@ -200,6 +223,18 @@ export class RuntimeClient {
         const frame = result.data;
         if (frame.type === 'command') this.handleCommand(frame);
         else if (frame.type === 'hello.ack') this.onHelloAck(frame);
+        else if (frame.type === 'query.response') this.onQueryResponse(frame);
+    }
+
+    private onQueryResponse(frame: QueryResponseFrame): void {
+        const pending = this.pendingQueries.get(frame.id);
+        if (!pending) return;
+        this.pendingQueries.delete(frame.id);
+        if (frame.ok) {
+            pending.resolve(frame.result);
+        } else {
+            pending.reject(new Error(frame.error?.message ?? 'query failed'));
+        }
     }
 
     private onHelloAck(frame: HelloAckFrame): void {
@@ -257,15 +292,40 @@ export class RuntimeClient {
             projectId: this.opts.projectId,
             // v0.2: stamp every event with sessionId + buildId so cross-project
             // queries (`session.timeline`, `build.timeline`) can filter without
-            // extra lookups.
+            // extra lookups. v0.5 also stamps visitorId so visitor-scoped
+            // filtering ("show me everything from this user") is row-level too.
             sessionId: this.sessionId,
             buildId: this.opts.buildId,
+            visitorId: this.visitorId,
             name,
             ts: Date.now(),
             payload,
         };
         this.send(event);
     }
+
+    /**
+     * Request/reply RPC to the daemon. Currently used by the in-page
+     * overlay to fetch / mutate the visitor's own tasks. Resolves with the
+     * remote `result`, rejects with the remote `error.message` (or a
+     * timeout after 10 s).
+     */
+    query<TResult = unknown>(method: QueryMethod, args?: unknown, timeoutMs = 10_000): Promise<TResult> {
+        const id = crypto.randomUUID();
+        const frame: QueryFrame = { type: 'query', id, method, args };
+        return new Promise<TResult>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.pendingQueries.delete(id);
+                reject(new Error(`harnessa-fe query "${method}" timed out after ${timeoutMs}ms`));
+            }, timeoutMs);
+            this.pendingQueries.set(id, {
+                resolve: (v: unknown) => { clearTimeout(timer); resolve(v as TResult); },
+                reject: (e: Error) => { clearTimeout(timer); reject(e); },
+            });
+            this.send(frame);
+        });
+    }
+    private pendingQueries = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 
     private send(frame: Frame): void {
         let payload: string;
@@ -323,6 +383,7 @@ export function readInjectedConfig(): ClientOptions {
             buildId?: string;
             parentProjectId?: string;
             displayName?: string;
+            userId?: string;
         };
     };
     return {
@@ -331,6 +392,7 @@ export function readInjectedConfig(): ClientOptions {
         buildId: w.__HARNESSA_FE__?.buildId,
         parentProjectId: w.__HARNESSA_FE__?.parentProjectId,
         displayName: w.__HARNESSA_FE__?.displayName,
+        userId: w.__HARNESSA_FE__?.userId,
     };
 }
 
