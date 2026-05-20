@@ -1,4 +1,4 @@
-# @harnessa-fe/unplugin
+# @harnessa-fe/react-jsx
 
 ## 1.0.0
 
@@ -11,15 +11,3 @@
   Since morphicai-web is the only consumer and hasn't shipped publicly, accepting the inconvenience of a version downgrade is cheap. The previous `log@{1.0.0, 2.0.0, 2.0.1}` and `next@{1.0.0, 2.0.0}` releases will be deprecated on npmjs.com pointing to 0.9.x as the canonical line.
 
   This changeset bumps **every** core package by `minor` so they all land at the same 0.x.0 going forward, plus locks them via `linked` so future bumps stay in lockstep. Also includes the Turbopack-fix browser/node split for `@harnessa-fe/log` that was previously queued as a patch.
-
-### Patch Changes
-
-- Updated dependencies [2019214]
-  - @harnessa-fe/protocol@1.0.0
-
-## 0.6.3
-
-### Patch Changes
-
-- Updated dependencies [c4a1f59]
-  - @harnessa-fe/protocol@0.7.0
