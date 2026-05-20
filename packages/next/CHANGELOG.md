@@ -1,5 +1,12 @@
 # @harnessa-fe/next
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [0cd04d9]
+  - @harnessa-fe/node-runtime@0.8.0
+
 ## 0.8.0
 
 ### Minor Changes
