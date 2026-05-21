@@ -15,7 +15,7 @@
     },
     "devDependencies": {
         "@harnessa-fe/vite": "workspace:*",
-        "@types/node": "^22.0.0",
+        "@types/node": "^25.9.1",
         "@vitejs/plugin-vue": "^6.0.7",
         "playwright": "^1.60.0",
         "tsx": "^4.22.3",

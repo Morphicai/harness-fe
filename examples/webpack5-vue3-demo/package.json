@@ -15,7 +15,7 @@
     },
     "devDependencies": {
         "@harnessa-fe/webpack": "workspace:*",
-        "@types/node": "^22.0.0",
+        "@types/node": "^25.9.1",
         "css-loader": "^7.1.0",
         "playwright": "^1.60.0",
         "tsx": "^4.22.3",
