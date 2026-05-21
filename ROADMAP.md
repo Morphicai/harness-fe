@@ -2,53 +2,85 @@
 
 Public, rough, and subject to change. File a GitHub issue if you want to push something up the list.
 
+The roadmap is organised around the three mission directions in [VISION.md](./VISION.md):
+
+1. **Product feedback loop** — end users → agent
+2. **Multi-tenant routing** — hosted apps → their generating agents
+3. **Foundation default** — every agent-coded app ships with Harness
+
+Each milestone below is anchored to one of those directions.
+
+---
+
 ## Shipped (0.1.x – 1.0.x)
 
-Foundation through general availability across the supported stack.
+The foundation that the mission rests on. All directions need this.
 
 - [x] Source-aware JSX transform (`data-morphix-loc` / `data-morphix-comp`)
-- [x] `@harnessa-fe/react-jsx` — `jsxImportSource` runtime; works in any React 17+ toolchain without a bundler plugin
-- [x] MCP daemon with WebSocket bridge + HTTP-batch endpoint (for Edge) + JSONL persistence
+- [x] `@harnessa-fe/react-jsx` — `jsxImportSource` runtime, no bundler plugin needed
+- [x] MCP daemon — WebSocket bridge + HTTP-batch (Edge) + JSONL persistence
 - [x] Runtime client — console / network / errors / rrweb + in-page "H" overlay + annotated tasks
-- [x] Vite + React, Vite + Vue 3 — stable
-- [x] Webpack + React, Webpack + Vue 3 — stable
-- [x] Session recording + replay
-- [x] Point-and-task annotation overlay
-- [x] Source intelligence tools (`project.source`, `project.where_is`, `project.module_graph`)
-- [x] First-class Next.js integration (App + Pages Router, webpack + Turbopack, Node + Edge)
-- [x] `@harnessa-fe/node-runtime` — server-side capture, ALS + DI sessionId resolution, dual transport
-- [x] `@harnessa-fe/next` — `<HarnessaScript>` Server Component auto-boots node-runtime and seeds the same `sessionId` into SSR + client
-- [x] `@harnessa-fe/log` — isomorphic structured logger; same call works in Server Components, Route Handlers, and Client Components
-- [x] Stable wire-format `PROTOCOL_VERSION` (locked at 1.0)
-- [x] OIDC-trusted-publisher npm releases (plus `--provenance`) with NPM_TOKEN fallback
-- [x] Disk auto-purge + write-time size limits — retention policy bounds disk usage
-- [x] `@harnessa-fe/skill` — agent playbook published as a standalone npm
+- [x] Vite / Webpack — React + Vue 3, all stable
+- [x] First-class Next.js (App + Pages Router, webpack + Turbopack, Node + Edge)
+- [x] `@harnessa-fe/node-runtime` — ALS + DI sessionId, dual transport
+- [x] `@harnessa-fe/next` — `<HarnessaScript>` Server Component; unified sessionId across SSR + client
+- [x] `@harnessa-fe/log` — isomorphic structured logger
+- [x] Same-origin iframe identity inheritance (foundation for direction 2)
+- [x] Stable wire protocol `PROTOCOL_VERSION` (locked at 1.0)
+- [x] OIDC-trusted-publisher npm releases + `--provenance`
+- [x] Disk auto-purge + size limits
+- [x] `@harnessa-fe/skill` — agent playbook as standalone npm
 
-## Next — 1.1.x
+---
 
+## 1.1.x — Direction 1: make the feedback loop deployable
+
+Today the daemon assumes a developer running it on `localhost`. To put Harness inside a real product, it must be embeddable, addressable, and authenticatable.
+
+- [ ] **HTTP Streamable MCP transport** — drop the one-stdio-subprocess-per-agent model; one daemon serves all agents; remote-friendly; standard MCP transport. Prereq for everything else in this milestone.
+- [ ] **Embeddable daemon** — `createDaemon({ port, store })` API so a host app (morphicai-web) can run the daemon in-process or as a sidecar
+- [ ] **`Last-Event-ID` SSE reconnection** — survives transient disconnects during long agent runs
+- [ ] **Auth on the daemon boundary** — token-based; the in-process API doesn't need it, the network boundary does
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)
-- [ ] **Streaming phase 5** — SSE `Last-Event-ID` reconnection for long-running tool runs
-- [ ] **Rspack + esbuild + Rollup adapters** via unplugin
-- [ ] **Documentation site** (Vitepress) — currently READMEs only
-- [ ] **Solid / Svelte / Qwik transforms**
+- [ ] **Multi-bundler reach** — Rspack + esbuild + Rollup adapters via unplugin
+- [ ] **Documentation site** (Vitepress)
 
-## Later — 1.2.x +
+---
 
+## 1.2.x — Direction 2: route feedback to the right agent
+
+When morphicai-web hosts AI-generated mini-apps, each app has its own agent author. Feedback from inside a mini-app must reach the agent that built it — not the host's agent, not other tenants' agents.
+
+- [ ] **`project → agent` binding index** — the daemon records "who generated this project" and routes `tasks_pending` queries accordingly
+- [ ] **Multi-tenant isolation** — strict `projectId` scoping in MCP tool results; an agent only sees sessions for projects it owns
+- [ ] **Pluggable persistence backend** — `IStore` → SQLite / Postgres / S3; needed when multiple tenants share storage
 - [ ] **Remote MCP mode** — daemon hosted, browser tabs report via authenticated WS
-- [ ] **Pluggable persistence backend** — `IStore` → SQLite / Postgres / S3
-- [ ] **Multi-user sessions** for pair-debugging
-- [ ] **Agent SDK helpers** — typed wrappers over the MCP tools
-- [ ] **`data-scope-isolation`** — per-app data isolation in mini-app shells
-- [ ] **`workspace-sharing`** — multi-user collaboration on the same workspace
-- [ ] **`workspace-versioning`** — version history & rollback
+- [ ] **Project tree on the daemon** is already cycle-protected, but extend with explicit "host vs sub-app" tagging so the routing rules can express "the host agent sees the sub-app's reports too, but the sub-app's agent doesn't see the host's"
 
-## Architectural follow-ups (no schedule)
+---
 
-- [ ] Extract a `@harnessa-fe/react-session` micro-package and stop having `@harnessa-fe/next` self-register into node-runtime — the current side-effect DI works but a tiny dedicated package would be the textbook layering
-- [ ] React Native runtime client (rrweb-equivalent native capture is the hard part)
+## 2.0.x — Direction 3: Harness as default for agent-built apps
+
+The endgame: every Harness-aware code-gen pipeline (`@morphixai/code` mini-apps; future scaffolds for whole web / native apps) emits projects that ship with the runtime by default. The developer never has to think about adding it.
+
+- [ ] **`@morphixai/code` template integration** — mini-app templates include `@harnessa-fe/log` + `<HarnessaScript>` by default; the agent doesn't need to remember
+- [ ] **Scaffold CLI** — `npx @harnessa-fe/create-app` produces a project pre-wired with everything
+- [ ] **Harness-first Skill v2** — `@harnessa-fe/skill` evolves from "how to use the tools" into "the contract every Harness-aware agent follows"
+- [ ] **Native runtime client (React Native + Capacitor)** — rrweb-equivalent native capture; same `sessionId` semantics
+- [ ] **Multi-user collaborative sessions** — pair-debugging where two humans + the agent share one session timeline
+
+---
+
+## Architectural follow-ups (no schedule, cross-cutting)
+
+- [ ] Extract `@harnessa-fe/react-session` micro-package — the textbook layering version of today's `setSessionIdProvider` side-effect DI
+- [ ] Solid / Svelte / Qwik transforms
+
+---
 
 ## Not on the roadmap
 
-- Production analytics / RUM — Harnessa-FE is a **dev-time** tool. We will not add prod runtime hooks.
-- Cloud-hosted dashboard — out of scope. The daemon is local-first by design.
-- Telemetry phoning home from the user's machine — the dev tool stays silent unless the user explicitly opts in.
+- **Production analytics / RUM** — Harness is a **dev/agent-feedback** tool, not Sentry / Datadog. We will not add prod runtime hooks for ops monitoring.
+- **Cloud-hosted dashboard for end users** — out of scope. The daemon being embeddable (1.1.x) covers the "host app integrates it" case without us running a SaaS.
+- **Telemetry phoning home from a user's machine** — the dev tool stays silent unless the user explicitly opts in.
+- **Closed protocol** — the wire format, the SDKs, and the daemon stay open. Third-party agents that aren't ours must be able to consume the data.
