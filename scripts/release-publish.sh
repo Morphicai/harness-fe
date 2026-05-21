@@ -64,6 +64,12 @@ extract_pkg() {
 #
 # Args: $1 = tgz path, $2 = "oidc" | "token"
 publish_one() {
+    # IMPORTANT: never manipulate `set +e` / `set -e` inside this function.
+    # bash functions share shell state with the caller, so toggling set -e
+    # here defeats the caller's `set +e` wrapper, causing the for-loop to
+    # exit on the FIRST failure instead of continuing through all
+    # tarballs. Both callers (pass A + pass B) already wrap the call in
+    # `set +e`, so we just rely on that.
     local tgz="$1"
     local mode="$2"
     local name version
@@ -75,11 +81,9 @@ publish_one() {
         env_prefix="env NODE_AUTH_TOKEN=$NPM_TOKEN"
     fi
 
-    set +e
-    local output
+    local output rc
     output=$($env_prefix npm publish "$tgz" --access public --provenance 2>&1)
-    local rc=$?
-    set -e
+    rc=$?
     echo "$output"
 
     if [ $rc -eq 0 ]; then
@@ -90,20 +94,16 @@ publish_one() {
     if echo "$output" | grep -q "Cannot implicitly apply the \"latest\" tag"; then
         echo "  → 'latest' tag is on a higher version; publishing under staging tag then dist-tag override."
         local staging_tag="staging-$(date +%s)"
-        set +e
         $env_prefix npm publish "$tgz" --access public --provenance --tag="$staging_tag"
         rc=$?
-        set -e
         if [ $rc -ne 0 ]; then
             echo "  → staging publish also failed (exit $rc)"
             return $rc
         fi
         if [ -n "$name" ] && [ -n "$version" ]; then
             echo "  → moving latest tag to $name@$version"
-            set +e
             $env_prefix npm dist-tag add "$name@$version" latest
             rc=$?
-            set -e
             if [ $rc -ne 0 ]; then
                 echo "  → dist-tag add failed (exit $rc); package is published under $staging_tag only"
             fi
