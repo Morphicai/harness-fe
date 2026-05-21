@@ -1,6 +1,6 @@
 {
     "name": "@harnessa-fe/mcp-server",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "description": "Unified MCP daemon: stdio MCP for AI agents + WS bridge for Vite plugin and runtime client.",
     "type": "module",
     "license": "MIT",
