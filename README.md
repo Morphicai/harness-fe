@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <em>Building toward: every AI-coded app ships with the runtime that lets the agent that built it keep watching, listening, and fixing the app after it ships.</em> — see <a href="./VISION.md">VISION.md</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/Morphicai/harnessa-fe/actions/workflows/ci.yml"><img src="https://github.com/Morphicai/harnessa-fe/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
@@ -191,10 +195,11 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 
 ## Documentation
 
+- [**VISION.md**](./VISION.md) — Why this project exists; the three deployment directions that drive the roadmap
 - [**ARCHITECTURE.md**](./ARCHITECTURE.md) — Package responsibilities, data flow diagrams, sessionId resolution chain, and protocol reference
+- [**ROADMAP.md**](./ROADMAP.md) — Milestones, organised by mission direction
 - [**docs/troubleshooting.md**](./docs/troubleshooting.md) — Events not showing? sessionId mismatch? Where do timeline files live? Start here
 - [**CONTRIBUTING.md**](./CONTRIBUTING.md) — Development setup, commit conventions, and PR process
-- [**ROADMAP.md**](./ROADMAP.md) — Project milestones and planned features
 
 ## License
 
