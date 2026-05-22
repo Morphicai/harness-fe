@@ -29,6 +29,8 @@ import type { Bridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';
 import type { IStore, IMemoryStore } from './store/index.js';
 import { createReplayExport } from './replayCreate.js';
+import { openBrowser } from './openBrowser.js';
+import { buildDashboardUrl } from './dashboardUrl.js';
 
 const SERVER_NAME = 'harnessa-fe';
 const tabIdParam = z
@@ -88,6 +90,7 @@ function err(message: string): {
         isError: true,
     };
 }
+
 
 function registerTools(server: McpServer, bridge: IBridge): void {
     server.registerTool(
@@ -364,6 +367,44 @@ function registerTools(server: McpServer, bridge: IBridge): void {
         async () => {
             const tabs = await bridge.listTabs();
             return ok(tabs);
+        },
+    );
+
+    // ─── dashboard.* tools ─────────────────────────────────────────────────
+
+    server.registerTool(
+        COMMAND.DASHBOARD_OPEN,
+        {
+            description:
+                'Return the dev-dashboard URL for this Harnessa-FE daemon and, optionally, launch the user\'s default browser to it. The dashboard shows live sessions, recordings, exports, and is the primary surface a human uses to inspect what an agent is doing. Useful when the agent wants the human to look at something concrete.',
+            inputSchema: {
+                launchBrowser: z
+                    .boolean()
+                    .optional()
+                    .describe(
+                        'When true, try to open the URL in the user\'s default browser (requires the daemon to run on the user\'s host machine — no effect in remote/Docker contexts; set HARNESSA_FE_HEADLESS=1 in those environments to suppress the launch attempt).',
+                    ),
+                sessionId: z
+                    .string()
+                    .optional()
+                    .describe(
+                        'When provided, deep-link to a specific session detail page instead of the project list.',
+                    ),
+            },
+        },
+        async ({ launchBrowser, sessionId }) => {
+            const url = buildDashboardUrl(bridge, { sessionId });
+            if (!url) {
+                return err('dashboard URL unavailable: bridge has no bound port yet');
+            }
+            let opened = false;
+            let reason: string | undefined;
+            if (launchBrowser) {
+                const result = openBrowser(url);
+                opened = result.opened;
+                reason = result.reason;
+            }
+            return ok({ url, opened, ...(reason ? { reason } : {}) });
         },
     );
 
