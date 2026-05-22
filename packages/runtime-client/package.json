@@ -1,6 +1,6 @@
 {
     "name": "@harnessa-fe/runtime",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "description": "Browser-side SDK injected into the dev page. Connects to the MCP server via WebSocket and executes commands.",
     "type": "module",
     "license": "MIT",
