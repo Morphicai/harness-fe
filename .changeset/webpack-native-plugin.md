@@ -31,12 +31,12 @@ Converting circular structure to JSON
 
 ### What changed
 
-- `@harnessa-fe/webpack@3.0.0` is now a hand-written webpack plugin with an
+- `@harnessa-fe/webpack` is now a hand-written webpack plugin with an
   independent loader file whose options are pure JSON-serializable data.
   Worker processes forward collected component locations back to the main
   process via `module.buildMeta.harnessaCollected`, which the main-process
   plugin aggregates in `compilation.succeedModule`.
-- `@harnessa-fe/unplugin@3.0.0` removes the `./webpack` subpath export.
+- `@harnessa-fe/unplugin` removes the `./webpack` subpath export.
   Importing it directly will fail at resolve time. Vite / Rspack / esbuild
   / Rollup adapters are unchanged.
 
@@ -49,5 +49,5 @@ If you previously imported from `@harnessa-fe/unplugin/webpack`:
 + import { harnessaFE } from '@harnessa-fe/webpack'
 ```
 
-The call signature is identical. Any code using `@harnessa-fe/webpack` 2.x
-directly already imports from the right package — just bump the dep.
+The call signature is identical. Any code already using
+`@harnessa-fe/webpack` directly just needs the dep bump — no source change.
