@@ -170,39 +170,46 @@ function parseArgs(argv: string[]): CliConfig {
     };
 }
 
-function validate(cfg: CliConfig): void {
-    if (!isLoopbackHost(cfg.host) && !cfg.token) {
-        process.stderr.write(
-            `harnessa-fe: refusing to bind ${cfg.host} without a token.\n` +
-                `  Add --token auto (or --token <value>) — or use --host 127.0.0.1 for local-only.\n`,
-        );
-        process.exit(2);
-    }
+function validate(_cfg: CliConfig): void {
+    // Token requirement is left entirely to the operator. We don't refuse
+    // a non-loopback bind without a token — that's their call, not ours.
+    // Warnings are emitted from the banner so the operator sees them; CI /
+    // automation that pipes stderr can suppress as needed.
 }
 
 function printBanner(cfg: CliConfig, role: 'leader' | 'follower', viewerUrl: string | undefined): void {
     const lines: string[] = [];
     lines.push(`[harnessa-fe] ${role}: WS bridge listening on ws://${cfg.host}:${cfg.port}`);
-    if (!isLoopbackHost(cfg.host)) {
+    const isLan = !isLoopbackHost(cfg.host);
+    if (isLan) {
         lines.push(`[harnessa-fe] WARNING: bound to non-loopback host ${cfg.host}.`);
-        lines.push(`[harnessa-fe]   anyone reaching this host:port with the token can read console / network / recordings.`);
+        if (cfg.token) {
+            lines.push(`[harnessa-fe]   anyone reaching this host:port with the token can read console / network / recordings.`);
+        } else {
+            lines.push(`[harnessa-fe]   no token set — anyone on this network can read console / network / recordings.`);
+            lines.push(`[harnessa-fe]   add --token auto (or HARNESSA_FE_TOKEN=…) to enable auth.`);
+        }
     }
-    if (cfg.token) {
-        // Public host: explicit override > viewer-base-url host > literal host
-        const host = cfg.publicHost ?? viewerHost(viewerUrl) ?? cfg.host;
-        const dashboard = buildHttpUrl({ host, port: cfg.port, token: cfg.token });
-        lines.push(`[harnessa-fe] dashboard: ${dashboard}`);
-        if (cfg.mcpTransport === 'http') {
-            const mcp = buildHttpUrl({ host, port: cfg.port, token: cfg.token, path: cfg.mcpPath });
-            lines.push(`[harnessa-fe] mcp http:  ${mcp}`);
+    // Always print the dashboard URL. The token (when present) is folded
+    // into the query so the first hit hands it off to a cookie; without a
+    // token, auth is disabled and the URL works on its own.
+    const host = cfg.publicHost ?? viewerHost(viewerUrl) ?? cfg.host;
+    const dashboard = buildHttpUrl({ host, port: cfg.port, token: cfg.token });
+    lines.push(`[harnessa-fe] dashboard: ${dashboard}`);
+    if (cfg.mcpTransport === 'http') {
+        const mcp = buildHttpUrl({ host, port: cfg.port, token: cfg.token, path: cfg.mcpPath });
+        lines.push(`[harnessa-fe] mcp http:  ${mcp}`);
+        if (cfg.token) {
             const mcpNoTok = buildHttpUrl({ host, port: cfg.port, path: cfg.mcpPath });
             lines.push(
                 `[harnessa-fe]   agent config: { "url": "${mcpNoTok}", "headers": { "Authorization": "Bearer ${cfg.token}" } }`,
             );
+        } else {
+            lines.push(`[harnessa-fe]   agent config: { "url": "${mcp}" }   (no auth — token unset)`);
         }
+    }
+    if (cfg.token) {
         lines.push(`[harnessa-fe] token:     ${cfg.token}`);
-    } else if (viewerUrl) {
-        lines.push(`[harnessa-fe] dashboard: ${viewerUrl}`);
     }
     process.stderr.write(lines.join('\n') + '\n');
 }
