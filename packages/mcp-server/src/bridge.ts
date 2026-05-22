@@ -52,6 +52,7 @@ import { SessionRouter, type PeerSession } from './sessionRouter.js';
 import { createReplayHandler } from './replayViewer.js';
 import { createDashboardHandler } from './dashboard.js';
 import { createDashboardApiHandler } from './dashboardApi.js';
+import { createDashboardSpaHandler } from './dashboardSpa.js';
 import { createEventsHandler } from './eventsHandler.js';
 import {
     JsonlStore,
@@ -215,6 +216,14 @@ export class Bridge implements IBridge {
      * Tracks builds waiting for the grace period to expire.
      */
     private pendingEndBuild = new Map<string, { buildId: string; closedAt: number }>();
+    /**
+     * Dashboard SPA subscribers — connections that sent `hello` with
+     * role: 'dashboard-client'. Receive `dashboard.update` frames whenever
+     * session state changes; never receive commands and never send events.
+     */
+    private dashboardSubscribers = new Set<WebSocket>();
+    /** Debounce per-session 'session.update' broadcasts so chatty rrweb chunks don't spam subscribers. */
+    private dashboardDebounceTimers = new Map<string, NodeJS.Timeout>();
 
     constructor(opts: BridgeOptions = {}) {
         this.store = opts.store === null ? null : (opts.store ?? new JsonlStore());
@@ -246,13 +255,20 @@ export class Bridge implements IBridge {
             if (this.store) {
                 const store = this.store;
                 const replay = createReplayHandler(store);
-                const dashboardApi = createDashboardApiHandler(store, () => this.getViewerBaseUrl());
+                const dashboardApi = createDashboardApiHandler(
+                    store,
+                    () => this.getViewerBaseUrl(),
+                    ({ sessionId, projectId }) => this.notifyDashboard({ kind: 'export.new', sessionId, projectId }),
+                );
                 const dashboard = createDashboardHandler(store, () => this.getViewerBaseUrl());
+                const dashboardSpa = createDashboardSpaHandler();
                 this.setHttpHandler(async (req, res) => {
                     if (replay(req, res)) return;
                     // dashboardApi must run before the legacy HTML dashboard
                     // so /api/* never falls into the HTML 404 page.
                     if (await dashboardApi(req, res)) return;
+                    // dashboardSpa owns the /dashboard/* prefix.
+                    if (dashboardSpa(req, res)) return;
                     if (await dashboard(req, res)) return;
                     if (await events(req, res)) return;
                     res.statusCode = 404;
@@ -503,6 +519,59 @@ export class Bridge implements IBridge {
         const port = this.getBoundPort() ?? this.opts.port;
         if (!port) return undefined;
         return `http://${this.getPublicHost()}:${port}`;
+    }
+
+    /**
+     * Broadcast a `dashboard.update` frame to every subscribed dashboard SPA.
+     *
+     * `kind: 'session.update'` is debounced per-sessionId (200ms) so chatty
+     * rrweb chunk appends don't spam every subscriber. Other kinds fire
+     * immediately because they represent rare state transitions (new
+     * session, session closed, export created).
+     */
+    notifyDashboard(payload: {
+        kind: 'session.new' | 'session.update' | 'session.closed' | 'project.update' | 'export.new';
+        sessionId?: string;
+        projectId?: string;
+    }): void {
+        if (this.dashboardSubscribers.size === 0) return;
+        const debounceKey = payload.kind === 'session.update'
+            ? `${payload.kind}:${payload.sessionId ?? ''}`
+            : undefined;
+        if (debounceKey) {
+            const existing = this.dashboardDebounceTimers.get(debounceKey);
+            if (existing) clearTimeout(existing);
+            const timer = setTimeout(() => {
+                this.dashboardDebounceTimers.delete(debounceKey);
+                this.flushDashboardUpdate(payload);
+            }, 200);
+            this.dashboardDebounceTimers.set(debounceKey, timer);
+            return;
+        }
+        this.flushDashboardUpdate(payload);
+    }
+
+    private flushDashboardUpdate(payload: {
+        kind: 'session.new' | 'session.update' | 'session.closed' | 'project.update' | 'export.new';
+        sessionId?: string;
+        projectId?: string;
+    }): void {
+        const frame = {
+            type: 'dashboard.update' as const,
+            id: randomUUID(),
+            kind: payload.kind,
+            sessionId: payload.sessionId,
+            projectId: payload.projectId,
+            ts: Date.now(),
+        };
+        const json = JSON.stringify(frame);
+        for (const ws of this.dashboardSubscribers) {
+            try {
+                if (ws.readyState === ws.OPEN) ws.send(json);
+            } catch {
+                // Failed sends will be cleaned up on next close event.
+            }
+        }
     }
 
     /**
@@ -947,6 +1016,8 @@ export class Bridge implements IBridge {
         ws.on('close', () => {
             this.sockets.delete(connectionId);
             this.warnedNoSession.delete(connectionId);
+            // Dashboard subscribers don't have a router/session — just drop them.
+            this.dashboardSubscribers.delete(ws);
             // Close store session/tab if applicable
             const storeId = this.connToStoreId.get(connectionId);
             if (storeId && this.store) {
@@ -957,6 +1028,11 @@ export class Bridge implements IBridge {
                     this.store.closeSession(storeId);
                     this.store.closeTab(peer.tabId);
                     this.connToStoreId.delete(connectionId);
+                    this.notifyDashboard({
+                        kind: 'session.closed',
+                        sessionId: storeId,
+                        projectId: peer.projectId,
+                    });
                 } else if (peer?.role === 'vite-plugin' || peer?.role === 'webpack-plugin') {
                     // storeId is the buildId for build-plugins.
                     // Start grace period instead of closing build immediately.
@@ -991,6 +1067,20 @@ export class Bridge implements IBridge {
     private handleFrame(connectionId: string, ws: WebSocket, frame: Frame): void {
         switch (frame.type) {
             case 'hello': {
+                // Dashboard-client is a read-only subscriber — it never sends
+                // commands or events. Skip the entire router/session-setup
+                // path; just register for broadcast and ack.
+                if (frame.role === 'dashboard-client') {
+                    this.dashboardSubscribers.add(ws);
+                    const ack: HelloAckFrame = {
+                        type: 'hello.ack',
+                        id: frame.id,
+                        serverVersion: PROTOCOL_VERSION,
+                    };
+                    try { ws.send(JSON.stringify(ack)); } catch { /* swallow */ }
+                    return;
+                }
+
                 // Runtime-client MUST carry a sessionId so every emitted event is
                 // attributable to a specific page load. Reject explicitly so
                 // misconfigured clients surface during development.
@@ -1106,6 +1196,7 @@ export class Bridge implements IBridge {
                         const participants: Array<{ projectId: string; buildId?: string; joinedAt: number }> = [
                             { projectId: frame.projectId, buildId: frame.buildId, joinedAt: Date.now() },
                         ];
+                        const sessionExisted = this.store.getSession(sessionId) !== undefined;
                         this.store.upsertSession(sessionId, {
                             tabId: frame.tabId,
                             startedAt: Date.now(),
@@ -1116,6 +1207,11 @@ export class Bridge implements IBridge {
                             participants,
                         });
                         this.connToStoreId.set(connectionId, sessionId);
+                        this.notifyDashboard({
+                            kind: sessionExisted ? 'session.update' : 'session.new',
+                            sessionId,
+                            projectId: frame.projectId,
+                        });
                     } else if (frame.role === 'node-runtime') {
                         // Node SDK: server-side events are linked to the per-request sessionId
                         // when present (the session was already created by the browser runtime-client).
@@ -1255,6 +1351,11 @@ export class Bridge implements IBridge {
                             if (parsed.success) {
                                 // v0.4.0: each session has one recording.jsonl — no tabId/loadId needed
                                 this.store.appendRecording(storeSessionId, parsed.data);
+                                this.notifyDashboard({
+                                    kind: 'session.update',
+                                    sessionId: storeSessionId,
+                                    projectId,
+                                });
                                 this.store.appendEvent(storeSessionId, {
                                     ts: frame.ts ?? Date.now(),
                                     t: 'rrweb',

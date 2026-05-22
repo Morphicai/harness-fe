@@ -10,7 +10,15 @@ import { returnSizeSchema, selectorSchema } from './selectors.js';
 
 // ─── Identity ───────────────────────────────────────────────────────────────
 
-export const peerRoleSchema = z.enum(['vite-plugin', 'webpack-plugin', 'runtime-client', 'node-runtime']);
+export const peerRoleSchema = z.enum([
+    'vite-plugin',
+    'webpack-plugin',
+    'runtime-client',
+    'node-runtime',
+    // Dashboard SPA subscribes to session.update frames over the same WS.
+    // Treated as read-only — never receives commands, never sends events.
+    'dashboard-client',
+]);
 export type PeerRole = z.infer<typeof peerRoleSchema>;
 
 /**
@@ -275,6 +283,24 @@ export const httpBatchSchema = z.object({
 });
 export type HttpBatch = z.infer<typeof httpBatchSchema>;
 
+/**
+ * Push frame the daemon sends to dashboard-client subscribers when session
+ * state changes. Coalesced server-side so a chatty session can't spam
+ * every subscriber — see `bridge.ts` for the debounce window.
+ *
+ * `kind` is a coarse hint; dashboards typically just refetch the
+ * affected session's detail rather than diffing event-by-event.
+ */
+export const dashboardUpdateFrameSchema = z.object({
+    type: z.literal('dashboard.update'),
+    id: z.string(),
+    sessionId: z.string().optional(),
+    projectId: z.string().optional(),
+    kind: z.enum(['session.new', 'session.update', 'session.closed', 'project.update', 'export.new']),
+    ts: z.number(),
+});
+export type DashboardUpdateFrame = z.infer<typeof dashboardUpdateFrameSchema>;
+
 export const frameSchema = z.discriminatedUnion('type', [
     helloFrameSchema,
     helloAckFrameSchema,
@@ -285,6 +311,7 @@ export const frameSchema = z.discriminatedUnion('type', [
     mcpReturnFrameSchema,
     queryFrameSchema,
     queryResponseFrameSchema,
+    dashboardUpdateFrameSchema,
 ]);
 export type Frame = z.infer<typeof frameSchema>;
 
