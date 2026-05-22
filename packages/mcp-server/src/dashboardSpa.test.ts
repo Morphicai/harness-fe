@@ -37,6 +37,73 @@ async function bootBridge() {
     return { bridge, store, port };
 }
 
+describe('Dashboard SPA handler — token handoff', () => {
+    async function bootBridgeWithAuth() {
+        const dir = mkTmp();
+        const store = new JsonlStore(dir);
+        const bridge = new Bridge({
+            port: 0,
+            host: '127.0.0.1',
+            store,
+            taskStore: null,
+            memoryStore: null,
+            auth: { token: 'secret-token' },
+        });
+        await bridge.start();
+        const port = bridge.getBoundPort();
+        if (!port) throw new Error('no port');
+        return { bridge, port };
+    }
+
+    it('first /dashboard/?token=… visit sets the cookie and redirects to a clean URL', async () => {
+        const { bridge, port } = await bootBridgeWithAuth();
+        try {
+            const resp = await fetch(
+                `http://127.0.0.1:${port}/dashboard/?token=secret-token`,
+                { redirect: 'manual' },
+            );
+            expect(resp.status).toBe(302);
+            expect(resp.headers.get('location')).toBe('/dashboard/');
+            const cookie = resp.headers.get('set-cookie') ?? '';
+            expect(cookie).toContain('harnessa_fe_token=secret-token');
+            expect(cookie).toMatch(/Path=\//);
+            expect(cookie).toMatch(/SameSite=Lax/i);
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('subsequent SPA fetch with the cookie alone is authorized', async () => {
+        const { bridge, port } = await bootBridgeWithAuth();
+        try {
+            const denied = await fetch(`http://127.0.0.1:${port}/dashboard/`);
+            expect(denied.status).toBe(401);
+            const ok = await fetch(`http://127.0.0.1:${port}/dashboard/`, {
+                headers: { cookie: 'harnessa_fe_token=secret-token' },
+            });
+            expect(ok.status).toBe(200);
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('does not loop-redirect when the cookie is already present', async () => {
+        const { bridge, port } = await bootBridgeWithAuth();
+        try {
+            const resp = await fetch(
+                `http://127.0.0.1:${port}/dashboard/?token=secret-token`,
+                {
+                    redirect: 'manual',
+                    headers: { cookie: 'harnessa_fe_token=secret-token' },
+                },
+            );
+            expect(resp.status).toBe(200);
+        } finally {
+            await bridge.stop();
+        }
+    });
+});
+
 describe('Dashboard SPA handler', () => {
     it('GET / redirects to /dashboard/ preserving query (legacy root)', async () => {
         const { bridge, port } = await bootBridge();
@@ -63,12 +130,36 @@ describe('Dashboard SPA handler', () => {
         }
     });
 
-    it('GET /dashboard redirects to /dashboard/ preserving query', async () => {
-        const { bridge, port } = await bootBridge();
+    it('GET /dashboard?token=… redirects to /dashboard/ and sets the cookie in one hop', async () => {
+        // Now that token handoff fires before the trailing-slash redirect,
+        // a single 302 should both swap the token to a cookie AND add the
+        // canonical trailing slash. This avoids a double-redirect chain.
+        const dir = mkTmp();
+        const store = new JsonlStore(dir);
+        const bridge = new Bridge({
+            port: 0, host: '127.0.0.1', store, taskStore: null, memoryStore: null,
+            auth: { token: 'abc' },
+        });
+        await bridge.start();
+        const port = bridge.getBoundPort();
         try {
             const resp = await fetch(`http://127.0.0.1:${port}/dashboard?token=abc`, { redirect: 'manual' });
             expect(resp.status).toBe(302);
-            expect(resp.headers.get('location')).toBe('/dashboard/?token=abc');
+            expect(resp.headers.get('location')).toBe('/dashboard/');
+            expect(resp.headers.get('set-cookie') ?? '').toContain('harnessa_fe_token=abc');
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('GET /dashboard (no token, no cookie, auth disabled) still redirects to /dashboard/', async () => {
+        // Backwards-compat: when auth is disabled, /dashboard still gets
+        // canonicalized — preserves the original behavior the test guarded.
+        const { bridge, port } = await bootBridge();
+        try {
+            const resp = await fetch(`http://127.0.0.1:${port}/dashboard`, { redirect: 'manual' });
+            expect(resp.status).toBe(302);
+            expect(resp.headers.get('location')).toBe('/dashboard/');
         } finally {
             await bridge.stop();
         }
