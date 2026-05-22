@@ -16,6 +16,7 @@
 
 import { EVENT_NAME, type TaskSubmitPayload, type TaskAttachment } from '@harnessa-fe/protocol';
 import { snapdom } from '@zumer/snapdom';
+import { deriveDashboardUrl } from './dashboardUrl.js';
 
 const HOST_ID = '__harnessa_fe_overlay__';
 const MAX_OUTER_HTML = 2048;
@@ -69,6 +70,12 @@ export interface OverlayClient {
     readonly visitorId?: string;
     readonly userId?: string;
     readonly parentProjectId?: string;
+    /**
+     * WebSocket URL the runtime connects to. Used by the overlay to derive
+     * the daemon's dashboard URL ("Open dashboard" button). Optional — if
+     * absent, the button hides instead of pointing at the wrong host.
+     */
+    readonly mcpUrl?: string;
     getConnectionState(): 'connecting' | 'open' | 'closed';
     sendEvent(name: string, payload: unknown): void;
     /**
@@ -676,6 +683,30 @@ export function installOverlay(client: OverlayClient): void {
     infoCard.querySelector('[data-role=view-reports]')!.addEventListener('click', () => {
         setState('reports');
     });
+
+    // "Open dashboard" — derive the daemon's dashboard URL from mcpUrl and
+    // pop it in a new tab, deep-linked to this session. Show the button
+    // only when we actually know the daemon address (mcpUrl was supplied by
+    // the plugin / runtime config).
+    {
+        const dashboardBtn = infoCard.querySelector<HTMLButtonElement>('[data-role=open-dashboard]')!;
+        const dashboardUrl = client.mcpUrl
+            ? deriveDashboardUrl({ mcpUrl: client.mcpUrl, sessionId: client.sessionId })
+            : undefined;
+        if (dashboardUrl) {
+            dashboardBtn.style.display = '';
+            dashboardBtn.title = `Open ${dashboardUrl} in a new tab`;
+            dashboardBtn.addEventListener('click', () => {
+                try {
+                    window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
+                } catch {
+                    // Popup blocked or sandboxed iframe — copy as fallback so
+                    // the user can paste it into the address bar manually.
+                    void copyText(dashboardUrl, dashboardBtn);
+                }
+            });
+        }
+    }
 
     reportsCard.querySelector('[data-role=back]')!.addEventListener('click', () => setState('info'));
     reportsCard.querySelector('[data-role=close]')!.addEventListener('click', () => setState('idle'));
@@ -1802,6 +1833,10 @@ function buildInfoCard(): HTMLDivElement {
                 <span class="icon">🎯</span>
                 <span class="label">Report a problem</span>
                 <span class="hint">Pick an element →</span>
+            </button>
+            <button class="secondary" data-role="open-dashboard" type="button" style="display:none">
+                <span class="icon">↗</span>
+                <span>Open dashboard</span>
             </button>
             <button class="secondary" data-role="view-reports" type="button">📁 My reports</button>
             <button class="secondary" data-role="copy-snapshot" type="button">📋 Copy snapshot</button>

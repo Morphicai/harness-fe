@@ -213,6 +213,45 @@ describe('installOverlay', () => {
         expect(fab.style.top).toMatch(/px$/);
         window.localStorage?.clear();
     });
+
+    it('shows the "Open dashboard" button only when the client has an mcpUrl', () => {
+        setupDom();
+        installOverlay(makeFakeClient({ mcpUrl: 'ws://127.0.0.1:47729?token=demo' }));
+        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
+        expect(btn.style.display).toBe('');
+        expect(btn.title).toContain('http://127.0.0.1:47729/dashboard/sessions/');
+        expect(btn.title).toContain('token=demo');
+    });
+
+    it('hides the "Open dashboard" button when mcpUrl is missing', () => {
+        setupDom();
+        installOverlay(makeFakeClient()); // no mcpUrl
+        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
+        expect(btn.style.display).toBe('none');
+    });
+
+    it('clicking "Open dashboard" calls window.open with the derived URL in a new tab', () => {
+        setupDom();
+        installOverlay(makeFakeClient({ mcpUrl: 'wss://harnessa.lan:8443?token=t' }));
+        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const calls: Array<{ url: string; target: string; features: string }> = [];
+        (globalThis.window as unknown as { open: typeof window.open }).open = ((
+            url?: string | URL,
+            target?: string,
+            features?: string,
+        ) => {
+            calls.push({ url: String(url ?? ''), target: target ?? '', features: features ?? '' });
+            return null;
+        }) as typeof window.open;
+        const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
+        btn.click();
+        expect(calls).toHaveLength(1);
+        expect(calls[0].url).toBe('https://harnessa.lan:8443/dashboard/sessions/sess-12345-abcdef-9876?token=t');
+        expect(calls[0].target).toBe('_blank');
+        expect(calls[0].features).toMatch(/noopener/);
+    });
 });
 
 describe('annotate engine', () => {
