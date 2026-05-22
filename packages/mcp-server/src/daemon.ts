@@ -1,8 +1,8 @@
 /**
- * `createDaemon` — programmatic entry point for embedding the harnessa-fe
+ * `createDaemon` — programmatic entry point for embedding the harness-fe
  * daemon inside another Node.js process. Wraps `Bridge` construction +
  * `startMcpHttpServer` so a host application can boot the daemon with
- * `import { createDaemon } from '@harnessa-fe/mcp-server'` instead of
+ * `import { createDaemon } from '@harness-fe/mcp-server'` instead of
  * spawning the CLI as a sidecar.
  *
  * Scope (v1):
@@ -18,7 +18,7 @@
  *
  * Standalone CLI use is unchanged: `cli.ts` is a thin caller of this
  * factory. Anything the CLI does that's specific to a developer's
- * machine (port-keyed `defaultDataDir`, `HARNESSA_FE_*` env, leader /
+ * machine (port-keyed `defaultDataDir`, `HARNESS_FE_*` env, leader /
  * follower attachment, banner, signal handlers) stays in `cli.ts` —
  * not pushed into the factory.
  */

@@ -11,7 +11,7 @@
 import type {
     PeerRole,
     TabInfo,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 
 export interface PeerSession {
     role: PeerRole;
@@ -21,7 +21,7 @@ export interface PeerSession {
     sessionId?: string;
     /** Runtime-client only: stable per-browser visitor identifier. */
     visitorId?: string;
-    /** App-supplied user identifier propagated from HarnessaScript userId prop. */
+    /** App-supplied user identifier propagated from HarnessScript userId prop. */
     userId?: string;
     /** Opaque identifier for the underlying connection. */
     connectionId: string;

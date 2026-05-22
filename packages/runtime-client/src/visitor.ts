@@ -6,12 +6,12 @@
  * refreshes, and tabs so the daemon can build a coherent user journey.
  *
  * Privacy: anonymous by default. No canvas / WebGL / AudioContext
- * fingerprinting. The app may pass `userId` via `HarnessaScript userId=…`
+ * fingerprinting. The app may pass `userId` via `HarnessScript userId=…`
  * which the daemon attaches to `VisitorMeta.userId` — that field is only
  * meaningful when the host app explicitly opts in.
  */
 
-import type { VisitorEnv } from '@harnessa-fe/protocol';
+import type { VisitorEnv } from '@harness-fe/protocol';
 
 const VISITOR_ID_KEY = '__hfe_visitor_id__';
 
@@ -48,11 +48,11 @@ export function tryInheritVisitorFromParent(): string | undefined {
     try {
         const p = window.parent as Window & {
             localStorage?: Storage;
-            __harnessa_fe_visitor_id__?: string;
+            __harness_fe_visitor_id__?: string;
         };
         // Prefer the runtime-exposed global; fall back to parent's localStorage
         // when the parent's runtime hasn't yet exposed the cache (race).
-        if (p.__harnessa_fe_visitor_id__) return p.__harnessa_fe_visitor_id__;
+        if (p.__harness_fe_visitor_id__) return p.__harness_fe_visitor_id__;
         const fromLs = p.localStorage?.getItem(VISITOR_ID_KEY);
         return fromLs ?? undefined;
     } catch {
@@ -112,5 +112,5 @@ export function collectEnv(): VisitorEnv {
 /** Expose to same-origin iframes; called by client.ts after resolving id. */
 export function publishVisitorIdToWindow(id: string): void {
     if (typeof window === 'undefined') return;
-    (window as Window & { __harnessa_fe_visitor_id__?: string }).__harnessa_fe_visitor_id__ = id;
+    (window as Window & { __harness_fe_visitor_id__?: string }).__harness_fe_visitor_id__ = id;
 }

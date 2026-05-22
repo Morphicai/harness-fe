@@ -1,5 +1,5 @@
 /**
- * Webpack loader entrypoint for @harnessa-fe/webpack.
+ * Webpack loader entrypoint for @harness-fe/webpack.
  *
  * IMPORTANT: This file is loaded by webpack's loader runner (potentially
  * inside a thread-loader worker process). The options object passed to this
@@ -9,15 +9,15 @@
  * which closes over `compiler.root` and breaks thread-loader's JSON.stringify.
  *
  * The loader collects component locations into a per-call temporary
- * componentMap, then writes them to `module.buildMeta.harnessaCollected`.
+ * componentMap, then writes them to `module.buildMeta.harnessCollected`.
  * The main-process plugin reads buildMeta via `compilation.succeedModule`
  * and merges the entries into the real shared componentMap.
  */
 
-import type { ComponentMap, ComponentLocation } from '@harnessa-fe/unplugin';
+import type { ComponentMap, ComponentLocation } from '@harness-fe/unplugin';
 import { runTransform } from './transform-runner.js';
 
-export interface HarnessaLoaderOptions {
+export interface HarnessLoaderOptions {
     pluginId: string;
     projectRoot: string;
     vueOptions: {
@@ -34,13 +34,13 @@ interface CollectedLocation {
 
 interface LoaderContext {
     async: () => (err: Error | null, content?: string, map?: object) => void;
-    getOptions: () => HarnessaLoaderOptions;
+    getOptions: () => HarnessLoaderOptions;
     resourcePath: string;
     resourceQuery: string;
     _module?: { buildMeta?: Record<string, unknown> };
 }
 
-export default function harnessaLoader(this: LoaderContext, source: string): void {
+export default function harnessLoader(this: LoaderContext, source: string): void {
     const callback = this.async();
     const opts = this.getOptions();
 
@@ -78,8 +78,8 @@ export default function harnessaLoader(this: LoaderContext, source: string): voi
             }
         }
         const buildMeta = (this._module.buildMeta ??= {});
-        const existing = (buildMeta.harnessaCollected as CollectedLocation[] | undefined) ?? [];
-        buildMeta.harnessaCollected = existing.concat(collected);
+        const existing = (buildMeta.harnessCollected as CollectedLocation[] | undefined) ?? [];
+        buildMeta.harnessCollected = existing.concat(collected);
     }
 
     if (!out) {

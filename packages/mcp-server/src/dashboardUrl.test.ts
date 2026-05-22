@@ -39,7 +39,7 @@ describe('buildDashboardUrl', () => {
         expect(buildDashboardUrl(bridge)).toBeUndefined();
     });
 
-    it('URL-encodes the token (defensive against weird characters in HARNESSA_FE_TOKEN)', () => {
+    it('URL-encodes the token (defensive against weird characters in HARNESS_FE_TOKEN)', () => {
         const bridge = makeBridge({ base: 'http://127.0.0.1:47729', token: 'a b&c' });
         expect(buildDashboardUrl(bridge)).toBe('http://127.0.0.1:47729/dashboard/?token=a%20b%26c');
     });

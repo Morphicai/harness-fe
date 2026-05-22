@@ -16,9 +16,9 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-export const DEFAULT_COOKIE_NAME = 'harnessa_fe_token';
+export const DEFAULT_COOKIE_NAME = 'harness_fe_token';
 export const DEFAULT_LOGIN_PATH = '/__auth';
-const WS_SUBPROTOCOL_PREFIX = 'harnessa-fe.token.';
+const WS_SUBPROTOCOL_PREFIX = 'harness-fe.token.';
 
 export interface AuthOptions {
     /** Expected token. Empty/undefined disables token auth. */
@@ -31,7 +31,7 @@ export interface AuthOptions {
      * own middleware and have `authorize` read the cookie.
      */
     authorize?: (req: IncomingMessage) => boolean;
-    /** Cookie name set after a successful login. Default: harnessa_fe_token. */
+    /** Cookie name set after a successful login. Default: harness_fe_token. */
     cookieName?: string;
     /** POST path that consumes the login form. Default: /__auth. */
     loginPath?: string;
@@ -119,12 +119,12 @@ export function sendUnauthorized(
     }
     res.statusCode = 401;
     res.setHeader('content-type', 'application/json; charset=utf-8');
-    res.setHeader('www-authenticate', 'Bearer realm="harnessa-fe"');
+    res.setHeader('www-authenticate', 'Bearer realm="harness-fe"');
     res.end(
         JSON.stringify({
             error: 'unauthorized',
             message:
-                'Missing or invalid token. Provide Authorization: Bearer <token>, ?token=<token>, or the harnessa_fe_token cookie.',
+                'Missing or invalid token. Provide Authorization: Bearer <token>, ?token=<token>, or the harness_fe_token cookie.',
         }),
     );
 }
@@ -226,7 +226,7 @@ function renderLoginPage(opts: AuthOptions, next: string, error?: string): strin
         : '';
     return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>harnessa-fe — sign in</title>
+<title>harness-fe — sign in</title>
 <style>
 body{font:14px/1.4 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#fafafa;color:#222;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
 form{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:24px;max-width:360px;width:100%;box-shadow:0 4px 12px rgba(0,0,0,.04)}
@@ -237,7 +237,7 @@ button{display:block;width:100%;padding:10px;background:#111;color:#fff;border:0
 </style></head>
 <body>
 <form method="post" action="${escapeHtml(loginPath)}" autocomplete="off">
-  <h1>harnessa-fe</h1>
+  <h1>harness-fe</h1>
   ${errBlock}
   <input type="password" name="token" placeholder="token" autofocus required>
   <input type="hidden" name="next" value="${safeN}">

@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HttpBatchTransport } from './transport.js';
 import type { RegisterOptions } from './index.js';
-import type { EventFrame, HelloFrame } from '@harnessa-fe/protocol';
+import type { EventFrame, HelloFrame } from '@harness-fe/protocol';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -99,9 +99,9 @@ describe('HttpBatchTransport', () => {
     });
 
     it('batches up to BATCH_SIZE events before flushing immediately', async () => {
-        process.env.HARNESSA_FE_HTTP_BATCH_SIZE = '5';
+        process.env.HARNESS_FE_HTTP_BATCH_SIZE = '5';
         const { batches, restore: r } = mockFetch([{ status: 204 }, { status: 204 }]);
-        restore = () => { r(); delete process.env.HARNESSA_FE_HTTP_BATCH_SIZE; };
+        restore = () => { r(); delete process.env.HARNESS_FE_HTTP_BATCH_SIZE; };
 
         const transport = new HttpBatchTransport(makeOpts(47731));
         await transport.open(makeHello());
@@ -120,9 +120,9 @@ describe('HttpBatchTransport', () => {
     });
 
     it('flushes on timer (FLUSH_MS) even with fewer events', async () => {
-        process.env.HARNESSA_FE_HTTP_FLUSH_MS = '50';
+        process.env.HARNESS_FE_HTTP_FLUSH_MS = '50';
         const { batches, restore: r } = mockFetch([{ status: 204 }]);
-        restore = () => { r(); delete process.env.HARNESSA_FE_HTTP_FLUSH_MS; };
+        restore = () => { r(); delete process.env.HARNESS_FE_HTTP_FLUSH_MS; };
 
         const transport = new HttpBatchTransport(makeOpts(47732));
         await transport.open(makeHello());
@@ -177,13 +177,13 @@ describe('HttpBatchTransport', () => {
 
     it('drops oldest events when outbox cap is exceeded', async () => {
         // Prevent both timer-based AND batch-size-based flushes so cap logic is exercised
-        process.env.HARNESSA_FE_HTTP_FLUSH_MS = '10000';
-        process.env.HARNESSA_FE_HTTP_BATCH_SIZE = '10000';
+        process.env.HARNESS_FE_HTTP_FLUSH_MS = '10000';
+        process.env.HARNESS_FE_HTTP_BATCH_SIZE = '10000';
         const { batches, restore: r } = mockFetch([{ status: 204 }]);
         restore = () => {
             r();
-            delete process.env.HARNESSA_FE_HTTP_FLUSH_MS;
-            delete process.env.HARNESSA_FE_HTTP_BATCH_SIZE;
+            delete process.env.HARNESS_FE_HTTP_FLUSH_MS;
+            delete process.env.HARNESS_FE_HTTP_BATCH_SIZE;
         };
 
         const transport = new HttpBatchTransport({ ...makeOpts(47735) });

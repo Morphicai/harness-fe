@@ -1,5 +1,5 @@
 ---
-'@harnessa-fe/mcp-server': patch
+'@harness-fe/mcp-server': patch
 ---
 
 MCP HTTP transport now resumes dropped SSE streams via
@@ -17,7 +17,7 @@ no duplicates, no gaps within the buffer window.
 - pass `null` → resumability disabled
 
 `EventStore`, `StreamId`, and `EventId` types are re-exported from
-`@harnessa-fe/mcp-server` so consumers can implement custom backings
+`@harness-fe/mcp-server` so consumers can implement custom backings
 without depending on the MCP SDK directly. Required for embedding
 the daemon inside a host application reachable over public networks
 (VISION direction 1).

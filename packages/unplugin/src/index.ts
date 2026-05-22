@@ -1,17 +1,17 @@
 /**
- * @harnessa-fe/unplugin — unified build plugin.
+ * @harness-fe/unplugin — unified build plugin.
  *
  * Usage:
- *   import { harnessaFE } from '@harnessa-fe/unplugin/vite'
- *   import { harnessaFE } from '@harnessa-fe/unplugin/rspack'
+ *   import { harnessFE } from '@harness-fe/unplugin/vite'
+ *   import { harnessFE } from '@harness-fe/unplugin/rspack'
  *
- * Webpack: use @harnessa-fe/webpack (a native plugin — see that package).
+ * Webpack: use @harness-fe/webpack (a native plugin — see that package).
  *
  * Or import the raw unplugin for custom integrations:
- *   import { unplugin, unpluginFactory } from '@harnessa-fe/unplugin'
+ *   import { unplugin, unpluginFactory } from '@harness-fe/unplugin'
  */
 
-export { unplugin, unpluginFactory, type HarnessaFEOptions } from './core.js';
+export { unplugin, unpluginFactory, type HarnessFEOptions } from './core.js';
 export { transformJsx, type ComponentMap, type ComponentLocation, type TransformResult } from './transform.js';
 export {
     transformVueSFC,
@@ -26,7 +26,7 @@ export {
 } from './vue-transform.js';
 
 // Internal building blocks — re-exported for downstream native plugins (e.g.
-// @harnessa-fe/webpack) that cannot use the unplugin adapter directly.
+// @harness-fe/webpack) that cannot use the unplugin adapter directly.
 export { createMcpClient } from './internal/mcp-client.js';
 export { installNodeLogCapture } from './internal/log-capture.js';
 export { createBuildIdentity, appendTokenQuery } from './internal/buildIdentity.js';

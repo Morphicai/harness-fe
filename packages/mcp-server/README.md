@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Morphicai/harnessa-fe/main/branding/logo.svg" alt="Harnessa-FE" width="96" />
+  <img src="https://raw.githubusercontent.com/Morphicai/harness-fe/main/branding/logo.svg" alt="Harness-FE" width="96" />
 </p>
 
-# @harnessa-fe/mcp-server
+# @harness-fe/mcp-server
 
-> The MCP daemon for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe). Bridges AI agents (Claude, Cursor, Kiro) with running dev servers and browser tabs.
+> The MCP daemon for [Harness-FE](https://github.com/Morphicai/harness-fe). Bridges AI agents (Claude, Cursor, Kiro) with running dev servers and browser tabs.
 
 The MCP server exposes tools over **stdio MCP** to AI agents and runs a **WebSocket bridge** for the Vite/Webpack plugin and the browser runtime client. One daemon can serve multiple projects simultaneously.
 
@@ -12,11 +12,11 @@ The MCP server exposes tools over **stdio MCP** to AI agents and runs a **WebSoc
 
 ```bash
 # Run on demand (recommended)
-npx @harnessa-fe/mcp-server
+npx @harness-fe/mcp-server
 
 # Or install globally
-pnpm add -g @harnessa-fe/mcp-server
-harnessa-fe
+pnpm add -g @harness-fe/mcp-server
+harness-fe
 ```
 
 ## Use with Claude Code
@@ -26,9 +26,9 @@ Register the daemon as an MCP server in your Claude Code settings:
 ```jsonc
 {
     "mcpServers": {
-        "harnessa-fe": {
+        "harness-fe": {
             "command": "npx",
-            "args": ["-y", "@harnessa-fe/mcp-server"]
+            "args": ["-y", "@harness-fe/mcp-server"]
         }
     }
 }
@@ -55,12 +55,12 @@ This means:
 | Single shared daemon (default) | Nothing extra |
 | One project gets its own daemon | `"args": ["...", "--port", "47730"]` in that IDE's mcp.json |
 | Monorepo: aggregate everything | All IDEs use default port — they pool automatically |
-| Friendly name in banner / dashboard | `"env": { "HARNESSA_FE_LABEL": "my-mono" }` (cosmetic only) |
+| Friendly name in banner / dashboard | `"env": { "HARNESS_FE_LABEL": "my-mono" }` (cosmetic only) |
 
-Data lives at `~/.harnessa/daemons/<port>/data/`. The label is purely
+Data lives at `~/.harness/daemons/<port>/data/`. The label is purely
 cosmetic — isolation comes from the port, never the label.
 
-Full guide: [docs/multi-daemon.md](https://github.com/Morphicai/harnessa-fe/blob/main/docs/multi-daemon.md)
+Full guide: [docs/multi-daemon.md](https://github.com/Morphicai/harness-fe/blob/main/docs/multi-daemon.md)
 
 ## LAN mode (real-device debugging)
 
@@ -70,8 +70,8 @@ daemon. The CLI never refuses to start; binding decisions are yours.
 
 | You want… | Run | Behavior |
 |-----------|-----|----------|
-| Local-only, zero config | `npx @harnessa-fe/mcp-server` | Loopback, no auth |
-| Local with auth (defense in depth) | `--token <value>` or `HARNESSA_FE_TOKEN=<value>` | Loopback, auth required for HTTP / WS |
+| Local-only, zero config | `npx @harness-fe/mcp-server` | Loopback, no auth |
+| Local with auth (defense in depth) | `--token <value>` or `HARNESS_FE_TOKEN=<value>` | Loopback, auth required for HTTP / WS |
 | LAN debug (phone, tablet, other host) — open | `--host 0.0.0.0` | LAN-reachable, no auth. Banner warns you. |
 | LAN debug — protected | `--host 0.0.0.0 --token auto` | LAN-reachable, token required. Banner prints the dashboard URL with `?token=` baked in |
 
@@ -83,9 +83,9 @@ token is configured, the bare URL works as-is.
 Want a remote agent to share the daemon? Mount the MCP HTTP transport:
 
 ```bash
-npx @harnessa-fe/mcp-server --host 0.0.0.0 --mcp-transport http --mcp-path /mcp
+npx @harness-fe/mcp-server --host 0.0.0.0 --mcp-transport http --mcp-path /mcp
 # … with auth:
-npx @harnessa-fe/mcp-server --host 0.0.0.0 --token auto \
+npx @harness-fe/mcp-server --host 0.0.0.0 --token auto \
   --mcp-transport http --mcp-path /mcp
 ```
 
@@ -103,7 +103,7 @@ Remote Claude Code / Cursor config:
 }
 ```
 
-**Full guide:** [docs/lan-mode.md](https://github.com/Morphicai/harnessa-fe/blob/main/docs/lan-mode.md)
+**Full guide:** [docs/lan-mode.md](https://github.com/Morphicai/harness-fe/blob/main/docs/lan-mode.md)
 
 ## All CLI flags
 
@@ -119,9 +119,9 @@ Remote Claude Code / Cursor config:
 -h, --help
 ```
 
-Matching env vars: `HARNESSA_FE_HOST`, `HARNESSA_FE_PORT`,
-`HARNESSA_FE_TOKEN`, `HARNESSA_FE_MCP_TRANSPORT`, `HARNESSA_FE_MCP_PATH`,
-`HARNESSA_FE_HEADLESS`.
+Matching env vars: `HARNESS_FE_HOST`, `HARNESS_FE_PORT`,
+`HARNESS_FE_TOKEN`, `HARNESS_FE_MCP_TRANSPORT`, `HARNESS_FE_MCP_PATH`,
+`HARNESS_FE_HEADLESS`.
 
 ## Embedding the daemon programmatically
 
@@ -129,7 +129,7 @@ You can also run the daemon as a library inside another Node.js
 process — no `npx`, no sidecar, no second port:
 
 ```ts
-import { createDaemon, MemoryEventStore } from '@harnessa-fe/mcp-server';
+import { createDaemon, MemoryEventStore } from '@harness-fe/mcp-server';
 
 const daemon = createDaemon({
   port: 47729,
@@ -147,7 +147,7 @@ const daemon = createDaemon({
 });
 
 await daemon.start();
-console.log(`harnessa-fe listening on :${daemon.getBoundPort()} at ${daemon.mcpPath}`);
+console.log(`harness-fe listening on :${daemon.getBoundPort()} at ${daemon.mcpPath}`);
 
 process.on('SIGTERM', () => daemon.stop());
 ```
@@ -168,7 +168,7 @@ A minimal end-to-end example lives at
 
 ## What it exposes
 
-Tools across these domains (see [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md)):
+Tools across these domains (see [Architecture](https://github.com/Morphicai/harness-fe/blob/main/ARCHITECTURE.md)):
 
 - **page** — `navigate`, `click`, `type`, `dom_query`, `evaluate`, `screenshot`, …
 - **console / network / errors** — tail and search runtime events
@@ -176,12 +176,12 @@ Tools across these domains (see [Architecture](https://github.com/Morphicai/harn
 - **project** — `source`, `where_is`, `module_graph` (source-code intelligence)
 - **tasks** — point-and-task annotation queue
 
-Persistence lives in `~/.harnessa/` (JSONL event logs + JSON records).
+Persistence lives in `~/.harness/` (JSONL event logs + JSON records).
 
 ## Docs
 
-- [Root README](https://github.com/Morphicai/harnessa-fe#readme)
-- [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md)
+- [Root README](https://github.com/Morphicai/harness-fe#readme)
+- [Architecture](https://github.com/Morphicai/harness-fe/blob/main/ARCHITECTURE.md)
 
 ## License
 

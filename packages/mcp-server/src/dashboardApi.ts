@@ -1,5 +1,5 @@
 /**
- * JSON API surface consumed by `@harnessa-fe/dashboard-ui` (the React SPA).
+ * JSON API surface consumed by `@harness-fe/dashboard-ui` (the React SPA).
  *
  * The shape mirrors what the legacy server-rendered dashboard.ts displayed,
  * but as JSON so the SPA can render it with proper components and live

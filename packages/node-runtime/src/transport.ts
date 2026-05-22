@@ -1,16 +1,16 @@
 /**
- * Transport abstraction for @harnessa-fe/node-runtime.
+ * Transport abstraction for @harness-fe/node-runtime.
  *
  * Two implementations:
  *   WsTransport    — persistent WebSocket; existing behaviour.
  *   HttpBatchTransport — fetch-based batching; used in Edge Runtime where ws
- *                        is unavailable, or when HARNESSA_FE_TRANSPORT=http.
+ *                        is unavailable, or when HARNESS_FE_TRANSPORT=http.
  */
 
 import { randomUUID } from 'node:crypto';
 import type { RegisterOptions } from './index.js';
-import type { EventFrame, HelloFrame } from '@harnessa-fe/protocol';
-import { DEFAULT_WS_PORT } from '@harnessa-fe/protocol';
+import type { EventFrame, HelloFrame } from '@harness-fe/protocol';
+import { DEFAULT_WS_PORT } from '@harness-fe/protocol';
 
 // ─── Interface ────────────────────────────────────────────────────────────────
 
@@ -104,9 +104,9 @@ export class WsTransport implements Transport {
 
 // ─── HttpBatchTransport ───────────────────────────────────────────────────────
 
-/** How long (ms) to buffer before a flush is triggered. Env override: HARNESSA_FE_HTTP_FLUSH_MS */
+/** How long (ms) to buffer before a flush is triggered. Env override: HARNESS_FE_HTTP_FLUSH_MS */
 const DEFAULT_FLUSH_MS = 500;
-/** Max buffered events before an immediate flush. Env override: HARNESSA_FE_HTTP_BATCH_SIZE */
+/** Max buffered events before an immediate flush. Env override: HARNESS_FE_HTTP_BATCH_SIZE */
 const DEFAULT_BATCH_SIZE = 50;
 /** Max events in outbox before oldest are dropped. */
 const OUTBOX_CAP_EVENTS = 500;
@@ -142,11 +142,11 @@ export class HttpBatchTransport implements Transport {
             this.baseUrl = `http://127.0.0.1:${DEFAULT_WS_PORT}`;
         }
         this.flushMs = (() => {
-            const v = parseInt(process.env.HARNESSA_FE_HTTP_FLUSH_MS ?? '', 10);
+            const v = parseInt(process.env.HARNESS_FE_HTTP_FLUSH_MS ?? '', 10);
             return isNaN(v) ? DEFAULT_FLUSH_MS : v;
         })();
         this.batchSize = (() => {
-            const v = parseInt(process.env.HARNESSA_FE_HTTP_BATCH_SIZE ?? '', 10);
+            const v = parseInt(process.env.HARNESS_FE_HTTP_BATCH_SIZE ?? '', 10);
             return isNaN(v) ? DEFAULT_BATCH_SIZE : v;
         })();
     }
@@ -249,7 +249,7 @@ export class HttpBatchTransport implements Transport {
                 if (resp.status >= 400 && resp.status < 500) {
                     // Client error — no point retrying
                     process.stderr.write(
-                        `[harnessa-fe] http-batch rejected (${resp.status}) — dropping ${events.length} events\n`,
+                        `[harness-fe] http-batch rejected (${resp.status}) — dropping ${events.length} events\n`,
                     );
                     return;
                 }
@@ -260,7 +260,7 @@ export class HttpBatchTransport implements Transport {
             attempt++;
             if (attempt >= MAX_RETRY_ATTEMPTS) {
                 process.stderr.write(
-                    `[harnessa-fe] http-batch: max retries exceeded — dropping ${events.length} events\n`,
+                    `[harness-fe] http-batch: max retries exceeded — dropping ${events.length} events\n`,
                 );
                 return;
             }
@@ -284,7 +284,7 @@ function canLoadWs(): boolean {
 export function selectTransport(opts: RegisterOptions): Transport {
     const forceHttp =
         process.env.NEXT_RUNTIME === 'edge' ||
-        process.env.HARNESSA_FE_TRANSPORT === 'http';
+        process.env.HARNESS_FE_TRANSPORT === 'http';
     if (forceHttp) return new HttpBatchTransport(opts);
     try {
         if (canLoadWs()) return new WsTransport(opts);

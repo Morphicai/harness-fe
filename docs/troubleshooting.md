@@ -11,7 +11,7 @@ lsof -iTCP:47729 -sTCP:LISTEN
 
 Start it manually if not:
 ```bash
-pnpm exec @harnessa-fe/mcp-server
+pnpm exec @harness-fe/mcp-server
 # OR if you've cloned the repo:
 pnpm start:mcp
 ```
@@ -32,7 +32,7 @@ peer connected role=node-runtime        projectId=my-app  sessionId=<uuid-A>
 ## 3. Where are events stored?
 
 ```
-~/.harnessa/data/
+~/.harness/data/
 ├── sessions/
 │   ├── {sessionId}/
 │   │   ├── meta.json              ← who participated in this page-load
@@ -45,8 +45,8 @@ peer connected role=node-runtime        projectId=my-app  sessionId=<uuid-A>
 
 Read a session timeline directly:
 ```bash
-ls -lt ~/.harnessa/data/sessions/ | head -5      # newest first
-cat ~/.harnessa/data/sessions/<sid>/timeline.jsonl | jq -r '"\(.t)\t\(.payload // {})"'
+ls -lt ~/.harness/data/sessions/ | head -5      # newest first
+cat ~/.harness/data/sessions/<sid>/timeline.jsonl | jq -r '"\(.t)\t\(.payload // {})"'
 ```
 
 If a `console.log` from your code isn't in any timeline, it's either in `server-orphans/` (see §5) or never reached the daemon (see §1, §4).
@@ -57,18 +57,18 @@ Common reasons the Node SDK never connected:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `peer connected role=node-runtime` never appears | `<HarnessaScript>` not in your layout, `withHarnessa()` not in `next.config.mjs`, AND no manual `register()` call | Add one. The easiest is dropping `<HarnessaScript projectId="…" />` into `app/layout.tsx`. |
+| `peer connected role=node-runtime` never appears | `<HarnessScript>` not in your layout, `withHarness()` not in `next.config.mjs`, AND no manual `register()` call | Add one. The easiest is dropping `<HarnessScript projectId="…" />` into `app/layout.tsx`. |
 | It appears once but no events follow | `NODE_ENV !== 'development'` | Auto-boot is dev-only by design. To force it on, call `register()` yourself unconditionally. |
-| Connects but events still missing | `captureConsole: false` and you're not using `@harnessa-fe/log` | Either remove the flag or migrate to `log.*`. |
+| Connects but events still missing | `captureConsole: false` and you're not using `@harness-fe/log` | Either remove the flag or migrate to `log.*`. |
 | Edge route not appearing | Edge runtime uses HTTP-batch, not WS — confirm daemon stdout shows `POST /events` hits | Check that `mcpUrl` is reachable from the edge env (`localhost` works in dev only) |
 
 ## 5. `sessionId` mismatch between server and client
 
-The point of Harnessa is **same session-id everywhere for one page-load**. If you see different ids:
+The point of Harness is **same session-id everywhere for one page-load**. If you see different ids:
 
-1. **Confirm `<HarnessaScript>` is in the rendered HTML**. View source on a refresh — look for `<script id="__hfe_seed__">window.__HARNESSA_FE_SEED__=…</script>` near the top of `<body>`. Missing = HarnessaScript didn't render (wrong file? prod build?).
-2. **Confirm the runtime adopts the seed**. In DevTools console: `window.__harnessa_fe_client__.sessionId` should equal `JSON.parse(document.getElementById('__hfe_seed__').textContent.split('=')[1].slice(0,-1)).sessionId`.
-3. **Confirm the provider is registered**. Run a Server Component that does `console.log('test', getRequestSessionId())` from `@harnessa-fe/node-runtime`. If it logs `test undefined`, the Next adapter didn't push its getter — usually means `@harnessa-fe/next` isn't being loaded server-side (check that you import from `@harnessa-fe/next`, not a typo).
+1. **Confirm `<HarnessScript>` is in the rendered HTML**. View source on a refresh — look for `<script id="__hfe_seed__">window.__HARNESS_FE_SEED__=…</script>` near the top of `<body>`. Missing = HarnessScript didn't render (wrong file? prod build?).
+2. **Confirm the runtime adopts the seed**. In DevTools console: `window.__harness_fe_client__.sessionId` should equal `JSON.parse(document.getElementById('__hfe_seed__').textContent.split('=')[1].slice(0,-1)).sessionId`.
+3. **Confirm the provider is registered**. Run a Server Component that does `console.log('test', getRequestSessionId())` from `@harness-fe/node-runtime`. If it logs `test undefined`, the Next adapter didn't push its getter — usually means `@harness-fe/next` isn't being loaded server-side (check that you import from `@harness-fe/next`, not a typo).
 
 ## 6. Server logs ending up in `server-orphans/`
 
@@ -77,32 +77,32 @@ This is **correct behavior** when there's no request scope:
 - A background timer (`setInterval(...)`)
 - An `unhandledRejection` from a promise that escaped the request
 
-To attribute a log to a request explicitly, use `withHarnessaTracing()`:
+To attribute a log to a request explicitly, use `withHarnessTracing()`:
 ```ts
-export const POST = withHarnessaTracing(async (req: Request) => {
+export const POST = withHarnessTracing(async (req: Request) => {
     console.log('this gets sid bound via ALS');
     // ...
 });
 ```
 
-For App Router Server Components, `<HarnessaScript>` does this for you via the Next provider.
+For App Router Server Components, `<HarnessScript>` does this for you via the Next provider.
 
 ## 7. Two tabs show events mixed in one session
 
 They shouldn't. Each tab refresh = a new `sessionId`. If you see this:
 - Check that you didn't override `tabId` or `sessionId` manually
-- Check `~/.harnessa/data/sessions/<sid>/meta.json` — `participants` should be a single tab. If multiple, you have an iframe inheriting parent identity (see ARCHITECTURE.md → "Same-origin iframe identity inheritance"), which is intentional.
+- Check `~/.harness/data/sessions/<sid>/meta.json` — `participants` should be a single tab. If multiple, you have an iframe inheriting parent identity (see ARCHITECTURE.md → "Same-origin iframe identity inheritance"), which is intentional.
 
 ## 8. Daemon disk filling up
 
 Two safeguards run automatically:
 
-- **Retention**: sessions older than `HARNESSA_FE_RETENTION_DAYS` (default 14) are purged on each daemon start
-- **Size cap**: each `timeline.jsonl` is capped at `HARNESSA_FE_MAX_TIMELINE_KB` (default 4096); older lines are dropped at write time
+- **Retention**: sessions older than `HARNESS_FE_RETENTION_DAYS` (default 14) are purged on each daemon start
+- **Size cap**: each `timeline.jsonl` is capped at `HARNESS_FE_MAX_TIMELINE_KB` (default 4096); older lines are dropped at write time
 
 To nuke everything:
 ```bash
-rm -rf ~/.harnessa/data
+rm -rf ~/.harness/data
 # daemon recreates the tree on next start
 ```
 
@@ -120,12 +120,12 @@ Token didn't match. Check, in order:
 
 1. The exact token from the daemon banner. Tokens are case-sensitive, no
    surrounding whitespace.
-2. If you set `HARNESSA_FE_TOKEN` in your shell rc, did the daemon and
+2. If you set `HARNESS_FE_TOKEN` in your shell rc, did the daemon and
    the browser-paste URL pick up the **same** value? `echo
-   $HARNESSA_FE_TOKEN` in both terminals.
+   $HARNESS_FE_TOKEN` in both terminals.
 3. The cookie. After a successful login the daemon sets
-   `harnessa_fe_token`. If you copied a stale URL with a different
-   token, clear `harnessa_fe_token` for that origin (Chrome DevTools →
+   `harness_fe_token`. If you copied a stale URL with a different
+   token, clear `harness_fe_token` for that origin (Chrome DevTools →
    Application → Cookies).
 
 ### Daemon refuses to start: "refusing to bind 0.0.0.0 without a token"
@@ -133,7 +133,7 @@ Token didn't match. Check, in order:
 The safety guard. You bound a non-loopback host but didn't supply
 `--token`. Either:
 - Add `--token auto` for an ephemeral token, OR
-- `export HARNESSA_FE_TOKEN=...` first then re-run
+- `export HARNESS_FE_TOKEN=...` first then re-run
 
 ### Phone can reach the dashboard but the plugin's WS connection fails
 
@@ -147,7 +147,7 @@ Two common causes:
    LAN IP. On multi-homed machines (Docker, VPN, multiple NICs) it
    might be the wrong one. Override:
    ```bash
-   npx @harnessa-fe/mcp-server --host 0.0.0.0 --token ... --public-host 192.168.x.y
+   npx @harness-fe/mcp-server --host 0.0.0.0 --token ... --public-host 192.168.x.y
    ```
    Or look at `ifconfig` / `ip addr` to find the right LAN IP and
    substitute it into the URL manually.
@@ -156,17 +156,17 @@ Two common causes:
 
 Browsers can't set `Authorization` headers on `new WebSocket(...)`. The
 runtime client falls back to the URL query, which is what the plugin
-injects via `__HARNESSA_FE__.mcpUrl`. Confirm:
+injects via `__HARNESS_FE__.mcpUrl`. Confirm:
 
 ```js
 // In the page console:
-window.__HARNESSA_FE__.mcpUrl
+window.__HARNESS_FE__.mcpUrl
 // Should be something like: ws://192.168.x.y:47729?token=...
 ```
 
 If `mcpUrl` is missing the token, your plugin config doesn't have it.
-Pass `token: process.env.HARNESSA_FE_TOKEN` (or hard-code the value)
-when calling `harnessaFE(...)`.
+Pass `token: process.env.HARNESS_FE_TOKEN` (or hard-code the value)
+when calling `harnessFE(...)`.
 
 ### Agent gets 401 from MCP HTTP
 
@@ -184,12 +184,12 @@ Don't expose to public WiFi.
 
 `{{ x | filter }}` and `<template functional>` aren't valid Vue 3
 syntax; the plugin skips those files instead of producing broken
-output. Run `HARNESSA_FE_DRY_RUN=1 pnpm build` to see the coverage
+output. Run `HARNESS_FE_DRY_RUN=1 pnpm build` to see the coverage
 report on stderr — you'll get a list of which files are missing
 attributes and why. Full guide:
 [docs/vue2-compat.md](./vue2-compat.md).
 
 ## 12. Still stuck
 
-- Run the daemon with `DEBUG=harnessa-fe:* pnpm start:mcp` for verbose logging
+- Run the daemon with `DEBUG=harness-fe:* pnpm start:mcp` for verbose logging
 - File an issue with: the relevant timeline.jsonl excerpt (redact what you must), the daemon stdout, your Next / Vite / Webpack version, and what you expected

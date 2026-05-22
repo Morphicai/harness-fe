@@ -1,11 +1,11 @@
 /**
  * Minimal embedding example: a host Express app runs alongside an
- * in-process harnessa-fe daemon. They share a process, signal handlers,
+ * in-process harness-fe daemon. They share a process, signal handlers,
  * and (in a real app) a logger / store / auth layer.
  *
  * The example assumes you ran `pnpm build` in the package root so
  * `dist/` is populated. In a real consuming app you'd import from
- * `@harnessa-fe/mcp-server`.
+ * `@harness-fe/mcp-server`.
  */
 
 import http from 'node:http';
@@ -26,7 +26,7 @@ const hostServer = http.createServer((req, res) => {
 await new Promise((resolve) => hostServer.listen(3000, '127.0.0.1', resolve));
 console.log('[host] listening on http://127.0.0.1:3000');
 
-// ───────── Embedded harnessa-fe daemon ───────────────────────────────────
+// ───────── Embedded harness-fe daemon ───────────────────────────────────
 const HOST_TOKEN = 'let-me-in';
 
 const daemon = createDaemon({

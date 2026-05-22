@@ -64,7 +64,7 @@ jobs:
                   node-version: '20'
                   cache: 'pnpm'
                   registry-url: 'https://registry.npmjs.org'
-                  scope: '@harnessa-fe'
+                  scope: '@harness-fe'
 
             - name: Upgrade npm CLI for OIDC trusted publishing
               # npm ≥ 11.5 properly negotiates trusted publishing when no

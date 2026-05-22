@@ -1,5 +1,5 @@
 ---
-'@harnessa-fe/mcp-server': patch
+'@harness-fe/mcp-server': patch
 ---
 
 Token is now fully optional — the daemon never refuses to start over
@@ -25,7 +25,7 @@ of token state:
 
 Same applies to the `--mcp-transport http` agent-config hint: when
 no token is set, the printed JSON snippet omits the `Authorization`
-header line. `HARNESSA_FE_TOKEN` env var continues to be honored as
+header line. `HARNESS_FE_TOKEN` env var continues to be honored as
 an equivalent to `--token`.
 
 README updated with a behavior table so the four common scenarios

@@ -13,15 +13,15 @@ Vite + React playground. Reference setup for the source-aware harness.
 
 ```bash
 pnpm install
-pnpm --filter harnessa-fe-react-demo dev   # http://localhost:5173
+pnpm --filter harness-fe-react-demo dev   # http://localhost:5173
 ```
 
-The Vite plugin auto-connects to the MCP daemon at `ws://127.0.0.1:47729` (override with `HARNESSA_FE_URL`).
+The Vite plugin auto-connects to the MCP daemon at `ws://127.0.0.1:47729` (override with `HARNESS_FE_URL`).
 
 ## Verify
 
 ```bash
-pnpm --filter harnessa-fe-react-demo e2e
+pnpm --filter harness-fe-react-demo e2e
 ```
 
 Runs four standalone scripts (all `tsx`, no Playwright runner):

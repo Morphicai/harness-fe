@@ -1,4 +1,4 @@
-# Harnessa-FE Roadmap
+# Harness-FE Roadmap
 
 Public, rough, and subject to change. File a GitHub issue if you want to push something up the list.
 
@@ -17,19 +17,19 @@ Each milestone below is anchored to one of those directions.
 The foundation that the mission rests on. All directions need this.
 
 - [x] Source-aware JSX transform (`data-morphix-loc` / `data-morphix-comp`)
-- [x] `@harnessa-fe/react-jsx` — `jsxImportSource` runtime, no bundler plugin needed
+- [x] `@harness-fe/react-jsx` — `jsxImportSource` runtime, no bundler plugin needed
 - [x] MCP daemon — WebSocket bridge + HTTP-batch (Edge) + JSONL persistence
 - [x] Runtime client — console / network / errors / rrweb + in-page "H" overlay + annotated tasks
 - [x] Vite / Webpack — React + Vue 3, all stable
 - [x] First-class Next.js (App + Pages Router, webpack + Turbopack, Node + Edge)
-- [x] `@harnessa-fe/node-runtime` — ALS + DI sessionId, dual transport
-- [x] `@harnessa-fe/next` — `<HarnessaScript>` Server Component; unified sessionId across SSR + client
-- [x] `@harnessa-fe/log` — isomorphic structured logger
+- [x] `@harness-fe/node-runtime` — ALS + DI sessionId, dual transport
+- [x] `@harness-fe/next` — `<HarnessScript>` Server Component; unified sessionId across SSR + client
+- [x] `@harness-fe/log` — isomorphic structured logger
 - [x] Same-origin iframe identity inheritance (foundation for direction 2)
 - [x] Stable wire protocol `PROTOCOL_VERSION` (locked at 1.0)
 - [x] OIDC-trusted-publisher npm releases + `--provenance`
 - [x] Disk auto-purge + size limits
-- [x] `@harnessa-fe/skill` — agent playbook as standalone npm
+- [x] `@harness-fe/skill` — agent playbook as standalone npm
 
 ---
 
@@ -63,9 +63,9 @@ When morphicai-web hosts AI-generated mini-apps, each app has its own agent auth
 
 The endgame: every Harness-aware code-gen pipeline (`@morphixai/code` mini-apps; future scaffolds for whole web / native apps) emits projects that ship with the runtime by default. The developer never has to think about adding it.
 
-- [ ] **`@morphixai/code` template integration** — mini-app templates include `@harnessa-fe/log` + `<HarnessaScript>` by default; the agent doesn't need to remember
-- [ ] **Scaffold CLI** — `npx @harnessa-fe/create-app` produces a project pre-wired with everything
-- [ ] **Harness-first Skill v2** — `@harnessa-fe/skill` evolves from "how to use the tools" into "the contract every Harness-aware agent follows"
+- [ ] **`@morphixai/code` template integration** — mini-app templates include `@harness-fe/log` + `<HarnessScript>` by default; the agent doesn't need to remember
+- [ ] **Scaffold CLI** — `npx @harness-fe/create-app` produces a project pre-wired with everything
+- [ ] **Harness-first Skill v2** — `@harness-fe/skill` evolves from "how to use the tools" into "the contract every Harness-aware agent follows"
 - [ ] **Native runtime client (React Native + Capacitor)** — rrweb-equivalent native capture; same `sessionId` semantics
 - [ ] **Multi-user collaborative sessions** — pair-debugging where two humans + the agent share one session timeline
 
@@ -73,7 +73,7 @@ The endgame: every Harness-aware code-gen pipeline (`@morphixai/code` mini-apps;
 
 ## Architectural follow-ups (no schedule, cross-cutting)
 
-- [ ] Extract `@harnessa-fe/react-session` micro-package — the textbook layering version of today's `setSessionIdProvider` side-effect DI
+- [ ] Extract `@harness-fe/react-session` micro-package — the textbook layering version of today's `setSessionIdProvider` side-effect DI
 - [ ] Solid / Svelte / Qwik transforms
 
 ---

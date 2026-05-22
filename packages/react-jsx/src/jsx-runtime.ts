@@ -1,5 +1,5 @@
 /**
- * @harnessa-fe/react-jsx/jsx-runtime
+ * @harness-fe/react-jsx/jsx-runtime
  *
  * Production-mode JSX runtime. Re-exports React's stock `jsx` / `jsxs` /
  * `Fragment` verbatim. React strips `__source` info from `jsx()` calls

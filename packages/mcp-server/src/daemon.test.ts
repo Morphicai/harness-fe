@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 function freshDataDir(): string {
-    const dir = mkdtempSync(join(tmpdir(), 'harnessa-daemon-test-'));
+    const dir = mkdtempSync(join(tmpdir(), 'harness-daemon-test-'));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
     return dir;
 }

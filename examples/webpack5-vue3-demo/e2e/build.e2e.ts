@@ -1,7 +1,7 @@
 /**
  * Webpack 5 + Vue 3 build-pipeline smoke test.
  *
- * Goal: assert that the harnessa-fe webpack plugin tags every <template>
+ * Goal: assert that the harness-fe webpack plugin tags every <template>
  * element across the SFCs in this demo, and that the resulting compiled
  * render functions in `bundle.js` carry the data-morphix-loc /
  * data-morphix-comp attributes with file-relative line numbers.

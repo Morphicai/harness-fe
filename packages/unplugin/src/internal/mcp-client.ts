@@ -19,7 +19,7 @@ import {
     type HelloFrame,
     type ResponseFrame,
     frameSchema,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 import type { McpClient, McpClientContext } from './types.js';
 
 function newId(): string {
@@ -87,7 +87,7 @@ export function createMcpClient(ctx: McpClientContext): McpClient {
                 };
             }
             default:
-                throw new Error(`harnessa-fe: unhandled command "${command}"`);
+                throw new Error(`harness-fe: unhandled command "${command}"`);
         }
     }
 

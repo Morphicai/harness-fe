@@ -1,5 +1,5 @@
 import { record } from 'rrweb';
-import type { RrwebChunkPayload } from '@harnessa-fe/protocol';
+import type { RrwebChunkPayload } from '@harness-fe/protocol';
 
 export { RRWEB_FULL_SNAPSHOT_TYPE, chunkHasFullSnapshot } from './rrweb-types.js';
 

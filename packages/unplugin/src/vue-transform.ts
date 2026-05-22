@@ -186,7 +186,7 @@ export function transformVueTemplate(
     try {
         ast = parseTemplate(templateSource);
     } catch (err) {
-        console.warn(`[harnessa-fe] Failed to parse Vue template fragment: ${relPath}`, err);
+        console.warn(`[harness-fe] Failed to parse Vue template fragment: ${relPath}`, err);
         recordSkip(stats, 'skippedTemplateError', relPath);
         return null;
     }
@@ -227,7 +227,7 @@ export function transformVueTemplate(
     try {
         for (const child of ast.children) walkNode(child as TemplateNode);
     } catch (err) {
-        console.warn(`[harnessa-fe] template walk failed in ${relPath}`, err);
+        console.warn(`[harness-fe] template walk failed in ${relPath}`, err);
         recordSkip(stats, 'skippedWalkError', relPath);
         return null;
     }
@@ -244,7 +244,7 @@ export function transformVueTemplate(
             parseTemplate(code);
         } catch (err) {
             console.warn(
-                `[harnessa-fe] safeMode dropped template injection in ${relPath} (self-check failed)`,
+                `[harness-fe] safeMode dropped template injection in ${relPath} (self-check failed)`,
                 err,
             );
             recordSkip(stats, 'skippedSelfCheck', relPath);
@@ -320,13 +320,13 @@ export function transformVueSFC(
         // trust the offsets it reports either. Skip the file entirely so
         // vue-loader sees pristine source.
         if (result.errors.length > 0) {
-            console.warn(`[harnessa-fe] Vue SFC parse errors in ${relPath}:`, result.errors);
+            console.warn(`[harness-fe] Vue SFC parse errors in ${relPath}:`, result.errors);
             recordSkip(stats, 'skippedSfcError', relPath);
             return null;
         }
         descriptor = result.descriptor;
     } catch (err) {
-        console.warn(`[harnessa-fe] Failed to parse Vue SFC: ${relPath}`, err);
+        console.warn(`[harness-fe] Failed to parse Vue SFC: ${relPath}`, err);
         recordSkip(stats, 'skippedSfcError', relPath);
         return null;
     }
@@ -340,7 +340,7 @@ export function transformVueSFC(
     try {
         templateAst = parseTemplate(templateContent);
     } catch (err) {
-        console.warn(`[harnessa-fe] Failed to parse template in ${relPath}`, err);
+        console.warn(`[harness-fe] Failed to parse template in ${relPath}`, err);
         recordSkip(stats, 'skippedTemplateError', relPath);
         return null;
     }
@@ -384,7 +384,7 @@ export function transformVueSFC(
     try {
         for (const child of templateAst.children) walkNode(child as TemplateNode);
     } catch (err) {
-        console.warn(`[harnessa-fe] SFC walk failed in ${relPath}`, err);
+        console.warn(`[harness-fe] SFC walk failed in ${relPath}`, err);
         recordSkip(stats, 'skippedWalkError', relPath);
         return null;
     }
@@ -398,7 +398,7 @@ export function transformVueSFC(
             const recheck = parseSFC(code, { filename: relPath });
             if (recheck.errors.length > 0) {
                 console.warn(
-                    `[harnessa-fe] safeMode dropped SFC injection in ${relPath} (self-check found errors)`,
+                    `[harness-fe] safeMode dropped SFC injection in ${relPath} (self-check found errors)`,
                     recheck.errors,
                 );
                 recordSkip(stats, 'skippedSelfCheck', relPath);
@@ -406,7 +406,7 @@ export function transformVueSFC(
             }
         } catch (err) {
             console.warn(
-                `[harnessa-fe] safeMode dropped SFC injection in ${relPath} (self-check threw)`,
+                `[harness-fe] safeMode dropped SFC injection in ${relPath} (self-check threw)`,
                 err,
             );
             recordSkip(stats, 'skippedSelfCheck', relPath);
@@ -438,7 +438,7 @@ export function transformVueSFC(
  */
 export function formatVueTransformReport(stats: VueTransformStats): string {
     const lines = [
-        '[harnessa-fe] Vue transform coverage report',
+        '[harness-fe] Vue transform coverage report',
         `  files attempted:        ${stats.filesAttempted}`,
         `  files injected:         ${stats.filesInjected}`,
         `  elements tagged:        ${stats.elementsTagged}`,

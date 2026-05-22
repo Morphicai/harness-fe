@@ -18,11 +18,11 @@
  *  - Idempotent install + dispose() restores original prototype methods
  */
 
-import type { NetworkEntry } from '@harnessa-fe/protocol';
+import type { NetworkEntry } from '@harness-fe/protocol';
 
 const DEFAULT_BODY_CAP = 256 * 1024;
 const PATCHED_FLAG = '__hfeXhrPatched';
-const META_KEY = Symbol.for('@harnessa-fe/xhr-meta');
+const META_KEY = Symbol.for('@harness-fe/xhr-meta');
 const INTERNAL_HEADER = 'x-hfe-internal';
 const SENSITIVE_HEADER = /^(authorization|cookie|x-api-key|x-auth-.+)$/i;
 

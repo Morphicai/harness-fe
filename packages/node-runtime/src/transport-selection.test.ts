@@ -10,14 +10,14 @@ const baseOpts: RegisterOptions = { projectId: 'test-proj' };
 
 afterEach(() => {
     delete process.env.NEXT_RUNTIME;
-    delete process.env.HARNESSA_FE_TRANSPORT;
+    delete process.env.HARNESS_FE_TRANSPORT;
 });
 
 describe('selectTransport', () => {
     it('returns WsTransport when no env override and ws is loadable', () => {
         // In test environment, ws is a devDependency so canLoadWs() is true
         delete process.env.NEXT_RUNTIME;
-        delete process.env.HARNESSA_FE_TRANSPORT;
+        delete process.env.HARNESS_FE_TRANSPORT;
         const t = selectTransport(baseOpts);
         expect(t).toBeInstanceOf(WsTransport);
     });
@@ -28,8 +28,8 @@ describe('selectTransport', () => {
         expect(t).toBeInstanceOf(HttpBatchTransport);
     });
 
-    it('returns HttpBatchTransport when HARNESSA_FE_TRANSPORT=http', () => {
-        process.env.HARNESSA_FE_TRANSPORT = 'http';
+    it('returns HttpBatchTransport when HARNESS_FE_TRANSPORT=http', () => {
+        process.env.HARNESS_FE_TRANSPORT = 'http';
         const t = selectTransport(baseOpts);
         expect(t).toBeInstanceOf(HttpBatchTransport);
     });
@@ -41,22 +41,22 @@ describe('selectTransport', () => {
         expect(t).toBeInstanceOf(HttpBatchTransport);
     });
 
-    it('HARNESSA_FE_TRANSPORT=http takes precedence over ws availability', () => {
-        process.env.HARNESSA_FE_TRANSPORT = 'http';
+    it('HARNESS_FE_TRANSPORT=http takes precedence over ws availability', () => {
+        process.env.HARNESS_FE_TRANSPORT = 'http';
         const t = selectTransport(baseOpts);
         expect(t).toBeInstanceOf(HttpBatchTransport);
     });
 
     it('WsTransport uses opts.mcpUrl as WS endpoint', () => {
         delete process.env.NEXT_RUNTIME;
-        delete process.env.HARNESSA_FE_TRANSPORT;
+        delete process.env.HARNESS_FE_TRANSPORT;
         const opts: RegisterOptions = { ...baseOpts, mcpUrl: 'ws://127.0.0.1:9999' };
         const t = selectTransport(opts);
         expect(t).toBeInstanceOf(WsTransport);
     });
 
     it('HttpBatchTransport derives baseUrl from opts.mcpUrl', () => {
-        process.env.HARNESSA_FE_TRANSPORT = 'http';
+        process.env.HARNESS_FE_TRANSPORT = 'http';
         const opts: RegisterOptions = { ...baseOpts, mcpUrl: 'ws://127.0.0.1:9999' };
         const t = selectTransport(opts) as HttpBatchTransport;
         expect(t).toBeInstanceOf(HttpBatchTransport);
@@ -67,7 +67,7 @@ describe('selectTransport', () => {
     });
 
     it('HttpBatchTransport uses opts.baseUrl directly when provided', () => {
-        process.env.HARNESSA_FE_TRANSPORT = 'http';
+        process.env.HARNESS_FE_TRANSPORT = 'http';
         const opts: RegisterOptions & { baseUrl: string } = {
             ...baseOpts,
             baseUrl: 'http://192.168.1.5:47729',

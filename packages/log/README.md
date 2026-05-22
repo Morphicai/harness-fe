@@ -1,14 +1,14 @@
-# @harnessa-fe/log
+# @harness-fe/log
 
-Isomorphic structured logger for Harnessa-FE. The same `import { log } from '@harnessa-fe/log'` works in **Server Components, Route Handlers, Server Actions, and Client Components** — every event lands in the same `sessions/{sid}/timeline.jsonl` on the daemon.
+Isomorphic structured logger for Harness-FE. The same `import { log } from '@harness-fe/log'` works in **Server Components, Route Handlers, Server Actions, and Client Components** — every event lands in the same `sessions/{sid}/timeline.jsonl` on the daemon.
 
 ```bash
-pnpm add @harnessa-fe/log
+pnpm add @harness-fe/log
 ```
 
 You also need at least one runtime SDK installed:
-- Browser only → `@harnessa-fe/runtime`
-- Server only → `@harnessa-fe/node-runtime`
+- Browser only → `@harness-fe/runtime`
+- Server only → `@harness-fe/node-runtime`
 - Both (typical Next.js) → both
 
 If neither is installed `log` is a no-op — calls never throw.
@@ -16,7 +16,7 @@ If neither is installed `log` is a no-op — calls never throw.
 ## Usage
 
 ```ts
-import { log } from '@harnessa-fe/log';
+import { log } from '@harness-fe/log';
 
 log.info('Page loaded');
 log.warn('Cart total exceeds threshold', { total, limit });
@@ -39,7 +39,7 @@ log.info('user', userId, 'clicked', { button: 'buy' });
 
 ## Where do events land?
 
-Every `log.*` call emits a `t: 'app-log'` row to the daemon's session timeline (`~/.harnessa/data/sessions/{sessionId}/timeline.jsonl`). The row carries:
+Every `log.*` call emits a `t: 'app-log'` row to the daemon's session timeline (`~/.harness/data/sessions/{sessionId}/timeline.jsonl`). The row carries:
 
 | Field | Source |
 |---|---|
@@ -58,9 +58,9 @@ The defining property of this logger: **two `log.info()` calls under the same pa
 
 This is what makes timelines coherent. The mechanism:
 
-- **Browser**: reads `window.__harnessa_fe_client__.sessionId`, set by `@harnessa-fe/runtime` after it adopts the SSR seed
-- **Server**: delegates to `@harnessa-fe/node-runtime.getRequestSessionId()`, which walks:
-  1. `AsyncLocalStorage` (populated by `withHarnessaTracing(handler)`)
+- **Browser**: reads `window.__harness_fe_client__.sessionId`, set by `@harness-fe/runtime` after it adopts the SSR seed
+- **Server**: delegates to `@harness-fe/node-runtime.getRequestSessionId()`, which walks:
+  1. `AsyncLocalStorage` (populated by `withHarnessTracing(handler)`)
   2. Adapter-supplied provider (Next pushes a React `cache()`-backed getter via `setSessionIdProvider`)
   3. `undefined` → orphan event filed under `sessions/server-orphans/`
 
@@ -70,7 +70,7 @@ Orphans are correct, not a bug — a `log.info()` from a background timer or col
 
 `log` is safe under concurrent requests. The server `sessionId` is **read fresh at emit time, not closed over at the import site**. Two tabs hitting the same Next process at the same time get their own React `cache()` scope; their `log.*` rows go to separate session timelines with zero cross-contamination.
 
-This is verified by `@harnessa-fe/node-runtime`'s test suite — 28 cases including a `Promise.all([renderA, renderB])` with interleaved `console.log` and explicit assertions.
+This is verified by `@harness-fe/node-runtime`'s test suite — 28 cases including a `Promise.all([renderA, renderB])` with interleaved `console.log` and explicit assertions.
 
 ## What's NOT in the payload
 
@@ -93,7 +93,7 @@ export const log: Logger;
 
 ## Production behavior
 
-`log` is gated by the runtime SDK it dispatches to — `@harnessa-fe/runtime` and `@harnessa-fe/node-runtime` are both `NODE_ENV === 'development'` only. In production builds `log.*` becomes a cheap no-op (no network, no writes).
+`log` is gated by the runtime SDK it dispatches to — `@harness-fe/runtime` and `@harness-fe/node-runtime` are both `NODE_ENV === 'development'` only. In production builds `log.*` becomes a cheap no-op (no network, no writes).
 
 ## License
 

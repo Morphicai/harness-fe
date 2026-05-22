@@ -7,9 +7,9 @@
  * This test pins that invariant.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { harnessaFE, HarnessaFEWebpackPlugin } from './plugin.js';
+import { harnessFE, HarnessFEWebpackPlugin } from './plugin.js';
 
-describe('HarnessaFEWebpackPlugin', () => {
+describe('HarnessFEWebpackPlugin', () => {
     let warnSpy: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
         // EntryPlugin tries to tap an unstubbed hook in our minimal mock and
@@ -47,7 +47,7 @@ describe('HarnessaFEWebpackPlugin', () => {
         const { compiler, rules } = buildMockCompiler();
         // Force disabled=true to keep the test focused on rule injection
         // (we don't want to actually open a websocket or inject runtime here).
-        const plugin = new HarnessaFEWebpackPlugin({ projectId: 'test' });
+        const plugin = new HarnessFEWebpackPlugin({ projectId: 'test' });
 
         // disabled bails out before rule injection — call apply with enabled
         // but avoid the side-effecty hooks by stubbing webpack module loading.
@@ -76,7 +76,7 @@ describe('HarnessaFEWebpackPlugin', () => {
 
     it('matches the right file extensions including vue-loader virtual sub-modules', () => {
         const { compiler, rules } = buildMockCompiler();
-        new HarnessaFEWebpackPlugin().apply(compiler);
+        new HarnessFEWebpackPlugin().apply(compiler);
         const re: RegExp = rules[0].test;
 
         expect(re.test('/a/App.vue')).toBe(true);
@@ -91,15 +91,15 @@ describe('HarnessaFEWebpackPlugin', () => {
 
     it('skips rule injection when disabled', () => {
         const { compiler, rules } = buildMockCompiler();
-        new HarnessaFEWebpackPlugin({ disabled: true }).apply(compiler);
+        new HarnessFEWebpackPlugin({ disabled: true }).apply(compiler);
         expect(rules).toHaveLength(0);
     });
 
     it('factory and class produce equivalent shapes', () => {
         const { compiler: c1, rules: r1 } = buildMockCompiler();
         const { compiler: c2, rules: r2 } = buildMockCompiler();
-        harnessaFE({ projectId: 'a' }).apply(c1);
-        new HarnessaFEWebpackPlugin({ projectId: 'a' }).apply(c2);
+        harnessFE({ projectId: 'a' }).apply(c1);
+        new HarnessFEWebpackPlugin({ projectId: 'a' }).apply(c2);
         expect(r1[0].test.source).toBe(r2[0].test.source);
         expect(r1[0].enforce).toBe(r2[0].enforce);
     });

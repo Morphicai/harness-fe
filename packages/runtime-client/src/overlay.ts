@@ -14,11 +14,11 @@
  * or out. State machine: idle → info → (picker → question) → flash → idle.
  */
 
-import { EVENT_NAME, type TaskSubmitPayload, type TaskAttachment } from '@harnessa-fe/protocol';
+import { EVENT_NAME, type TaskSubmitPayload, type TaskAttachment } from '@harness-fe/protocol';
 import { snapdom } from '@zumer/snapdom';
 import { deriveDashboardUrl } from './dashboardUrl.js';
 
-const HOST_ID = '__harnessa_fe_overlay__';
+const HOST_ID = '__harness_fe_overlay__';
 const MAX_OUTER_HTML = 2048;
 
 // Internal instrumentation attributes injected by our build plugin. Must be
@@ -85,7 +85,7 @@ export interface OverlayClient {
     query?<TResult = unknown>(method: string, args?: unknown): Promise<TResult>;
 }
 
-/** Subset of @harnessa-fe/protocol Task that the overlay renders. */
+/** Subset of @harness-fe/protocol Task that the overlay renders. */
 interface TaskSummary {
     id: string;
     status: 'pending' | 'claimed' | 'resolved';
@@ -137,7 +137,7 @@ export function installOverlay(client: OverlayClient): void {
     // to the FAB and flip side based on available space.
     const FAB_SIZE = 40;
     const FAB_MARGIN = 16;
-    const FAB_POS_KEY = '__harnessa_fe_fab_pos__';
+    const FAB_POS_KEY = '__harness_fe_fab_pos__';
     const DRAG_THRESHOLD = 5; // px before we treat a pointerdown as a drag
 
     interface FabPos { x: number; y: number }
@@ -408,7 +408,7 @@ export function installOverlay(client: OverlayClient): void {
         const url = infoCard.querySelector<HTMLElement>('[data-role=url]')!;
         proj.textContent = client.displayName ?? client.projectId;
         build.textContent = client.buildId ? abbr(client.buildId) : '—';
-        build.title = client.buildId ?? 'No buildId — set HarnessaScript buildId prop in prod';
+        build.title = client.buildId ?? 'No buildId — set HarnessScript buildId prop in prod';
         session.textContent = abbr(client.sessionId);
         session.title = client.sessionId;
         tab.textContent = abbr(client.tabId);
@@ -456,7 +456,7 @@ export function installOverlay(client: OverlayClient): void {
 
     const buildSnapshot = (): string => {
         const lines: string[] = [];
-        lines.push(`### Harnessa-FE snapshot`);
+        lines.push(`### Harness-FE snapshot`);
         lines.push('');
         lines.push(`- project: \`${client.projectId}\`${client.displayName ? ` (${client.displayName})` : ''}`);
         if (client.buildId) lines.push(`- build: \`${client.buildId}\``);
@@ -568,7 +568,7 @@ export function installOverlay(client: OverlayClient): void {
                     editingTaskId = null;
                     await refreshReports();
                 } catch (err) {
-                    console.warn('[harnessa-fe] tasks.update failed:', err);
+                    console.warn('[harness-fe] tasks.update failed:', err);
                 }
                 return;
             }
@@ -600,7 +600,7 @@ export function installOverlay(client: OverlayClient): void {
                     if (deleteConfirmTimer) window.clearTimeout(deleteConfirmTimer);
                     await refreshReports();
                 } catch (err) {
-                    console.warn('[harnessa-fe] tasks.delete failed:', err);
+                    console.warn('[harness-fe] tasks.delete failed:', err);
                 }
                 return;
         }
@@ -608,7 +608,7 @@ export function installOverlay(client: OverlayClient): void {
 
     const buildTaskSnapshot = (t: TaskSummary): string => {
         const lines: string[] = [];
-        lines.push(`### Harnessa-FE task ${t.id} (${t.status})`);
+        lines.push(`### Harness-FE task ${t.id} (${t.status})`);
         lines.push('');
         lines.push(`- project: \`${client.projectId}\`${client.displayName ? ` (${client.displayName})` : ''}`);
         if (client.buildId) lines.push(`- build: \`${client.buildId}\``);
@@ -1806,8 +1806,8 @@ function buildFab(): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = 'fab';
     btn.dataset.state = 'idle';
-    btn.title = 'Harnessa-FE · click to open (Cmd+Shift+H)';
-    btn.setAttribute('aria-label', 'Open Harnessa-FE panel');
+    btn.title = 'Harness-FE · click to open (Cmd+Shift+H)';
+    btn.setAttribute('aria-label', 'Open Harness-FE panel');
     btn.textContent = 'H';
     return btn;
 }

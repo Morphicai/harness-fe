@@ -1,17 +1,17 @@
 {
-    "name": "@harnessa-fe/next",
+    "name": "@harness-fe/next",
     "version": "3.0.0",
-    "description": "Next.js integration for Harnessa-FE. Drop-in <HarnessaScript /> server component that loads the runtime client and seeds window config — no webpack hooks, no SWC plugin, works with App Router + Pages Router + webpack + Turbopack.",
+    "description": "Next.js integration for Harness-FE. Drop-in <HarnessScript /> server component that loads the runtime client and seeds window config — no webpack hooks, no SWC plugin, works with App Router + Pages Router + webpack + Turbopack.",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
         "directory": "packages/next"
     },
-    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
-        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harness-fe/issues"
     },
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -45,20 +45,20 @@
         "typecheck": "tsc --noEmit"
     },
     "peerDependencies": {
-        "@harnessa-fe/runtime": "workspace:*",
-        "@harnessa-fe/node-runtime": "workspace:*",
+        "@harness-fe/runtime": "workspace:*",
+        "@harness-fe/node-runtime": "workspace:*",
         "next": "^13.0.0 || ^14.0.0 || ^15.0.0",
         "react": "^17.0.0 || ^18.0.0 || ^19.0.0"
     },
     "peerDependenciesMeta": {
-        "@harnessa-fe/node-runtime": {
+        "@harness-fe/node-runtime": {
             "optional": true
         }
     },
     "devDependencies": {
         "@types/react": "^18.3.0",
-        "@harnessa-fe/runtime": "workspace:*",
-        "@harnessa-fe/node-runtime": "workspace:*",
+        "@harness-fe/runtime": "workspace:*",
+        "@harness-fe/node-runtime": "workspace:*",
         "next": "^15.0.0",
         "react": "^18.3.0",
         "typescript": "^5.6.0"
@@ -67,7 +67,7 @@
         "access": "public"
     },
     "keywords": [
-        "harnessa-fe",
+        "harness-fe",
         "next",
         "next.js",
         "app-router",

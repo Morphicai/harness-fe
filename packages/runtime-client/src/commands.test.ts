@@ -12,7 +12,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Window } from 'happy-dom';
-import { COMMAND, type ScreenshotArgs } from '@harnessa-fe/protocol';
+import { COMMAND, type ScreenshotArgs } from '@harness-fe/protocol';
 
 const snapdomCalls: Array<{ target: unknown; options: { backgroundColor?: string } }> = [];
 const overlayVisibilityDuringSnapdom: string[] = [];
@@ -20,7 +20,7 @@ const overlayVisibilityDuringSnapdom: string[] = [];
 vi.mock('@zumer/snapdom', () => ({
     snapdom: vi.fn(async (target: unknown, options: { backgroundColor?: string }) => {
         snapdomCalls.push({ target, options });
-        const host = document.getElementById('__harnessa_fe_overlay__') as HTMLElement | null;
+        const host = document.getElementById('__harness_fe_overlay__') as HTMLElement | null;
         overlayVisibilityDuringSnapdom.push(host?.style.visibility ?? '<no overlay host>');
         return {
             toCanvas: async () => {
@@ -44,7 +44,7 @@ describe('PAGE_SCREENSHOT', () => {
     afterEach(() => {
         snapdomCalls.length = 0;
         overlayVisibilityDuringSnapdom.length = 0;
-        document.getElementById('__harnessa_fe_overlay__')?.remove();
+        document.getElementById('__harness_fe_overlay__')?.remove();
     });
 
     async function loadHandlers() {
@@ -93,7 +93,7 @@ describe('PAGE_SCREENSHOT', () => {
     it('hides the overlay host during capture and restores its visibility afterwards', async () => {
         setupDom();
         const host = document.createElement('div');
-        host.id = '__harnessa_fe_overlay__';
+        host.id = '__harness_fe_overlay__';
         host.style.visibility = ''; // start visible
         document.body.appendChild(host);
 
@@ -110,7 +110,7 @@ describe('PAGE_SCREENSHOT', () => {
     it('restores overlay visibility even if snapdom throws (try/finally)', async () => {
         setupDom();
         const host = document.createElement('div');
-        host.id = '__harnessa_fe_overlay__';
+        host.id = '__harness_fe_overlay__';
         host.style.visibility = '';
         document.body.appendChild(host);
 

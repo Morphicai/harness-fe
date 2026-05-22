@@ -6,7 +6,7 @@ This change extends `session-observability` along two transport-and-packaging ax
 
 ### Requirement: Resumable SSE event streams
 
-Harnessa-FE SHALL allow an MCP client whose SSE connection drops to reconnect and receive the events it missed, identified by `Last-Event-ID`.
+Harness-FE SHALL allow an MCP client whose SSE connection drops to reconnect and receive the events it missed, identified by `Last-Event-ID`.
 
 #### Scenario: Replaying events after a transient disconnect
 
@@ -31,7 +31,7 @@ Harnessa-FE SHALL allow an MCP client whose SSE connection drops to reconnect an
 
 ### Requirement: Embeddable daemon surface
 
-Harnessa-FE SHALL expose the MCP daemon as a library so a host application can run it in-process without spawning a separate command-line process.
+Harness-FE SHALL expose the MCP daemon as a library so a host application can run it in-process without spawning a separate command-line process.
 
 #### Scenario: Mounting the daemon on a host HTTP server
 

@@ -1,13 +1,13 @@
 ---
-'@harnessa-fe/mcp-server': minor
+'@harness-fe/mcp-server': minor
 ---
 
-Embeddable daemon: `@harnessa-fe/mcp-server` now exposes a
+Embeddable daemon: `@harness-fe/mcp-server` now exposes a
 `createDaemon` factory so a host Node.js process can run the daemon
 as a library — no `npx`, no sidecar.
 
 ```ts
-import { createDaemon } from '@harnessa-fe/mcp-server';
+import { createDaemon } from '@harness-fe/mcp-server';
 
 const daemon = createDaemon({
   port: 47729,

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Two coupled changes to `@harnessa-fe/mcp-server`:
+Two coupled changes to `@harness-fe/mcp-server`:
 
 1. Add Last-Event-ID replay to the MCP HTTP transport so SSE streams
    survive transient client disconnects.
@@ -60,7 +60,7 @@ behaviour is preserved.
   - `authorize?: (req) => Promise<AuthContext | null>` — single auth
     pipeline; return `null` to reject. Omit to disable auth (only
     valid when bound to a loopback address)
-- The CLI flag `--token foo` (and `HARNESSA_FE_TOKEN` env) is
+- The CLI flag `--token foo` (and `HARNESS_FE_TOKEN` env) is
   translated **inside `cli.ts`** into an `authorize` function that
   compares `Authorization: Bearer foo`. The daemon factory itself
   takes no `token` field — there is exactly one auth path. This
@@ -82,12 +82,12 @@ behaviour is preserved.
 The repo's `feat/port-keyed-data-isolation` work establishes:
 **CLI-mode daemon identity = listening port.** Same port = same data
 dir = same daemon; different port = independent daemon. Default data
-dir is `~/.harnessa/daemons/<port>/data/`.
+dir is `~/.harness/daemons/<port>/data/`.
 
 This change leaves that model intact for CLI use and adds a second
 identity model for embedded use:
 
-- **CLI mode** (developer machine, `npx @harnessa-fe/mcp-server`):
+- **CLI mode** (developer machine, `npx @harness-fe/mcp-server`):
   identity is the port. Caller does not supply a `store` and the
   daemon falls back to a port-keyed JSONL store at the default path.
 - **Embedded mode** (host app imports `createDaemon`): identity is
@@ -98,7 +98,7 @@ identity model for embedded use:
 
 The two modes are orthogonal: the same `createDaemon` factory serves
 both. `cli.ts` is the only place that resolves
-`HARNESSA_FE_DATA_DIR` / `HARNESSA_FE_LABEL` / `defaultDataDir(port)` —
+`HARNESS_FE_DATA_DIR` / `HARNESS_FE_LABEL` / `defaultDataDir(port)` —
 that logic stays in the CLI layer and is never injected into a host
 app's context.
 

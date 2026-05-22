@@ -1,30 +1,30 @@
 /**
- * @harnessa-fe/next/script — `<HarnessaScript />`
+ * @harness-fe/next/script — `<HarnessScript />`
  *
  * Server Component wrapper. Place once in your root layout (`app/layout.tsx`)
  * inside <body>:
  *
- *   import { HarnessaScript } from '@harnessa-fe/next';
- *   <HarnessaScript projectId="my-app" />
+ *   import { HarnessScript } from '@harness-fe/next';
+ *   <HarnessScript projectId="my-app" />
  *
  * What this does in dev:
  *   1. **Auto-bootstraps the Node SDK on first server render** —
- *      `@harnessa-fe/node-runtime` is loaded and `register()` is called
+ *      `@harness-fe/node-runtime` is loaded and `register()` is called
  *      once per server process via a process-level singleton. This means
  *      users no longer need an `instrumentation.ts` file just to get
- *      server-side error capture; dropping `<HarnessaScript>` in the
+ *      server-side error capture; dropping `<HarnessScript>` in the
  *      root layout is enough. Works with both webpack and Turbopack
  *      because it doesn't rely on bundler-plugin injection.
  *   2. Calls `getSessionId()` (React `cache()`-backed) to allocate a
  *      deterministic per-request UUID on the server.
  *   3. Inlines a tiny <script> that writes the sessionId into
- *      `window.__HARNESSA_FE_SEED__` before any React hydration runs.
- *   4. Renders `<HarnessaScriptClient>` (the `'use client'` component)
+ *      `window.__HARNESS_FE_SEED__` before any React hydration runs.
+ *   4. Renders `<HarnessScriptClient>` (the `'use client'` component)
  *      which boots the browser runtime and adopts the seed sessionId.
  *
- * Result: server-side events emitted by `@harnessa-fe/node-runtime` and
+ * Result: server-side events emitted by `@harness-fe/node-runtime` and
  * client-side events emitted by the RuntimeClient share the SAME sessionId.
- * One refresh = one `~/.harnessa/data/sessions/{id}/timeline.jsonl`.
+ * One refresh = one `~/.harness/data/sessions/{id}/timeline.jsonl`.
  *
  * `instrumentation.ts` is still supported (and preferred when you need
  * precise control over boot order — e.g. registering before any other
@@ -34,7 +34,7 @@
  * and pulls no code into client bundles.
  */
 
-export interface HarnessaScriptProps {
+export interface HarnessScriptProps {
     /** Stable project id — typically matches the `name` in your package.json. */
     projectId: string;
     /**
@@ -66,23 +66,23 @@ import type React from 'react';
 const IS_DEV = process.env.NODE_ENV === 'development';
 
 /**
- * Process-level singleton: first call kicks off `@harnessa-fe/node-runtime`
+ * Process-level singleton: first call kicks off `@harness-fe/node-runtime`
  * `register()` and caches the in-flight promise. Every later call returns
  * the same promise without re-importing. Safe to call from inside React
  * render — `register()` itself only opens a WebSocket / HTTP transport
  * and installs `process.on` handlers; it doesn't block rendering.
  *
  * Why a `globalThis` slot (not just a module-level `let`): in dev, Next +
- * HMR may load the @harnessa-fe/next module multiple times into the same
+ * HMR may load the @harness-fe/next module multiple times into the same
  * process. A module-local cache would re-init on every reload. Stashing
  * on `globalThis` survives module reloads — exactly one node-runtime
  * client per Node process.
  */
 type BootSlot = { promise: Promise<void> | null };
 function bootSlot(): BootSlot {
-    const g = globalThis as unknown as { __harnessa_fe_node_boot__?: BootSlot };
-    if (!g.__harnessa_fe_node_boot__) g.__harnessa_fe_node_boot__ = { promise: null };
-    return g.__harnessa_fe_node_boot__;
+    const g = globalThis as unknown as { __harness_fe_node_boot__?: BootSlot };
+    if (!g.__harness_fe_node_boot__) g.__harness_fe_node_boot__ = { promise: null };
+    return g.__harness_fe_node_boot__;
 }
 
 async function ensureNodeRuntimeBooted(opts: {
@@ -101,23 +101,23 @@ async function ensureNodeRuntimeBooted(opts: {
         try {
             if (runtime === 'edge') {
                 // Edge: pull the HTTP-only entry. Doesn't ship `ws`, doesn't
-                // call process.on. The auto module reads HARNESSA_FE_* env.
-                await import('@harnessa-fe/node-runtime/auto-edge');
+                // call process.on. The auto module reads HARNESS_FE_* env.
+                await import('@harness-fe/node-runtime/auto-edge');
             } else {
-                const mod = await import('@harnessa-fe/node-runtime');
+                const mod = await import('@harness-fe/node-runtime');
                 mod.register(opts);
             }
         } catch (err) {
             // Don't break SSR if the SDK fails to load (e.g. user removed
             // the package). Log once.
             // eslint-disable-next-line no-console
-            console.warn('[harnessa-fe] node-runtime auto-boot failed:', err);
+            console.warn('[harness-fe] node-runtime auto-boot failed:', err);
         }
     })();
     return slot.promise;
 }
 
-export async function HarnessaScript(props: HarnessaScriptProps): Promise<React.ReactElement | null> {
+export async function HarnessScript(props: HarnessScriptProps): Promise<React.ReactElement | null> {
     if (!IS_DEV) return null;
 
     // Auto-boot the Node SDK on first server render (no instrumentation.ts
@@ -132,19 +132,19 @@ export async function HarnessaScript(props: HarnessaScriptProps): Promise<React.
 
     // Lazy import so production bundles never pull this in.
     const { getSessionId } = await import('./sessionId.js');
-    const { HarnessaScriptClient } = await import('./HarnessaScriptClient.js');
+    const { HarnessScriptClient } = await import('./HarnessScriptClient.js');
 
     const sessionId = getSessionId();
 
     // The seed script runs synchronously before React hydration so the
     // runtime client can read the sessionId immediately on DOMContentLoaded.
-    const seedScript = `window.__HARNESSA_FE_SEED__=${JSON.stringify({ sessionId })};`;
+    const seedScript = `window.__HARNESS_FE_SEED__=${JSON.stringify({ sessionId })};`;
 
     return (
         <>
             {/* eslint-disable-next-line react/no-danger */}
             <script id="__hfe_seed__" dangerouslySetInnerHTML={{ __html: seedScript }} />
-            <HarnessaScriptClient {...props} />
+            <HarnessScriptClient {...props} />
         </>
     );
 }

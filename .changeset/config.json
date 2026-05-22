@@ -5,26 +5,26 @@
   "fixed": [],
   "linked": [
     [
-      "@harnessa-fe/protocol",
-      "@harnessa-fe/mcp-server",
-      "@harnessa-fe/runtime",
-      "@harnessa-fe/node-runtime",
-      "@harnessa-fe/next",
-      "@harnessa-fe/log",
-      "@harnessa-fe/react-jsx",
-      "@harnessa-fe/vite",
-      "@harnessa-fe/webpack",
-      "@harnessa-fe/unplugin"
+      "@harness-fe/protocol",
+      "@harness-fe/mcp-server",
+      "@harness-fe/runtime",
+      "@harness-fe/node-runtime",
+      "@harness-fe/next",
+      "@harness-fe/log",
+      "@harness-fe/react-jsx",
+      "@harness-fe/vite",
+      "@harness-fe/webpack",
+      "@harness-fe/unplugin"
     ]
   ],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": [
-    "harnessa-fe-react-demo",
-    "harnessa-fe-vue-demo",
-    "harnessa-fe-webpack-demo",
-    "harnessa-fe-iframe-demo",
-    "harnessa-fe-webpack5-vue3-demo"
+    "harness-fe-react-demo",
+    "harness-fe-vue-demo",
+    "harness-fe-webpack-demo",
+    "harness-fe-iframe-demo",
+    "harness-fe-webpack5-vue3-demo"
   ]
 }

@@ -1,5 +1,5 @@
 ---
-'@harnessa-fe/runtime': patch
+'@harness-fe/runtime': patch
 ---
 
 Add an "Open dashboard" button to the in-page overlay info card. The

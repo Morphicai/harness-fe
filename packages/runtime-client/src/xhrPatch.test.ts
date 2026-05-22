@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { installXhrPatch } from './xhrPatch.js';
-import type { NetworkEntry } from '@harnessa-fe/protocol';
+import type { NetworkEntry } from '@harness-fe/protocol';
 
 let entries: NetworkEntry[];
 let dispose: () => void;

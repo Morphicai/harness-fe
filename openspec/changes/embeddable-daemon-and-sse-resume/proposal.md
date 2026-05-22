@@ -5,7 +5,7 @@
 Today the MCP daemon assumes a developer running it as an independent
 process on `localhost`. Two things follow from that:
 
-1. To put Harnessa inside a real product (VISION direction 1 — morphicai-web
+1. To put Harness inside a real product (VISION direction 1 — morphicai-web
    hosting the daemon so end-user reports reach the agent), the host has
    to be able to `import` the daemon, mount it on its own HTTP server,
    inject its own auth, and write to its own storage. None of that is
@@ -26,7 +26,7 @@ other ships a half-solution.
 ### Embeddable daemon
 
 - Introduce a public `createDaemon(opts)` factory in
-  `@harnessa-fe/mcp-server` that returns a handle exposing `start`,
+  `@harness-fe/mcp-server` that returns a handle exposing `start`,
   `stop`, and an HTTP middleware/handler form so the host app can:
   - bind the daemon to its own port, or mount it under a path on its
     own HTTP server
@@ -34,7 +34,7 @@ other ships a half-solution.
     WS/HTTP connection
   - inject a custom `IStore` (database, object store) in place of the
     default JSONL-on-disk store
-- Reshape `cli.ts` so the existing `npx @harnessa-fe/mcp-server`
+- Reshape `cli.ts` so the existing `npx @harness-fe/mcp-server`
   entrypoint is a thin wrapper around `createDaemon` with default
   config. CLI behaviour does not change.
 - Tighten the `IStore` boundary in `store/types.ts` so it is the only

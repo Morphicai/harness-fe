@@ -4,7 +4,7 @@ import Counter from './Counter.vue';
 
 defineOptions({ name: 'App' });
 
-const message = ref('Harnessa-FE · Webpack 5 + Vue 3 demo');
+const message = ref('Harness-FE · Webpack 5 + Vue 3 demo');
 </script>
 
 <template>

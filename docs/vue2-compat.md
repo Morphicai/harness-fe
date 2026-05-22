@@ -1,4 +1,4 @@
-# Adopting harnessa-fe in legacy Vue projects
+# Adopting harness-fe in legacy Vue projects
 
 This doc is for codebases that aren't pure Vue 3 — `@vue/compat`,
 migrations in progress, large iView/Element/Ant Design forks, anything
@@ -7,12 +7,12 @@ shows up.
 
 ## The contract
 
-> harnessa-fe will never produce output that vue-loader / @vitejs/plugin-vue
+> harness-fe will never produce output that vue-loader / @vitejs/plugin-vue
 > chokes on. The worst case is that a particular `.vue` file isn't
 > instrumented and falls through unchanged.
 
 If you see a vue-loader / compiler error appearing only with the plugin
-installed, treat it as a harnessa-fe bug and report it.
+installed, treat it as a harness-fe bug and report it.
 
 ## How that's enforced
 
@@ -47,7 +47,7 @@ and why.
 ## Settings
 
 ```ts
-harnessaFE({
+harnessFE({
   // ...
   safeMode: true, // default — keep this on for any project with Vue 2 era code
 })
@@ -64,14 +64,14 @@ Before flipping the plugin on for real on a big legacy codebase, run a
 dry-run to see how many files would actually get `data-morphix-loc`:
 
 ```bash
-HARNESSA_FE_DRY_RUN=1 pnpm dev
+HARNESS_FE_DRY_RUN=1 pnpm dev
 ```
 
 When the dev server exits (Ctrl-C), the plugin prints a report on
 stderr:
 
 ```
-[harnessa-fe] Vue transform coverage report
+[harness-fe] Vue transform coverage report
   files attempted:        1247
   files injected:         1102
   elements tagged:        18430

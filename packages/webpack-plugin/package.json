@@ -1,17 +1,17 @@
 {
-    "name": "@harnessa-fe/webpack",
+    "name": "@harness-fe/webpack",
     "version": "3.0.0",
-    "description": "Native webpack plugin for Harnessa-FE: source-aware transforms, runtime injection, and MCP bridge. thread-loader compatible.",
+    "description": "Native webpack plugin for Harness-FE: source-aware transforms, runtime injection, and MCP bridge. thread-loader compatible.",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
         "directory": "packages/webpack-plugin"
     },
-    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
-        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harness-fe/issues"
     },
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -37,8 +37,8 @@
         "test": "vitest run --passWithNoTests"
     },
     "dependencies": {
-        "@harnessa-fe/protocol": "workspace:*",
-        "@harnessa-fe/unplugin": "workspace:*"
+        "@harness-fe/protocol": "workspace:*",
+        "@harness-fe/unplugin": "workspace:*"
     },
     "peerDependencies": {
         "webpack": "^5.0.0"

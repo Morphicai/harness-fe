@@ -3,7 +3,7 @@ import { WebSocketServer } from 'ws';
 import {
     register,
     reportError,
-    withHarnessaTracing,
+    withHarnessTracing,
     getRequestSessionId,
     _resetForTest,
 } from './index.js';
@@ -46,7 +46,7 @@ afterEach(() => {
     _resetForTest();
 });
 
-describe('@harnessa-fe/node-runtime', () => {
+describe('@harness-fe/node-runtime', () => {
     it('sends hello with role=node-runtime on connect', async () => {
         const { wss, port, received } = await spawnTestServer();
         try {
@@ -78,13 +78,13 @@ describe('@harnessa-fe/node-runtime', () => {
         }
     });
 
-    it('withHarnessaTracing propagates sessionId via ALS and sends server-action', async () => {
+    it('withHarnessTracing propagates sessionId via ALS and sends server-action', async () => {
         const { wss, port, received } = await spawnTestServer();
         try {
             register({ projectId: 'trace-proj', mcpUrl: `ws://127.0.0.1:${port}` });
             await new Promise<void>((res) => setTimeout(res, 150));
 
-            const handler = withHarnessaTracing(async (_req: Request) => {
+            const handler = withHarnessTracing(async (_req: Request) => {
                 return { sid: getRequestSessionId() };
             });
 
@@ -108,13 +108,13 @@ describe('@harnessa-fe/node-runtime', () => {
         }
     });
 
-    it('withHarnessaTracing reports errors and rethrows', async () => {
+    it('withHarnessTracing reports errors and rethrows', async () => {
         const { wss, port, received } = await spawnTestServer();
         try {
             register({ projectId: 'rethrow-proj', mcpUrl: `ws://127.0.0.1:${port}` });
             await new Promise<void>((res) => setTimeout(res, 150));
 
-            const handler = withHarnessaTracing(async () => {
+            const handler = withHarnessTracing(async () => {
                 throw new Error('handler failed');
             });
 

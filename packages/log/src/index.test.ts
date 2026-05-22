@@ -27,7 +27,7 @@ afterEach(() => {
 
 // ── Suite ──────────────────────────────────────────────────────────────────────
 
-describe('@harnessa-fe/log — buildLogger', () => {
+describe('@harness-fe/log — buildLogger', () => {
     it('emits a debug event with correct level', async () => {
         const cap = makeCapture();
         _setEmitForTest(cap.fn);
@@ -70,7 +70,7 @@ describe('@harnessa-fe/log — buildLogger', () => {
     });
 });
 
-describe('@harnessa-fe/log — scope chaining', () => {
+describe('@harness-fe/log — scope chaining', () => {
     it('scope() sets scope on emitted event', async () => {
         const cap = makeCapture();
         _setEmitForTest(cap.fn);
@@ -120,7 +120,7 @@ describe('@harnessa-fe/log — scope chaining', () => {
     });
 });
 
-describe('@harnessa-fe/log — variadic args / metadata', () => {
+describe('@harness-fe/log — variadic args / metadata', () => {
     it('passes all args through to the event', async () => {
         const cap = makeCapture();
         _setEmitForTest(cap.fn);
@@ -138,7 +138,7 @@ describe('@harnessa-fe/log — variadic args / metadata', () => {
     });
 });
 
-describe('@harnessa-fe/log — concurrent emits don\'t share identity', () => {
+describe('@harness-fe/log — concurrent emits don\'t share identity', () => {
     /**
      * This test simulates two "requests" running concurrently. Each request
      * uses a different emit mock that records a contextId. We verify that
@@ -201,7 +201,7 @@ describe('@harnessa-fe/log — concurrent emits don\'t share identity', () => {
     });
 });
 
-describe('@harnessa-fe/log — silent drop when emit throws', () => {
+describe('@harness-fe/log — silent drop when emit throws', () => {
     it('does not throw if emit function throws', async () => {
         _setEmitForTest(() => { throw new Error('emit exploded'); });
         const logger = buildLogger();
@@ -212,7 +212,7 @@ describe('@harnessa-fe/log — silent drop when emit throws', () => {
     });
 });
 
-describe('@harnessa-fe/log — singleton log export', () => {
+describe('@harness-fe/log — singleton log export', () => {
     it('log singleton works like buildLogger()', async () => {
         const cap = makeCapture();
         _setEmitForTest(cap.fn);

@@ -15,8 +15,8 @@ That starts two processes:
 
 | Process | What it does | Port |
 |---------|--------------|------|
-| mcp-server | Dedicated daemon for self-debug. Stores in `~/.harnessa-dev` so it doesn't touch your normal session history | **47730** |
-| dashboard-ui (vite) | Dev server with `HARNESSA_FE_SELF_DEBUG=1` — injects `@harnessa-fe/runtime` so the FAB shows up on the dashboard page | **5174** |
+| mcp-server | Dedicated daemon for self-debug. Stores in `~/.harness-dev` so it doesn't touch your normal session history | **47730** |
+| dashboard-ui (vite) | Dev server with `HARNESS_FE_SELF_DEBUG=1` — injects `@harness-fe/runtime` so the FAB shows up on the dashboard page | **5174** |
 
 Open: `http://127.0.0.1:5174/dashboard/?token=dev`
 
@@ -27,12 +27,12 @@ daemon on the default 47729):
 // claude_desktop_config.json / .cursor/mcp.json
 {
   "mcpServers": {
-    "harnessa-fe-dev": {
+    "harness-fe-dev": {
       "command": "npx",
-      "args": ["-y", "@harnessa-fe/mcp-server"],
+      "args": ["-y", "@harness-fe/mcp-server"],
       "env": {
-        "HARNESSA_FE_PORT": "47730",
-        "HARNESSA_FE_TOKEN": "dev"
+        "HARNESS_FE_PORT": "47730",
+        "HARNESS_FE_TOKEN": "dev"
       }
     }
   }
@@ -51,14 +51,14 @@ don't conflict; you can restart either without disturbing the other.
 Sessions captured in each are stored in separate data dirs:
 
 ```
-~/.harnessa       — your user-project daemon (default)
-~/.harnessa-dev   — self-debug daemon
+~/.harness       — your user-project daemon (default)
+~/.harness-dev   — self-debug daemon
 ```
 
 If you want different paths, override at launch:
 
 ```bash
-HARNESSA_FE_PORT=47731 HARNESSA_FE_DATA_DIR=/tmp/harnessa-dev pnpm dev:self-debug
+HARNESS_FE_PORT=47731 HARNESS_FE_DATA_DIR=/tmp/harness-dev pnpm dev:self-debug
 ```
 
 ## Why no circular dependency
@@ -72,8 +72,8 @@ mcp-server  ──→  dashboard-ui  ──→  vite (devDep)  ──→  runtim
 ```
 
 `mcp-server` does NOT depend on `runtime` (runtime is browser-only,
-daemon is Node-only). `dashboard-ui` only pulls `@harnessa-fe/vite`
-as a **devDependency**, so the published `@harnessa-fe/dashboard-ui`
+daemon is Node-only). `dashboard-ui` only pulls `@harness-fe/vite`
+as a **devDependency**, so the published `@harness-fe/dashboard-ui`
 tarball that mcp-server serves has zero runtime code in it. Self-debug
 mode lives entirely in the dev-server pipeline.
 
@@ -85,7 +85,7 @@ see what the user saw. Two things keep it from getting weird:
 1. Every page navigation closes the old session and opens a new one,
    so sessions don't grow without bound.
 2. The dashboard's project list shows the self-debug session under
-   `projectId: '@harnessa-fe/dashboard'`. You can recognize and
+   `projectId: '@harness-fe/dashboard'`. You can recognize and
    filter it visually.
 
 If you want the agent's clicks to NOT be recorded into your dashboard's
@@ -96,7 +96,7 @@ also serves the dashboard SPA so you can use it as a plain UI.
 
 Production builds (`pnpm build` → `dist/`) **never** include the
 runtime, regardless of env vars — the vite config short-circuits on
-`command === 'build'`. The published `@harnessa-fe/dashboard-ui` is
+`command === 'build'`. The published `@harness-fe/dashboard-ui` is
 plain React. There is no way for a published dashboard to accidentally
 become self-debug; you have to be running the local source tree.
 

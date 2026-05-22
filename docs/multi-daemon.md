@@ -14,7 +14,7 @@ service. That's it.
 ## On-disk layout
 
 ```
-~/.harnessa/
+~/.harness/
 └── daemons/
     ├── 47729/
     │   └── data/
@@ -28,7 +28,7 @@ service. That's it.
 ```
 
 Each port owns its own subtree. Wiping daemon 47730's history means
-deleting `~/.harnessa/daemons/47730/` — nothing else affected.
+deleting `~/.harness/daemons/47730/` — nothing else affected.
 
 ## How to pick the right setup
 
@@ -42,9 +42,9 @@ state.
 // claude_desktop_config.json / .cursor/mcp.json / etc.
 {
   "mcpServers": {
-    "harnessa-fe": {
+    "harness-fe": {
       "command": "npx",
-      "args": ["-y", "@harnessa-fe/mcp-server"]
+      "args": ["-y", "@harness-fe/mcp-server"]
     }
   }
 }
@@ -57,9 +57,9 @@ Pick different ports per project.
 // project-a/.cursor/mcp.json
 {
   "mcpServers": {
-    "harnessa-fe": {
+    "harness-fe": {
       "command": "npx",
-      "args": ["-y", "@harnessa-fe/mcp-server", "--port", "47729"]
+      "args": ["-y", "@harness-fe/mcp-server", "--port", "47729"]
     }
   }
 }
@@ -67,9 +67,9 @@ Pick different ports per project.
 // project-b/.cursor/mcp.json
 {
   "mcpServers": {
-    "harnessa-fe": {
+    "harness-fe": {
       "command": "npx",
-      "args": ["-y", "@harnessa-fe/mcp-server", "--port", "47730"]
+      "args": ["-y", "@harness-fe/mcp-server", "--port", "47730"]
     }
   }
 }
@@ -84,21 +84,21 @@ project list shows each sub-app under its `projectId` (which the
 host's vite/webpack plugin sets), all under the one daemon.
 
 ### "Friendly name in the banner / dashboard"
-`HARNESSA_FE_LABEL` is a cosmetic tag — it surfaces in the startup
+`HARNESS_FE_LABEL` is a cosmetic tag — it surfaces in the startup
 banner and (future) the dashboard title. It does **not** affect
 isolation; that's still the port.
 
 ```jsonc
 {
-  "command": "npx", "args": ["-y", "@harnessa-fe/mcp-server"],
-  "env": { "HARNESSA_FE_LABEL": "my-mono" }
+  "command": "npx", "args": ["-y", "@harness-fe/mcp-server"],
+  "env": { "HARNESS_FE_LABEL": "my-mono" }
 }
 ```
 
 Banner becomes:
 ```
-[harnessa-fe] leader: WS bridge listening on ws://127.0.0.1:47729  (my-mono)
-[harnessa-fe] data:   ~/.harnessa/daemons/47729/data
+[harness-fe] leader: WS bridge listening on ws://127.0.0.1:47729  (my-mono)
+[harness-fe] data:   ~/.harness/daemons/47729/data
 ```
 
 Two daemons can share a label or have different labels — the daemon
@@ -119,7 +119,7 @@ they're launched from. The cwd-blind problem disappears.
 To remove a daemon's data: just delete its port subdir.
 
 ```bash
-rm -rf ~/.harnessa/daemons/47730
+rm -rf ~/.harness/daemons/47730
 ```
 
 The kernel reclaims the port when the daemon dies; nothing extra

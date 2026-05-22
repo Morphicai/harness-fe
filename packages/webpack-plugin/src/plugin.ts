@@ -1,5 +1,5 @@
 /**
- * @harnessa-fe/webpack — native webpack plugin.
+ * @harness-fe/webpack — native webpack plugin.
  *
  * Why native (vs the unplugin adapter):
  *   unplugin's webpack adapter passes the plugin instance through a loader's
@@ -7,7 +7,7 @@
  *   `webpack(compiler)` hook), and `compiler.root` self-references the
  *   compiler — JSON.stringify chokes on the cycle. thread-loader serializes
  *   downstream loader options when dispatching to its worker pool, so any
- *   project that puts thread-loader anywhere ahead of harnessa in the
+ *   project that puts thread-loader anywhere ahead of harness in the
  *   resolved loader chain (e.g. a `.ts` rule that vue-loader inlines for
  *   `<script lang="ts">` SFC blocks) breaks the entire build.
  *
@@ -18,7 +18,7 @@
  *     injection, error forwarding, HTML injection) in the main process via
  *     compiler hooks.
  *   - Aggregates componentMap entries from worker processes via
- *     `module.buildMeta.harnessaCollected`.
+ *     `module.buildMeta.harnessCollected`.
  */
 
 import { createRequire } from 'node:module';
@@ -30,13 +30,13 @@ import {
     installNodeLogCapture,
     appendTokenQuery,
     type ComponentLocation,
-    type HarnessaFEOptions,
+    type HarnessFEOptions,
     type McpClient,
     type McpClientContext,
-} from '@harnessa-fe/unplugin';
-import { DEFAULT_WS_PORT } from '@harnessa-fe/protocol';
+} from '@harness-fe/unplugin';
+import { DEFAULT_WS_PORT } from '@harness-fe/protocol';
 import { getOrCreateComponentMap } from './shared-state.js';
-import type { HarnessaLoaderOptions } from './loader.js';
+import type { HarnessLoaderOptions } from './loader.js';
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -45,7 +45,7 @@ const __dirname = dirname(__filename);
 function newPluginId(): string {
     const g = globalThis as { crypto?: { randomUUID?: () => string } };
     if (g.crypto?.randomUUID) return g.crypto.randomUUID();
-    return `harnessa-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return `harness-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 interface CollectedLocation {
@@ -53,9 +53,9 @@ interface CollectedLocation {
     location: ComponentLocation;
 }
 
-export class HarnessaFEWebpackPlugin {
+export class HarnessFEWebpackPlugin {
     private readonly pluginId = newPluginId();
-    private readonly options: HarnessaFEOptions;
+    private readonly options: HarnessFEOptions;
     private projectRoot: string = process.cwd();
     private projectId: string;
     private readonly mcpUrl: string;
@@ -67,14 +67,14 @@ export class HarnessaFEWebpackPlugin {
         userDisplayName: undefined,
     });
 
-    constructor(options: HarnessaFEOptions = {}) {
+    constructor(options: HarnessFEOptions = {}) {
         this.options = options;
         this.projectId = options.projectId ?? 'unknown-project';
         const baseUrl =
             options.mcpUrl ??
-            process.env.HARNESSA_FE_URL ??
+            process.env.HARNESS_FE_URL ??
             `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
-        this.token = options.token ?? process.env.HARNESSA_FE_TOKEN;
+        this.token = options.token ?? process.env.HARNESS_FE_TOKEN;
         this.mcpUrl = appendTokenQuery(baseUrl, this.token);
         this.identity = createBuildIdentity({
             userBuildId: options.buildId,
@@ -92,12 +92,12 @@ export class HarnessaFEWebpackPlugin {
         // module resolution config.
         const loaderPath = resolvePath(__dirname, 'loader.js');
 
-        const loaderOptions: HarnessaLoaderOptions = {
+        const loaderOptions: HarnessLoaderOptions = {
             pluginId: this.pluginId,
             projectRoot: this.projectRoot,
             vueOptions: {
                 safeMode: this.options.safeMode !== false,
-                dryRun: process.env.HARNESSA_FE_DRY_RUN === '1',
+                dryRun: process.env.HARNESS_FE_DRY_RUN === '1',
             },
             disabled: false,
         };
@@ -113,7 +113,7 @@ export class HarnessaFEWebpackPlugin {
                 {
                     loader: loaderPath,
                     options: loaderOptions,
-                    ident: `harnessa-fe-${this.pluginId}`,
+                    ident: `harness-fe-${this.pluginId}`,
                 },
             ],
         });
@@ -133,13 +133,13 @@ export class HarnessaFEWebpackPlugin {
         try {
             const webpackPkg = require('webpack');
             const { EntryPlugin } = webpackPkg;
-            const runtimeEntry = require.resolve('@harnessa-fe/runtime');
+            const runtimeEntry = require.resolve('@harness-fe/runtime');
             new EntryPlugin(compiler.context ?? this.projectRoot, runtimeEntry, {
                 name: undefined,
             }).apply(compiler);
         } catch (err) {
             console.warn(
-                '[harnessa-fe] failed to register runtime entry via webpack.EntryPlugin:',
+                '[harness-fe] failed to register runtime entry via webpack.EntryPlugin:',
                 err,
             );
         }
@@ -171,14 +171,14 @@ export class HarnessaFEWebpackPlugin {
         };
         const self = this;
 
-        compiler.hooks.afterEnvironment.tap('harnessa-fe', () => {
+        compiler.hooks.afterEnvironment.tap('harness-fe', () => {
             const client = createMcpClient(ctx);
             this.mcpClient = client;
             client.connect();
             this.logCleanup = installNodeLogCapture((name, payload) => client.emitEvent(name, payload));
         });
 
-        compiler.hooks.shutdown?.tap('harnessa-fe', () => {
+        compiler.hooks.shutdown?.tap('harness-fe', () => {
             this.logCleanup?.();
             this.logCleanup = undefined;
             this.mcpClient?.disconnect();
@@ -188,9 +188,9 @@ export class HarnessaFEWebpackPlugin {
 
     private installComponentMapAggregator(compiler: any): void {
         const pluginId = this.pluginId;
-        compiler.hooks.compilation.tap('harnessa-fe', (compilation: any) => {
-            compilation.hooks.succeedModule.tap('harnessa-fe', (module: any) => {
-                const collected = module.buildMeta?.harnessaCollected as
+        compiler.hooks.compilation.tap('harness-fe', (compilation: any) => {
+            compilation.hooks.succeedModule.tap('harness-fe', (module: any) => {
+                const collected = module.buildMeta?.harnessCollected as
                     | CollectedLocation[]
                     | undefined;
                 if (!collected?.length) return;
@@ -205,12 +205,12 @@ export class HarnessaFEWebpackPlugin {
     }
 
     private installHtmlInjection(compiler: any): void {
-        compiler.hooks.compilation.tap('harnessa-fe', (compilation: any) => {
+        compiler.hooks.compilation.tap('harness-fe', (compilation: any) => {
             // Prefer html-webpack-plugin hooks when available.
             try {
                 const HtmlPlugin = require('html-webpack-plugin');
                 const hooks = HtmlPlugin.getHooks(compilation);
-                hooks.beforeEmit.tapAsync('harnessa-fe', (data: any, cb: any) => {
+                hooks.beforeEmit.tapAsync('harness-fe', (data: any, cb: any) => {
                     data.html = this.injectConfigScript(data.html);
                     cb(null, data);
                 });
@@ -219,7 +219,7 @@ export class HarnessaFEWebpackPlugin {
                 const { Compilation, sources } = require('webpack');
                 compilation.hooks.processAssets.tap(
                     {
-                        name: 'harnessa-fe',
+                        name: 'harness-fe',
                         stage: Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE_INLINE,
                     },
                     (assets: Record<string, any>) => {
@@ -239,7 +239,7 @@ export class HarnessaFEWebpackPlugin {
     }
 
     private installErrorForwarding(compiler: any): void {
-        compiler.hooks.done.tap('harnessa-fe', (stats: any) => {
+        compiler.hooks.done.tap('harness-fe', (stats: any) => {
             if (!this.mcpClient || !stats.hasErrors()) return;
             const errors = stats.compilation?.errors ?? [];
             for (const err of errors) {
@@ -252,9 +252,9 @@ export class HarnessaFEWebpackPlugin {
     }
 
     private injectConfigScript(html: string): string {
-        const injection = `<!-- @harnessa-fe injected (dev only) -->
+        const injection = `<!-- @harness-fe injected (dev only) -->
 <script>
-window.__HARNESSA_FE__ = ${JSON.stringify({
+window.__HARNESS_FE__ = ${JSON.stringify({
             projectId: this.projectId,
             mcpUrl: this.mcpUrl,
             buildId: this.identity.getBuildId(this.projectRoot),
@@ -267,6 +267,6 @@ window.__HARNESSA_FE__ = ${JSON.stringify({
 }
 
 /** Factory matching the previous unplugin-based call shape. */
-export function harnessaFE(options: HarnessaFEOptions = {}): HarnessaFEWebpackPlugin {
-    return new HarnessaFEWebpackPlugin(options);
+export function harnessFE(options: HarnessFEOptions = {}): HarnessFEWebpackPlugin {
+    return new HarnessFEWebpackPlugin(options);
 }

@@ -4,7 +4,7 @@
 
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { PROTOCOL_VERSION } from '@harnessa-fe/protocol';
+import { PROTOCOL_VERSION } from '@harness-fe/protocol';
 import { createEventsHandler } from './eventsHandler.js';
 
 // ─── Minimal IncomingMessage / ServerResponse mocks ──────────────────────────

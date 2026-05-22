@@ -1,17 +1,17 @@
 {
-    "name": "@harnessa-fe/vite",
+    "name": "@harness-fe/vite",
     "version": "3.0.0",
-    "description": "Vite plugin for Harnessa-FE: source-aware transforms, runtime injection, and MCP bridge.",
+    "description": "Vite plugin for Harness-FE: source-aware transforms, runtime injection, and MCP bridge.",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
         "directory": "packages/vite-plugin"
     },
-    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
-        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harness-fe/issues"
     },
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -35,7 +35,7 @@
         "test": "vitest run --passWithNoTests"
     },
     "dependencies": {
-        "@harnessa-fe/unplugin": "workspace:*"
+        "@harness-fe/unplugin": "workspace:*"
     },
     "peerDependencies": {
         "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"

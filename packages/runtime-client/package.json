@@ -1,17 +1,17 @@
 {
-    "name": "@harnessa-fe/runtime",
+    "name": "@harness-fe/runtime",
     "version": "3.0.0",
     "description": "Browser-side SDK injected into the dev page. Connects to the MCP server via WebSocket and executes commands.",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
         "directory": "packages/runtime-client"
     },
-    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
-        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harness-fe/issues"
     },
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -35,7 +35,7 @@
         "test": "vitest run"
     },
     "dependencies": {
-        "@harnessa-fe/protocol": "workspace:*",
+        "@harness-fe/protocol": "workspace:*",
         "@zumer/snapdom": "^2.12.0",
         "rrweb": "2.0.0-alpha.4"
     },

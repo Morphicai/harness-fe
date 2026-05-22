@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Harnessa-FE is a frontend harness for AI agents. It connects build tooling, a browser runtime client, and an MCP server so agents can inspect source-aware UI structure, drive the page, and query runtime history.
+Harness-FE is a frontend harness for AI agents. It connects build tooling, a browser runtime client, and an MCP server so agents can inspect source-aware UI structure, drive the page, and query runtime history.
 
 ## Current Architecture
 

@@ -13,7 +13,7 @@ export function App() {
                 margin: '0 auto',
             }}
         >
-            <h1>harnessa-fe · webpack demo</h1>
+            <h1>harness-fe · webpack demo</h1>
             <p>Verifies the Webpack plugin works end-to-end.</p>
 
             <section style={{ marginTop: 24 }}>

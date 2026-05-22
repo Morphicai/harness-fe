@@ -1,17 +1,17 @@
 /**
- * @harnessa-fe/next — Next.js integration for the Harnessa-FE agent harness.
+ * @harness-fe/next — Next.js integration for the Harness-FE agent harness.
  *
  * Typical usage:
  *
  *   // tsconfig.json
- *   { "compilerOptions": { "jsxImportSource": "@harnessa-fe/react-jsx" } }
+ *   { "compilerOptions": { "jsxImportSource": "@harness-fe/react-jsx" } }
  *
  *   // app/layout.tsx
- *   import { HarnessaScript } from '@harnessa-fe/next/script';
+ *   import { HarnessScript } from '@harness-fe/next/script';
  *   export default function RootLayout({ children }) {
  *       return (
  *           <html><body>
- *               <HarnessaScript projectId="my-app" />
+ *               <HarnessScript projectId="my-app" />
  *               {children}
  *           </body></html>
  *       );
@@ -20,5 +20,5 @@
  * That's it. No webpack hooks. Works in App Router + Pages Router,
  * webpack + Turbopack. Production builds drop the integration entirely.
  */
-export { HarnessaScript, type HarnessaScriptProps } from './script.js';
+export { HarnessScript, type HarnessScriptProps } from './script.js';
 export { getSessionId } from './sessionId.js';
