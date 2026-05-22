@@ -51,6 +51,7 @@ import {
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
 import { createReplayHandler } from './replayViewer.js';
 import { createDashboardHandler } from './dashboard.js';
+import { createDashboardApiHandler } from './dashboardApi.js';
 import { createEventsHandler } from './eventsHandler.js';
 import {
     JsonlStore,
@@ -245,9 +246,13 @@ export class Bridge implements IBridge {
             if (this.store) {
                 const store = this.store;
                 const replay = createReplayHandler(store);
+                const dashboardApi = createDashboardApiHandler(store, () => this.getViewerBaseUrl());
                 const dashboard = createDashboardHandler(store, () => this.getViewerBaseUrl());
                 this.setHttpHandler(async (req, res) => {
                     if (replay(req, res)) return;
+                    // dashboardApi must run before the legacy HTML dashboard
+                    // so /api/* never falls into the HTML 404 page.
+                    if (await dashboardApi(req, res)) return;
                     if (await dashboard(req, res)) return;
                     if (await events(req, res)) return;
                     res.statusCode = 404;
