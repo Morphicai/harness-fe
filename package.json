@@ -1,5 +1,5 @@
 {
-    "name": "harnessa-fe",
+    "name": "harness-fe",
     "version": "0.6.2",
     "private": true,
     "packageManager": "pnpm@9.15.0",
@@ -8,22 +8,22 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Morphicai/harnessa-fe.git"
+        "url": "https://github.com/Morphicai/harness-fe.git"
     },
-    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
-        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harness-fe/issues"
     },
     "scripts": {
         "build": "turbo build",
         "typecheck": "turbo typecheck",
         "test": "turbo test",
-        "dev": "turbo dev --filter=./packages/* --filter=harnessa-fe-react-demo",
-        "start:mcp": "pnpm --filter @harnessa-fe/mcp-server start",
+        "dev": "turbo dev --filter=./packages/* --filter=harness-fe-react-demo",
+        "start:mcp": "pnpm --filter @harness-fe/mcp-server start",
         "restart:mcp": "bash scripts/restart-mcp.sh",
-        "demo": "pnpm build && pnpm --filter harnessa-fe-react-demo dev",
+        "demo": "pnpm build && pnpm --filter harness-fe-react-demo dev",
         "dev:self-debug": "bash scripts/dev-self-debug.sh",
-        "e2e": "pnpm --filter harnessa-fe-react-demo e2e",
+        "e2e": "pnpm --filter harness-fe-react-demo e2e",
         "graph": "turbo run build --graph",
         "graph:html": "turbo run build --graph=dep-graph.html && echo '→ open dep-graph.html'",
         "changeset": "changeset",

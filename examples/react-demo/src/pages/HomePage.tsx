@@ -11,9 +11,9 @@ const routes = [
 export function HomePage() {
     return (
         <div>
-            <h1 style={{ color: '#1a1a2e', marginBottom: 8 }}>Harnessa-FE MCP Demo</h1>
+            <h1 style={{ color: '#1a1a2e', marginBottom: 8 }}>Harness-FE MCP Demo</h1>
             <p style={{ color: '#555', fontSize: 16, marginBottom: 32 }}>
-                A multi-page React app designed to exercise every MCP tool available in Harnessa-FE.
+                A multi-page React app designed to exercise every MCP tool available in Harness-FE.
                 Navigate to each page to test the corresponding tools.
             </p>
 

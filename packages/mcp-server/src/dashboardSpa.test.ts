@@ -2,7 +2,7 @@
  * Tests for the dashboard SPA static handler.
  *
  * These tests don't exercise the React app itself (that lives in
- * `@harnessa-fe/dashboard-ui`); they verify mcp-server can find the
+ * `@harness-fe/dashboard-ui`); they verify mcp-server can find the
  * built dist, serves index.html with the right headers, and falls back
  * to index.html for arbitrary client-side routes.
  */
@@ -15,7 +15,7 @@ import { JsonlStore } from './store/index.js';
 
 const tempDirs: string[] = [];
 function mkTmp(): string {
-    const dir = mkdtempSync(join(tmpdir(), 'harnessa-spa-test-'));
+    const dir = mkdtempSync(join(tmpdir(), 'harness-spa-test-'));
     tempDirs.push(dir);
     return dir;
 }
@@ -65,7 +65,7 @@ describe('Dashboard SPA handler — token handoff', () => {
             expect(resp.status).toBe(302);
             expect(resp.headers.get('location')).toBe('/dashboard/');
             const cookie = resp.headers.get('set-cookie') ?? '';
-            expect(cookie).toContain('harnessa_fe_token=secret-token');
+            expect(cookie).toContain('harness_fe_token=secret-token');
             expect(cookie).toMatch(/Path=\//);
             expect(cookie).toMatch(/SameSite=Lax/i);
         } finally {
@@ -79,7 +79,7 @@ describe('Dashboard SPA handler — token handoff', () => {
             const denied = await fetch(`http://127.0.0.1:${port}/dashboard/`);
             expect(denied.status).toBe(401);
             const ok = await fetch(`http://127.0.0.1:${port}/dashboard/`, {
-                headers: { cookie: 'harnessa_fe_token=secret-token' },
+                headers: { cookie: 'harness_fe_token=secret-token' },
             });
             expect(ok.status).toBe(200);
         } finally {
@@ -94,7 +94,7 @@ describe('Dashboard SPA handler — token handoff', () => {
                 `http://127.0.0.1:${port}/dashboard/?token=secret-token`,
                 {
                     redirect: 'manual',
-                    headers: { cookie: 'harnessa_fe_token=secret-token' },
+                    headers: { cookie: 'harness_fe_token=secret-token' },
                 },
             );
             expect(resp.status).toBe(200);
@@ -146,7 +146,7 @@ describe('Dashboard SPA handler', () => {
             const resp = await fetch(`http://127.0.0.1:${port}/dashboard?token=abc`, { redirect: 'manual' });
             expect(resp.status).toBe(302);
             expect(resp.headers.get('location')).toBe('/dashboard/');
-            expect(resp.headers.get('set-cookie') ?? '').toContain('harnessa_fe_token=abc');
+            expect(resp.headers.get('set-cookie') ?? '').toContain('harness_fe_token=abc');
         } finally {
             await bridge.stop();
         }

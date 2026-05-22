@@ -1,13 +1,13 @@
-# @harnessa-fe/react-jsx
+# @harness-fe/react-jsx
 
 > Drop-in JSX runtime that adds `data-morphix-loc` to every rendered DOM element in dev mode. Zero bundler plugins; one line in `tsconfig.json` makes it work everywhere — Next.js, Vite, Webpack, Remix, Astro, anywhere that respects the standard `jsxImportSource` compiler option.
 
-This is the **simpler, framework-agnostic** alternative to `@harnessa-fe/vite` / `@harnessa-fe/webpack`. It works by wrapping React's `jsxDEV()` to read the source-location info React already passes through (`{ fileName, lineNumber, columnNumber }`) and stamp it onto the rendered element as a `data-morphix-loc` HTML attribute. The Harnessa-FE agent uses that attribute to map any DOM node back to its source file with `project_where_is` / `project_source`.
+This is the **simpler, framework-agnostic** alternative to `@harness-fe/vite` / `@harness-fe/webpack`. It works by wrapping React's `jsxDEV()` to read the source-location info React already passes through (`{ fileName, lineNumber, columnNumber }`) and stamp it onto the rendered element as a `data-morphix-loc` HTML attribute. The Harness-FE agent uses that attribute to map any DOM node back to its source file with `project_where_is` / `project_source`.
 
 ## Install
 
 ```bash
-pnpm add -D @harnessa-fe/react-jsx
+pnpm add -D @harness-fe/react-jsx
 ```
 
 ## Configure
@@ -16,7 +16,7 @@ pnpm add -D @harnessa-fe/react-jsx
 // tsconfig.json
 {
     "compilerOptions": {
-        "jsxImportSource": "@harnessa-fe/react-jsx"
+        "jsxImportSource": "@harness-fe/react-jsx"
     }
 }
 ```
@@ -60,7 +60,7 @@ No bundler plugin needed because `jsxImportSource` is a first-class TS/SWC/Babel
 
 ## When NOT to use this
 
-- **Vue / Svelte projects** — they don't use React's JSX runtime; use `@harnessa-fe/vite` or `@harnessa-fe/webpack` instead.
+- **Vue / Svelte projects** — they don't use React's JSX runtime; use `@harness-fe/vite` or `@harness-fe/webpack` instead.
 - **Projects that need `data-morphix-comp` (component name) attributes** — this runtime only emits `data-morphix-loc`. Component-name attributes still require the build-time transform.
 
 ## License

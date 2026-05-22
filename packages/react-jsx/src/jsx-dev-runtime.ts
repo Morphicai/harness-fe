@@ -1,5 +1,5 @@
 /**
- * @harnessa-fe/react-jsx/jsx-dev-runtime
+ * @harness-fe/react-jsx/jsx-dev-runtime
  *
  * Wraps React's `jsxDEV` to inject a `data-morphix-loc` attribute on every
  * host element (`div`, `button`, etc.). The agent uses these attributes to

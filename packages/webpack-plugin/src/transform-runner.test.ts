@@ -5,7 +5,7 @@
  * component name resolution.
  */
 import { describe, it, expect } from 'vitest';
-import type { ComponentMap } from '@harnessa-fe/unplugin';
+import type { ComponentMap } from '@harness-fe/unplugin';
 import { runTransform } from './transform-runner.js';
 
 const VUE_OPTIONS = { safeMode: true, dryRun: false } as const;

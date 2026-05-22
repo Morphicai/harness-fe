@@ -25,7 +25,7 @@ export function Header({ crumb }: { crumb?: React.ReactNode }) {
                 <Link to="/" className="flex items-center gap-2 group">
                     <Logo />
                     <span className="text-ink-primary font-medium tracking-tight">
-                        Harnessa
+                        Harness
                     </span>
                     <span className="text-ink-muted text-xs font-mono">dev console</span>
                 </Link>

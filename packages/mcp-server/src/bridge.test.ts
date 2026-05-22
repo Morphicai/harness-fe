@@ -23,7 +23,7 @@ import {
     type HelloAckFrame,
     type ResponseFrame,
     type TaskSubmitPayload,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 
 async function spawnBridge(): Promise<Bridge> {
     // store: null, taskStore: null → no persistence in tests
@@ -709,7 +709,7 @@ describe('Bridge', () => {
     });
 
     it('accepts runtime-client hello with no prior plugin and opens its own session (plugin-less mode)', async () => {
-        // This is the standard mode for the @harnessa-fe/next + jsxImportSource
+        // This is the standard mode for the @harness-fe/next + jsxImportSource
         // integration and for any production / staging deployment: the bundler
         // plugin is absent, so the runtime-client must bootstrap the project
         // session on its own. We require the daemon to (a) accept the hello,
@@ -1495,7 +1495,7 @@ describe('Phase E: bridge accepts node-runtime hello', () => {
 
 describe('Bridge — POST /events (HTTP batch transport)', () => {
     it('persists events from POST /events to sessions/{sid}/timeline.jsonl', async () => {
-        const dir = mkdtempSync(join(tmpdir(), 'harnessa-http-batch-'));
+        const dir = mkdtempSync(join(tmpdir(), 'harness-http-batch-'));
         const store = new JsonlStore(dir);
         const bridge = new Bridge({
             port: 0,
@@ -1583,7 +1583,7 @@ describe('Bridge — POST /events (HTTP batch transport)', () => {
     });
 
     it('WS client and HTTP-batch client with same sessionId share SessionMeta.participants', async () => {
-        const dir = mkdtempSync(join(tmpdir(), 'harnessa-shared-sess-'));
+        const dir = mkdtempSync(join(tmpdir(), 'harness-shared-sess-'));
         const store = new JsonlStore(dir);
         const bridge = new Bridge({
             port: 0,
@@ -1660,12 +1660,12 @@ describe('Bridge — POST /events (HTTP batch transport)', () => {
 });
 
 describe('Bridge — port-keyed data directory', () => {
-    it('defaultDataDir(port) returns a port-specific path under ~/.harnessa/daemons', () => {
+    it('defaultDataDir(port) returns a port-specific path under ~/.harness/daemons', () => {
         const p1 = defaultDataDir(47729);
         const p2 = defaultDataDir(47730);
         // Same daemon → same data dir; different daemon → different data dir.
-        expect(p1).toMatch(/[/\\]\.harnessa[/\\]daemons[/\\]47729[/\\]data$/);
-        expect(p2).toMatch(/[/\\]\.harnessa[/\\]daemons[/\\]47730[/\\]data$/);
+        expect(p1).toMatch(/[/\\]\.harness[/\\]daemons[/\\]47729[/\\]data$/);
+        expect(p2).toMatch(/[/\\]\.harness[/\\]daemons[/\\]47730[/\\]data$/);
         expect(p1).not.toBe(p2);
     });
 
@@ -1684,7 +1684,7 @@ describe('Bridge — port-keyed data directory', () => {
     });
 
     it('Bridge() honors an explicit dataDir over the port-keyed default', () => {
-        const dir = mkdtempSync(join(tmpdir(), 'harnessa-bridge-explicit-'));
+        const dir = mkdtempSync(join(tmpdir(), 'harness-bridge-explicit-'));
         try {
             const bridge = new Bridge({
                 port: 51235,

@@ -6,7 +6,7 @@ This change extends session observability with a **load** scope: a refresh-bound
 
 ### Requirement: Load identity per page navigation
 
-Harnessa-FE SHALL identify each page load with a stable `loadId` that is regenerated on every refresh and never shared with another load.
+Harness-FE SHALL identify each page load with a stable `loadId` that is regenerated on every refresh and never shared with another load.
 
 #### Scenario: Refresh produces a new load
 
@@ -21,7 +21,7 @@ Harnessa-FE SHALL identify each page load with a stable `loadId` that is regener
 
 ### Requirement: Initial snapshot per load
 
-Harnessa-FE SHALL capture the browser's bootstrap state at the start of each load so an AI agent can compare entry conditions across loads.
+Harness-FE SHALL capture the browser's bootstrap state at the start of each load so an AI agent can compare entry conditions across loads.
 
 #### Scenario: Capturing storage at load start
 
@@ -39,7 +39,7 @@ Harnessa-FE SHALL capture the browser's bootstrap state at the start of each loa
 
 ### Requirement: Load-scoped event persistence
 
-Harnessa-FE SHALL persist every observability event with the `loadId` of the load it occurred in so timeline reads can be scoped to a single load.
+Harness-FE SHALL persist every observability event with the `loadId` of the load it occurred in so timeline reads can be scoped to a single load.
 
 #### Scenario: Filtering the timeline by load
 
@@ -54,7 +54,7 @@ Harnessa-FE SHALL persist every observability event with the `loadId` of the loa
 
 ### Requirement: Network request and response body capture
 
-Harnessa-FE SHALL capture request and response bodies for fetch and XMLHttpRequest interactions, including streaming responses, so AI-conversation traffic can be inspected end-to-end.
+Harness-FE SHALL capture request and response bodies for fetch and XMLHttpRequest interactions, including streaming responses, so AI-conversation traffic can be inspected end-to-end.
 
 #### Scenario: Capturing a JSON request and response
 
@@ -77,7 +77,7 @@ Harnessa-FE SHALL capture request and response bodies for fetch and XMLHttpReque
 
 ### Requirement: Storage mutation capture
 
-Harnessa-FE SHALL capture mutations to `localStorage`, `sessionStorage`, and cookies so an AI agent can trace how page state evolves within and across tabs.
+Harness-FE SHALL capture mutations to `localStorage`, `sessionStorage`, and cookies so an AI agent can trace how page state evolves within and across tabs.
 
 #### Scenario: Same-tab storage write
 
@@ -97,7 +97,7 @@ Harnessa-FE SHALL capture mutations to `localStorage`, `sessionStorage`, and coo
 
 ### Requirement: Capture must not alter business behavior
 
-Harnessa-FE SHALL implement runtime capture so that no business-observable behavior changes when capture is active.
+Harness-FE SHALL implement runtime capture so that no business-observable behavior changes when capture is active.
 
 #### Scenario: Identity-preserving fetch patch
 
@@ -123,7 +123,7 @@ Harnessa-FE SHALL implement runtime capture so that no business-observable behav
 
 ### Requirement: Load lifecycle in the store
 
-Harnessa-FE SHALL persist a load index per tab so the store knows the time window of every load without scanning the timeline.
+Harness-FE SHALL persist a load index per tab so the store knows the time window of every load without scanning the timeline.
 
 #### Scenario: New load begins
 
@@ -143,7 +143,7 @@ Harnessa-FE SHALL persist a load index per tab so the store knows the time windo
 
 ### Requirement: Recording slices respect load boundaries
 
-Harnessa-FE SHALL let an AI agent retrieve recording chunks for a specific load without specifying timestamps explicitly.
+Harness-FE SHALL let an AI agent retrieve recording chunks for a specific load without specifying timestamps explicitly.
 
 #### Scenario: Recording slice by load
 

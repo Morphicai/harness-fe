@@ -1,7 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { VueLoaderPlugin } = require('vue-loader');
-const { harnessaFE } = require('@harnessa-fe/webpack');
+const { harnessFE } = require('@harness-fe/webpack');
 
 module.exports = {
     mode: 'development',
@@ -23,11 +23,11 @@ module.exports = {
     plugins: [
         new VueLoaderPlugin(),
         new HtmlWebpackPlugin({ template: './public/index.html' }),
-        // harnessaFE() must run AFTER VueLoaderPlugin so the unplugin transform
+        // harnessFE() must run AFTER VueLoaderPlugin so the unplugin transform
         // sees the original .vue source (vue-loader splits SFCs into virtual
         // submodules, but the unplugin loader hooks the root .vue request
-        // before that split). Order matters: register harnessaFE last.
-        harnessaFE(),
+        // before that split). Order matters: register harnessFE last.
+        harnessFE(),
     ],
     devServer: {
         port: 3002,

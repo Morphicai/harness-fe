@@ -1,9 +1,23 @@
-export { Bridge, type BridgeOptions } from './bridge.js';
+export { Bridge, defaultDataDir, type BridgeOptions } from './bridge.js';
+export { createDaemon, type DaemonOptions, type DaemonHandle } from './daemon.js';
 export { SessionRouter, type PeerSession } from './sessionRouter.js';
 export { startMcpStdioServer } from './mcp.js';
-export { JsonlStore, sanitizeId } from './store/index.js';
+export { startMcpHttpServer, type McpHttpOptions, type McpHttpHandle } from './mcpHttp.js';
+export {
+    JsonlStore,
+    JsonTaskStore,
+    JsonMemoryStore,
+    MemoryEventStore,
+    sanitizeId,
+    type MemoryEventStoreOptions,
+} from './store/index.js';
 export type {
     IStore,
+    ITaskStore,
+    IMemoryStore,
+    EventStore,
+    EventId,
+    StreamId,
     ProjectMeta,
     ProjectTreeNode,
     BuildMeta,

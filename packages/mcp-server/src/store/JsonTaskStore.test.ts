@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { JsonTaskStore } from './JsonTaskStore.js';
-import type { Task } from '@harnessa-fe/protocol';
+import type { Task } from '@harness-fe/protocol';
 
 function makeTempDir() {
     return mkdtempSync(join(tmpdir(), 'json-task-store-test-'));

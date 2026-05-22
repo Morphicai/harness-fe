@@ -1,5 +1,5 @@
 /**
- * Tests for the JSON API surface consumed by @harnessa-fe/dashboard-ui.
+ * Tests for the JSON API surface consumed by @harness-fe/dashboard-ui.
  *
  * Mirrors the seed setup used by `dashboard.test.ts` so we have parity:
  * anything the HTML dashboard could show should also be reachable via JSON
@@ -15,7 +15,7 @@ import { JsonlStore } from './store/index.js';
 
 const tempDirs: string[] = [];
 function mkTmp(): string {
-    const dir = mkdtempSync(join(tmpdir(), 'harnessa-dashboard-api-test-'));
+    const dir = mkdtempSync(join(tmpdir(), 'harness-dashboard-api-test-'));
     tempDirs.push(dir);
     return dir;
 }

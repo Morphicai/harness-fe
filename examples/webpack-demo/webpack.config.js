@@ -1,6 +1,6 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const { harnessaFE } = require('@harnessa-fe/webpack');
+const { harnessFE } = require('@harness-fe/webpack');
 
 module.exports = {
     mode: 'development',
@@ -28,7 +28,7 @@ module.exports = {
     },
     plugins: [
         new HtmlWebpackPlugin({ template: './public/index.html' }),
-        harnessaFE(),
+        harnessFE(),
     ],
     devServer: {
         port: 3001,

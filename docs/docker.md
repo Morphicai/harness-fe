@@ -1,4 +1,4 @@
-# Self-hosting harnessa-fe with Docker
+# Self-hosting harness-fe with Docker
 
 Useful when:
 
@@ -11,7 +11,7 @@ Useful when:
 
 Not useful when:
 
-- You're a single developer on a laptop. `npx @harnessa-fe/mcp-server`
+- You're a single developer on a laptop. `npx @harness-fe/mcp-server`
   is simpler and faster.
 - You expect source-aware MCP tools (`project_source`,
   `project_where_is`) to work across many projects from a central
@@ -22,32 +22,32 @@ Not useful when:
 ## Image
 
 ```
-morphixai/harnessa-fe:<version>
-morphixai/harnessa-fe:latest
+morphixai/harness-fe:<version>
+morphixai/harness-fe:latest
 ```
 
 Published from [`.github/workflows/docker.yml`](../.github/workflows/docker.yml)
-on every successful npm release of `@harnessa-fe/mcp-server`. Multi-arch
+on every successful npm release of `@harness-fe/mcp-server`. Multi-arch
 (`linux/amd64` + `linux/arm64`).
 
 ## Quick start
 
 ```bash
 docker run --rm -p 47729:47729 \
-  -e HARNESSA_FE_TOKEN="$(openssl rand -base64 24)" \
-  -v harnessa-data:/data \
-  morphixai/harnessa-fe:latest
+  -e HARNESS_FE_TOKEN="$(openssl rand -base64 24)" \
+  -v harness-data:/data \
+  morphixai/harness-fe:latest
 ```
 
 Container defaults that differ from `npx`:
 
 | Env | Default in image | Why |
 |---|---|---|
-| `HARNESSA_FE_HOST` | `0.0.0.0` | Only sensible bind from inside a container |
-| `HARNESSA_FE_MCP_TRANSPORT` | `http` | stdio doesn't work across the container boundary |
-| `HOME` | `/data` | Daemon's `~/.harnessa` lands on the mounted volume |
+| `HARNESS_FE_HOST` | `0.0.0.0` | Only sensible bind from inside a container |
+| `HARNESS_FE_MCP_TRANSPORT` | `http` | stdio doesn't work across the container boundary |
+| `HOME` | `/data` | Daemon's `~/.harness` lands on the mounted volume |
 
-You **must** provide `HARNESSA_FE_TOKEN`. The daemon refuses to start
+You **must** provide `HARNESS_FE_TOKEN`. The daemon refuses to start
 on a non-loopback bind without one.
 
 ## docker-compose
@@ -59,7 +59,7 @@ Copy it next to a `.env`:
 ```bash
 cd examples/docker
 cp .env.example .env
-# Edit .env, set HARNESSA_FE_TOKEN=...
+# Edit .env, set HARNESS_FE_TOKEN=...
 docker compose up -d
 docker compose logs -f
 ```
@@ -78,7 +78,7 @@ task records, persistent memory — lives under the `/data` volume. Mount
 a named volume (compose default) or a host path:
 
 ```bash
--v /srv/harnessa:/data
+-v /srv/harness:/data
 ```
 
 Back up by snapshotting that path. Restore by replacing it before
@@ -89,9 +89,9 @@ container start.
 ### Build plugin
 
 ```ts
-harnessaFE({
+harnessFE({
   mcpUrl: 'ws://<docker-host>:47729',
-  token: process.env.HARNESSA_FE_TOKEN,   // same token as the container
+  token: process.env.HARNESS_FE_TOKEN,   // same token as the container
 })
 ```
 
@@ -121,11 +121,11 @@ When the daemon prints links (dashboard, replay viewer), it picks the
 first non-internal IPv4 it sees. **Inside a container that's almost
 always the bridge network address**, which nobody outside can reach.
 
-Set `HARNESSA_FE_PUBLIC_HOST` to your docker host's LAN IP or DNS name:
+Set `HARNESS_FE_PUBLIC_HOST` to your docker host's LAN IP or DNS name:
 
 ```yaml
 environment:
-  HARNESSA_FE_PUBLIC_HOST: dev.example.internal
+  HARNESS_FE_PUBLIC_HOST: dev.example.internal
 ```
 
 ## TLS
@@ -151,11 +151,11 @@ If your team needs any of these, file an issue describing the use case.
 For testing the Dockerfile against unreleased changes:
 
 ```bash
-docker build -t harnessa-fe:dev \
+docker build -t harness-fe:dev \
   --build-arg VERSION=2.0.0 \
   packages/mcp-server/
 ```
 
 The image always installs the package from npm — there's no path that
 copies in local source. To test pre-release code, publish a prerelease
-tag (`@harnessa-fe/mcp-server@x.y.z-rc.1`) first.
+tag (`@harness-fe/mcp-server@x.y.z-rc.1`) first.

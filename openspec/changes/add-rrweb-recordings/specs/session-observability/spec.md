@@ -2,11 +2,11 @@
 
 ## Overview
 
-Session observability covers the runtime signals Harnessa-FE captures from a live browser session and exposes to AI agents. This change makes rrweb recordings a first-class debugging artifact with compact timeline indexing, merged coverage intervals, marker alignment, and configurable retention.
+Session observability covers the runtime signals Harness-FE captures from a live browser session and exposes to AI agents. This change makes rrweb recordings a first-class debugging artifact with compact timeline indexing, merged coverage intervals, marker alignment, and configurable retention.
 
 ### Requirement: Time-indexed recording coverage
 
-Harnessa-FE SHALL index browser recording coverage in session history so an AI agent can determine which time windows have recordings without reading raw recording payloads.
+Harness-FE SHALL index browser recording coverage in session history so an AI agent can determine which time windows have recordings without reading raw recording payloads.
 
 #### Scenario: Discovering recording coverage for a session
 
@@ -23,7 +23,7 @@ Harnessa-FE SHALL index browser recording coverage in session history so an AI a
 
 ### Requirement: Separate recording payload storage
 
-Harnessa-FE SHALL store raw rrweb recording payloads separately from ordinary timeline events so historical timeline queries remain efficient.
+Harness-FE SHALL store raw rrweb recording payloads separately from ordinary timeline events so historical timeline queries remain efficient.
 
 #### Scenario: Persisting a recording chunk
 
@@ -33,7 +33,7 @@ Harnessa-FE SHALL store raw rrweb recording payloads separately from ordinary ti
 
 ### Requirement: Bounded recording retrieval
 
-Harnessa-FE SHALL let an AI agent retrieve recording data by bounded time window rather than only by whole-session export.
+Harness-FE SHALL let an AI agent retrieve recording data by bounded time window rather than only by whole-session export.
 
 #### Scenario: Retrieving a bounded recording slice
 
@@ -43,7 +43,7 @@ Harnessa-FE SHALL let an AI agent retrieve recording data by bounded time window
 
 ### Requirement: Marker-aligned investigations
 
-Harnessa-FE SHALL expose recording markers that help an AI agent navigate from important runtime events to the relevant recording window.
+Harness-FE SHALL expose recording markers that help an AI agent navigate from important runtime events to the relevant recording window.
 
 #### Scenario: Investigating a runtime error
 
@@ -53,7 +53,7 @@ Harnessa-FE SHALL expose recording markers that help an AI agent navigate from i
 
 ### Requirement: Configurable recording retention
 
-Harnessa-FE SHALL support configurable recording retention so recording growth remains bounded in long-running development use.
+Harness-FE SHALL support configurable recording retention so recording growth remains bounded in long-running development use.
 
 #### Scenario: Pruning old or excessive recordings
 

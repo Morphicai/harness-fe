@@ -1,18 +1,18 @@
 name: Docker
 
-# Build and push the harnessa-fe MCP daemon image to Docker Hub
-# (morphixai/harnessa-fe).
+# Build and push the harness-fe MCP daemon image to Docker Hub
+# (morphixai/harness-fe).
 #
 # Triggers:
-#   - Every time @harnessa-fe/mcp-server publishes to npm (the changesets
+#   - Every time @harness-fe/mcp-server publishes to npm (the changesets
 #     release workflow finishes successfully on main). We re-detect the
 #     freshly published version and tag the image accordingly.
 #   - Manual workflow_dispatch with an explicit version. Useful for
 #     republishing an existing npm version against a new base image.
 #
 # Image tags applied:
-#   - docker.io/morphixai/harnessa-fe:<version>   e.g. 2.0.0
-#   - docker.io/morphixai/harnessa-fe:latest      always tracks newest semver
+#   - docker.io/morphixai/harness-fe:<version>   e.g. 2.0.0
+#   - docker.io/morphixai/harness-fe:latest      always tracks newest semver
 #
 # Multi-arch build (linux/amd64 + linux/arm64) so Apple Silicon dev VMs +
 # typical x86 servers both work.
@@ -43,7 +43,7 @@ concurrency:
     cancel-in-progress: false
 
 env:
-    IMAGE: morphixai/harnessa-fe
+    IMAGE: morphixai/harness-fe
 
 jobs:
     build:
@@ -58,14 +58,14 @@ jobs:
                 if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
                   version="${{ inputs.version }}"
                 else
-                  version=$(npm view @harnessa-fe/mcp-server version)
+                  version=$(npm view @harness-fe/mcp-server version)
                 fi
                 if [ -z "$version" ]; then
-                  echo "::error::could not resolve @harnessa-fe/mcp-server version"
+                  echo "::error::could not resolve @harness-fe/mcp-server version"
                   exit 1
                 fi
                 echo "version=$version" >> "$GITHUB_OUTPUT"
-                echo "Building harnessa-fe v$version"
+                echo "Building harness-fe v$version"
 
             - uses: actions/checkout@v4
 

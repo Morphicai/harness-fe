@@ -9,18 +9,18 @@ changeset turns into a major-looking jump across the whole ecosystem**.
 The packages currently in the linked group:
 
 ```
-@harnessa-fe/protocol      @harnessa-fe/vite
-@harnessa-fe/mcp-server    @harnessa-fe/webpack
-@harnessa-fe/runtime       @harnessa-fe/unplugin
-@harnessa-fe/node-runtime  @harnessa-fe/next
-@harnessa-fe/log           @harnessa-fe/react-jsx
+@harness-fe/protocol      @harness-fe/vite
+@harness-fe/mcp-server    @harness-fe/webpack
+@harness-fe/runtime       @harness-fe/unplugin
+@harness-fe/node-runtime  @harness-fe/next
+@harness-fe/log           @harness-fe/react-jsx
 ```
 
 Unlinked (independent version numbers):
 
 ```
-@harnessa-fe/dashboard-ui   (shipped inside mcp-server's tarball)
-@harnessa-fe/agent-skill    (separate concern)
+@harness-fe/dashboard-ui   (shipped inside mcp-server's tarball)
+@harness-fe/agent-skill    (separate concern)
 ```
 
 ## Pre-1.0 / pre-launch posture
@@ -50,7 +50,7 @@ hasn't changed.
 ## The linked group multiplier
 
 Because all linked packages bump to the same version, a single changeset
-on `@harnessa-fe/mcp-server` marked `minor` becomes a minor bump on
+on `@harness-fe/mcp-server` marked `minor` becomes a minor bump on
 **every** linked package — even ones with zero changes that release.
 Users see "10 packages went 3.0 → 3.1" and infer there's a flagship
 feature, when really there's a button.
@@ -83,8 +83,8 @@ edit the changeset frontmatter on the branch — that's all:
 +++ b/.changeset/my-thing.md
 @@ -1,3 +1,3 @@
  ---
--'@harnessa-fe/runtime': minor
-+'@harnessa-fe/runtime': patch
+-'@harness-fe/runtime': minor
++'@harness-fe/runtime': patch
  ---
 ```
 
@@ -98,8 +98,8 @@ When a single PR genuinely touches multiple linked packages (e.g.
 
 ```markdown
 ---
-'@harnessa-fe/protocol': patch
-'@harnessa-fe/mcp-server': patch
+'@harness-fe/protocol': patch
+'@harness-fe/mcp-server': patch
 ---
 ```
 

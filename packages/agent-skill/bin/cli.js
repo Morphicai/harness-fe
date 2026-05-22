@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * Tiny CLI for `@harnessa-fe/skill`.
+ * Tiny CLI for `@harness-fe/skill`.
  *
- *   harnessa-fe-skill install [target]   copy SKILL.md to the right place
- *   harnessa-fe-skill print              dump SKILL.md to stdout
- *   harnessa-fe-skill where              print absolute path of SKILL.md
- *   harnessa-fe-skill help               usage
+ *   harness-fe-skill install [target]   copy SKILL.md to the right place
+ *   harness-fe-skill print              dump SKILL.md to stdout
+ *   harness-fe-skill where              print absolute path of SKILL.md
+ *   harness-fe-skill help               usage
  *
  * Targets:
- *   claude-code (default)  → .claude/skills/harnessa-fe/SKILL.md
- *   cursor                 → .cursor/rules/harnessa-fe.mdc
- *   kiro                   → .kiro/agents/harnessa-fe.md
- *   plain                  → HARNESSA_FE_SKILL.md  (just dump it in the repo root)
+ *   claude-code (default)  → .claude/skills/harness-fe/SKILL.md
+ *   cursor                 → .cursor/rules/harness-fe.mdc
+ *   kiro                   → .kiro/agents/harness-fe.md
+ *   plain                  → HARNESS_FE_SKILL.md  (just dump it in the repo root)
  */
 import { mkdirSync, existsSync, copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -21,13 +21,13 @@ const argv = process.argv.slice(2);
 const cmd = argv[0] ?? 'help';
 
 function help() {
-    process.stdout.write(`@harnessa-fe/skill — agent playbook installer
+    process.stdout.write(`@harness-fe/skill — agent playbook installer
 
 Usage:
-  harnessa-fe-skill install [target]   copy SKILL.md to the agent's config dir
-  harnessa-fe-skill print              dump SKILL.md to stdout
-  harnessa-fe-skill where              print the absolute path of SKILL.md
-  harnessa-fe-skill help
+  harness-fe-skill install [target]   copy SKILL.md to the agent's config dir
+  harness-fe-skill print              dump SKILL.md to stdout
+  harness-fe-skill where              print the absolute path of SKILL.md
+  harness-fe-skill help
 
 Targets (default claude-code):
 ${Object.entries(INSTALL_TARGETS)
@@ -35,9 +35,9 @@ ${Object.entries(INSTALL_TARGETS)
     .join('\n')}
 
 Examples:
-  npx @harnessa-fe/skill install               # installs to .claude/skills/
-  npx @harnessa-fe/skill install cursor        # installs to .cursor/rules/
-  npx @harnessa-fe/skill print | pbcopy        # copy to clipboard
+  npx @harness-fe/skill install               # installs to .claude/skills/
+  npx @harness-fe/skill install cursor        # installs to .cursor/rules/
+  npx @harness-fe/skill print | pbcopy        # copy to clipboard
 `);
 }
 

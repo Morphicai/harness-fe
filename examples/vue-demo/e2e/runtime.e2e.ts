@@ -81,8 +81,8 @@ try {
         await shutdown(1);
     }
 
-    const hasClient = await page.evaluate(() => Boolean((window as any).__harnessa_fe_client__));
-    console.log(`window.__harnessa_fe_client__ present: ${hasClient}`);
+    const hasClient = await page.evaluate(() => Boolean((window as any).__harness_fe_client__));
+    console.log(`window.__harness_fe_client__ present: ${hasClient}`);
     if (!hasClient) {
         console.error('FAIL: runtime client did not register on window');
         console.error('--- console ---\n' + consoleMsgs.join('\n'));
@@ -91,7 +91,7 @@ try {
     }
 
     const wsOpen = await page.evaluate(async () => {
-        const client = (window as any).__harnessa_fe_client__;
+        const client = (window as any).__harness_fe_client__;
         for (let i = 0; i < 20; i++) {
             const ws = client?.ws;
             if (ws && ws.readyState === WebSocket.OPEN) return true;

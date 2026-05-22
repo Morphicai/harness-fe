@@ -1,7 +1,7 @@
 /**
  * Type definitions matching the JSON API surface in mcp-server's
  * `dashboardApi.ts`. Kept local (rather than importing from
- * `@harnessa-fe/mcp-server`) so the SPA can be built independently —
+ * `@harness-fe/mcp-server`) so the SPA can be built independently —
  * the daemon ships the dist; the dashboard never imports daemon code.
  *
  * If a field drifts here vs the API, the SPA degrades gracefully (most

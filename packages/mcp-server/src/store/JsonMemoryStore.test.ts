@@ -6,7 +6,7 @@ import * as fc from 'fast-check';
 import { JsonMemoryStore } from './JsonMemoryStore.js';
 
 function makeStore() {
-    const dir = mkdtempSync(join(tmpdir(), 'harnessa-memory-test-'));
+    const dir = mkdtempSync(join(tmpdir(), 'harness-memory-test-'));
     const store = new JsonMemoryStore(dir);
     return { store, dir };
 }

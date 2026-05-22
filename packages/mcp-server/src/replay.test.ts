@@ -9,7 +9,7 @@ import { createReplayExport } from './replayCreate.js';
 
 const tempDirs: string[] = [];
 function mkTmp(): string {
-    const dir = mkdtempSync(join(tmpdir(), 'harnessa-replay-test-'));
+    const dir = mkdtempSync(join(tmpdir(), 'harness-replay-test-'));
     tempDirs.push(dir);
     return dir;
 }

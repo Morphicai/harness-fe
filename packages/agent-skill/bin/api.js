@@ -2,7 +2,7 @@
  * Programmatic access to the bundled SKILL.md.
  *
  * Consumers can do:
- *   import { SKILL_PATH, readSkill } from '@harnessa-fe/skill';
+ *   import { SKILL_PATH, readSkill } from '@harness-fe/skill';
  *   const text = readSkill();
  */
 import { readFileSync } from 'node:fs';
@@ -22,13 +22,13 @@ export function readSkill() {
 /** Targets we know how to install into. */
 export const INSTALL_TARGETS = {
     /** Claude Code project-level skills directory. */
-    'claude-code': '.claude/skills/harnessa-fe/SKILL.md',
+    'claude-code': '.claude/skills/harness-fe/SKILL.md',
     /** Cursor project rules. Mirrors the markdown body without frontmatter. */
-    cursor: '.cursor/rules/harnessa-fe.mdc',
+    cursor: '.cursor/rules/harness-fe.mdc',
     /** Kiro project agents. */
-    kiro: '.kiro/agents/harnessa-fe.md',
+    kiro: '.kiro/agents/harness-fe.md',
     /** Plain copy at the repo root. */
-    plain: 'HARNESSA_FE_SKILL.md',
+    plain: 'HARNESS_FE_SKILL.md',
 };
 
 /**

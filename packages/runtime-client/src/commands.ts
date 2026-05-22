@@ -16,7 +16,7 @@ import {
     type Selector,
     type TypeArgs,
     type WaitForArgs,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 import { snapdom } from '@zumer/snapdom';
 import { resolveSelector } from './selectors.js';
 import type { CaptureStore } from './capture.js';
@@ -157,7 +157,7 @@ export const commandHandlers: Record<string, CommandHandler> = {
         // Hide our own overlay during capture so the screenshot reflects the
         // real page state. Without this, the floating "H" FAB and any open
         // info card would always end up in the corner of every shot.
-        const overlayHost = document.getElementById('__harnessa_fe_overlay__') as HTMLElement | null;
+        const overlayHost = document.getElementById('__harness_fe_overlay__') as HTMLElement | null;
         const prevVisibility = overlayHost?.style.visibility ?? '';
         if (overlayHost) overlayHost.style.visibility = 'hidden';
 

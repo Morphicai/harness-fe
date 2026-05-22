@@ -1,6 +1,6 @@
 # Electron / multi-window host integration
 
-harnessa-fe was designed for the browser, but a renderer process in
+harness-fe was designed for the browser, but a renderer process in
 Electron / Tauri / Capacitor / a CEF-embedded WebView is still a
 browser context — the build plugin + runtime client work as-is.
 
@@ -9,19 +9,19 @@ multi-window sessionId sharing.
 
 ## The seed contract
 
-`@harnessa-fe/runtime` reads two globals synchronously at boot:
+`@harness-fe/runtime` reads two globals synchronously at boot:
 
 ```ts
-window.__HARNESSA_FE__         // ← injected by the build plugin
+window.__HARNESS_FE__         // ← injected by the build plugin
                                //   (mcpUrl, projectId, buildId, token, …)
 
-window.__HARNESSA_FE_SEED__    // ← OPTIONAL, host-provided
+window.__HARNESS_FE_SEED__    // ← OPTIONAL, host-provided
   ?.sessionId                  //   override the auto-generated sessionId
 ```
 
-If `__HARNESSA_FE_SEED__.sessionId` is present, it wins over the
-runtime's own `crypto.randomUUID()`. This is how `@harnessa-fe/next`'s
-`<HarnessaScript>` aligns SSR and CSR — but the seed is a fully generic
+If `__HARNESS_FE_SEED__.sessionId` is present, it wins over the
+runtime's own `crypto.randomUUID()`. This is how `@harness-fe/next`'s
+`<HarnessScript>` aligns SSR and CSR — but the seed is a fully generic
 extension point. Anything you can put into that field works.
 
 ## Why you'd want to set it: multi-window hosts
@@ -47,7 +47,7 @@ sees the user's complete behaviour.
 
 ## How: any cross-window sync primitive works
 
-Pick whichever your host already has — harnessa-fe doesn't care:
+Pick whichever your host already has — harness-fe doesn't care:
 
 | Mechanism | Notes |
 |---|---|
@@ -67,11 +67,11 @@ runtime constructor means the seed must already be on `window`.
 if (process.env.NODE_ENV === 'development') {
   void (async () => {
     const sessionId = await yourSharedStateLib.getOrCreate(
-      'harnessa-fe:session',
+      'harness-fe:session',
       () => crypto.randomUUID(),
     )
-    ;(window as any).__HARNESSA_FE_SEED__ = { sessionId }
-    await import('@harnessa-fe/runtime')
+    ;(window as any).__HARNESS_FE_SEED__ = { sessionId }
+    await import('@harness-fe/runtime')
   })()
 }
 ```
@@ -86,8 +86,8 @@ remain distinct because `tabId` is keyed off each renderer's own
 In each window's DevTools:
 
 ```js
-window.__HARNESSA_FE_SEED__.sessionId   // same across all windows
-window.__harnessa_fe_client__?.tabId    // different in every window
+window.__HARNESS_FE_SEED__.sessionId   // same across all windows
+window.__harness_fe_client__?.tabId    // different in every window
 ```
 
 If both checks hold, the daemon will record one merged session and the

@@ -2,15 +2,15 @@
 
 ## Why
 
-Harnessa-FE today has two identity layers — a dev-server-level `sessionId` and a browser-tab-level `tabId` (stored in `sessionStorage`, surviving refresh). Neither corresponds to "one page load." When the same tab refreshes during a debug session, all events flow into a single timeline with no way to slice by refresh. This hurts AI debugging in three ways:
+Harness-FE today has two identity layers — a dev-server-level `sessionId` and a browser-tab-level `tabId` (stored in `sessionStorage`, surviving refresh). Neither corresponds to "one page load." When the same tab refreshes during a debug session, all events flow into a single timeline with no way to slice by refresh. This hurts AI debugging in three ways:
 
 1. The agent cannot reason about "what state did the page boot into this time," because no initial snapshot of `localStorage` / `sessionStorage` / `cookie` / viewport is captured.
 2. The agent cannot ask "what happened in this refresh vs. the previous one," because events from multiple page loads are interleaved.
 3. The agent cannot read AI-conversation responses, because `fetch` capture only records URL/method/status/duration — request and response bodies (including SSE streams) are dropped even though the schema reserves the fields.
 
-These gaps matter most for the AI-conversation debugging workflow that motivates Harnessa-FE: a refresh that "should fix it" produces a new request/response/storage trace, and the agent has no structured way to inspect that trace.
+These gaps matter most for the AI-conversation debugging workflow that motivates Harness-FE: a refresh that "should fix it" produces a new request/response/storage trace, and the agent has no structured way to inspect that trace.
 
-Because Harnessa-FE has not been released, we can introduce the load concept without compatibility shims.
+Because Harness-FE has not been released, we can introduce the load concept without compatibility shims.
 
 ## What Changes
 

@@ -2,11 +2,11 @@
 
 ## Overview
 
-Session observability covers the runtime signals that Harnessa-FE captures from a live browser session and exposes to AI agents. This includes console output, errors, network activity, persistent timelines, and session-scoped recordings.
+Session observability covers the runtime signals that Harness-FE captures from a live browser session and exposes to AI agents. This includes console output, errors, network activity, persistent timelines, and session-scoped recordings.
 
 ### Requirement: Runtime event capture
 
-Harnessa-FE SHALL capture runtime browser signals from an instrumented page and make recent entries available to an AI agent during the active session.
+Harness-FE SHALL capture runtime browser signals from an instrumented page and make recent entries available to an AI agent during the active session.
 
 #### Scenario: Reading recent console, error, and network activity
 
@@ -16,7 +16,7 @@ Harnessa-FE SHALL capture runtime browser signals from an instrumented page and 
 
 ### Requirement: Persistent session history
 
-Harnessa-FE SHALL persist session history owned by the MCP server so an AI agent can inspect historical runtime behavior after the page refreshes or the connection closes.
+Harness-FE SHALL persist session history owned by the MCP server so an AI agent can inspect historical runtime behavior after the page refreshes or the connection closes.
 
 #### Scenario: Querying historical activity
 
@@ -26,7 +26,7 @@ Harnessa-FE SHALL persist session history owned by the MCP server so an AI agent
 
 ### Requirement: Recording-aware investigations
 
-Harnessa-FE SHALL support session investigations that combine timeline events with browser recordings when recordings exist for the requested time window.
+Harness-FE SHALL support session investigations that combine timeline events with browser recordings when recordings exist for the requested time window.
 
 #### Scenario: Investigating a failure with recordings
 

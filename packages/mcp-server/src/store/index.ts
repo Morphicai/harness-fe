@@ -2,6 +2,7 @@ export { JsonlStore, sanitizeId } from './JsonlStore.js';
 export { WriteQueue } from './WriteQueue.js';
 export { JsonTaskStore } from './JsonTaskStore.js';
 export { JsonMemoryStore } from './JsonMemoryStore.js';
+export { MemoryEventStore, type MemoryEventStoreOptions } from './MemoryEventStore.js';
 export type {
     IStore,
     ITaskStore,
@@ -22,4 +23,7 @@ export type {
     ReplayExportMeta,
     RetentionPolicy,
     PurgeResult,
+    EventStore,
+    EventId,
+    StreamId,
 } from './types.js';

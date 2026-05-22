@@ -50,11 +50,11 @@ describe('openBrowser', () => {
         );
     });
 
-    it('short-circuits when HARNESSA_FE_HEADLESS=1 is set', () => {
+    it('short-circuits when HARNESS_FE_HEADLESS=1 is set', () => {
         const spawnFn = spy();
         const out = openBrowser('https://example.test', {
             platformOverride: 'darwin',
-            envOverride: { HARNESSA_FE_HEADLESS: '1' },
+            envOverride: { HARNESS_FE_HEADLESS: '1' },
             spawnOverride: spawnFn,
         });
         expect(out.opened).toBe(false);

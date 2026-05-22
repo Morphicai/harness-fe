@@ -17,7 +17,7 @@
  *   {dataDir}/{projectId}/sessions/{buildId}/tabs/{tabId}/...
  */
 
-import type { Task, VisitorEnv } from '@harnessa-fe/protocol';
+import type { Task, VisitorEnv } from '@harness-fe/protocol';
 
 // Re-export the MCP SDK's EventStore types so consumers (and embedders) can
 // plug in custom resumable-stream backends without depending on the SDK
@@ -50,8 +50,8 @@ export type EventType =
     | 'storage'      // localStorage/sessionStorage/cookie mutation
     | 'server-log'   // Node.js console log from node-runtime SDK
     | 'server-err'   // Node.js uncaughtException / unhandledRejection from node-runtime SDK
-    | 'server-action'// Route Handler / Server Action timing from withHarnessaTracing()
-    | 'app-log'      // Explicit log call via @harnessa-fe/log (user-initiated, distinct from auto-captured console)
+    | 'server-action'// Route Handler / Server Action timing from withHarnessTracing()
+    | 'app-log'      // Explicit log call via @harness-fe/log (user-initiated, distinct from auto-captured console)
     | string;        // extensible — future types don't need schema changes
 
 /** A single event line in a JSONL file. Carries row-level projectId/buildId tags. */

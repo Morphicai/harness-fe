@@ -1,5 +1,5 @@
 /**
- * Core unplugin definition for Harnessa-FE.
+ * Core unplugin definition for Harness-FE.
  *
  * Handles:
  *   1. Source-aware JSX / Vue transform (data-morphix-loc / data-morphix-comp)
@@ -7,7 +7,7 @@
  *   3. HTML injection of runtime client + config (Vite)
  *   4. HMR event forwarding (Vite)
  *
- * Webpack users should use `@harnessa-fe/webpack` (a native webpack plugin)
+ * Webpack users should use `@harness-fe/webpack` (a native webpack plugin)
  * instead — the unplugin webpack adapter is incompatible with thread-loader
  * because it serializes the plugin instance (and its compiler reference) via
  * loader options.
@@ -18,7 +18,7 @@ import { createRequire } from 'node:module';
 import { relative } from 'node:path';
 import { createUnplugin, type UnpluginFactory } from 'unplugin';
 
-import { DEFAULT_WS_PORT } from '@harnessa-fe/protocol';
+import { DEFAULT_WS_PORT } from '@harness-fe/protocol';
 import { transformJsx, type ComponentMap } from './transform.js';
 import {
     transformVueSFC,
@@ -33,23 +33,23 @@ import { resolveProjectId } from './resolveProjectId.js';
 import { createMcpClient } from './internal/mcp-client.js';
 import { installNodeLogCapture } from './internal/log-capture.js';
 import { appendTokenQuery, createBuildIdentity } from './internal/buildIdentity.js';
-import type { HarnessaFEOptions, McpClient, McpClientContext, PeerRole } from './internal/types.js';
+import type { HarnessFEOptions, McpClient, McpClientContext, PeerRole } from './internal/types.js';
 
 const require = createRequire(import.meta.url);
 
 /**
  * Virtual module ID used to inject the runtime client into the dev page.
  */
-const VIRTUAL_RUNTIME_ID = 'virtual:harnessa-fe/runtime';
+const VIRTUAL_RUNTIME_ID = 'virtual:harness-fe/runtime';
 const RESOLVED_VIRTUAL_RUNTIME_ID = '\0' + VIRTUAL_RUNTIME_ID;
 
-export type { HarnessaFEOptions };
+export type { HarnessFEOptions };
 
-export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (options = {}) => {
+export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (options = {}) => {
     let projectId = options.projectId ?? 'unknown-project';
     const baseMcpUrl =
-        options.mcpUrl ?? process.env.HARNESSA_FE_URL ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
-    const token = options.token ?? process.env.HARNESSA_FE_TOKEN;
+        options.mcpUrl ?? process.env.HARNESS_FE_URL ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+    const token = options.token ?? process.env.HARNESS_FE_TOKEN;
     const mcpUrl = appendTokenQuery(baseMcpUrl, token);
     let projectRoot = process.cwd();
     let peerRole: PeerRole = 'vite-plugin';
@@ -59,7 +59,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
     // Vue 2 hardening — safeMode on by default, dry-run gated by env so
     // legacy projects can collect a coverage report before flipping on.
-    const dryRun = process.env.HARNESSA_FE_DRY_RUN === '1';
+    const dryRun = process.env.HARNESS_FE_DRY_RUN === '1';
     const vueStats = createVueTransformStats();
     const vueOptions: VueTransformOptions = {
         safeMode: options.safeMode !== false,
@@ -113,7 +113,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
     };
 
     return {
-        name: 'harnessa-fe',
+        name: 'harness-fe',
         enforce: 'pre',
 
         async buildStart() {
@@ -195,7 +195,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
             load(id: string) {
                 if (id !== RESOLVED_VIRTUAL_RUNTIME_ID) return undefined;
-                const runtimeEntry = require.resolve('@harnessa-fe/runtime');
+                const runtimeEntry = require.resolve('@harness-fe/runtime');
                 return `export * from ${JSON.stringify(runtimeEntry)};\nimport ${JSON.stringify(runtimeEntry)};`;
             },
 
@@ -203,9 +203,9 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
                 order: 'pre' as const,
                 handler(html: string) {
                     if (options.disabled) return html;
-                    const injection = `<!-- @harnessa-fe injected (dev only) -->
+                    const injection = `<!-- @harness-fe injected (dev only) -->
 <script>
-window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: identity.getBuildId(projectRoot), parentProjectId: options.parentProjectId, displayName: identity.getDisplayName(projectRoot) })};
+window.__HARNESS_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: identity.getBuildId(projectRoot), parentProjectId: options.parentProjectId, displayName: identity.getDisplayName(projectRoot) })};
 </script>
 <script type="module">import '${VIRTUAL_RUNTIME_ID}';</script>`;
                     return html.replace(/<\/head>/i, `${injection}\n</head>`);

@@ -8,7 +8,7 @@
  *   - win32  → `cmd /c start "" <url>` (the empty title is required, otherwise `start` treats the URL as a title)
  *
  * Escape hatches:
- *   - `HARNESSA_FE_HEADLESS=1` short-circuits and returns `false` without
+ *   - `HARNESS_FE_HEADLESS=1` short-circuits and returns `false` without
  *     spawning anything — useful when the daemon runs in Docker / CI /
  *     remote host where there's no GUI to open
  *   - any other platform returns `false`
@@ -36,8 +36,8 @@ export interface OpenBrowserResult {
 
 export function openBrowser(url: string, opts: OpenBrowserOptions = {}): OpenBrowserResult {
     const env = opts.envOverride ?? process.env;
-    if (env.HARNESSA_FE_HEADLESS === '1') {
-        return { opened: false, reason: 'HARNESSA_FE_HEADLESS=1' };
+    if (env.HARNESS_FE_HEADLESS === '1') {
+        return { opened: false, reason: 'HARNESS_FE_HEADLESS=1' };
     }
     const platform = opts.platformOverride ?? process.platform;
     const spawnFn = opts.spawnOverride ?? spawn;

@@ -23,7 +23,7 @@
  * function that restores the original `window.fetch`.
  */
 
-import type { NetworkEntry } from '@harnessa-fe/protocol';
+import type { NetworkEntry } from '@harness-fe/protocol';
 
 const DEFAULT_BODY_CAP = 256 * 1024;
 const INTERNAL_FLAG = '__hfeInternal';

@@ -1,7 +1,7 @@
 /**
  * WS bridge — accepts connections from vite-plugin and runtime-client.
  *
- * Protocol: see @harnessa-fe/protocol.
+ * Protocol: see @harness-fe/protocol.
  *
  * Responsibilities:
  *   - Handshake: `hello` frame → register peer in SessionRouter, reply `hello.ack`
@@ -47,7 +47,7 @@ import {
     type TaskAttachment,
     type TaskStatus,
     frameSchema,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
 import { createReplayHandler } from './replayViewer.js';
 import { createDashboardApiHandler } from './dashboardApi.js';
@@ -121,7 +121,7 @@ const TASK_QUEUE_CAP = 200;
  * mechanism in `cli.ts`. No cwd / project-root detection involved.
  */
 export function defaultDataDir(port: number): string {
-    return joinPath(homedir(), '.harnessa', 'daemons', String(port), 'data');
+    return joinPath(homedir(), '.harness', 'daemons', String(port), 'data');
 }
 
 interface PendingCommand {
@@ -167,7 +167,7 @@ export interface BridgeOptions {
     memoryStore?: IMemoryStore | null;
     /**
      * Root data directory for task attachment binaries. Defaults to the same
-     * `~/.harnessa/data` directory used by the stores. Override in tests.
+     * `~/.harness/data` directory used by the stores. Override in tests.
      */
     attachmentsDataDir?: string;
     /**
@@ -255,7 +255,7 @@ export class Bridge implements IBridge {
     /** Debounce per-session 'session.update' broadcasts so chatty rrweb chunks don't spam subscribers. */
     private dashboardDebounceTimers = new Map<string, NodeJS.Timeout>();
 
-    /** Optional friendly label (HARNESSA_FE_LABEL). Cosmetic only. */
+    /** Optional friendly label (HARNESS_FE_LABEL). Cosmetic only. */
     readonly label: string | undefined;
 
     constructor(opts: BridgeOptions = {}) {
@@ -275,8 +275,8 @@ export class Bridge implements IBridge {
         this.auth = opts.auth ?? {};
         this.publicHostOverride = opts.publicHost;
         // Default auto-purge ON. CI / tests pass `enabled: false` (or set
-        // env HARNESSA_FE_PURGE_DISABLED=1) to opt out.
-        const envDisabled = process.env.HARNESSA_FE_PURGE_DISABLED === '1';
+        // env HARNESS_FE_PURGE_DISABLED=1) to opt out.
+        const envDisabled = process.env.HARNESS_FE_PURGE_DISABLED === '1';
         this.autoPurgeOpts = {
             enabled: opts.autoPurge?.enabled ?? !envDisabled,
             intervalMs: opts.autoPurge?.intervalMs ?? 60 * 60 * 1000,
@@ -448,7 +448,7 @@ export class Bridge implements IBridge {
                     // proper status rather than a half-open socket.
                     socket.write(
                         'HTTP/1.1 401 Unauthorized\r\n' +
-                            'WWW-Authenticate: Bearer realm="harnessa-fe"\r\n' +
+                            'WWW-Authenticate: Bearer realm="harness-fe"\r\n' +
                             'Content-Length: 0\r\n' +
                             'Connection: close\r\n\r\n',
                     );
@@ -526,7 +526,7 @@ export class Bridge implements IBridge {
             if (removed > 0 || result.bytesFreed > 0) {
                 const mb = (result.bytesFreed / 1024 / 1024).toFixed(2);
                 process.stderr.write(
-                    `[harnessa-fe] auto-purge (${trigger}): freed ${mb} MB · ` +
+                    `[harness-fe] auto-purge (${trigger}): freed ${mb} MB · ` +
                         `${result.sessionsDeleted} sessions, ` +
                         `${result.recordingsDeleted} rrweb chunks, ` +
                         `${result.buildsDeleted ?? 0} builds, ` +
@@ -535,7 +535,7 @@ export class Bridge implements IBridge {
             }
         } catch (err) {
             process.stderr.write(
-                `[harnessa-fe] auto-purge failed (${trigger}): ${
+                `[harness-fe] auto-purge failed (${trigger}): ${
                     err instanceof Error ? err.message : String(err)
                 }\n`,
             );
@@ -688,7 +688,7 @@ export class Bridge implements IBridge {
         // Fire event listeners so MCP tools can observe HTTP-batch events in real time
         for (const ev of events) {
             const evName: string = typeof ev.name === 'string' ? ev.name : 'unknown';
-            const fullFrame: import('@harnessa-fe/protocol').EventFrame = {
+            const fullFrame: import('@harness-fe/protocol').EventFrame = {
                 type: 'event',
                 id: ev.id ?? randomUUID(),
                 name: evName,
@@ -720,7 +720,7 @@ export class Bridge implements IBridge {
         }
 
         process.stderr.write(
-            `[harnessa-fe] http-batch: project=${projectId}` +
+            `[harness-fe] http-batch: project=${projectId}` +
             ` session=${sessionId.slice(0, 8)} events=${events.length}\n`,
         );
     }
@@ -859,7 +859,7 @@ export class Bridge implements IBridge {
 
         if (totalBytes > MAX_BYTES) {
             process.stderr.write(
-                `[harnessa-fe] task ${taskId}: attachments total ${(totalBytes / 1024 / 1024).toFixed(2)} MB exceeds 4 MB limit — dropping attachments\n`,
+                `[harness-fe] task ${taskId}: attachments total ${(totalBytes / 1024 / 1024).toFixed(2)} MB exceeds 4 MB limit — dropping attachments\n`,
             );
             return [];
         }
@@ -893,7 +893,7 @@ export class Bridge implements IBridge {
                 });
             } catch (err) {
                 process.stderr.write(
-                    `[harnessa-fe] failed to write attachment ${att.id}: ${err instanceof Error ? err.message : String(err)}\n`,
+                    `[harness-fe] failed to write attachment ${att.id}: ${err instanceof Error ? err.message : String(err)}\n`,
                 );
             }
         }
@@ -1125,7 +1125,7 @@ export class Bridge implements IBridge {
                 // misconfigured clients surface during development.
                 if (frame.role === 'runtime-client' && !frame.sessionId) {
                     console.warn(
-                        '[harnessa-fe] rejecting runtime-client hello — missing sessionId',
+                        '[harness-fe] rejecting runtime-client hello — missing sessionId',
                         { projectId: frame.projectId, tabId: frame.tabId },
                     );
                     const errorAck: HelloAckFrame = {
@@ -1140,7 +1140,7 @@ export class Bridge implements IBridge {
 
                 // NOTE: runtime-client is allowed to bootstrap a project on its
                 // own (no plugin required). This is the standard mode for the
-                // @harnessa-fe/next + jsxImportSource integration and for any
+                // @harness-fe/next + jsxImportSource integration and for any
                 // production / staging deployment where the bundler plugin is
                 // absent. The runtime-client branch below opens its own store
                 // session if one does not already exist for this project.
@@ -1172,7 +1172,7 @@ export class Bridge implements IBridge {
                             // Cycle detection or other validation failure —
                             // log and continue; the peer still gets registered.
                             console.warn(
-                                '[harnessa-fe] upsertProject failed:',
+                                '[harness-fe] upsertProject failed:',
                                 err instanceof Error ? err.message : err,
                             );
                         }
@@ -1199,7 +1199,7 @@ export class Bridge implements IBridge {
                             });
                         } catch (err) {
                             console.warn(
-                                '[harnessa-fe] upsertVisitor failed:',
+                                '[harness-fe] upsertVisitor failed:',
                                 err instanceof Error ? err.message : err,
                             );
                         }
@@ -1291,7 +1291,7 @@ export class Bridge implements IBridge {
                 // One concise line per accepted peer. Visibility for "is the
                 // runtime actually talking to me?" without needing wireshark.
                 process.stderr.write(
-                    `[harnessa-fe] peer connected: role=${frame.role} project=${frame.projectId}` +
+                    `[harness-fe] peer connected: role=${frame.role} project=${frame.projectId}` +
                     `${frame.tabId ? ` tab=${frame.tabId.slice(0, 8)}` : ''}` +
                     `${frame.sessionId ? ` load=${frame.sessionId.slice(0, 8)}` : ''}\n`,
                 );
@@ -1338,7 +1338,7 @@ export class Bridge implements IBridge {
                         if (!this.warnedNoSession.has(connectionId)) {
                             this.warnedNoSession.add(connectionId);
                             console.warn(
-                                '[harnessa-fe] dropping event — no store session for connection',
+                                '[harness-fe] dropping event — no store session for connection',
                                 { projectId: peer.projectId, role: peer.role, eventName: frame.name },
                             );
                         }
@@ -1411,7 +1411,7 @@ export class Bridge implements IBridge {
                                 });
                             }
                         } else {
-                            // app.log events from @harnessa-fe/log get the canonical
+                            // app.log events from @harness-fe/log get the canonical
                             // short type code 'app-log' (consistent with 'server-log',
                             // 'server-err', 'server-action') rather than the raw frame
                             // name 'app.log' with a dot.

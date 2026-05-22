@@ -170,12 +170,12 @@ function EmptyState() {
             <p className="mt-2 text-sm text-ink-secondary max-w-md mx-auto">
                 Start your dev server with{' '}
                 <code className="font-mono px-1.5 py-0.5 rounded bg-surface-base border border-surface-border text-ink-primary">
-                    HARNESSA_FE_TOKEN
+                    HARNESS_FE_TOKEN
                 </code>{' '}
                 set, open a page, and it should appear here within seconds.
             </p>
             <Link
-                to="https://github.com/Morphicai/harnessa-fe#readme"
+                to="https://github.com/Morphicai/harness-fe#readme"
                 target="_blank"
                 rel="noreferrer"
                 className="mt-5 inline-flex items-center gap-1.5 text-xs text-accent-indigo hover:underline"

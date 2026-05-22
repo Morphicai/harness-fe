@@ -6,7 +6,7 @@ import type { ComponentMap } from '../transform.js';
 
 export type PeerRole = 'vite-plugin' | 'webpack-plugin';
 
-export interface HarnessaFEOptions {
+export interface HarnessFEOptions {
     /** Override projectId (defaults to package.json `name`). */
     projectId?: string;
     /** MCP server WebSocket URL (default: ws://127.0.0.1:47729). */
@@ -30,8 +30,8 @@ export interface HarnessaFEOptions {
     /**
      * Token to authenticate against the daemon when it's bound to a non-
      * loopback host. Appended as `?token=…` to the WS URL and propagated
-     * to the runtime client via `__HARNESSA_FE__`. Read from
-     * `HARNESSA_FE_TOKEN` when omitted.
+     * to the runtime client via `__HARNESS_FE__`. Read from
+     * `HARNESS_FE_TOKEN` when omitted.
      */
     token?: string;
     /**

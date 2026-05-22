@@ -10,14 +10,14 @@
 
 import { setTimeout as sleep } from 'node:timers/promises';
 import { WebSocket } from 'ws';
-import { Bridge } from '@harnessa-fe/mcp-server';
+import { Bridge } from '@harness-fe/mcp-server';
 import {
     COMMAND,
     PROTOCOL_VERSION,
     type CommandFrame,
     type HelloAckFrame,
     type ResponseFrame,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 
 async function run() {
     const bridge = new Bridge({ port: 0, host: '127.0.0.1' });

@@ -4,7 +4,7 @@ import type { LogEvent } from './types.js';
 /**
  * Node.js / server-side emit path.
  *
- * Delegates sessionId resolution entirely to `@harnessa-fe/node-runtime` —
+ * Delegates sessionId resolution entirely to `@harness-fe/node-runtime` —
  * which itself walks ALS → adapter-supplied provider (e.g. the Next
  * `cache()` getter pushed in via `setSessionIdProvider`) → undefined.
  *
@@ -31,9 +31,9 @@ export function emit(evt: LogEvent): void {
     void (async () => {
         let rt: NodeRuntimeModule;
         try {
-            rt = (await import('@harnessa-fe/node-runtime')) as unknown as NodeRuntimeModule;
+            rt = (await import('@harness-fe/node-runtime')) as unknown as NodeRuntimeModule;
         } catch {
-            // @harnessa-fe/node-runtime not installed — drop silently
+            // @harness-fe/node-runtime not installed — drop silently
             return;
         }
         rt.reportAppLog(evt.level, evt.args, {

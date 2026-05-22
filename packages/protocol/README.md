@@ -1,8 +1,8 @@
-# @harnessa-fe/protocol
+# @harness-fe/protocol
 
-> Shared types + Zod schemas for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe). Internal package — every other Harnessa-FE package depends on this.
+> Shared types + Zod schemas for [Harness-FE](https://github.com/Morphicai/harness-fe). Internal package — every other Harness-FE package depends on this.
 
-You normally do **not** install this directly. It is hoisted as a transitive dependency of `@harnessa-fe/vite`, `.webpack`, `.runtime`, and `.mcp-server`.
+You normally do **not** install this directly. It is hoisted as a transitive dependency of `@harness-fe/vite`, `.webpack`, `.runtime`, and `.mcp-server`.
 
 ## What's inside
 
@@ -16,7 +16,7 @@ import {
     PROTOCOL_VERSION,
     DEFAULT_WS_PORT,
     EventFrameSchema,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 ```
 
 ## Stability
@@ -25,8 +25,8 @@ Pre-1.0. Wire format may change between minor versions. Pin exact versions in pr
 
 ## Docs
 
-- [Root README](https://github.com/Morphicai/harnessa-fe#readme)
-- [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md)
+- [Root README](https://github.com/Morphicai/harness-fe#readme)
+- [Architecture](https://github.com/Morphicai/harness-fe/blob/main/ARCHITECTURE.md)
 
 ## License
 

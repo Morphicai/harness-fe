@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * Resolves the buildId for one harnessa-fe build (vite dev server start /
+ * Resolves the buildId for one harness-fe build (vite dev server start /
  * webpack build / prod build). One buildId = one source-code snapshot.
  *
  * Stability rules:
@@ -13,7 +13,7 @@ import { join } from 'node:path';
  *   - prod build → buildId matches git sha (or dirty-marked)
  *
  * Priority:
- *   1. `userConfig` — caller-supplied via `harnessaFE({ buildId })`
+ *   1. `userConfig` — caller-supplied via `harnessFE({ buildId })`
  *   2. CI env vars (GITHUB_SHA / GIT_COMMIT) when present
  *   3. `git rev-parse HEAD` + dirty marker when in a git repo
  *   4. Fallback: `dev-<short-source-hash>-<startTs>` derived from package.json,

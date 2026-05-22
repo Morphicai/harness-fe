@@ -20,7 +20,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium } from 'playwright';
-import { Bridge, JsonlStore } from '@harnessa-fe/mcp-server';
+import { Bridge, JsonlStore } from '@harness-fe/mcp-server';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '../../..');
@@ -87,7 +87,7 @@ function fmtBytes(n: number): string {
 async function main() {
     console.log(`=== storage-bench: ${N_PAGES} pages × ${PAGE_DURATION_MS / 1000}s, sample every ${SAMPLE_EVERY_MS / 1000}s ===`);
 
-    const dataDir = mkdtempSync(join(tmpdir(), 'harnessa-bench-'));
+    const dataDir = mkdtempSync(join(tmpdir(), 'harness-bench-'));
     const store = new JsonlStore(dataDir);
     const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
     await bridge.start();
@@ -97,11 +97,11 @@ async function main() {
 
     let dev: ChildProcessWithoutNullStreams | undefined;
     try {
-        dev = spawn('pnpm', ['--filter', 'harnessa-fe-react-demo', 'dev'], {
+        dev = spawn('pnpm', ['--filter', 'harness-fe-react-demo', 'dev'], {
             cwd: REPO_ROOT,
             env: {
                 ...process.env,
-                HARNESSA_FE_URL: `ws://127.0.0.1:${port}`,
+                HARNESS_FE_URL: `ws://127.0.0.1:${port}`,
                 FORCE_COLOR: '0',
             },
             stdio: ['ignore', 'pipe', 'pipe'],

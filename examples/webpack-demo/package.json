@@ -1,5 +1,5 @@
 {
-    "name": "harnessa-fe-webpack-demo",
+    "name": "harness-fe-webpack-demo",
     "version": "0.0.1",
     "private": true,
     "scripts": {
@@ -14,7 +14,7 @@
         "@babel/core": "^7.24.0",
         "@babel/preset-env": "^7.24.0",
         "@babel/preset-react": "^7.24.0",
-        "@harnessa-fe/webpack": "workspace:*",
+        "@harness-fe/webpack": "workspace:*",
         "babel-loader": "^9.1.3",
         "html-webpack-plugin": "^5.6.0",
         "webpack": "^5.107.0",
