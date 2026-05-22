@@ -58,7 +58,7 @@
         "@vue/compiler-dom": "^3.4.0",
         "@vue/compiler-sfc": "^3.4.0",
         "magic-string": "^0.30.21",
-        "unplugin": "^2.3.2",
+        "unplugin": "^3.0.0",
         "ws": "^8.18.0"
     },
     "devDependencies": {
