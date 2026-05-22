@@ -1,5 +1,14 @@
 # @harnessa-fe/unplugin
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies [65f2b96]
+- Updated dependencies [88e41a2]
+- Updated dependencies [10d669c]
+  - @harnessa-fe/protocol@3.0.0
+
 ## 2.1.0
 
 ### Minor Changes

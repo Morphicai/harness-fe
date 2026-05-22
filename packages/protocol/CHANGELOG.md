@@ -1,5 +1,101 @@
 # @harnessa-fe/protocol
 
+## 3.0.0
+
+### Patch Changes
+
+- 65f2b96: Add MCP tool `dashboard.open` so agents can surface the dev dashboard
+  to the human user.
+
+  The tool returns the dashboard URL (with token pre-populated when auth
+  is configured) and optionally launches the user's default browser via
+  `open` (macOS) / `xdg-open` (Linux) / `cmd /c start ""` (Windows). Set
+  `HARNESSA_FE_HEADLESS=1` to suppress browser-launch attempts in remote
+  or Docker contexts.
+
+  A `sessionId` argument deep-links into `/dashboard/sessions/:id` so
+  agents can point users at a specific recording.
+
+  ### What's new
+
+  - `protocol`: `COMMAND.DASHBOARD_OPEN = 'dashboard.open'`
+  - `mcp-server`:
+    - new `openBrowser.ts` — cross-platform launcher with dependency-injection seams for unit testing
+    - new `dashboardUrl.ts` — pure URL composer (handles token, session deep-link, missing port)
+    - `IBridge.getAuthToken()` getter so the URL composer can read the configured token without reaching into private fields
+    - tool registration in `mcp.ts`
+
+  13 new unit tests pin the cross-platform spawn behavior and URL shape.
+
+- 88e41a2: Wire up the React SPA dashboard end-to-end (PR C of A-E).
+
+  ### `@harnessa-fe/dashboard-ui`
+
+  - Real routes — `ProjectList` (`/`) and `SessionDetail` (`/sessions/:id`) — replacing the placeholder hero
+  - Glass header with a live-pill indicator that flashes green on each `dashboard.update`
+  - Tab/recording/timeline/exports panels matching the legacy HTML dashboard's information density, in a Linear-style dark layout
+  - Inline "Create replay" buttons that POST to `/api/sessions/:id/replay` and reveal a link to `/replay/:exportId`
+  - `useApi` / `useLiveBridge` hooks: GET wrapper with token auth + singleton WS subscriber with backoff reconnect
+  - ~64 KB gzip total bundle
+
+  ### `@harnessa-fe/mcp-server`
+
+  - New `dashboardSpa.ts` handler — serves the SPA at `/dashboard/*` from `@harnessa-fe/dashboard-ui/dist`. Hashed assets get long-lived immutable cache; `index.html` is `no-store`. Path traversal blocked
+  - WS subscriber registry: clients sending `hello { role: 'dashboard-client' }` get added to `dashboardSubscribers` and receive `dashboard.update` frames
+  - Broadcast hooks at `upsertSession` (new/update), `closeSession`, `appendRecording` (debounced 200ms per session), and `writeExport` (via API callback)
+  - `notifyDashboard()` public method so future code paths can push their own update kinds
+
+  ### `@harnessa-fe/protocol`
+
+  - New peer role `dashboard-client`
+  - New `dashboardUpdateFrameSchema` carrying `{ kind, sessionId?, projectId?, ts }`
+  - `frameSchema` discriminated union extended
+
+  Old `/` and `/sessions/:id` HTML routes remain in place during this PR;
+  the redirect + legacy deletion lands in PR D.
+
+- 10d669c: Overlay UX + screenshot fixes:
+
+  ### Draggable FAB with position persistence
+
+  The floating "H" button can now be dragged anywhere on screen. The
+  position is saved to `localStorage` (`__harnessa_fe_fab_pos__`) and
+  clamped into the viewport on every load — resilient to monitor
+  swaps, dev-tools panel changes, and viewport resizes. Follower cards
+  (info / reports / question) anchor relative to the FAB and flip side
+  based on available space, so they're always reachable no matter where
+  you drop the button.
+
+  A 5px movement threshold separates click from drag; clicking the FAB
+  still opens the info card, dragging it never does.
+
+  ### Dark, glass-style cards
+
+  The info / reports / question panels switched to a dark theme with
+  backdrop blur, matching the new dashboard SPA's Linear-style palette.
+  Info pills, primary/secondary buttons, and status dots refreshed for
+  contrast and clarity on both light and dark host pages.
+
+  ### Screenshot fixes
+
+  - **Overlay no longer bleeds into screenshots.** The "H" FAB and any
+    open info card used to land in the corner of every shot. The
+    `PAGE_SCREENSHOT` handler now flips `visibility: hidden` on the
+    overlay host for the duration of the capture, restoring it
+    (try/finally — survives capture errors) immediately after.
+  - **Default to opaque background.** Captures were rendering blank for
+    pages with no explicit body background. Default is now `#ffffff`;
+    callers can pass `backgroundColor: '#0a0a0f'` (or any CSS color)
+    for a dark backdrop, or `backgroundColor: null` to opt back into a
+    transparent capture (PNG/WebP only — JPEG has no alpha).
+
+  ### Tests
+
+  9 new tests:
+
+  - 4 in `overlay.test.ts` — default position, persisted restore, viewport clamp on shrink, malformed-storage fallback
+  - 5 in `commands.test.ts` (new file) — default opaque background, transparent opt-in via null, custom color, overlay-hidden during capture, overlay restored on error
+
 ## 2.0.0
 
 ### Minor Changes

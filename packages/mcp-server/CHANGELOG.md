@@ -1,5 +1,112 @@
 # @harnessa-fe/mcp-server
 
+## 3.0.0
+
+### Minor Changes
+
+- 9e70d1e: Cut over from the legacy server-rendered dashboard to the React SPA.
+
+  - `GET /` now 302-redirects into `/dashboard/?token=…` (preserves token)
+  - `GET /sessions/:id` 302-redirects to `/dashboard/sessions/:id?token=…` so old bookmarks keep working
+  - Legacy `dashboard.ts` module deleted (332 lines of inlined HTML). All
+    data correctness it covered is now exercised by `dashboardApi.test.ts`
+    (JSON shapes) and `dashboardSpa.test.ts` (routing + caching)
+
+  Visitors hitting the daemon root land in the SPA. No new endpoints, no
+  breaking changes to the JSON API or WS subscription introduced in PR C.
+
+- 541cbba: Add a JSON API under `/api/*` for the upcoming React SPA dashboard.
+
+  Routes:
+
+  - `GET /api/projects` — projects with their 10 most recent sessions inline
+  - `GET /api/sessions?projectId=&tabId=&buildId=&limit=` — sessions list with optional filters
+  - `GET /api/sessions/:id` — session detail (meta + summary + chunks + timeline tail + exports)
+  - `POST /api/sessions/:id/replay` — create a replay export (same logic as the form POST; returns JSON instead of a 302)
+
+  Routes are chained ahead of the legacy HTML dashboard handler so `/api/*`
+  never falls into the HTML 404 page. Non-`/api/*` paths still hit the
+  existing handlers unchanged. Auth (token) is enforced upstream in
+  `bridge.ts` as before.
+
+  No user-facing change yet — the React SPA that consumes this lands in
+  the next PR.
+
+- 65f2b96: Add MCP tool `dashboard.open` so agents can surface the dev dashboard
+  to the human user.
+
+  The tool returns the dashboard URL (with token pre-populated when auth
+  is configured) and optionally launches the user's default browser via
+  `open` (macOS) / `xdg-open` (Linux) / `cmd /c start ""` (Windows). Set
+  `HARNESSA_FE_HEADLESS=1` to suppress browser-launch attempts in remote
+  or Docker contexts.
+
+  A `sessionId` argument deep-links into `/dashboard/sessions/:id` so
+  agents can point users at a specific recording.
+
+  ### What's new
+
+  - `protocol`: `COMMAND.DASHBOARD_OPEN = 'dashboard.open'`
+  - `mcp-server`:
+    - new `openBrowser.ts` — cross-platform launcher with dependency-injection seams for unit testing
+    - new `dashboardUrl.ts` — pure URL composer (handles token, session deep-link, missing port)
+    - `IBridge.getAuthToken()` getter so the URL composer can read the configured token without reaching into private fields
+    - tool registration in `mcp.ts`
+
+  13 new unit tests pin the cross-platform spawn behavior and URL shape.
+
+- 88e41a2: Wire up the React SPA dashboard end-to-end (PR C of A-E).
+
+  ### `@harnessa-fe/dashboard-ui`
+
+  - Real routes — `ProjectList` (`/`) and `SessionDetail` (`/sessions/:id`) — replacing the placeholder hero
+  - Glass header with a live-pill indicator that flashes green on each `dashboard.update`
+  - Tab/recording/timeline/exports panels matching the legacy HTML dashboard's information density, in a Linear-style dark layout
+  - Inline "Create replay" buttons that POST to `/api/sessions/:id/replay` and reveal a link to `/replay/:exportId`
+  - `useApi` / `useLiveBridge` hooks: GET wrapper with token auth + singleton WS subscriber with backoff reconnect
+  - ~64 KB gzip total bundle
+
+  ### `@harnessa-fe/mcp-server`
+
+  - New `dashboardSpa.ts` handler — serves the SPA at `/dashboard/*` from `@harnessa-fe/dashboard-ui/dist`. Hashed assets get long-lived immutable cache; `index.html` is `no-store`. Path traversal blocked
+  - WS subscriber registry: clients sending `hello { role: 'dashboard-client' }` get added to `dashboardSubscribers` and receive `dashboard.update` frames
+  - Broadcast hooks at `upsertSession` (new/update), `closeSession`, `appendRecording` (debounced 200ms per session), and `writeExport` (via API callback)
+  - `notifyDashboard()` public method so future code paths can push their own update kinds
+
+  ### `@harnessa-fe/protocol`
+
+  - New peer role `dashboard-client`
+  - New `dashboardUpdateFrameSchema` carrying `{ kind, sessionId?, projectId?, ts }`
+  - `frameSchema` discriminated union extended
+
+  Old `/` and `/sessions/:id` HTML routes remain in place during this PR;
+  the redirect + legacy deletion lands in PR D.
+
+### Patch Changes
+
+- a7d8c96: Fix: visiting `/dashboard/?token=…` rendered a blank page because the SPA
+  bundle (loaded via `<script src="/dashboard/assets/index-XXX.js">` —
+  without the token query) hit 401 and never executed.
+
+  The dashboard handler now does a one-hop token handoff: when a request
+  arrives with `?token=…` but no `harnessa_fe_token` cookie, the response
+  is a 302 with `Set-Cookie: harnessa_fe_token=…; Path=/; SameSite=Lax`
+  and a clean Location. From that point every same-origin request (SPA
+  assets, `/api/*`, WS upgrade) carries the cookie automatically.
+
+  The redirect also normalizes `/dashboard` → `/dashboard/` in the same
+  hop, so a typical first-load chain is a single redirect rather than two.
+
+  No behavior change for users already authenticated via cookie, header,
+  or query — the handoff only fires once per session.
+
+- Updated dependencies [65f2b96]
+- Updated dependencies [88e41a2]
+- Updated dependencies [7d3f830]
+- Updated dependencies [10d669c]
+  - @harnessa-fe/protocol@3.0.0
+  - @harnessa-fe/dashboard-ui@0.2.0
+
 ## 2.1.0
 
 ### Patch Changes
