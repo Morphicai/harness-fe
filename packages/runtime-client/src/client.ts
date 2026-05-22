@@ -125,6 +125,7 @@ export class RuntimeClient {
     get buildId(): string | undefined { return this.opts.buildId; }
     get displayName(): string | undefined { return this.opts.displayName; }
     get userId(): string | undefined { return this.opts.userId; }
+    get mcpUrl(): string | undefined { return this.opts.mcpUrl; }
     /** WebSocket state: 'connecting' | 'open' | 'closed'. */
     getConnectionState(): 'connecting' | 'open' | 'closed' {
         if (!this.ws) return 'closed';
