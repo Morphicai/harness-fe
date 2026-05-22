@@ -4,7 +4,9 @@
 
 Source-aware transform + runtime injection + MCP bridge for Webpack projects. Tags every JSX element with `data-morphix-loc` / `data-morphix-comp` so AI agents can map any UI element back to a file:line:column.
 
-> **Status:** in progress. Stable for React + Webpack 5. Vue support coming.
+> **Status:** stable for React + Vue 2/3 on Webpack 5. **thread-loader compatible** as of this release.
+
+> **Note:** This package is now a hand-written webpack plugin, not a wrapper around `unplugin.webpack`. The change is invisible to users — same import, same options — but unblocks projects that put `thread-loader` anywhere in their loader chain (typical Vue 2 + TypeScript SFC builds). See [`.changeset/webpack-native-plugin.md`](../../.changeset/webpack-native-plugin.md) for the why.
 
 ## Install
 

@@ -1,7 +1,7 @@
 {
     "name": "@harnessa-fe/unplugin",
     "version": "2.0.0",
-    "description": "Unified build plugin for Harnessa-FE. Supports Vite, Webpack, Rspack, esbuild, and Rollup via unplugin.",
+    "description": "Unified build plugin for Harnessa-FE. Supports Vite, Rspack, esbuild, and Rollup via unplugin. Webpack users should use @harnessa-fe/webpack (native plugin) instead.",
     "type": "module",
     "license": "MIT",
     "repository": {
@@ -23,10 +23,6 @@
         "./vite": {
             "types": "./dist/vite.d.ts",
             "default": "./dist/vite.js"
-        },
-        "./webpack": {
-            "types": "./dist/webpack.d.ts",
-            "default": "./dist/webpack.js"
         },
         "./rspack": {
             "types": "./dist/rspack.d.ts",

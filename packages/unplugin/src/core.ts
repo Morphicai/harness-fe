@@ -1,43 +1,25 @@
 /**
  * Core unplugin definition for Harnessa-FE.
  *
- * This is the single source of truth for the plugin logic. It handles:
- *   1. Source-aware JSX transform (data-morphix-loc / data-morphix-comp)
+ * Handles:
+ *   1. Source-aware JSX / Vue transform (data-morphix-loc / data-morphix-comp)
  *   2. WebSocket connection to MCP server (hello handshake, command handling)
- *   3. HTML injection of runtime client + config
- *   4. HMR/error event forwarding
+ *   3. HTML injection of runtime client + config (Vite)
+ *   4. HMR event forwarding (Vite)
  *
- * The unplugin framework adapts this to Vite, Webpack, Rspack, esbuild, etc.
+ * Webpack users should use `@harnessa-fe/webpack` (a native webpack plugin)
+ * instead — the unplugin webpack adapter is incompatible with thread-loader
+ * because it serializes the plugin instance (and its compiler reference) via
+ * loader options.
  */
 
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { relative, resolve } from 'node:path';
+import { relative } from 'node:path';
 import { createUnplugin, type UnpluginFactory } from 'unplugin';
 
-const require = createRequire(import.meta.url);
-
-/**
- * Virtual module ID used to inject the runtime client into the dev page.
- * Using a virtual module avoids bare-import resolution failures when the
- * runtime package is not listed as a direct dependency of the host app.
- */
-const VIRTUAL_RUNTIME_ID = 'virtual:harnessa-fe/runtime';
-const RESOLVED_VIRTUAL_RUNTIME_ID = '\0' + VIRTUAL_RUNTIME_ID;
-
-import { WebSocket } from 'ws';
-import {
-    COMMAND,
-    DEFAULT_WS_PORT,
-    type CommandFrame,
-    type EventFrame,
-    type Frame,
-    type HelloFrame,
-    type ResponseFrame,
-    frameSchema,
-} from '@harnessa-fe/protocol';
+import { DEFAULT_WS_PORT } from '@harnessa-fe/protocol';
 import { transformJsx, type ComponentMap } from './transform.js';
-import { resolveBuildId } from './resolveBuildId.js';
 import {
     transformVueSFC,
     transformVueTemplate,
@@ -48,104 +30,35 @@ import {
     type VueTransformOptions,
 } from './vue-transform.js';
 import { resolveProjectId } from './resolveProjectId.js';
+import { createMcpClient } from './internal/mcp-client.js';
+import { installNodeLogCapture } from './internal/log-capture.js';
+import { appendTokenQuery, createBuildIdentity } from './internal/buildIdentity.js';
+import type { HarnessaFEOptions, McpClient, McpClientContext, PeerRole } from './internal/types.js';
 
-export interface HarnessaFEOptions {
-    /** Override projectId (defaults to package.json `name`). */
-    projectId?: string;
-    /** MCP server WebSocket URL (default: ws://127.0.0.1:47729). */
-    mcpUrl?: string;
-    /** Disable injection entirely. */
-    disabled?: boolean;
-
-    /**
-     * Parent project's id, used to build the project tree on the daemon.
-     * Set this on the iframe child app's plugin config when you can declare
-     * the relationship at build time. Otherwise the runtime client will
-     * auto-detect it via same-origin parent inspection.
-     */
-    parentProjectId?: string;
-    /** Human-readable name; defaults to package.json `name`. */
-    displayName?: string;
-    /**
-     * Override buildId. When omitted, the plugin resolves it from git sha
-     * (or CI env vars) and falls back to a dev-stable hash of config files.
-     */
-    buildId?: string;
-    /**
-     * Token to authenticate against the daemon when it's bound to a non-
-     * loopback host. Appended as `?token=…` to the WS URL and propagated
-     * to the runtime client via `__HARNESSA_FE__`. Read from
-     * `HARNESSA_FE_TOKEN` when omitted.
-     */
-    token?: string;
-    /**
-     * Vue SFC transform safety: when true (default), the plugin re-parses
-     * its own output to catch any mis-aligned attribute injection — old
-     * Vue 2 syntax (`{{ x | filter }}`, `<template functional>`, …) is
-     * silently dropped instead of risking a corrupt template fed to
-     * vue-loader. Set to false only if you've measured the perf overhead
-     * and your project is pure Vue 3.
-     */
-    safeMode?: boolean;
-}
-
-function newId(): string {
-    const g = globalThis as { crypto?: { randomUUID?: () => string } };
-    return g.crypto?.randomUUID ? g.crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-}
-
-/** Append `?token=…` (or `&token=…`) onto a URL, idempotent on empty token. */
-function appendTokenQuery(url: string, token: string | undefined): string {
-    if (!token) return url;
-    if (/[?&]token=/.test(url)) return url;
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}token=${encodeURIComponent(token)}`;
-}
+const require = createRequire(import.meta.url);
 
 /**
- * Intercepts `process.stdout.write` and `process.stderr.write` to emit
- * `'node:log'` / `'node:err'` events to the MCP server.
- *
- * Returns a cleanup function that restores the original write methods.
+ * Virtual module ID used to inject the runtime client into the dev page.
  */
-function installNodeLogCapture(emitEvent: (name: string, payload: unknown) => void): () => void {
-    const origOut = process.stdout.write.bind(process.stdout);
-    const origErr = process.stderr.write.bind(process.stderr);
+const VIRTUAL_RUNTIME_ID = 'virtual:harnessa-fe/runtime';
+const RESOLVED_VIRTUAL_RUNTIME_ID = '\0' + VIRTUAL_RUNTIME_ID;
 
-    (process.stdout as any).write = (chunk: any, ...args: any[]) => {
-        emitEvent('node:log', { text: String(chunk) });
-        return origOut(chunk, ...args);
-    };
-    (process.stderr as any).write = (chunk: any, ...args: any[]) => {
-        emitEvent('node:err', { text: String(chunk) });
-        return origErr(chunk, ...args);
-    };
-
-    return () => {
-        (process.stdout as any).write = origOut;
-        (process.stderr as any).write = origErr;
-    };
-}
+export type { HarnessaFEOptions };
 
 export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (options = {}) => {
     let projectId = options.projectId ?? 'unknown-project';
-    // Resolve mcpUrl: explicit option > HARNESSA_FE_URL env var > default.
-    // mcp-server's CLI reads the same env var, so plugin + daemon always
-    // agree on which socket to use even when mcp.json overrides the default.
     const baseMcpUrl =
         options.mcpUrl ?? process.env.HARNESSA_FE_URL ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
     const token = options.token ?? process.env.HARNESSA_FE_TOKEN;
     const mcpUrl = appendTokenQuery(baseMcpUrl, token);
-    let ws: WebSocket | undefined;
-    let isActive = false;
     let projectRoot = process.cwd();
-    let peerRole: 'vite-plugin' | 'webpack-plugin' = 'vite-plugin';
+    let peerRole: PeerRole = 'vite-plugin';
     const componentMap: ComponentMap = new Map();
     let logCaptureCleanup: (() => void) | undefined;
+    let mcpClient: McpClient | undefined;
 
     // Vue 2 hardening — safeMode on by default, dry-run gated by env so
-    // legacy projects can collect a coverage report before flipping the
-    // plugin on for real.
+    // legacy projects can collect a coverage report before flipping on.
     const dryRun = process.env.HARNESSA_FE_DRY_RUN === '1';
     const vueStats = createVueTransformStats();
     const vueOptions: VueTransformOptions = {
@@ -167,174 +80,36 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
     }
     if (dryRun) ensureExitReport();
 
-    // Build identity — resolved lazily from projectRoot once it's known.
-    // The startTs is captured once so dev-mode fallback ids stay stable for
-    // the lifetime of this dev-server process.
-    const buildStartTs = Date.now();
-    let resolvedBuild: ReturnType<typeof resolveBuildId> | undefined;
-    function getBuildId(): string {
-        if (resolvedBuild) return resolvedBuild.buildId;
-        resolvedBuild = resolveBuildId({
-            userConfig: options.buildId,
-            root: projectRoot,
-            startTs: buildStartTs,
-        });
-        return resolvedBuild.buildId;
-    }
-    // displayName defaults to package.json `name`.
-    let resolvedDisplayName: string | undefined = options.displayName;
-    function getDisplayName(): string | undefined {
-        if (resolvedDisplayName !== undefined) return resolvedDisplayName;
-        try {
-            const pkg = JSON.parse(
-                require('node:fs').readFileSync(require('node:path').join(projectRoot, 'package.json'), 'utf-8'),
-            ) as { name?: string };
-            resolvedDisplayName = pkg.name;
-        } catch {
-            resolvedDisplayName = undefined;
-        }
-        return resolvedDisplayName;
-    }
+    const identity = createBuildIdentity({
+        userBuildId: options.buildId,
+        userDisplayName: options.displayName,
+    });
 
-    function send(frame: EventFrame | HelloFrame | ResponseFrame): void {
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
-        try {
-            ws.send(JSON.stringify(frame));
-        } catch {
-            /* swallow */
-        }
-    }
-
-    async function handleCommand(frame: CommandFrame): Promise<void> {
-        let response: ResponseFrame;
-        try {
-            const result = await runCommand(frame.command, frame.args);
-            response = { type: 'response', id: frame.id, ok: true, result };
-        } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            response = { type: 'response', id: frame.id, ok: false, error: { message } };
-        }
-        send(response);
-    }
-
-    async function runCommand(command: string, args: unknown): Promise<unknown> {
-        switch (command) {
-            case COMMAND.PROJECT_SOURCE: {
-                const a = args as { file?: string; component?: string };
-                let file = a.file;
-                if (!file && a.component) {
-                    const locs = componentMap.get(a.component);
-                    if (!locs?.length) {
-                        throw new Error(`project.source: component "${a.component}" not found in the scan`);
-                    }
-                    file = locs[0].file;
-                }
-                if (!file) {
-                    throw new Error('project.source: pass either `file` or `component`');
-                }
-                const abs = resolve(projectRoot, file);
-                if (!abs.startsWith(projectRoot)) {
-                    throw new Error(`project.source: refusing to read outside project root: ${file}`);
-                }
-                const content = readFileSync(abs, 'utf-8');
-                return { file, content };
-            }
-            case COMMAND.PROJECT_WHERE_IS: {
-                const a = args as { component: string };
-                const locs = componentMap.get(a.component);
-                if (!locs?.length) {
-                    throw new Error(`project.where_is: component "${a.component}" not found`);
-                }
-                return { component: a.component, locations: locs };
-            }
-            case COMMAND.PROJECT_MODULE_GRAPH: {
-                const components: Record<string, Array<{ file: string; line: number; col: number }>> = {};
-                for (const [name, locs] of componentMap.entries()) {
-                    components[name] = locs;
-                }
-                return { components, totalFiles: new Set([...componentMap.values()].flat().map((l) => l.file)).size };
-            }
-            default:
-                throw new Error(`harnessa-fe: unhandled command "${command}"`);
-        }
-    }
-
-    function connectMcp(): void {
-        try {
-            const headers: Record<string, string> = {};
-            if (token) headers.authorization = `Bearer ${token}`;
-            ws = new WebSocket(mcpUrl, { headers });
-            ws.on('open', () => {
-                const hello: HelloFrame = {
-                    type: 'hello',
-                    id: newId(),
-                    role: peerRole,
-                    projectId,
-                    parentProjectId: options.parentProjectId,
-                    displayName: getDisplayName(),
-                    buildId: getBuildId(),
-                };
-                send(hello);
-            });
-            ws.on('message', (raw) => {
-                let parsed: unknown;
-                try {
-                    parsed = JSON.parse(raw.toString());
-                } catch {
-                    return;
-                }
-                const result = frameSchema.safeParse(parsed);
-                if (!result.success) return;
-                const frame = result.data as Frame;
-                if (frame.type === 'command') void handleCommand(frame);
-            });
-            ws.on('error', () => {
-                // Server may not be running — that's fine, runtime client also
-                // tries to connect; the plugin just provides best-effort metadata.
-            });
-            ws.on('close', () => {
-                // Backoff reconnect once after 2s; don't spam.
-                setTimeout(() => {
-                    if (isActive) connectMcp();
-                }, 2000);
-            });
-        } catch {
-            /* swallow */
-        }
-    }
-
-    function disconnectMcp(): void {
-        isActive = false;
-        logCaptureCleanup?.();
-        logCaptureCleanup = undefined;
-        ws?.close();
-        ws = undefined;
-    }
-
-    /** Emit an event frame to the MCP server. */
-    function emitEvent(name: string, payload: unknown): void {
-        const event: EventFrame = {
-            type: 'event',
-            id: newId(),
-            projectId,
-            buildId: getBuildId(),
-            name,
-            ts: Date.now(),
-            payload,
+    function buildMcpContext(): McpClientContext {
+        return {
+            get projectId() { return projectId; },
+            get mcpUrl() { return mcpUrl; },
+            get token() { return token; },
+            get peerRole() { return peerRole; },
+            get parentProjectId() { return options.parentProjectId; },
+            get projectRoot() { return projectRoot; },
+            get componentMap() { return componentMap; },
+            getBuildId: () => identity.getBuildId(projectRoot),
+            getDisplayName: () => identity.getDisplayName(projectRoot),
         };
-        send(event);
     }
 
-    // Expose internals for bundler-specific hooks
+    function ensureMcpClient(): McpClient {
+        if (!mcpClient) mcpClient = createMcpClient(buildMcpContext());
+        return mcpClient;
+    }
+
+    // Expose for advanced usage (e.g. tests or downstream plugins inspecting state).
     const ctx = {
         get projectId() { return projectId; },
         get mcpUrl() { return mcpUrl; },
         get componentMap() { return componentMap; },
-        get isActive() { return isActive; },
-        connectMcp,
-        disconnectMcp,
-        emitEvent,
-        send,
+        get isActive() { return mcpClient?.isActive ?? false; },
     };
 
     return {
@@ -343,7 +118,6 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
         async buildStart() {
             if (options.disabled) return;
-            // Resolve projectId from .harnessa-id if not explicitly set
             projectId = await resolveProjectId(projectRoot, options.projectId);
         },
 
@@ -358,15 +132,12 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
         transform(code: string, id: string) {
             if (options.disabled) return null;
-            // Strip query string for relative path + extension checks.
             const queryIdx = id.indexOf('?');
             const filePath = queryIdx === -1 ? id : id.slice(0, queryIdx);
             const query = queryIdx === -1 ? '' : id.slice(queryIdx);
             const rel = relative(projectRoot, filePath);
 
-            // Vue template virtual sub-module emitted by vue-loader (webpack)
-            // OR @vitejs/plugin-vue (vite). The `code` here is the raw template
-            // HTML fragment between <template>…</template> in the source .vue.
+            // Vue template virtual sub-module.
             if (filePath.endsWith('.vue') && /[?&]vue\b/.test(query) && /[?&]type=template\b/.test(query)) {
                 let componentName: string | undefined;
                 let lineOffset = 0;
@@ -382,11 +153,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
                 return { code: out.code, map: out.map as any };
             }
 
-            // Plain .vue request: full SFC transform (works for Vite). In webpack
-            // the bundler-side handler discards this output and reads sub-modules
-            // from disk separately — but the componentMap side effect still
-            // populates the component index, which is what matters for source
-            // intelligence tools.
+            // Plain .vue request: full SFC transform.
             if (filePath.endsWith('.vue') && !query) {
                 const out = transformVueSFC(code, rel, componentMap, vueOptions);
                 if (!out) return null;
@@ -411,11 +178,13 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
             configureServer(server: any) {
                 if (options.disabled) return;
-                isActive = true;
-                connectMcp();
-                logCaptureCleanup = installNodeLogCapture(emitEvent);
+                const client = ensureMcpClient();
+                client.connect();
+                logCaptureCleanup = installNodeLogCapture((name, payload) => client.emitEvent(name, payload));
                 server.httpServer?.once('close', () => {
-                    disconnectMcp();
+                    logCaptureCleanup?.();
+                    logCaptureCleanup = undefined;
+                    client.disconnect();
                 });
             },
 
@@ -426,7 +195,6 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
             load(id: string) {
                 if (id !== RESOLVED_VIRTUAL_RUNTIME_ID) return undefined;
-                // Resolve the runtime package entry point relative to this plugin
                 const runtimeEntry = require.resolve('@harnessa-fe/runtime');
                 return `export * from ${JSON.stringify(runtimeEntry)};\nimport ${JSON.stringify(runtimeEntry)};`;
             },
@@ -437,7 +205,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
                     if (options.disabled) return html;
                     const injection = `<!-- @harnessa-fe injected (dev only) -->
 <script>
-window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: getBuildId(), parentProjectId: options.parentProjectId, displayName: getDisplayName() })};
+window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: identity.getBuildId(projectRoot), parentProjectId: options.parentProjectId, displayName: identity.getDisplayName(projectRoot) })};
 </script>
 <script type="module">import '${VIRTUAL_RUNTIME_ID}';</script>`;
                     return html.replace(/<\/head>/i, `${injection}\n</head>`);
@@ -445,126 +213,13 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: getBuild
             },
 
             handleHotUpdate(hmrCtx: any) {
-                emitEvent('hmr', {
+                mcpClient?.emitEvent('hmr', {
                     file: hmrCtx.file,
                     type: hmrCtx.modules?.length ? 'update' : 'reload',
                     moduleCount: hmrCtx.modules?.length ?? 0,
                 });
                 return hmrCtx.modules;
             },
-        },
-
-        // Webpack-specific hooks
-        webpack(compiler: any) {
-            if (options.disabled) return;
-
-            // Set role for webpack
-            peerRole = 'webpack-plugin';
-
-            // Resolve project root from webpack context
-            projectRoot = compiler.options?.context ?? process.cwd();
-            void resolveProjectId(projectRoot, options.projectId).then((id) => {
-                projectId = id;
-            });
-
-            // Skip entirely in production
-            if (compiler.options?.mode === 'production') return;
-
-            // Inject the browser runtime into the user's main bundle.
-            //
-            // Webpack — unlike Vite — has no dev server that translates bare
-            // specifiers in <script src="…"> tags. Serving runtime via a script
-            // tag with `src="@harnessa-fe/runtime"` 404s in the browser.
-            // The webpack-idiomatic fix is `EntryPlugin`: add the runtime
-            // entry to the DEFAULT chunk (no `name`) so it gets concatenated
-            // into the user's main `bundle.js` and auto-executes on load.
-            //
-            // The runtime is a side-effect import: importing it calls
-            // `client.start()` at module top level.
-            try {
-                const { EntryPlugin } = require('webpack');
-                const runtimeEntry = require.resolve('@harnessa-fe/runtime');
-                new EntryPlugin(compiler.context ?? projectRoot, runtimeEntry, {
-                    name: undefined,
-                }).apply(compiler);
-            } catch (err) {
-                console.warn(
-                    '[harnessa-fe] failed to register runtime entry via webpack.EntryPlugin:',
-                    err,
-                );
-            }
-
-            // Connect to MCP server when compilation starts
-            compiler.hooks.afterEnvironment.tap('harnessa-fe', () => {
-                isActive = true;
-                connectMcp();
-                logCaptureCleanup = installNodeLogCapture(emitEvent);
-            });
-
-            // Disconnect on shutdown
-            compiler.hooks.shutdown?.tap('harnessa-fe', () => {
-                disconnectMcp();
-            });
-
-            // Forward compilation errors
-            compiler.hooks.done.tap('harnessa-fe', (stats: any) => {
-                if (stats.hasErrors()) {
-                    const errors = stats.compilation?.errors ?? [];
-                    for (const err of errors) {
-                        emitEvent('error', {
-                            message: err.message ?? String(err),
-                            file: err.module?.resource ?? undefined,
-                        });
-                    }
-                }
-            });
-
-            // HTML injection via html-webpack-plugin if available
-            compiler.hooks.compilation.tap('harnessa-fe', (compilation: any) => {
-                // Try html-webpack-plugin hooks
-                try {
-                    const HtmlPlugin = require('html-webpack-plugin');
-                    const hooks = HtmlPlugin.getHooks(compilation);
-                    hooks.beforeEmit.tapAsync('harnessa-fe', (data: any, cb: any) => {
-                        // Runtime is added to the main bundle via EntryPlugin
-                        // above — no <script> tag needed for it. Only inject
-                        // the window config object that the runtime reads at
-                        // boot time (via `readInjectedConfig()`).
-                        const injection = `<!-- @harnessa-fe injected (dev only) -->
-<script>
-window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: getBuildId(), parentProjectId: options.parentProjectId, displayName: getDisplayName() })};
-</script>`;
-                        data.html = data.html.replace(/<\/head>/i, `${injection}\n</head>`);
-                        cb(null, data);
-                    });
-                } catch {
-                    // html-webpack-plugin not installed — use processAssets fallback
-                    const { Compilation } = require('webpack');
-                    compilation.hooks.processAssets.tap(
-                        {
-                            name: 'harnessa-fe',
-                            stage: Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE_INLINE,
-                        },
-                        (assets: any) => {
-                            for (const [name, source] of Object.entries(assets)) {
-                                if (!name.endsWith('.html')) continue;
-                                const html = (source as any).source();
-                                if (typeof html !== 'string') continue;
-                                // Runtime is added to the main bundle via EntryPlugin
-                        // above — no <script> tag needed for it. Only inject
-                        // the window config object that the runtime reads at
-                        // boot time (via `readInjectedConfig()`).
-                        const injection = `<!-- @harnessa-fe injected (dev only) -->
-<script>
-window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: getBuildId(), parentProjectId: options.parentProjectId, displayName: getDisplayName() })};
-</script>`;
-                                const newHtml = html.replace(/<\/head>/i, `${injection}\n</head>`);
-                                compilation.updateAsset(name, new (require('webpack').sources.RawSource)(newHtml));
-                            }
-                        },
-                    );
-                }
-            });
         },
 
         // Expose context for advanced usage
