@@ -1,5 +1,5 @@
 ---
-'@harnessa-fe/mcp-server': minor
+'@harnessa-fe/mcp-server': patch
 ---
 
 Token is now fully optional — the daemon never refuses to start over
