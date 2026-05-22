@@ -39,7 +39,7 @@ Today the daemon assumes a developer running it on `localhost`. To put Harness i
 
 - [ ] **HTTP Streamable MCP transport** — drop the one-stdio-subprocess-per-agent model; one daemon serves all agents; remote-friendly; standard MCP transport. Prereq for everything else in this milestone.
 - [ ] **Embeddable daemon** — `createDaemon({ port, store })` API so a host app (morphicai-web) can run the daemon in-process or as a sidecar
-- [ ] **`Last-Event-ID` SSE reconnection** — survives transient disconnects during long agent runs
+- [x] **`Last-Event-ID` SSE reconnection** — survives transient disconnects during long agent runs (in-memory `MemoryEventStore` default; pluggable via `eventStore` option on `startMcpHttpServer`)
 - [ ] **Auth on the daemon boundary** — token-based; the in-process API doesn't need it, the network boundary does
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)
 - [ ] **Multi-bundler reach** — Rspack + esbuild + Rollup adapters via unplugin

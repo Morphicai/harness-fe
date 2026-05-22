@@ -19,6 +19,15 @@
 
 import type { Task, VisitorEnv } from '@harnessa-fe/protocol';
 
+// Re-export the MCP SDK's EventStore types so consumers (and embedders) can
+// plug in custom resumable-stream backends without depending on the SDK
+// directly. The default implementation is `MemoryEventStore`.
+export type {
+    EventId,
+    EventStore,
+    StreamId,
+} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+
 // ─── Event types ─────────────────────────────────────────────────────────────
 
 /** Short type codes used in JSONL lines to keep files compact. */
