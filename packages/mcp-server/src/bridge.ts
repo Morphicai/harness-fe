@@ -50,7 +50,6 @@ import {
 } from '@harnessa-fe/protocol';
 import { SessionRouter, type PeerSession } from './sessionRouter.js';
 import { createReplayHandler } from './replayViewer.js';
-import { createDashboardHandler } from './dashboard.js';
 import { createDashboardApiHandler } from './dashboardApi.js';
 import { createDashboardSpaHandler } from './dashboardSpa.js';
 import { createEventsHandler } from './eventsHandler.js';
@@ -260,16 +259,15 @@ export class Bridge implements IBridge {
                     () => this.getViewerBaseUrl(),
                     ({ sessionId, projectId }) => this.notifyDashboard({ kind: 'export.new', sessionId, projectId }),
                 );
-                const dashboard = createDashboardHandler(store, () => this.getViewerBaseUrl());
                 const dashboardSpa = createDashboardSpaHandler();
                 this.setHttpHandler(async (req, res) => {
                     if (replay(req, res)) return;
-                    // dashboardApi must run before the legacy HTML dashboard
-                    // so /api/* never falls into the HTML 404 page.
+                    // dashboardApi handles /api/* (must come before SPA so a
+                    // future SPA route doesn't accidentally shadow it).
                     if (await dashboardApi(req, res)) return;
-                    // dashboardSpa owns the /dashboard/* prefix.
+                    // dashboardSpa owns /dashboard/* plus the legacy /
+                    // and /sessions/:id redirects into the SPA.
                     if (dashboardSpa(req, res)) return;
-                    if (await dashboard(req, res)) return;
                     if (await events(req, res)) return;
                     res.statusCode = 404;
                     res.setHeader('content-type', 'text/plain; charset=utf-8');
