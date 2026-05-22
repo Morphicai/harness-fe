@@ -1,5 +1,12 @@
 # @harnessa-fe/next
 
+## 2.0.0
+
+### Patch Changes
+
+- @harnessa-fe/node-runtime@2.0.0
+- @harnessa-fe/runtime@2.0.0
+
 ## 1.0.2
 
 ### Patch Changes
