@@ -342,6 +342,7 @@ export const COMMAND = {
     TASKS_PENDING: 'tasks.pending',
     TASKS_CLAIM: 'tasks.claim',
     TASKS_RESOLVE: 'tasks.resolve',
+    DASHBOARD_OPEN: 'dashboard.open',
 } as const;
 
 export type CommandName = typeof COMMAND[keyof typeof COMMAND];

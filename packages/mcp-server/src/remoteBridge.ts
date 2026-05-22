@@ -141,6 +141,13 @@ export class RemoteBridge implements IBridge {
         return `http://${this.host}:${this.port}`;
     }
 
+    getAuthToken(): string | undefined {
+        // Followers connect to the leader using their own configured token
+        // (passed in via RemoteBridge constructor). Surface it so dashboard
+        // links the follower hands out are pre-authenticated.
+        return this.token;
+    }
+
     async getTaskAttachmentData(_taskId: string, _attachmentId: string): Promise<string | null> {
         // Follower mode: attachment reads are not proxied in v0.6; direct leader access needed.
         return null;
