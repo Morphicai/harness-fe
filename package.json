@@ -22,6 +22,7 @@
         "start:mcp": "pnpm --filter @harnessa-fe/mcp-server start",
         "restart:mcp": "bash scripts/restart-mcp.sh",
         "demo": "pnpm build && pnpm --filter harnessa-fe-react-demo dev",
+        "dev:self-debug": "bash scripts/dev-self-debug.sh",
         "e2e": "pnpm --filter harnessa-fe-react-demo e2e",
         "graph": "turbo run build --graph",
         "graph:html": "turbo run build --graph=dep-graph.html && echo '→ open dep-graph.html'",
