@@ -24,7 +24,7 @@ import {
     isLoopbackHost,
     parseWsUrl,
 } from '@harnessa-fe/protocol';
-import { Bridge, type IBridge } from './bridge.js';
+import { Bridge, defaultDataDir, type IBridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';
 import { startMcpStdioServer } from './mcp.js';
 import { startMcpHttpServer } from './mcpHttp.js';
@@ -38,6 +38,10 @@ interface CliConfig {
     mcpTransport: McpTransport;
     mcpPath: string;
     publicHost: string | undefined;
+    /** Friendly daemon name; surfaces in banner / dashboard. Cosmetic only. */
+    label: string | undefined;
+    /** Resolved data directory. Defaults to defaultDataDir(port). */
+    dataDir: string;
 }
 
 function printHelpAndExit(): never {
@@ -160,6 +164,11 @@ function parseArgs(argv: string[]): CliConfig {
     }
     const finalMcpPath = mcpPath ?? process.env.HARNESSA_FE_MCP_PATH ?? '/mcp';
 
+    // Data dir defaults to port-keyed path. Explicit env override wins.
+    const finalDataDir = process.env.HARNESSA_FE_DATA_DIR ?? defaultDataDir(finalPort);
+
+    const finalLabel = process.env.HARNESSA_FE_LABEL || undefined;
+
     return {
         host: finalHost,
         port: finalPort,
@@ -167,6 +176,8 @@ function parseArgs(argv: string[]): CliConfig {
         mcpTransport: finalTransport,
         mcpPath: finalMcpPath,
         publicHost,
+        label: finalLabel,
+        dataDir: finalDataDir,
     };
 }
 
@@ -179,7 +190,13 @@ function validate(_cfg: CliConfig): void {
 
 function printBanner(cfg: CliConfig, role: 'leader' | 'follower', viewerUrl: string | undefined): void {
     const lines: string[] = [];
-    lines.push(`[harnessa-fe] ${role}: WS bridge listening on ws://${cfg.host}:${cfg.port}`);
+    const labelSuffix = cfg.label ? `  (${cfg.label})` : '';
+    lines.push(`[harnessa-fe] ${role}: WS bridge listening on ws://${cfg.host}:${cfg.port}${labelSuffix}`);
+    if (role === 'leader') {
+        // Surface the data dir so the user can see exactly where this
+        // daemon's sessions / recordings / projects are landing.
+        lines.push(`[harnessa-fe] data:   ${cfg.dataDir}`);
+    }
     const isLan = !isLoopbackHost(cfg.host);
     if (isLan) {
         lines.push(`[harnessa-fe] WARNING: bound to non-loopback host ${cfg.host}.`);
@@ -266,6 +283,8 @@ async function startBridgeOrAttach(
     const bridge = new Bridge({
         port: cfg.port,
         host: cfg.host,
+        dataDir: cfg.dataDir,
+        label: cfg.label,
         auth: cfg.token ? { token: cfg.token } : undefined,
         publicHost: cfg.publicHost,
     });
