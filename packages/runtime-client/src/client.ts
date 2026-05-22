@@ -19,7 +19,9 @@ import {
 } from '@harnessa-fe/protocol';
 import { getCaptureStore } from './capture.js';
 import { commandHandlers, type CommandContext } from './commands.js';
+import { Outbox } from './outbox.js';
 import { RrwebRecorder } from './recording.js';
+import { chunkHasFullSnapshot } from './rrweb-types.js';
 import { collectPageLoadSnapshot } from './snapshot.js';
 import {
     collectEnv,
@@ -137,21 +139,12 @@ export class RuntimeClient {
     private readonly recorder = new RrwebRecorder((chunk) => this.sendEvent(EVENT_NAME.RRWEB, chunk));
     private reconnectAttempts = 0;
     private closed = false;
-    /**
-     * Pre-handshake / reconnect outbox.
-     *
-     * Frames produced before the WebSocket reaches OPEN (or while it is
-     * temporarily down during reconnect) used to be silently dropped. That
-     * was particularly bad for rrweb: the *very first* chunk contains the
-     * Meta + FullSnapshot baseline frames — without it, every later
-     * incremental snapshot is useless for replay. We now buffer in FIFO order
-     * and flush on `open`. Capped to defend against OOM if the bridge is
-     * unreachable for an extended period.
-     */
-    private outbox: string[] = [];
-    private outboxBytes = 0;
     private static readonly MAX_OUTBOX_FRAMES = 500;
     private static readonly MAX_OUTBOX_BYTES = 8 * 1024 * 1024;
+    private readonly outbox = new Outbox(
+        RuntimeClient.MAX_OUTBOX_FRAMES,
+        RuntimeClient.MAX_OUTBOX_BYTES,
+    );
 
     constructor(private readonly opts: ClientOptions) {
         const inherited = _tryInheritFromParent();
@@ -264,6 +257,16 @@ export class RuntimeClient {
             // Bridge rejected this hello — do not send PAGE_LOAD.
             return;
         }
+        // Force a fresh rrweb FullSnapshot on every ack — including reconnects
+        // after daemon restart, network blips, or page-recovery from sleep.
+        // Without this, the only baseline for the session is whatever rrweb
+        // emitted at start(); if that chunk was evicted from the outbox
+        // (FIFO overflow during a long disconnect) or the daemon was down at
+        // the critical moment, the session is unreplayable forever.
+        // Safe to call on every ack: rrweb emits another type:2, replay
+        // engines treat additional baselines as a checkpoint reset.
+        this.recorder.takeFullSnapshot();
+
         // Send the page-load snapshot exactly once per load. The reconnect
         // path also lands here; emit only on the first ack of this load.
         if (this.pageLoadSent) return;
@@ -364,36 +367,32 @@ export class RuntimeClient {
                 // write failed mid-stream — fall through and buffer for retry
             }
         }
-        this.enqueue(payload);
-    }
-
-    private enqueue(payload: string): void {
-        this.outbox.push(payload);
-        this.outboxBytes += payload.length;
-        while (
-            this.outbox.length > RuntimeClient.MAX_OUTBOX_FRAMES ||
-            this.outboxBytes > RuntimeClient.MAX_OUTBOX_BYTES
-        ) {
-            const dropped = this.outbox.shift();
-            if (dropped === undefined) break;
-            this.outboxBytes -= dropped.length;
-        }
+        this.outbox.enqueue(payload, isStickyFrame(frame));
     }
 
     private drainOutbox(): void {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-        while (this.outbox.length > 0) {
-            const payload = this.outbox[0]!;
-            try {
-                this.ws.send(payload);
-            } catch {
-                // Underlying socket failed; keep what remains for next drain.
-                return;
-            }
-            this.outbox.shift();
-            this.outboxBytes -= payload.length;
-        }
+        this.outbox.flush((payload) => {
+            this.ws!.send(payload);
+        });
     }
+}
+
+/**
+ * Decide whether an outgoing frame must survive outbox eviction.
+ *
+ * Today: any rrweb chunk that contains a FullSnapshot (type:2). Without
+ * this, the FullSnapshot — being the *first* rrweb frame emitted at
+ * recorder start — was always the oldest in the outbox and the FIFO
+ * evictor dropped it first when the daemon was unreachable. That left the
+ * session unreplayable for its entire life.
+ */
+function isStickyFrame(frame: Frame): boolean {
+    if (frame.type !== 'event') return false;
+    if (frame.name !== EVENT_NAME.RRWEB) return false;
+    const payload = frame.payload as { events?: unknown[] } | undefined;
+    if (!payload || !Array.isArray(payload.events)) return false;
+    return chunkHasFullSnapshot(payload as { events: unknown[] });
 }
 
 /** Pull the well-known config object planted by the Vite plugin on window. */
