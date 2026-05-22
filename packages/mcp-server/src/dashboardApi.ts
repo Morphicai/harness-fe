@@ -54,6 +54,7 @@ export interface ReplayCreateBody {
 export function createDashboardApiHandler(
     store: IStore,
     getBaseUrl: () => string | undefined,
+    onExportCreated?: (input: { sessionId: string; projectId?: string }) => void,
 ): (req: IncomingMessage, res: ServerResponse) => boolean | Promise<boolean> {
     return async (req, res) => {
         if (!req.url) return false;
@@ -112,6 +113,11 @@ export function createDashboardApiHandler(
                     label: body.label,
                 });
                 const status = result.error ? 400 : 200;
+                if (!result.error && result.exportId && onExportCreated) {
+                    // Find the session's project so subscribers can filter.
+                    const projectId = store.getSession(sessionId)?.participants[0]?.projectId;
+                    onExportCreated({ sessionId, projectId });
+                }
                 sendJson(res, status, result);
                 return true;
             }

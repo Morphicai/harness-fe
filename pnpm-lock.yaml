@@ -286,6 +286,9 @@ importers:
 
   packages/mcp-server:
     dependencies:
+      '@harnessa-fe/dashboard-ui':
+        specifier: workspace:*
+        version: link:../dashboard-ui
       '@harnessa-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
