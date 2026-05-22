@@ -1,0 +1,112 @@
+name: Docker
+
+# Build and push the harnessa-fe MCP daemon image to Docker Hub
+# (morphixai/harnessa-fe).
+#
+# Triggers:
+#   - Every time @harnessa-fe/mcp-server publishes to npm (the changesets
+#     release workflow finishes successfully on main). We re-detect the
+#     freshly published version and tag the image accordingly.
+#   - Manual workflow_dispatch with an explicit version. Useful for
+#     republishing an existing npm version against a new base image.
+#
+# Image tags applied:
+#   - docker.io/morphixai/harnessa-fe:<version>   e.g. 2.0.0
+#   - docker.io/morphixai/harnessa-fe:latest      always tracks newest semver
+#
+# Multi-arch build (linux/amd64 + linux/arm64) so Apple Silicon dev VMs +
+# typical x86 servers both work.
+#
+# Required repo secrets:
+#   DOCKERHUB_USERNAME    a Docker Hub account with push to morphixai/*
+#   DOCKERHUB_TOKEN       a Docker Hub PAT (Settings → Security → New token)
+
+on:
+    workflow_run:
+        workflows: ["Release"]
+        types:
+            - completed
+        branches:
+            - main
+    workflow_dispatch:
+        inputs:
+            version:
+                description: 'mcp-server version to image (e.g. 2.0.0)'
+                required: true
+                type: string
+
+permissions:
+    contents: read
+
+concurrency:
+    group: docker-${{ github.ref }}
+    cancel-in-progress: false
+
+env:
+    IMAGE: morphixai/harnessa-fe
+
+jobs:
+    build:
+        # Skip when the upstream Release workflow failed.
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - name: Resolve version
+              id: ver
+              run: |
+                if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                  version="${{ inputs.version }}"
+                else
+                  version=$(npm view @harnessa-fe/mcp-server version)
+                fi
+                if [ -z "$version" ]; then
+                  echo "::error::could not resolve @harnessa-fe/mcp-server version"
+                  exit 1
+                fi
+                echo "version=$version" >> "$GITHUB_OUTPUT"
+                echo "Building harnessa-fe v$version"
+
+            - uses: actions/checkout@v4
+
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@v3
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Skip if version already published
+              id: exists
+              run: |
+                # Cheap "already there" probe: `docker buildx imagetools inspect`
+                # exits non-zero when the tag is missing. Auth is already in
+                # place from the login step above.
+                if docker buildx imagetools inspect "${IMAGE}:${{ steps.ver.outputs.version }}" > /dev/null 2>&1; then
+                  echo "image already published for ${{ steps.ver.outputs.version }}, skipping"
+                  echo "skip=true" >> "$GITHUB_OUTPUT"
+                else
+                  echo "skip=false" >> "$GITHUB_OUTPUT"
+                fi
+
+            - name: Build and push
+              if: steps.exists.outputs.skip != 'true'
+              uses: docker/build-push-action@v6
+              with:
+                  context: packages/mcp-server
+                  file: packages/mcp-server/Dockerfile
+                  platforms: linux/amd64,linux/arm64
+                  build-args: |
+                      VERSION=${{ steps.ver.outputs.version }}
+                  tags: |
+                      ${{ env.IMAGE }}:${{ steps.ver.outputs.version }}
+                      ${{ env.IMAGE }}:latest
+                  push: true
+                  provenance: false
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
