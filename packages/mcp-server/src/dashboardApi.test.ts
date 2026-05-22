@@ -207,15 +207,14 @@ describe('Dashboard JSON API', () => {
         }
     });
 
-    it('non-API paths fall through to the existing handler chain', async () => {
+    it('non-API root path redirects into the SPA (legacy / no longer serves HTML)', async () => {
         const { bridge, store, port } = await bootBridge();
         try {
             seed(store, 'my-app');
             await store.flush();
-            // The legacy HTML dashboard is still mounted at `/`.
-            const resp = await fetch(`http://127.0.0.1:${port}/`);
-            expect(resp.status).toBe(200);
-            expect(resp.headers.get('content-type')).toMatch(/text\/html/);
+            const resp = await fetch(`http://127.0.0.1:${port}/?token=abc`, { redirect: 'manual' });
+            expect(resp.status).toBe(302);
+            expect(resp.headers.get('location')).toBe('/dashboard/?token=abc');
         } finally {
             await bridge.stop();
         }
