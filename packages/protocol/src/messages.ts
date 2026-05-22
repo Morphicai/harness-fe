@@ -528,6 +528,15 @@ export const screenshotArgsSchema = z.object({
     format: z.enum(['png', 'webp', 'jpeg']).optional(),
     /** Max width in CSS px (preserves aspect ratio). Default 1280 for full, 320 for compact. */
     maxWidth: z.number().int().positive().optional(),
+    /**
+     * CSS color used as the opaque backdrop when the captured element (or
+     * page) has a transparent background. Default '#ffffff' so screenshots
+     * are never visually blank.
+     *
+     * Pass `null` to opt back into a transparent capture (only meaningful
+     * for PNG/WebP — JPEG has no alpha channel).
+     */
+    backgroundColor: z.string().nullable().optional(),
 });
 export type ScreenshotArgs = z.infer<typeof screenshotArgsSchema>;
 

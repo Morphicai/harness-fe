@@ -122,6 +122,158 @@ export function installOverlay(client: OverlayClient): void {
         document.addEventListener('DOMContentLoaded', () => mount(), { once: true });
     }
 
+    // ─── FAB position (drag-and-drop + persistence) ──────────────────────
+    //
+    // The FAB lives in a fixed position the user can drag anywhere on
+    // screen, with the location stashed in localStorage so it survives
+    // reloads. Follower cards (info / reports / question) anchor relative
+    // to the FAB and flip side based on available space.
+    const FAB_SIZE = 40;
+    const FAB_MARGIN = 16;
+    const FAB_POS_KEY = '__harnessa_fe_fab_pos__';
+    const DRAG_THRESHOLD = 5; // px before we treat a pointerdown as a drag
+
+    interface FabPos { x: number; y: number }
+    const readPersistedPos = (): FabPos | undefined => {
+        try {
+            const raw = window.localStorage?.getItem(FAB_POS_KEY);
+            if (!raw) return undefined;
+            const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown };
+            if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+                return { x: parsed.x, y: parsed.y };
+            }
+        } catch {
+            /* swallow — storage unavailable, missing, or malformed */
+        }
+        return undefined;
+    };
+    const persistPos = (pos: FabPos): void => {
+        try {
+            window.localStorage?.setItem(FAB_POS_KEY, JSON.stringify(pos));
+        } catch {
+            /* swallow — quota / sandboxed iframe / etc. */
+        }
+    };
+    const clampPos = (pos: FabPos): FabPos => {
+        const w = window.innerWidth || 1024;
+        const h = window.innerHeight || 768;
+        return {
+            x: Math.max(FAB_MARGIN, Math.min(w - FAB_SIZE - FAB_MARGIN, pos.x)),
+            y: Math.max(FAB_MARGIN, Math.min(h - FAB_SIZE - FAB_MARGIN, pos.y)),
+        };
+    };
+    const defaultPos = (): FabPos => {
+        const w = window.innerWidth || 1024;
+        const h = window.innerHeight || 768;
+        return { x: w - FAB_SIZE - FAB_MARGIN, y: h - FAB_SIZE - FAB_MARGIN };
+    };
+
+    let fabPos: FabPos = clampPos(readPersistedPos() ?? defaultPos());
+
+    const applyFabPosition = (): void => {
+        fab.style.left = `${fabPos.x}px`;
+        fab.style.top = `${fabPos.y}px`;
+        fab.style.right = 'auto';
+        fab.style.bottom = 'auto';
+    };
+
+    /**
+     * Position the visible follower card anchored to the current FAB
+     * location. Cards prefer to sit above the FAB; flip below when there
+     * isn't enough room above. Horizontal alignment mirrors which half of
+     * the viewport the FAB lives in (so a FAB in the left half gets cards
+     * extending right, and vice-versa).
+     */
+    const repositionCards = (): void => {
+        const rect = fab.getBoundingClientRect();
+        const halfW = (window.innerWidth || 1024) / 2;
+        const winH = window.innerHeight || 768;
+        const gap = 12;
+
+        const cards: Array<{ el: HTMLElement; estimatedHeight: number }> = [
+            { el: infoCard, estimatedHeight: 280 },
+            { el: reportsCard, estimatedHeight: 460 },
+            { el: questionPanel, estimatedHeight: 320 },
+        ];
+
+        for (const { el, estimatedHeight } of cards) {
+            if (el.style.display === 'none') continue;
+            const cardW = el.offsetWidth || 320;
+            const cardH = el.offsetHeight || estimatedHeight;
+            const onLeftHalf = rect.left + rect.width / 2 < halfW;
+            // Horizontal: align the card's left or right edge to the FAB's
+            let left = onLeftHalf ? rect.left : rect.right - cardW;
+            left = Math.max(8, Math.min((window.innerWidth || 1024) - cardW - 8, left));
+            // Vertical: prefer above the FAB; flip below when constrained.
+            let top: number;
+            if (rect.top - gap - cardH >= 8) {
+                top = rect.top - gap - cardH;
+            } else if (rect.bottom + gap + cardH <= winH - 8) {
+                top = rect.bottom + gap;
+            } else {
+                // Both directions constrained: center vertically.
+                top = Math.max(8, Math.min(winH - cardH - 8, rect.top - cardH / 2));
+            }
+            el.style.left = `${left}px`;
+            el.style.top = `${top}px`;
+            el.style.right = 'auto';
+            el.style.bottom = 'auto';
+        }
+    };
+
+    applyFabPosition();
+
+    // ─── Drag handlers ───────────────────────────────────────────────────
+    let dragOriginPos: FabPos | null = null;
+    let pointerDownAt: { x: number; y: number } | null = null;
+    let dragging = false;
+    let suppressNextClick = false;
+
+    const onFabPointerDown = (ev: PointerEvent) => {
+        if (ev.button !== 0) return;
+        try { fab.setPointerCapture(ev.pointerId); } catch { /* swallow */ }
+        dragOriginPos = { x: fabPos.x, y: fabPos.y };
+        pointerDownAt = { x: ev.clientX, y: ev.clientY };
+        dragging = false;
+    };
+
+    const onFabPointerMove = (ev: PointerEvent) => {
+        if (!pointerDownAt || !dragOriginPos) return;
+        const dx = ev.clientX - pointerDownAt.x;
+        const dy = ev.clientY - pointerDownAt.y;
+        if (!dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        dragging = true;
+        suppressNextClick = true;
+        fab.dataset.dragging = '1';
+        fabPos = clampPos({ x: dragOriginPos.x + dx, y: dragOriginPos.y + dy });
+        applyFabPosition();
+        repositionCards();
+    };
+
+    const onFabPointerUp = (ev: PointerEvent) => {
+        try { fab.releasePointerCapture(ev.pointerId); } catch { /* swallow */ }
+        const wasDragging = dragging;
+        dragOriginPos = null;
+        pointerDownAt = null;
+        dragging = false;
+        delete fab.dataset.dragging;
+        if (wasDragging) persistPos(fabPos);
+    };
+
+    fab.addEventListener('pointerdown', onFabPointerDown);
+    fab.addEventListener('pointermove', onFabPointerMove);
+    fab.addEventListener('pointerup', onFabPointerUp);
+    fab.addEventListener('pointercancel', onFabPointerUp);
+
+    // Keep things on-screen when the viewport changes (window resize,
+    // dev tools open, mobile keyboard, …).
+    const onWindowResize = () => {
+        fabPos = clampPos(fabPos);
+        applyFabPosition();
+        repositionCards();
+    };
+    window.addEventListener('resize', onWindowResize);
+
     // ─── State machine ────────────────────────────────────────────────────
     type State = 'idle' | 'info' | 'reports' | 'picker' | 'annotate' | 'question';
     let state: State = 'idle';
@@ -157,6 +309,12 @@ export function installOverlay(client: OverlayClient): void {
         }
         if (next === 'annotate' && lockedEl) {
             void enterAnnotate(lockedEl);
+        }
+        // Anchor the just-revealed follower card relative to the FAB. Wait
+        // one frame so `display: flex` has applied and offsetWidth/Height
+        // are real (otherwise the first render uses fallback estimates).
+        if (next === 'info' || next === 'reports' || next === 'question') {
+            requestAnimationFrame(() => repositionCards());
         }
     };
 
@@ -492,7 +650,15 @@ export function installOverlay(client: OverlayClient): void {
     };
 
     // ─── Wire interactions ───────────────────────────────────────────────
-    fab.addEventListener('click', () => {
+    fab.addEventListener('click', (ev) => {
+        // Suppress the synthetic click that follows a drag — the user
+        // dragged the FAB, they didn't intend to open the info card.
+        if (suppressNextClick) {
+            suppressNextClick = false;
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+        }
         setState(state === 'idle' ? 'info' : 'idle');
     });
 
@@ -959,52 +1125,89 @@ function buildStyle(): HTMLStyleElement {
         :host { all: initial; }
         .fab {
             position: fixed;
-            right: 20px;
-            bottom: 20px;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: #111827;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
             color: #fff;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-            font: 600 16px/1 ui-serif, Georgia, serif;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            cursor: grab;
+            touch-action: none;
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.06) inset,
+                0 8px 24px -4px rgba(0, 0, 0, 0.45),
+                0 2px 6px rgba(0, 0, 0, 0.35);
+            font: 600 14px/1 'Inter', system-ui, -apple-system, sans-serif;
+            letter-spacing: 0.02em;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 2147483646;
-            transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
-            opacity: 0.85;
-            letter-spacing: 0.01em;
+            transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            opacity: 0.92;
         }
-        .fab:hover { opacity: 1; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.3); }
-        .fab[data-state="active"] { background: #b91c1c; opacity: 1; }
-        .fab[data-state="flash"] { background: #15803d; opacity: 1; }
+        .fab:hover {
+            opacity: 1;
+            transform: translateY(-1px);
+            border-color: rgba(129, 140, 248, 0.4);
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.08) inset,
+                0 0 0 1px rgba(129, 140, 248, 0.3),
+                0 12px 28px -4px rgba(0, 0, 0, 0.5),
+                0 4px 10px rgba(0, 0, 0, 0.4);
+        }
+        .fab:active { cursor: grabbing; transform: translateY(0); }
+        .fab[data-dragging="1"] {
+            cursor: grabbing;
+            opacity: 1;
+            transition: none;
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.1) inset,
+                0 0 0 1px rgba(129, 140, 248, 0.45),
+                0 18px 36px -6px rgba(0, 0, 0, 0.6);
+        }
+        .fab[data-state="active"] {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            border-color: rgba(248, 113, 113, 0.4);
+            opacity: 1;
+        }
+        .fab[data-state="flash"] {
+            background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+            border-color: rgba(52, 211, 153, 0.4);
+            opacity: 1;
+        }
 
         .info-card {
             position: fixed;
-            right: 20px;
-            bottom: 68px;
             width: 300px;
-            background: #fff;
-            color: #111;
-            border: 1px solid #e5e7eb;
+            background: rgba(17, 17, 20, 0.92);
+            color: #e4e4e7;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.04) inset,
+                0 18px 50px -8px rgba(0, 0, 0, 0.6),
+                0 4px 12px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(14px) saturate(180%);
+            -webkit-backdrop-filter: blur(14px) saturate(180%);
             padding: 14px;
             display: none;
             flex-direction: column;
             gap: 10px;
             z-index: 2147483646;
-            font: 13px/1.4 system-ui, -apple-system, sans-serif;
+            font: 13px/1.4 'Inter', system-ui, -apple-system, sans-serif;
+            animation: fade-in 180ms ease-out;
+        }
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(2px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
         .info-card .bar {
             display: flex;
             align-items: center;
             gap: 8px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #f3f4f6;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
         .info-card .bar .proj {
             font-weight: 600;
@@ -1013,27 +1216,29 @@ function buildStyle(): HTMLStyleElement {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            color: #f4f4f5;
         }
         .info-card .dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #9ca3af;
+            background: #71717a;
             flex-shrink: 0;
         }
         .info-card .dot[data-state="open"] {
-            background: #10b981;
+            background: #34d399;
+            box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
             animation: pulse 2s ease-in-out infinite;
         }
         .info-card .dot[data-state="connecting"] {
-            background: #f59e0b;
+            background: #fbbf24;
             animation: blink 0.6s ease-in-out infinite;
         }
-        .info-card .conn { color: #6b7280; font-size: 11px; flex-shrink: 0; }
+        .info-card .conn { color: #a1a1aa; font-size: 11px; flex-shrink: 0; }
         .info-card .close-btn {
             background: none;
             border: none;
-            color: #9ca3af;
+            color: #71717a;
             cursor: pointer;
             padding: 0;
             width: 18px;
@@ -1041,8 +1246,10 @@ function buildStyle(): HTMLStyleElement {
             font-size: 16px;
             line-height: 1;
             flex-shrink: 0;
+            border-radius: 4px;
+            transition: color 0.12s ease, background 0.12s ease;
         }
-        .info-card .close-btn:hover { color: #111; }
+        .info-card .close-btn:hover { color: #f4f4f5; background: rgba(255, 255, 255, 0.06); }
 
         .info-card .rows { display: flex; flex-direction: column; gap: 6px; }
         .info-card .row {
@@ -1052,23 +1259,24 @@ function buildStyle(): HTMLStyleElement {
             font-size: 12px;
         }
         .info-card .row .key {
-            color: #6b7280;
+            color: #71717a;
             width: 60px;
             flex-shrink: 0;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.06em;
+            font-weight: 500;
         }
         .info-card .pill {
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
             font-size: 11px;
-            background: #f3f4f6;
+            background: rgba(255, 255, 255, 0.04);
             border-radius: 5px;
             padding: 3px 7px;
-            color: #374151;
+            color: #d4d4d8;
             cursor: pointer;
-            border: 1px solid transparent;
-            transition: background 0.12s ease, border-color 0.12s ease;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
             user-select: none;
             white-space: nowrap;
             overflow: hidden;
@@ -1076,55 +1284,65 @@ function buildStyle(): HTMLStyleElement {
             max-width: 100%;
             min-width: 0;
         }
-        .info-card .pill:hover { background: #e5e7eb; border-color: #d1d5db; }
-        .info-card .pill[data-copied="1"] { background: #d1fae5; color: #065f46; }
+        .info-card .pill:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.12); color: #f4f4f5; }
+        .info-card .pill[data-copied="1"] {
+            background: rgba(52, 211, 153, 0.12);
+            color: #34d399;
+            border-color: rgba(52, 211, 153, 0.3);
+        }
         .info-card .pill.url {
             cursor: default;
             background: transparent;
-            color: #6b7280;
+            color: #a1a1aa;
             padding: 0;
+            border-color: transparent;
         }
         .info-card .pill.url:hover { background: transparent; border-color: transparent; }
 
         .info-card .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
         .info-card .primary {
-            background: #111827;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
             color: #fff;
-            border: none;
+            border: 1px solid rgba(129, 140, 248, 0.4);
             border-radius: 8px;
             padding: 10px 12px;
-            font: 600 13px/1.2 system-ui, sans-serif;
+            font: 600 13px/1.2 'Inter', system-ui, sans-serif;
             cursor: pointer;
             text-align: left;
             display: flex;
             align-items: center;
             gap: 10px;
-            transition: background 0.15s ease;
+            transition: filter 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: 0 4px 12px -2px rgba(99, 102, 241, 0.3);
         }
-        .info-card .primary:hover { background: #000; }
+        .info-card .primary:hover { filter: brightness(1.1); box-shadow: 0 6px 16px -2px rgba(99, 102, 241, 0.4); }
         .info-card .primary .icon { font-size: 16px; }
         .info-card .primary .label { flex: 1; }
         .info-card .primary .hint {
             font-size: 11px;
-            color: #9ca3af;
+            color: rgba(255, 255, 255, 0.7);
             font-weight: 400;
         }
 
         .info-card .secondary {
-            background: #fff;
-            color: #374151;
-            border: 1px solid #e5e7eb;
+            background: rgba(255, 255, 255, 0.03);
+            color: #d4d4d8;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 8px;
             padding: 9px 12px;
-            font: 500 12px/1.2 system-ui, sans-serif;
+            font: 500 12px/1.2 'Inter', system-ui, sans-serif;
             cursor: pointer;
             display: flex;
             align-items: center;
             gap: 8px;
-            transition: background 0.12s ease;
+            transition: background 0.12s ease, border-color 0.12s ease;
         }
-        .info-card .secondary:hover { background: #f9fafb; }
-        .info-card .secondary[data-copied="1"] { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+        .info-card .secondary:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.16); color: #f4f4f5; }
+        .info-card .secondary[data-copied="1"] {
+            background: rgba(52, 211, 153, 0.12);
+            color: #34d399;
+            border-color: rgba(52, 211, 153, 0.3);
+        }
 
         .picker-bar {
             position: fixed;
@@ -1168,20 +1386,23 @@ function buildStyle(): HTMLStyleElement {
 
         .question {
             position: fixed;
-            right: 20px;
-            bottom: 68px;
             width: 320px;
-            background: #fff;
-            color: #111;
-            border: 1px solid #e5e7eb;
+            background: rgba(17, 17, 20, 0.92);
+            color: #e4e4e7;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.04) inset,
+                0 18px 50px -8px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(14px) saturate(180%);
+            -webkit-backdrop-filter: blur(14px) saturate(180%);
             padding: 14px;
             display: none;
             flex-direction: column;
             gap: 10px;
             z-index: 2147483646;
-            font: 13px/1.4 system-ui, sans-serif;
+            font: 13px/1.4 'Inter', system-ui, sans-serif;
+            animation: fade-in 180ms ease-out;
         }
         .question h3 { margin: 0; font-size: 13px; font-weight: 600; }
         .question .info {
@@ -1293,20 +1514,23 @@ function buildStyle(): HTMLStyleElement {
 
         .reports-card {
             position: fixed;
-            right: 20px;
-            bottom: 68px;
             width: 320px;
             max-height: 480px;
-            background: #fff;
-            color: #111;
-            border: 1px solid #e5e7eb;
+            background: rgba(17, 17, 20, 0.92);
+            color: #e4e4e7;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 12px;
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.04) inset,
+                0 18px 50px -8px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(14px) saturate(180%);
+            -webkit-backdrop-filter: blur(14px) saturate(180%);
             display: none;
             flex-direction: column;
             z-index: 2147483646;
-            font: 13px/1.4 system-ui, -apple-system, sans-serif;
+            font: 13px/1.4 'Inter', system-ui, -apple-system, sans-serif;
             overflow: hidden;
+            animation: fade-in 180ms ease-out;
         }
         .reports-card .bar {
             display: flex;
