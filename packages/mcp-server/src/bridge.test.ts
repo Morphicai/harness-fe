@@ -12,7 +12,7 @@ function dirSize(dir: string): number {
     }
     return total;
 }
-import { Bridge } from './bridge.js';
+import { Bridge, defaultDataDir } from './bridge.js';
 import { JsonlStore, JsonTaskStore, type IStore } from './store/index.js';
 import {
     EVENT_NAME,
@@ -1656,5 +1656,53 @@ describe('Bridge — POST /events (HTTP batch transport)', () => {
             await bridge.stop();
             rmSync(dir, { recursive: true, force: true });
         }
+    });
+});
+
+describe('Bridge — port-keyed data directory', () => {
+    it('defaultDataDir(port) returns a port-specific path under ~/.harnessa/daemons', () => {
+        const p1 = defaultDataDir(47729);
+        const p2 = defaultDataDir(47730);
+        // Same daemon → same data dir; different daemon → different data dir.
+        expect(p1).toMatch(/[/\\]\.harnessa[/\\]daemons[/\\]47729[/\\]data$/);
+        expect(p2).toMatch(/[/\\]\.harnessa[/\\]daemons[/\\]47730[/\\]data$/);
+        expect(p1).not.toBe(p2);
+    });
+
+    it('Bridge() picks a port-keyed data dir when dataDir is omitted', () => {
+        // Use null stores so the constructor doesn't actually try to mkdir.
+        // We're only checking that the wiring threads `port` into the default.
+        const bridge = new Bridge({
+            port: 51234,
+            store: null,
+            taskStore: null,
+            memoryStore: null,
+        });
+        // attachDataDir is the only sub-store path that's always populated.
+        expect((bridge as unknown as { attachDataDir: string }).attachDataDir)
+            .toBe(defaultDataDir(51234));
+    });
+
+    it('Bridge() honors an explicit dataDir over the port-keyed default', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'harnessa-bridge-explicit-'));
+        try {
+            const bridge = new Bridge({
+                port: 51235,
+                dataDir: dir,
+                store: null,
+                taskStore: null,
+                memoryStore: null,
+            });
+            expect((bridge as unknown as { attachDataDir: string }).attachDataDir).toBe(dir);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('Bridge() exposes the configured label, undefined when not set', () => {
+        const a = new Bridge({ port: 51236, store: null, taskStore: null, memoryStore: null });
+        const b = new Bridge({ port: 51237, label: 'my-mono', store: null, taskStore: null, memoryStore: null });
+        expect(a.label).toBeUndefined();
+        expect(b.label).toBe('my-mono');
     });
 });

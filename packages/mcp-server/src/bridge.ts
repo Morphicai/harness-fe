@@ -110,8 +110,19 @@ export interface SendCommandOptions {
 const COMMAND_TIMEOUT_MS = 30_000;
 const TASK_QUEUE_CAP = 200;
 
-/** Default data directory for all persistence stores. */
-const DEFAULT_DATA_DIR = joinPath(homedir(), '.harnessa', 'data');
+/**
+ * Default data directory for all persistence stores, keyed by the port the
+ * daemon listens on. Identity of a daemon = its listening address; same
+ * port → same on-disk store; different ports → independent stores.
+ *
+ * This lets users opt into isolation simply by configuring a different
+ * `--port` in their `mcp.json`, and lets multiple IDEs targeting the same
+ * port automatically share state through the existing leader/follower
+ * mechanism in `cli.ts`. No cwd / project-root detection involved.
+ */
+export function defaultDataDir(port: number): string {
+    return joinPath(homedir(), '.harnessa', 'daemons', String(port), 'data');
+}
 
 interface PendingCommand {
     resolve(payload: unknown): void;
@@ -138,26 +149,40 @@ export interface BridgeOptions {
     publicHost?: string;
     /**
      * Store instance for JSONL persistence. If omitted, a default JsonlStore
-     * is created at ~/.harnessa/data. Pass null to disable persistence.
+     * is created at `dataDir` (or `defaultDataDir(port)` when `dataDir` is
+     * also omitted). Pass null to disable persistence.
      */
     store?: IStore | null;
     /**
      * Task store instance for JSON task persistence. If omitted, a default
-     * JsonTaskStore is created at ~/.harnessa/data. Pass null to disable
-     * task persistence (useful in tests).
+     * JsonTaskStore is created at `dataDir`. Pass null to disable task
+     * persistence (useful in tests).
      */
     taskStore?: ITaskStore | null;
     /**
      * Memory store instance for agent memory persistence. If omitted, a default
-     * JsonMemoryStore is created at ~/.harnessa/data. Pass null to disable
-     * memory persistence (useful in tests).
+     * JsonMemoryStore is created at `dataDir`. Pass null to disable memory
+     * persistence (useful in tests).
      */
     memoryStore?: IMemoryStore | null;
     /**
      * Root data directory for task attachment binaries. Defaults to the same
-     * ~/.harnessa/data directory used by the stores. Override in tests.
+     * `~/.harnessa/data` directory used by the stores. Override in tests.
      */
     attachmentsDataDir?: string;
+    /**
+     * Root data directory for the default stores (when `store` / `taskStore`
+     * / `memoryStore` are not supplied). When omitted, computed from `port`
+     * via `defaultDataDir(port)`. Set explicitly to point all stores at a
+     * non-default location (useful for tests or migration).
+     */
+    dataDir?: string;
+    /**
+     * Optional friendly label surfaced in the startup banner and (later) the
+     * dashboard title. Purely cosmetic — has no effect on data isolation,
+     * routing, or auth. Identity is always the listening port.
+     */
+    label?: string;
     /**
      * Automatic retention policy enforcement.
      *
@@ -196,7 +221,7 @@ export class Bridge implements IBridge {
     private pending = new Map<string, PendingCommand>();
     private eventListeners = new Set<EventListener>();
     private tasks = new Map<string, Task>();
-    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore' | 'autoPurge' | 'attachmentsDataDir' | 'auth' | 'publicHost'>>;
+    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore' | 'autoPurge' | 'attachmentsDataDir' | 'auth' | 'publicHost' | 'dataDir' | 'label'>>;
     private auth: AuthOptions;
     private publicHostOverride: string | undefined;
     private readonly attachDataDir: string;
@@ -230,13 +255,19 @@ export class Bridge implements IBridge {
     /** Debounce per-session 'session.update' broadcasts so chatty rrweb chunks don't spam subscribers. */
     private dashboardDebounceTimers = new Map<string, NodeJS.Timeout>();
 
+    /** Optional friendly label (HARNESSA_FE_LABEL). Cosmetic only. */
+    readonly label: string | undefined;
+
     constructor(opts: BridgeOptions = {}) {
-        this.store = opts.store === null ? null : (opts.store ?? new JsonlStore());
-        this.taskStore = opts.taskStore === null ? null : (opts.taskStore ?? new JsonTaskStore(DEFAULT_DATA_DIR));
+        const port = opts.port ?? DEFAULT_WS_PORT;
+        const dataDir = opts.dataDir ?? defaultDataDir(port);
+        this.label = opts.label;
+        this.store = opts.store === null ? null : (opts.store ?? new JsonlStore(dataDir));
+        this.taskStore = opts.taskStore === null ? null : (opts.taskStore ?? new JsonTaskStore(dataDir));
         this.memoryStore = opts.memoryStore === null
-            ? new JsonMemoryStore(DEFAULT_DATA_DIR)
-            : (opts.memoryStore ?? new JsonMemoryStore(DEFAULT_DATA_DIR));
-        this.attachDataDir = opts.attachmentsDataDir ?? DEFAULT_DATA_DIR;
+            ? new JsonMemoryStore(dataDir)
+            : (opts.memoryStore ?? new JsonMemoryStore(dataDir));
+        this.attachDataDir = opts.attachmentsDataDir ?? dataDir;
         this.opts = {
             port: opts.port ?? DEFAULT_WS_PORT,
             host: opts.host ?? '127.0.0.1',
