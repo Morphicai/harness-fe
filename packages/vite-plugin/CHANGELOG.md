@@ -1,5 +1,12 @@
 # @harnessa-fe/vite
 
+## 2.1.0
+
+### Patch Changes
+
+- Updated dependencies [538e8b1]
+  - @harnessa-fe/unplugin@2.1.0
+
 ## 2.0.0
 
 ### Minor Changes
