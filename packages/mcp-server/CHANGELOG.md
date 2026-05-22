@@ -1,5 +1,52 @@
 # @harnessa-fe/mcp-server
 
+## 3.0.2
+
+### Patch Changes
+
+- d05f986: Per-daemon data isolation: daemons now store their data under a
+  port-keyed subdirectory (`~/.harnessa/daemons/<port>/data/`) instead
+  of the single global `~/.harnessa/data/`.
+
+  The model: **daemon identity = listening port**. Same port = same
+  daemon = same data. Different port = independent daemons with
+  independent data. Users opt into isolation by setting a different
+  `--port` (or `HARNESSA_FE_PORT`) in their `mcp.json`; the default
+  remains 47729 and multiple IDEs / agents targeting it automatically
+  pool through the existing leader/follower mechanism — no extra
+  config needed.
+
+  Also adds an optional cosmetic `HARNESSA_FE_LABEL` env var that
+  surfaces in the startup banner (and, later, the dashboard title).
+  Has no effect on data isolation — picking a port is the only knob.
+
+  The startup banner now also prints the resolved data directory on
+  leader runs.
+
+  See [docs/multi-daemon.md](./docs/multi-daemon.md) for usage patterns.
+
+  No migration of existing `~/.harnessa/data/` is performed.
+
+- d05f986: MCP HTTP transport now resumes dropped SSE streams via
+  `Last-Event-ID`. A bounded in-memory `MemoryEventStore` (1000 events
+  / 5 minutes / 50 MiB across all streams by default) is wired into
+  `StreamableHTTPServerTransport` so a client whose connection drops
+  mid-tool-stream can reconnect and receive the events it missed —
+  no duplicates, no gaps within the buffer window.
+
+  `startMcpHttpServer` accepts an optional `eventStore` argument:
+
+  - omit → default `MemoryEventStore` (recommended)
+  - pass a custom `EventStore` implementation → host-provided backing
+    (e.g. Redis, durable file)
+  - pass `null` → resumability disabled
+
+  `EventStore`, `StreamId`, and `EventId` types are re-exported from
+  `@harnessa-fe/mcp-server` so consumers can implement custom backings
+  without depending on the MCP SDK directly. Required for embedding
+  the daemon inside a host application reachable over public networks
+  (VISION direction 1).
+
 ## 3.0.1
 
 ### Patch Changes
