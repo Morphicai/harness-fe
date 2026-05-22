@@ -1,5 +1,18 @@
 # @harness-fe/runtime
 
+## 3.0.1
+
+### Patch Changes
+
+- 3cb3cc8: Add an "Open dashboard" button to the in-page overlay info card. The
+  button derives the daemon's dashboard URL from the runtime's `mcpUrl`
+  (swap `ws://`/`wss://` → `http://`/`https://`, point at `/dashboard/`,
+  carry the token query), deep-links to the current session, and pops it
+  in a new tab on click. Hidden when no `mcpUrl` is configured.
+
+  If the host page blocks popups (sandboxed iframe, strict CSP), the
+  button falls back to copying the URL so the user can paste it.
+
 ## 3.0.0
 
 ### Minor Changes

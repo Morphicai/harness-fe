@@ -123,49 +123,6 @@ Matching env vars: `HARNESS_FE_HOST`, `HARNESS_FE_PORT`,
 `HARNESS_FE_TOKEN`, `HARNESS_FE_MCP_TRANSPORT`, `HARNESS_FE_MCP_PATH`,
 `HARNESS_FE_HEADLESS`.
 
-## Embedding the daemon programmatically
-
-You can also run the daemon as a library inside another Node.js
-process — no `npx`, no sidecar, no second port:
-
-```ts
-import { createDaemon, MemoryEventStore } from '@harness-fe/mcp-server';
-
-const daemon = createDaemon({
-  port: 47729,
-  host: '127.0.0.1',
-  // Replace the built-in token check with your own auth.
-  // Sync because the WS upgrade handshake completes inline.
-  authorize: (req) => verifyMyJwt(req.headers.authorization),
-  // Optional: plug in a custom IStore (Supabase, S3, in-memory…).
-  // Omit for the default port-keyed JSONL store.
-  // store: mySupabaseStore,
-  // Optional: persistent event store for SSE resumability across
-  // daemon restarts. Defaults to an in-memory ring (1000 events /
-  // 5 minutes / 50 MiB). Pass `null` to disable resumability.
-  // eventStore: new MyRedisEventStore(redis),
-});
-
-await daemon.start();
-console.log(`harness-fe listening on :${daemon.getBoundPort()} at ${daemon.mcpPath}`);
-
-process.on('SIGTERM', () => daemon.stop());
-```
-
-The factory accepts the same data-isolation knobs as the CLI
-(`port`, `dataDir`, `label`), plus host-injection hooks
-(`authorize`, `store`, `taskStore`, `memoryStore`, `eventStore`).
-See `DaemonOptions` in the package types for the full list.
-
-A minimal end-to-end example lives at
-[`examples/embed-express/`](./examples/embed-express/).
-
-> **Scope of v1.** `createDaemon` owns its own listener; attaching the
-> daemon to a host's existing `http.Server` (Express middleware /
-> Next.js route handler) requires deeper Bridge surgery and is tracked
-> as a follow-up. Today: same process, separate port. Tomorrow: same
-> origin via host-server attachment.
-
 ## What it exposes
 
 Tools across these domains (see [Architecture](https://github.com/Morphicai/harness-fe/blob/main/ARCHITECTURE.md)):

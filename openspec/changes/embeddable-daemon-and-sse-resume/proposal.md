@@ -81,11 +81,6 @@ Two PRs, in this order:
 2. **`createDaemon` factory + `IStore` injection** — restructure the
    daemon bootstrap, expose the factory, route CLI through it. Larger
    structural change; lands after (1) so resume support is already
-   present when hosts start embedding. **Status: v1 shipped.**
-   `daemon.ts` exposes `createDaemon` with `authorize` /
-   `store` / `eventStore` injection; CLI is a thin wrapper that
-   translates `--token` into the daemon's single auth pipeline.
-   Factory mode only — host-server attachment (`httpServer` /
-   `middleware()`) deferred to a follow-up.
+   present when hosts start embedding. **Status: not started.**
 
 Each PR has its own spec delta under `specs/`.

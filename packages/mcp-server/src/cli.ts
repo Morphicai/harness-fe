@@ -17,7 +17,6 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import type { IncomingMessage } from 'node:http';
 import {
     DEFAULT_HOST,
     DEFAULT_WS_PORT,
@@ -25,11 +24,10 @@ import {
     isLoopbackHost,
     parseWsUrl,
 } from '@harness-fe/protocol';
-import { defaultDataDir, type IBridge } from './bridge.js';
-import { createDaemon, type DaemonHandle } from './daemon.js';
+import { Bridge, defaultDataDir, type IBridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';
 import { startMcpStdioServer } from './mcp.js';
-import { extractToken, verifyToken } from './auth.js';
+import { startMcpHttpServer } from './mcpHttp.js';
 
 type McpTransport = 'stdio' | 'http';
 
@@ -246,7 +244,7 @@ async function main() {
     const cfg = parseArgs(process.argv);
     validate(cfg);
 
-    const { active, shutdown, role, daemonHandle } = await startBridgeOrAttach(cfg);
+    const { active, shutdown, role } = await startBridgeOrAttach(cfg);
     printBanner(cfg, role, active.getViewerBaseUrl());
 
     let mcpShutdown: (() => Promise<void>) | undefined;
@@ -254,7 +252,7 @@ async function main() {
         await startMcpStdioServer(active);
         process.stderr.write('[harness-fe] MCP stdio server connected\n');
     } else {
-        if (role === 'follower' || !daemonHandle) {
+        if (role === 'follower') {
             process.stderr.write(
                 '[harness-fe] --mcp-transport=http is only supported on the leader. ' +
                     'Another daemon already holds the port; stop it first.\n',
@@ -262,8 +260,9 @@ async function main() {
             await shutdown();
             process.exit(2);
         }
-        // createDaemon already mounted the HTTP transport at daemonHandle.mcpPath.
-        process.stderr.write(`[harness-fe] MCP http server mounted at ${daemonHandle.mcpPath}\n`);
+        const handle = await startMcpHttpServer(active, { path: cfg.mcpPath });
+        process.stderr.write(`[harness-fe] MCP http server mounted at ${handle.path}\n`);
+        mcpShutdown = () => handle.close();
     }
 
     const onSignal = async () => {
@@ -278,52 +277,29 @@ async function main() {
     process.on('SIGTERM', onSignal);
 }
 
-/**
- * Translate the CLI's token flag into the daemon's single `authorize`
- * pipeline. Keeping this in `cli.ts` (not pushed down into `createDaemon`)
- * means the factory has exactly one auth path — embedded hosts provide a
- * function directly; the CLI is just one more host that happens to derive
- * its function from `--token`.
- */
-function tokenAuthorizer(token: string): (req: IncomingMessage) => boolean {
-    return (req) => verifyToken(extractToken(req), token);
-}
-
-async function startBridgeOrAttach(cfg: CliConfig): Promise<{
-    active: IBridge;
-    shutdown: () => Promise<void>;
-    role: 'leader' | 'follower';
-    daemonHandle?: DaemonHandle;
-}> {
-    // For the http transport we let the daemon own the MCP mount so the
-    // factory and the CLI take the same code path. For stdio we still
-    // construct the daemon (it boots the Bridge) but stdio MCP is wired
-    // onto `handle.bridge` after start — the MCP http mount is harmless
-    // because nothing routes to it.
-    const daemon = createDaemon({
+async function startBridgeOrAttach(
+    cfg: CliConfig,
+): Promise<{ active: IBridge; shutdown: () => Promise<void>; role: 'leader' | 'follower' }> {
+    const bridge = new Bridge({
         port: cfg.port,
         host: cfg.host,
-        publicHost: cfg.publicHost,
         dataDir: cfg.dataDir,
         label: cfg.label,
-        authorize: cfg.token ? tokenAuthorizer(cfg.token) : undefined,
-        mcpPath: cfg.mcpPath,
+        auth: cfg.token ? { token: cfg.token } : undefined,
+        publicHost: cfg.publicHost,
     });
-
     try {
-        await daemon.start();
+        await bridge.start();
         return {
-            active: daemon.bridge,
-            shutdown: () => daemon.stop(),
+            active: bridge,
+            shutdown: () => bridge.stop(),
             role: 'leader',
-            daemonHandle: daemon,
         };
     } catch (err) {
         if ((err as NodeJS.ErrnoException)?.code !== 'EADDRINUSE') throw err;
     }
 
-    // Port already taken — attach as follower. Followers never mount MCP
-    // http; they reach the leader through the in-process RemoteBridge.
+    // Port already taken — attach as follower.
     const remote = new RemoteBridge({ port: cfg.port, host: cfg.host, token: cfg.token });
     await remote.connect();
     return {
