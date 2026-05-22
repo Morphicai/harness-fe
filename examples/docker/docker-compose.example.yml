@@ -1,0 +1,47 @@
+# Self-hosted harnessa-fe MCP daemon — single-user reference setup.
+#
+# Quick start:
+#   1. cp .env.example .env  and fill in HARNESSA_FE_TOKEN
+#      (`openssl rand -base64 24` to generate one)
+#   2. docker compose up -d
+#   3. Point plugin / browser at http://<docker-host>:47729?token=...
+#
+# Persistence: harnessa-data volume holds ~/.harnessa (sessions, recordings,
+# tasks). Mount a host path instead if you prefer:
+#   - ./harnessa-data:/data
+#
+# Multi-tenant / multi-token is not yet supported — everyone connecting
+# through this daemon shares the same token. Don't expose to the public
+# internet without a TLS-terminating proxy in front.
+
+services:
+  harnessa-fe:
+    image: morphixai/harnessa-fe:latest
+    container_name: harnessa-fe
+    restart: unless-stopped
+    ports:
+      - "47729:47729"
+    environment:
+      HARNESSA_FE_TOKEN: ${HARNESSA_FE_TOKEN:?HARNESSA_FE_TOKEN env var is required}
+      # Override default --public-host when the daemon needs to print URLs
+      # that other devs / phones can actually reach (host IP, DNS name, ...).
+      HARNESSA_FE_PUBLIC_HOST: ${HARNESSA_FE_PUBLIC_HOST:-}
+      # Switch to stdio if you only want to use this daemon via a local
+      # MCP client (uncommon for the docker path — http is the natural fit).
+      HARNESSA_FE_MCP_TRANSPORT: http
+    volumes:
+      - harnessa-data:/data
+    healthcheck:
+      # Hit / with the configured token to confirm the daemon is up AND
+      # accepting auth correctly. CMD-SHELL form expands $HARNESSA_FE_TOKEN
+      # from the container env.
+      test:
+        - CMD-SHELL
+        - wget -q --spider --header="Authorization: Bearer $$HARNESSA_FE_TOKEN" http://127.0.0.1:47729/ || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  harnessa-data:

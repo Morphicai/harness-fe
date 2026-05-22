@@ -109,12 +109,18 @@ yarn add -D @harnessa-fe/vite @harnessa-fe/runtime
    - Local-only by default. For phone / second-machine debugging:
      `npx @harnessa-fe/mcp-server --host 0.0.0.0 --token auto`
      ([details](docs/lan-mode.md))
+   - Hosting it for a team on a shared dev VM?
+     `morphixai/harnessa-fe:latest` ([Docker guide](docs/docker.md))
 4. **Start your dev server** — `pnpm dev`
 5. **Connect your AI agent** — register the MCP server in your AI tool (Claude Code, Cursor, Kiro). The agent now sees and drives your running app.
 
 > **Adopting in legacy Vue projects?** See [docs/vue2-compat.md](docs/vue2-compat.md)
 > — the plugin will never break your build, but you may want to dry-run
 > first to see which files miss out on source-aware tagging.
+
+> **Embedding in Electron / Tauri / multi-window hosts?** See
+> [docs/electron.md](docs/electron.md) for how to make every renderer
+> share one sessionId so the agent gets a unified cross-window timeline.
 
 ### Quick start — Next.js (App or Pages Router)
 
