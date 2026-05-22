@@ -1,6 +1,6 @@
 {
     "name": "@harnessa-fe/next",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "description": "Next.js integration for Harnessa-FE. Drop-in <HarnessaScript /> server component that loads the runtime client and seeds window config — no webpack hooks, no SWC plugin, works with App Router + Pages Router + webpack + Turbopack.",
     "type": "module",
     "license": "MIT",

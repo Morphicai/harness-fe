@@ -1,5 +1,96 @@
 # @harnessa-fe/runtime
 
+## 3.0.0
+
+### Minor Changes
+
+- 10d669c: Overlay UX + screenshot fixes:
+
+  ### Draggable FAB with position persistence
+
+  The floating "H" button can now be dragged anywhere on screen. The
+  position is saved to `localStorage` (`__harnessa_fe_fab_pos__`) and
+  clamped into the viewport on every load — resilient to monitor
+  swaps, dev-tools panel changes, and viewport resizes. Follower cards
+  (info / reports / question) anchor relative to the FAB and flip side
+  based on available space, so they're always reachable no matter where
+  you drop the button.
+
+  A 5px movement threshold separates click from drag; clicking the FAB
+  still opens the info card, dragging it never does.
+
+  ### Dark, glass-style cards
+
+  The info / reports / question panels switched to a dark theme with
+  backdrop blur, matching the new dashboard SPA's Linear-style palette.
+  Info pills, primary/secondary buttons, and status dots refreshed for
+  contrast and clarity on both light and dark host pages.
+
+  ### Screenshot fixes
+
+  - **Overlay no longer bleeds into screenshots.** The "H" FAB and any
+    open info card used to land in the corner of every shot. The
+    `PAGE_SCREENSHOT` handler now flips `visibility: hidden` on the
+    overlay host for the duration of the capture, restoring it
+    (try/finally — survives capture errors) immediately after.
+  - **Default to opaque background.** Captures were rendering blank for
+    pages with no explicit body background. Default is now `#ffffff`;
+    callers can pass `backgroundColor: '#0a0a0f'` (or any CSS color)
+    for a dark backdrop, or `backgroundColor: null` to opt back into a
+    transparent capture (PNG/WebP only — JPEG has no alpha).
+
+  ### Tests
+
+  9 new tests:
+
+  - 4 in `overlay.test.ts` — default position, persisted restore, viewport clamp on shrink, malformed-storage fallback
+  - 5 in `commands.test.ts` (new file) — default opaque background, transparent opt-in via null, custom color, overlay-hidden during capture, overlay restored on error
+
+### Patch Changes
+
+- 953339f: Fix: rrweb FullSnapshot baseline was silently dropped in the "record-first,
+  upload-later" scenario, leaving sessions permanently unreplayable with
+  `window contains no rrweb FullSnapshot (type:2) baseline, and no earlier
+baseline could be found — replay would be blank`.
+
+  ### Root cause
+
+  Two compounding bugs:
+
+  1. **Outbox FIFO eviction dropped the FullSnapshot first.** The outbox
+     capped at 500 frames / 8 MB and evicted via `shift()` (oldest-first).
+     rrweb emits the FullSnapshot at `record.start()` — making it the
+     _oldest_ frame in the outbox. If the daemon was unreachable for any
+     meaningful stretch (laptop sleep, daemon restart, slow first connect
+     in dev), incremental snapshots filled the buffer and evicted the
+     baseline before drain.
+  2. **rrweb only emits FullSnapshot once.** After eviction, no later code
+     path re-emitted it. WebSocket reconnects (incl. daemon restart) reused
+     the existing `record()` lifecycle, which produces only incremental
+     (type:3) events after the initial emit.
+
+  ### Fix (two layers)
+
+  - **Layer 1 — Re-baseline on every connection.** `client.onHelloAck` now
+    calls `recorder.takeFullSnapshot()`, which wraps rrweb's
+    `record.takeFullSnapshot(true)`. Every successful ack — first connect,
+    reconnect after daemon restart, network blip recovery — gets a fresh
+    type:2 baseline.
+  - **Layer 2 — Outbox sticky protection.** Frames flagged `sticky` (today:
+    any rrweb chunk containing a type:2 event) survive eviction even when
+    the cap is busted. Non-sticky frames are evicted FIFO; if outbox is
+    _all-sticky and still over cap_, the oldest sticky is dropped as a last
+    resort (replay only needs the most recent baseline).
+
+  Outbox logic is now extracted to `src/outbox.ts` with 9 unit tests pinning
+  the eviction guarantees, including a regression test that reproduces the
+  original bug shape and proves the sticky frame survives.
+
+- Updated dependencies [65f2b96]
+- Updated dependencies [88e41a2]
+- Updated dependencies [10d669c]
+  - @harnessa-fe/protocol@3.0.0
+
 ## 2.0.0
 
 ### Patch Changes

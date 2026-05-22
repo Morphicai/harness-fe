@@ -1,6 +1,6 @@
 {
     "name": "@harnessa-fe/dashboard-ui",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "React SPA for the Harnessa-FE dev dashboard. Built with Vite + Tailwind, served as static assets by @harnessa-fe/mcp-server.",
     "type": "module",
     "license": "MIT",
