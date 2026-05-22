@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Morphicai/harnessa-fe/main/branding/logo.svg" alt="Harnessa-FE" width="96" />
+</p>
+
 # @harnessa-fe/mcp-server
 
 > The MCP daemon for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe). Bridges AI agents (Claude, Cursor, Kiro) with running dev servers and browser tabs.
