@@ -156,6 +156,63 @@ describe('installOverlay', () => {
         const hosts = document.querySelectorAll('#__harnessa_fe_overlay__');
         expect(hosts.length).toBe(1);
     });
+
+    it('initializes the FAB with inline top/left position (not the legacy right/bottom anchor)', () => {
+        setupDom();
+        try { window.localStorage?.clear(); } catch { /* swallow */ }
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const fab = root.querySelector('.fab') as HTMLButtonElement;
+        expect(fab.style.left).toMatch(/px$/);
+        expect(fab.style.top).toMatch(/px$/);
+        expect(fab.style.right).toBe('auto');
+        expect(fab.style.bottom).toBe('auto');
+    });
+
+    it('restores FAB position from localStorage on next mount', () => {
+        setupDom();
+        window.localStorage?.setItem(
+            '__harnessa_fe_fab_pos__',
+            JSON.stringify({ x: 120, y: 80 }),
+        );
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const fab = root.querySelector('.fab') as HTMLButtonElement;
+        expect(fab.style.left).toBe('120px');
+        expect(fab.style.top).toBe('80px');
+        window.localStorage?.clear();
+    });
+
+    it('clamps a persisted position into the current viewport (resilient against window shrink)', () => {
+        setupDom();
+        window.localStorage?.setItem(
+            '__harnessa_fe_fab_pos__',
+            // Saved on a huge monitor; happy-dom's default viewport is much smaller.
+            JSON.stringify({ x: 9999, y: 9999 }),
+        );
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const fab = root.querySelector('.fab') as HTMLButtonElement;
+        const left = Number.parseInt(fab.style.left, 10);
+        const top = Number.parseInt(fab.style.top, 10);
+        expect(left).toBeLessThan(window.innerWidth);
+        expect(top).toBeLessThan(window.innerHeight);
+        expect(left).toBeGreaterThanOrEqual(8);
+        expect(top).toBeGreaterThanOrEqual(8);
+        window.localStorage?.clear();
+    });
+
+    it('ignores a malformed persisted value and falls back to the default position', () => {
+        setupDom();
+        window.localStorage?.setItem('__harnessa_fe_fab_pos__', 'not json {{{');
+        expect(() => installOverlay(makeFakeClient())).not.toThrow();
+        const fab = document
+            .getElementById('__harnessa_fe_overlay__')!
+            .shadowRoot!.querySelector('.fab') as HTMLButtonElement;
+        expect(fab.style.left).toMatch(/px$/);
+        expect(fab.style.top).toMatch(/px$/);
+        window.localStorage?.clear();
+    });
 });
 
 describe('annotate engine', () => {
