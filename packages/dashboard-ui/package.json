@@ -1,0 +1,51 @@
+{
+    "name": "@harnessa-fe/dashboard-ui",
+    "version": "0.1.0",
+    "description": "React SPA for the Harnessa-FE dev dashboard. Built with Vite + Tailwind, served as static assets by @harnessa-fe/mcp-server.",
+    "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "directory": "packages/dashboard-ui"
+    },
+    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "bugs": {
+        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+    },
+    "exports": {
+        "./package.json": "./package.json",
+        "./dist/*": "./dist/*"
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run --passWithNoTests"
+    },
+    "dependencies": {
+        "react": "^18.3.0",
+        "react-dom": "^18.3.0",
+        "react-router-dom": "^6.28.0"
+    },
+    "devDependencies": {
+        "@types/react": "^18.3.0",
+        "@types/react-dom": "^18.3.0",
+        "@vitejs/plugin-react": "^4.3.0",
+        "autoprefixer": "^10.4.20",
+        "postcss": "^8.4.49",
+        "tailwindcss": "^3.4.17",
+        "typescript": "^5.6.0",
+        "vite": "^7.1.0",
+        "vitest": "^2.1.9"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}
