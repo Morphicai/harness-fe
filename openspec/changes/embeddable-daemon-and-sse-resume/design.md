@@ -57,10 +57,14 @@ behaviour is preserved.
   - `mount?` — base path when attaching to an existing server (default `/`)
   - `store?: IStore` — defaults to the JSONL store at `./data/`
   - `eventStore?: EventStore` — defaults to `MemoryEventStore`
-  - `auth?: (req) => Promise<AuthContext | null>` — replaces the
-    single-token check; `null` rejects the connection
-  - `token?: string` — convenience shorthand for the current
-    `--token` behaviour; mutually exclusive with `auth`
+  - `authorize?: (req) => Promise<AuthContext | null>` — single auth
+    pipeline; return `null` to reject. Omit to disable auth (only
+    valid when bound to a loopback address)
+- The CLI flag `--token foo` (and `HARNESSA_FE_TOKEN` env) is
+  translated **inside `cli.ts`** into an `authorize` function that
+  compares `Authorization: Bearer foo`. The daemon factory itself
+  takes no `token` field — there is exactly one auth path. This
+  matches tasks.md task 10 ("only one auth pipeline").
 - `DaemonHandle`:
   - `start(): Promise<void>` — only when daemon owns its listener
   - `stop(): Promise<void>`
@@ -136,8 +140,18 @@ app's context.
   types are re-exported from `store/types.ts`. `startMcpHttpServer`
   in `mcpHttp.ts` accepts an optional `eventStore` and defaults to
   `new MemoryEventStore()`; pass `null` to opt out of resumability.
-  8 unit tests + 1 wiring test green; full suite 239/239 pass.
-- **PR 2 — `createDaemon` factory: not started.** See tasks 8–15.
+- **PR 2 — `createDaemon` factory (v1): implemented.**
+  `daemon.ts` exports `createDaemon` returning a handle with
+  `start` / `stop` / `getBoundPort` / `getViewerBaseUrl` / `bridge` /
+  `mcpPath`. `AuthOptions.authorize?` gives the daemon a single auth
+  pipeline; the CLI translates `--token` into an authorize function
+  so `cli.ts` is just another caller of the factory. `index.ts`
+  re-exports the public surface. `examples/embed-express/` ships a
+  runnable embedding demo. **v1 scope: factory mode only** — host-
+  server attachment (`httpServer?` / `middleware()`) is deferred to
+  a follow-up because the WS upgrade handshake inside `Bridge`
+  needs further surgery before a host can mount the daemon under
+  its own listener. Full suite 244/244 pass.
 
 ## Risks
 

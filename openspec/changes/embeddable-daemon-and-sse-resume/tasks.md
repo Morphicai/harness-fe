@@ -12,16 +12,16 @@
 
 ## Phase 2: `createDaemon` factory + embeddable surface (PR 2)
 
-- [ ] 8. Extract daemon bootstrap from `cli.ts` into `packages/mcp-server/src/daemon.ts` with a `createDaemon(opts)` factory and a `DaemonHandle` return type (`start`, `stop`, `middleware`, `handle`).
-- [ ] 9. Define `DaemonOptions`: `port?`, `host?`, `httpServer?`, `mount?`, `store?`, `eventStore?`, `auth?`, `token?` (mutually exclusive with `auth`).
-- [ ] 10. Route the existing token flag through `auth` internally so there is one auth pipeline, not two.
-- [ ] 11. Rewrite `cli.ts` as a thin wrapper that maps CLI flags onto `DaemonOptions` and calls `createDaemon(...).start()`. Logs, defaults, and observable behaviour unchanged.
-- [ ] 12. Re-export `createDaemon`, `DaemonOptions`, `DaemonHandle`, `IStore`, `EventStore`, `MemoryEventStore` from `packages/mcp-server/src/index.ts`.
-- [ ] 13. Tests: factory boots in `httpServer`-attached mode; `middleware()` mode boots under a minimal Express host; the injected `auth` hook is invoked per request; a custom `IStore` receives writes; CLI smoke test still passes.
-- [ ] 14. Add a `packages/mcp-server/examples/embed-express/` example wiring `createDaemon` into an Express app with a custom auth hook.
-- [ ] 15. Update package README with the embedding section and a minimal snippet.
+- [x] 8. Extract daemon bootstrap into `packages/mcp-server/src/daemon.ts`. `createDaemon(opts) -> DaemonHandle` with `start`, `stop`, `getBoundPort`, `getViewerBaseUrl`, `bridge`, `mcpPath`. Factory-mode only in v1 — `httpServer` injection and `middleware()` form deferred to a follow-up.
+- [x] 9. `DaemonOptions` defined: `port?`, `host?`, `publicHost?`, `authorize?`, `store?`, `taskStore?`, `memoryStore?`, `eventStore?`, `dataDir?`, `label?`, `mcpPath?`, `mcpStateful?`.
+- [x] 10. Single auth path: `AuthOptions.authorize?` added in `auth.ts`; `isAuthorized` consults the function when supplied, else falls back to token. The built-in login form is suppressed in custom-authorize mode.
+- [x] 11. `cli.ts` rewritten as a thin wrapper around `createDaemon`. `--token` translates to a `tokenAuthorizer(token)` so the daemon has exactly one auth pipeline. `HARNESSA_FE_DATA_DIR` / `HARNESSA_FE_LABEL` / `defaultDataDir(port)` resolution stays in the CLI layer.
+- [x] 12. `index.ts` re-exports `createDaemon`, `DaemonOptions`, `DaemonHandle`, `defaultDataDir`, `MemoryEventStore`, `MemoryEventStoreOptions`, `EventStore`/`EventId`/`StreamId` types, `startMcpHttpServer` types, and the additional store classes.
+- [x] 13. `daemon.test.ts` covers: ephemeral-port boot, idempotent start/stop, `authorize` invoked + rejection, bridge escape hatch, custom `mcpPath`. Full suite 244/244 pass.
+- [x] 14. `examples/embed-express/` ships a runnable Node example (no Express dep needed — uses node:http) wiring `createDaemon` next to a host HTTP server with custom Bearer auth.
+- [x] 15. Package README gains an "Embedding the daemon programmatically" section with a minimal snippet and a scope note on v1 limits.
 
 ## Phase 3: Spec + docs
 
-- [ ] 16. Update the `session-observability` spec delta under `specs/` to absorb the new event-replay contract and the embeddable-daemon surface.
-- [ ] 17. Cross-link from `ROADMAP.md` (1.1.x) to the shipped change so the milestone reflects reality.
+- [x] 16. `session-observability` spec delta already covers both resumable SSE and embeddable daemon contracts — final API matches; no further changes needed.
+- [x] 17. ROADMAP 1.1.x ticks "Embeddable daemon (v1)" with a note that host-server attachment is a follow-up.

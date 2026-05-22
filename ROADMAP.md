@@ -38,7 +38,7 @@ The foundation that the mission rests on. All directions need this.
 Today the daemon assumes a developer running it on `localhost`. To put Harness inside a real product, it must be embeddable, addressable, and authenticatable.
 
 - [ ] **HTTP Streamable MCP transport** — drop the one-stdio-subprocess-per-agent model; one daemon serves all agents; remote-friendly; standard MCP transport. Prereq for everything else in this milestone.
-- [ ] **Embeddable daemon** — `createDaemon({ port, store })` API so a host app (morphicai-web) can run the daemon in-process or as a sidecar
+- [x] **Embeddable daemon (v1)** — `createDaemon({ port, store, authorize, eventStore })` runs the daemon in-process; custom `IStore` and sync `authorize` predicate replace built-in token + JSONL defaults. Owns its own listener; attaching to a host's existing HTTP server (Express middleware / Next.js route handler) tracked as a follow-up.
 - [x] **`Last-Event-ID` SSE reconnection** — survives transient disconnects during long agent runs (in-memory `MemoryEventStore` default; pluggable via `eventStore` option on `startMcpHttpServer`)
 - [ ] **Auth on the daemon boundary** — token-based; the in-process API doesn't need it, the network boundary does
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)
