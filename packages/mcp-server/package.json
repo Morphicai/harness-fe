@@ -32,11 +32,15 @@
     ],
     "scripts": {
         "build": "tsc",
+        "postbuild": "node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
         "dev": "tsc --watch --preserveWatchOutput",
         "watch": "tsc --watch --preserveWatchOutput",
         "start": "tsx src/cli.ts",
         "typecheck": "tsc --noEmit",
         "test": "vitest run"
+    },
+    "engines": {
+        "node": ">=18"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.26.0",
