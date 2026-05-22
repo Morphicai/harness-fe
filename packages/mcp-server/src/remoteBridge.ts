@@ -51,6 +51,8 @@ export interface RemoteBridgeOptions {
     host?: string;
     /** Per-call timeout. Must be ≥ daemon's command timeout to surface upstream errors first. */
     callTimeoutMs?: number;
+    /** Token used to authenticate against the leader, if it requires one. */
+    token?: string;
 }
 
 export class RemoteBridge implements IBridge {
@@ -62,17 +64,23 @@ export class RemoteBridge implements IBridge {
     private readonly host: string;
     private readonly port: number;
 
+    private readonly token: string | undefined;
+
     constructor(opts: RemoteBridgeOptions) {
         const host = opts.host ?? '127.0.0.1';
         this.host = host;
         this.port = opts.port;
-        this.url = `ws://${host}:${opts.port}`;
+        this.token = opts.token;
+        const tokenQs = opts.token ? `?token=${encodeURIComponent(opts.token)}` : '';
+        this.url = `ws://${host}:${opts.port}${tokenQs}`;
         this.callTimeoutMs = opts.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
     }
 
     async connect(): Promise<void> {
         return new Promise((resolve, reject) => {
-            const ws = new WebSocket(this.url);
+            const headers: Record<string, string> = {};
+            if (this.token) headers.authorization = `Bearer ${this.token}`;
+            const ws = new WebSocket(this.url, { headers });
             this.ws = ws;
             const onOpen = () => {
                 ws.off('error', onErr);

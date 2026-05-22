@@ -14,6 +14,14 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
+import { networkInterfaces } from 'node:os';
+import {
+    DEFAULT_LOGIN_PATH,
+    handleLoginPost,
+    isAuthorized,
+    sendUnauthorized,
+    type AuthOptions,
+} from './auth.js';
 import { join as joinPath } from 'node:path';
 import { homedir } from 'node:os';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -21,6 +29,7 @@ import {
     DEFAULT_WS_PORT,
     EVENT_NAME,
     PROTOCOL_VERSION,
+    isLoopbackHost,
     pageLoadPayloadSchema,
     rrwebChunkPayloadSchema,
     taskSubmitPayloadSchema,
@@ -108,6 +117,19 @@ export interface BridgeOptions {
     /** Bind address. Default 127.0.0.1 (no remote exposure). */
     host?: string;
     /**
+     * Token-based auth applied to every HTTP route and WS upgrade. Empty
+     * token disables auth (only valid when bound to a loopback host).
+     */
+    auth?: AuthOptions;
+    /**
+     * Override the host used when building outbound URLs (dashboard links,
+     * replay viewer URLs). When omitted and `host` is `0.0.0.0` / `::`, the
+     * first non-internal IPv4 address from the OS network interfaces is
+     * used so other LAN devices can follow the links. For loopback binds the
+     * literal `host` is reused.
+     */
+    publicHost?: string;
+    /**
      * Store instance for JSONL persistence. If omitted, a default JsonlStore
      * is created at ~/.harnessa/data. Pass null to disable persistence.
      */
@@ -167,7 +189,9 @@ export class Bridge implements IBridge {
     private pending = new Map<string, PendingCommand>();
     private eventListeners = new Set<EventListener>();
     private tasks = new Map<string, Task>();
-    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore' | 'autoPurge' | 'attachmentsDataDir'>>;
+    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore' | 'autoPurge' | 'attachmentsDataDir' | 'auth' | 'publicHost'>>;
+    private auth: AuthOptions;
+    private publicHostOverride: string | undefined;
     private readonly attachDataDir: string;
     private autoPurgeOpts: Required<NonNullable<BridgeOptions['autoPurge']>>;
     /** Set by start() when auto-purge is enabled; cleared by stop(). */
@@ -202,6 +226,8 @@ export class Bridge implements IBridge {
             port: opts.port ?? DEFAULT_WS_PORT,
             host: opts.host ?? '127.0.0.1',
         };
+        this.auth = opts.auth ?? {};
+        this.publicHostOverride = opts.publicHost;
         // Default auto-purge ON. CI / tests pass `enabled: false` (or set
         // env HARNESSA_FE_PURGE_DISABLED=1) to opt out.
         const envDisabled = process.env.HARNESSA_FE_PURGE_DISABLED === '1';
@@ -302,9 +328,44 @@ export class Bridge implements IBridge {
         this.httpHandler = handler;
     }
 
+    /**
+     * Insert a handler that runs *before* the main HTTP handler. Return `true`
+     * if the request was consumed (no further processing); return `false` to
+     * fall through to the existing handler. Allows mcpHttp.ts to mount on
+     * `/mcp` without owning the whole HTTP surface.
+     */
+    prependHttpHandler(
+        handler: (req: IncomingMessage, res: ServerResponse) => Promise<boolean> | boolean,
+    ): void {
+        const existing = this.httpHandler;
+        this.httpHandler = async (req, res) => {
+            const handled = await handler(req, res);
+            if (handled) return;
+            if (existing) await existing(req, res);
+        };
+    }
+
     async start(): Promise<void> {
         await new Promise<void>((resolve, reject) => {
+            const loginPath = this.auth.loginPath ?? DEFAULT_LOGIN_PATH;
             const httpServer = createServer((req, res) => {
+                // POST {loginPath} handles token submission from the login form.
+                // It runs *before* the auth check because that's how the user
+                // gets authorised in the first place.
+                if (req.method === 'POST' && req.url && pathnameOf(req.url) === loginPath) {
+                    handleLoginPost(req, res, this.auth).catch((err) => {
+                        if (!res.headersSent) {
+                            res.statusCode = 500;
+                            res.setHeader('content-type', 'text/plain; charset=utf-8');
+                            res.end(`auth error: ${err instanceof Error ? err.message : String(err)}`);
+                        }
+                    });
+                    return;
+                }
+                if (!isAuthorized(req, this.auth)) {
+                    sendUnauthorized(req, res, this.auth);
+                    return;
+                }
                 if (this.httpHandler) {
                     Promise.resolve(this.httpHandler(req, res)).catch((err) => {
                         if (!res.headersSent) {
@@ -326,6 +387,18 @@ export class Bridge implements IBridge {
             wss.on('connection', (ws) => this.onConnection(ws));
 
             httpServer.on('upgrade', (req, socket, head) => {
+                if (!isAuthorized(req, this.auth)) {
+                    // Spec-compliant 401 on the upgrade reply so client sees a
+                    // proper status rather than a half-open socket.
+                    socket.write(
+                        'HTTP/1.1 401 Unauthorized\r\n' +
+                            'WWW-Authenticate: Bearer realm="harnessa-fe"\r\n' +
+                            'Content-Length: 0\r\n' +
+                            'Connection: close\r\n\r\n',
+                    );
+                    socket.destroy();
+                    return;
+                }
                 wss.handleUpgrade(req, socket, head, (ws) => {
                     wss.emit('connection', ws, req);
                 });
@@ -424,7 +497,22 @@ export class Bridge implements IBridge {
     getViewerBaseUrl(): string | undefined {
         const port = this.getBoundPort() ?? this.opts.port;
         if (!port) return undefined;
-        return `http://${this.opts.host}:${port}`;
+        return `http://${this.getPublicHost()}:${port}`;
+    }
+
+    /**
+     * Host string used when handing out URLs that other machines need to
+     * reach. Loopback binds keep the literal address; wildcard binds
+     * (0.0.0.0 / ::) prefer the first non-internal IPv4. Explicit
+     * `publicHost` always wins.
+     */
+    private getPublicHost(): string {
+        if (this.publicHostOverride) return this.publicHostOverride;
+        const h = this.opts.host;
+        if (h === '0.0.0.0' || h === '::' || h === '::0') {
+            return firstNonInternalIpv4() ?? '127.0.0.1';
+        }
+        return h;
     }
 
     onEvent(listener: EventListener): () => void {
@@ -1531,6 +1619,24 @@ function deriveRecordingMarker(frame: EventFrame, tabId?: string): Record<string
         };
     }
 
+    return undefined;
+}
+
+/** Extract the pathname portion of a request URL (without query string). */
+function pathnameOf(url: string): string {
+    const qi = url.indexOf('?');
+    return qi < 0 ? url : url.slice(0, qi);
+}
+
+/** Return the first non-internal IPv4 address from the OS interfaces. */
+function firstNonInternalIpv4(): string | undefined {
+    const ifaces = networkInterfaces();
+    for (const list of Object.values(ifaces)) {
+        if (!list) continue;
+        for (const info of list) {
+            if (info.family === 'IPv4' && !info.internal) return info.address;
+        }
+    }
     return undefined;
 }
 
