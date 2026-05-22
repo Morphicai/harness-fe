@@ -9,8 +9,8 @@ describe('deriveDashboardUrl', () => {
     });
 
     it('swaps wss:// to https:// (production / LAN with TLS)', () => {
-        expect(deriveDashboardUrl({ mcpUrl: 'wss://harnessa.lan:47729' })).toBe(
-            'https://harnessa.lan:47729/dashboard/',
+        expect(deriveDashboardUrl({ mcpUrl: 'wss://harness.lan:47729' })).toBe(
+            'https://harness.lan:47729/dashboard/',
         );
     });
 
@@ -20,7 +20,7 @@ describe('deriveDashboardUrl', () => {
         ).toBe('http://127.0.0.1:47729/dashboard/?token=abc');
     });
 
-    it('URL-encodes the token (defensive against weird HARNESSA_FE_TOKEN values)', () => {
+    it('URL-encodes the token (defensive against weird HARNESS_FE_TOKEN values)', () => {
         expect(
             deriveDashboardUrl({ mcpUrl: 'ws://127.0.0.1:47729?token=a%20b%26c' }),
         ).toBe('http://127.0.0.1:47729/dashboard/?token=a%20b%26c');

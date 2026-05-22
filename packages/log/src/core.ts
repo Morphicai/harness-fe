@@ -3,7 +3,7 @@
  * Shared logger factory used by the browser, node, and default entry points.
  *
  * Why is this in its own file?
- *   The `@harnessa-fe/log` package exposes three entry points (browser / node /
+ *   The `@harness-fe/log` package exposes three entry points (browser / node /
  *   default) via package.json `exports` conditions. All three need the same
  *   `buildLogger` implementation. Keeping it in `core.ts` (and importing
  *   from each entry) lets bundlers tree-shake to the SINGLE emit module that

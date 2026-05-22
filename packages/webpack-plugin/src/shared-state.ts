@@ -2,7 +2,7 @@
  * Module-level componentMap registry keyed by plugin instance id.
  *
  * Used by the main webpack process to accumulate component locations forwarded
- * from worker processes via `module.buildMeta.harnessaCollected`. The MCP
+ * from worker processes via `module.buildMeta.harnessCollected`. The MCP
  * client (also main-process only) reads from this map to answer
  * `project.where_is` / `project.module_graph` queries.
  *
@@ -12,7 +12,7 @@
  * process aggregates them via the `succeedModule` hook.
  */
 
-import type { ComponentMap } from '@harnessa-fe/unplugin';
+import type { ComponentMap } from '@harness-fe/unplugin';
 
 const maps = new Map<string, ComponentMap>();
 

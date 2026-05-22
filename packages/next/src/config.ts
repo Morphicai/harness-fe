@@ -1,8 +1,8 @@
 /**
- * @harnessa-fe/next/config — withHarnessa Next.js config wrapper.
+ * @harness-fe/next/config — withHarness Next.js config wrapper.
  *
  * Wraps your next.config.mjs to:
- *   1. Inject `import '@harnessa-fe/node-runtime/auto'` into the Node.js
+ *   1. Inject `import '@harness-fe/node-runtime/auto'` into the Node.js
  *      server bundle entry point (so the daemon receives server-side events
  *      without any changes to application code).
  *   2. Expose project metadata to the auto entry via environment variables
@@ -10,8 +10,8 @@
  *
  * Usage:
  *   // next.config.mjs
- *   import { withHarnessa } from '@harnessa-fe/next/config';
- *   export default withHarnessa({
+ *   import { withHarness } from '@harness-fe/next/config';
+ *   export default withHarness({
  *     // your normal next config
  *   }, {
  *     projectId: 'my-app',
@@ -22,13 +22,13 @@
  * returns nextConfig unchanged.
  */
 
-export interface WithHarnessaOptions {
+export interface WithHarnessOptions {
     /** Stable project id. Used by the node-runtime SDK to tag events. */
     projectId: string;
     /** Human-readable display name. Defaults to projectId. */
     displayName?: string;
     /**
-     * Build artifact id (e.g. git SHA). Injected via HARNESSA_FE_BUILD_ID env.
+     * Build artifact id (e.g. git SHA). Injected via HARNESS_FE_BUILD_ID env.
      * Defaults to NEXT_PUBLIC_GIT_SHA if not provided.
      */
     buildId?: string;
@@ -41,13 +41,13 @@ export interface WithHarnessaOptions {
  * server-side bundle entry. We use an EntryPlugin approach compatible with
  * webpack 5 (which Next.js uses).
  */
-class HarnessaNodeRuntimePlugin {
+class HarnessNodeRuntimePlugin {
     private readonly projectId: string;
     private readonly displayName: string;
     private readonly buildId?: string;
     private readonly mcpUrl?: string;
 
-    constructor(opts: WithHarnessaOptions) {
+    constructor(opts: WithHarnessOptions) {
         this.projectId = opts.projectId;
         this.displayName = opts.displayName ?? opts.projectId;
         this.buildId = opts.buildId;
@@ -79,15 +79,15 @@ class HarnessaNodeRuntimePlugin {
             compName.toLowerCase().includes('edge');
 
         const autoEntry = isEdge
-            ? '@harnessa-fe/node-runtime/auto-edge'
-            : '@harnessa-fe/node-runtime/auto';
+            ? '@harness-fe/node-runtime/auto-edge'
+            : '@harness-fe/node-runtime/auto';
 
-        // Inject HARNESSA_FE_* env vars so the auto entry can read them.
-        compiler.hooks.environment.tap('HarnessaNodeRuntimePlugin', () => {
-            process.env.HARNESSA_FE_PROJECT_ID = this.projectId;
-            process.env.HARNESSA_FE_DISPLAY_NAME = this.displayName;
-            if (this.buildId) process.env.HARNESSA_FE_BUILD_ID = this.buildId;
-            if (this.mcpUrl) process.env.HARNESSA_FE_MCP_URL = this.mcpUrl;
+        // Inject HARNESS_FE_* env vars so the auto entry can read them.
+        compiler.hooks.environment.tap('HarnessNodeRuntimePlugin', () => {
+            process.env.HARNESS_FE_PROJECT_ID = this.projectId;
+            process.env.HARNESS_FE_DISPLAY_NAME = this.displayName;
+            if (this.buildId) process.env.HARNESS_FE_BUILD_ID = this.buildId;
+            if (this.mcpUrl) process.env.HARNESS_FE_MCP_URL = this.mcpUrl;
         });
 
         // Add the auto-import as an additional entry for the server bundle.
@@ -108,13 +108,13 @@ class HarnessaNodeRuntimePlugin {
 }
 
 /**
- * Wraps a Next.js config to inject the Harnessa node-runtime SDK into the
+ * Wraps a Next.js config to inject the Harness node-runtime SDK into the
  * server bundle. Only active in development mode.
  */
-export function withHarnessa(
+export function withHarness(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     nextConfig: Record<string, any> = {},
-    opts: WithHarnessaOptions,
+    opts: WithHarnessOptions,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Record<string, any> {
     if (process.env.NODE_ENV !== 'development') {
@@ -139,7 +139,7 @@ export function withHarnessa(
                 nextRuntime === 'edge';
             if (isServer) {
                 config.plugins = config.plugins ?? [];
-                config.plugins.push(new HarnessaNodeRuntimePlugin(opts));
+                config.plugins.push(new HarnessNodeRuntimePlugin(opts));
             }
 
             // Preserve user's existing webpack config.

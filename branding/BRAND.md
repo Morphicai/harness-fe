@@ -1,4 +1,4 @@
-# Harnessa-FE Brand Guidelines
+# Harness-FE Brand Guidelines
 
 ## Logo
 

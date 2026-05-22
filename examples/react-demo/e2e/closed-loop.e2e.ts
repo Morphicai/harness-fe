@@ -20,9 +20,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createServer } from 'vite';
-import { Bridge } from '@harnessa-fe/mcp-server';
-import { harnessaFE } from '@harnessa-fe/vite';
-import { COMMAND } from '@harnessa-fe/protocol';
+import { Bridge } from '@harness-fe/mcp-server';
+import { harnessFE } from '@harness-fe/vite';
+import { COMMAND } from '@harness-fe/protocol';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '..');
@@ -80,7 +80,7 @@ async function run() {
         root: projectRoot,
         configFile: false,
         plugins: [
-            harnessaFE({
+            harnessFE({
                 projectId: 'react-demo',
                 mcpUrl: `ws://127.0.0.1:${wsPort}`,
             }),
@@ -104,9 +104,9 @@ async function run() {
     // before evaluating.
     await sleep(300);
     const hasMarker = await page.evaluate(
-        () => Boolean((window as unknown as { __HARNESSA_FE__?: unknown }).__HARNESSA_FE__),
+        () => Boolean((window as unknown as { __HARNESS_FE__?: unknown }).__HARNESS_FE__),
     );
-    assert(hasMarker, 'window.__HARNESSA_FE__ is present');
+    assert(hasMarker, 'window.__HARNESS_FE__ is present');
     console.log('[closed-loop] injection marker present in real browser ✓');
 
     // 2) The runtime-client connected to the bridge

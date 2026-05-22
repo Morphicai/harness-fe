@@ -77,7 +77,7 @@ describe('Bridge — token auth on HTTP routes', () => {
 
     it('accepts request with valid cookie', async () => {
         const { baseUrl } = await startBridge({ auth: { token: 's3cret' } });
-        const res = await request(baseUrl + '/', { headers: { cookie: 'harnessa_fe_token=s3cret' } });
+        const res = await request(baseUrl + '/', { headers: { cookie: 'harness_fe_token=s3cret' } });
         expect(res.status).not.toBe(401);
     });
 
@@ -97,7 +97,7 @@ describe('Bridge — token auth on HTTP routes', () => {
         });
         expect(res.status).toBe(303);
         const setCookie = res.headers.get('set-cookie') ?? '';
-        expect(setCookie).toMatch(/harnessa_fe_token=s3cret/);
+        expect(setCookie).toMatch(/harness_fe_token=s3cret/);
         expect(setCookie).toMatch(/HttpOnly/);
         expect(setCookie).toMatch(/SameSite=Lax/);
         expect(res.headers.get('location')).toBe('/dashboard');

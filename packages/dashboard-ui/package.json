@@ -1,17 +1,17 @@
 {
-    "name": "@harnessa-fe/dashboard-ui",
+    "name": "@harness-fe/dashboard-ui",
     "version": "0.2.0",
-    "description": "React SPA for the Harnessa-FE dev dashboard. Built with Vite + Tailwind, served as static assets by @harnessa-fe/mcp-server.",
+    "description": "React SPA for the Harness-FE dev dashboard. Built with Vite + Tailwind, served as static assets by @harness-fe/mcp-server.",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
         "directory": "packages/dashboard-ui"
     },
-    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
-        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harness-fe/issues"
     },
     "exports": {
         "./package.json": "./package.json",
@@ -24,7 +24,7 @@
     ],
     "scripts": {
         "dev": "vite",
-        "dev:self-debug": "HARNESSA_FE_SELF_DEBUG=1 vite",
+        "dev:self-debug": "HARNESS_FE_SELF_DEBUG=1 vite",
         "build": "vite build",
         "preview": "vite preview",
         "typecheck": "tsc --noEmit",
@@ -36,7 +36,7 @@
         "react-router-dom": "^6.28.0"
     },
     "devDependencies": {
-        "@harnessa-fe/vite": "workspace:*",
+        "@harness-fe/vite": "workspace:*",
         "@types/react": "^18.3.0",
         "@types/react-dom": "^18.3.0",
         "@vitejs/plugin-react": "^4.3.0",

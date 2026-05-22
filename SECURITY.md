@@ -2,7 +2,7 @@
 
 ## Supply-Chain Hardening
 
-Every release of Harnessa-FE is published with the following defenses. If any of these signals fails, **do not install** and report it.
+Every release of Harness-FE is published with the following defenses. If any of these signals fails, **do not install** and report it.
 
 ### Provenance (sigstore attestation)
 
@@ -10,7 +10,7 @@ Starting at `v0.1.0`, every tarball on npm is published with `--provenance`, whi
 
 - the exact git commit
 - the exact GitHub Actions workflow run
-- the `Morphicai/harnessa-fe` repo
+- the `Morphicai/harness-fe` repo
 
 Verify in your project:
 
@@ -22,11 +22,11 @@ You can also inspect provenance on each npm package page (under "Provenance").
 
 ### What an attack on us would look like
 
-A compromised Harnessa-FE release would typically be one of:
+A compromised Harness-FE release would typically be one of:
 
 - A version pushed **without** provenance (badge missing on npm)
 - A postinstall script appearing in `package.json` (we ship none)
-- A version published by an account other than `@harnessa-fe`
+- A version published by an account other than `@harness-fe`
 - An out-of-band patch version (e.g. `0.1.0-hotfix`) we did not announce
 
 If you see any of these, file a public issue immediately and pin to the last known-good version.
@@ -41,8 +41,8 @@ If you see any of these, file a public issue immediately and pin to the last kno
 - **`pnpm audit signatures`** before every publish — catches tampered transitive deps
 - **Frozen lockfile** — every CI install uses `--frozen-lockfile`
 - **2FA enforced** on every maintainer's npm and GitHub accounts
-- **Granular npm tokens** scoped to `@harnessa-fe` only, expiring every 90 days (used only for first publish before OIDC took over)
-- **No production runtime code** — Harnessa-FE is a dev-time tool. All instrumentation auto-disables in production builds.
+- **Granular npm tokens** scoped to `@harness-fe` only, expiring every 90 days (used only for first publish before OIDC took over)
+- **No production runtime code** — Harness-FE is a dev-time tool. All instrumentation auto-disables in production builds.
 
 ## Reporting a Vulnerability
 
@@ -50,7 +50,7 @@ Please **do not** file public GitHub issues for security problems.
 
 Email: **security@morphix.ai** (PGP key on request)
 
-Or use [GitHub's private vulnerability reporting](https://github.com/Morphicai/harnessa-fe/security/advisories/new).
+Or use [GitHub's private vulnerability reporting](https://github.com/Morphicai/harness-fe/security/advisories/new).
 
 We aim to:
 

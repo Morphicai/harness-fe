@@ -1,4 +1,4 @@
-# Harnessa-FE Bug Report
+# Harness-FE Bug Report
 
 **版本**: 0.0.1  
 **测试日期**: 2026-05-14  
@@ -14,9 +14,9 @@
 
 ### 修复结果
 
-1. `packages/unplugin/src/core.ts:87-91` 让插件读取 `HARNESSA_FE_PORT` / `HARNESSA_FE_HOST`，与 `cli.ts` 对称。
+1. `packages/unplugin/src/core.ts:87-91` 让插件读取 `HARNESS_FE_PORT` / `HARNESS_FE_HOST`，与 `cli.ts` 对称。
 2. `.mcp.json` 和 `.kiro/settings/mcp.json` 移除 `env` 覆盖，全部回落到 `DEFAULT_WS_PORT=47729`。demo 不需额外配置。
-3. 后续如需改端口：要么改 `packages/protocol/src/index.ts` 的 `DEFAULT_WS_PORT` 常量（一处生效），要么在 mcp.json env + 启动 vite 的 shell 里都设同一个 `HARNESSA_FE_PORT`。
+3. 后续如需改端口：要么改 `packages/protocol/src/index.ts` 的 `DEFAULT_WS_PORT` 常量（一处生效），要么在 mcp.json env + 启动 vite 的 shell 里都设同一个 `HARNESS_FE_PORT`。
 
 以下保留原始诊断记录供参考。
 
@@ -36,11 +36,11 @@ MCP Tool Error Response: remote-bridge: "sendCommand" timed out after 30000ms
 **路径 A — MCP 服务器进程**（`cli.ts`）：
 ```typescript
 // packages/mcp-server/src/cli.ts
-const port = Number(process.env.HARNESSA_FE_PORT ?? DEFAULT_WS_PORT);
+const port = Number(process.env.HARNESS_FE_PORT ?? DEFAULT_WS_PORT);
 ```
 `.kiro/settings/mcp.json` 通过环境变量将端口设为 `9999`：
 ```json
-"env": { "HARNESSA_FE_PORT": "9999" }
+"env": { "HARNESS_FE_PORT": "9999" }
 ```
 → MCP bridge 监听 `ws://127.0.0.1:9999`
 
@@ -53,7 +53,7 @@ const mcpUrl = options.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
 `vite.config.ts` 没有传入 `mcpUrl`：
 ```typescript
 // examples/react-demo/vite.config.ts
-harnessaFE({ projectId: 'react-demo' })  // 无 mcpUrl
+harnessFE({ projectId: 'react-demo' })  // 无 mcpUrl
 ```
 → Vite 插件连接 `ws://127.0.0.1:47729`
 
@@ -61,7 +61,7 @@ harnessaFE({ projectId: 'react-demo' })  // 无 mcpUrl
 Vite 插件在 HTML 中注入：
 ```typescript
 // packages/unplugin/src/core.ts:248
-window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
+window.__HARNESS_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
 ```
 `mcpUrl` 的值来自路径 B，即 `ws://127.0.0.1:47729`。
 
@@ -76,7 +76,7 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
 |------|------|------|
 | `packages/unplugin/src/core.ts` | 83 | `mcpUrl` 硬编码 `DEFAULT_WS_PORT`，不读取环境变量 |
 | `examples/react-demo/vite.config.ts` | 4 | 未传入 `mcpUrl` |
-| `.kiro/settings/mcp.json` | 8 | `HARNESSA_FE_PORT=9999` 只传给 MCP 进程，不传给 Vite |
+| `.kiro/settings/mcp.json` | 8 | `HARNESS_FE_PORT=9999` 只传给 MCP 进程，不传给 Vite |
 
 ### 修复方案
 
@@ -85,8 +85,8 @@ window.__HARNESSA_FE__ = ${JSON.stringify({ projectId, mcpUrl })};
 ```typescript
 // packages/unplugin/src/core.ts
 const mcpUrl = options.mcpUrl
-    ?? (process.env.HARNESSA_FE_PORT
-        ? `ws://${process.env.HARNESSA_FE_HOST ?? '127.0.0.1'}:${process.env.HARNESSA_FE_PORT}`
+    ?? (process.env.HARNESS_FE_PORT
+        ? `ws://${process.env.HARNESS_FE_HOST ?? '127.0.0.1'}:${process.env.HARNESS_FE_PORT}`
         : `ws://127.0.0.1:${DEFAULT_WS_PORT}`);
 ```
 

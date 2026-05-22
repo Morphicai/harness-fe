@@ -1,4 +1,4 @@
-# Contributing to Harnessa-FE
+# Contributing to Harness-FE
 
 Thanks for considering a contribution. This guide covers the minimal workflow to get hacking.
 
@@ -10,8 +10,8 @@ Thanks for considering a contribution. This guide covers the minimal workflow to
 ## Setup
 
 ```bash
-git clone https://github.com/Morphicai/harnessa-fe.git
-cd harnessa-fe
+git clone https://github.com/Morphicai/harness-fe.git
+cd harness-fe
 pnpm install
 pnpm build
 ```
@@ -55,16 +55,16 @@ pnpm restart:mcp          # restart the local MCP daemon
 Per-package:
 
 ```bash
-pnpm --filter @harnessa-fe/vite build
-pnpm --filter @harnessa-fe/mcp-server test
+pnpm --filter @harness-fe/vite build
+pnpm --filter @harness-fe/mcp-server test
 ```
 
 ## End-to-end run
 
 1. `pnpm build`
-2. `pnpm --filter harnessa-fe-react-demo dev` — opens `http://localhost:5173`
-3. The Vite plugin auto-connects to the MCP daemon at the default URL `ws://127.0.0.1:47729`. Override with `HARNESSA_FE_URL=ws://host:port` if needed.
-4. Connect Claude Code (or any MCP-aware client) to `npx @harnessa-fe/mcp-server`
+2. `pnpm --filter harness-fe-react-demo dev` — opens `http://localhost:5173`
+3. The Vite plugin auto-connects to the MCP daemon at the default URL `ws://127.0.0.1:47729`. Override with `HARNESS_FE_URL=ws://host:port` if needed.
+4. Connect Claude Code (or any MCP-aware client) to `npx @harness-fe/mcp-server`
 
 ## Commit style
 
@@ -104,12 +104,12 @@ pnpm -r publish --access public
 
 ## Reporting issues
 
-File on [GitHub issues](https://github.com/Morphicai/harnessa-fe/issues). Include:
+File on [GitHub issues](https://github.com/Morphicai/harness-fe/issues). Include:
 
 - Bundler + version (Vite 7.3.3 / Webpack 5.106.x / etc.)
 - Framework + version (React 18 / Vue 3.4 / etc.)
 - Minimal repro (a `vite.config.ts` + one component is usually enough)
-- The `~/.harnessa/<projectId>/sessions/<sessionId>/` directory if the bug is runtime-related
+- The `~/.harness/<projectId>/sessions/<sessionId>/` directory if the bug is runtime-related
 
 ## License
 

@@ -1,17 +1,17 @@
 {
-    "name": "@harnessa-fe/log",
+    "name": "@harness-fe/log",
     "version": "1.0.2",
-    "description": "Isomorphic structured logger for Harnessa-FE. Works in Server Components, Route Handlers, Server Actions, and Client Components — all events land in the same session timeline.",
+    "description": "Isomorphic structured logger for Harness-FE. Works in Server Components, Route Handlers, Server Actions, and Client Components — all events land in the same session timeline.",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
         "directory": "packages/log"
     },
-    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
-        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harness-fe/issues"
     },
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -52,7 +52,7 @@
         "test": "vitest run"
     },
     "devDependencies": {
-        "@harnessa-fe/node-runtime": "workspace:*",
+        "@harness-fe/node-runtime": "workspace:*",
         "@types/node": "^22.0.0",
         "typescript": "^5.6.0",
         "vitest": "^2.1.9"
@@ -61,7 +61,7 @@
         "access": "public"
     },
     "keywords": [
-        "harnessa-fe",
+        "harness-fe",
         "logger",
         "isomorphic",
         "next.js",

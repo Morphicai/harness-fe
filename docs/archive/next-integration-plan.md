@@ -1,4 +1,4 @@
-# `@harnessa-fe/next` — Long-term Integration Design
+# `@harness-fe/next` — Long-term Integration Design
 
 ## Why a dedicated package
 
@@ -26,17 +26,17 @@ This mirrors how Sentry, Vercel Analytics, PostHog all do Next.js integration.
 ┌──────────────────────────────────────────────────────────────────┐
 │  user's next.config.mjs                                          │
 │  ┌────────────────────────────────────────────────────────────┐  │
-│  │  withHarnessa({ projectId }, nextConfig)                   │  │
+│  │  withHarness({ projectId }, nextConfig)                   │  │
 │  │     ├─ adds experimental.swcPlugins entry  ───┐            │  │
 │  │     ├─ patches webpack hook (client-dev only) │            │  │
-│  │     ├─ env.NEXT_PUBLIC_HARNESSA_FE_PROJECT_ID │            │  │
-│  │     ├─ env.NEXT_PUBLIC_HARNESSA_FE_BUILD_ID   │            │  │
-│  │     └─ adds @harnessa-fe/runtime as resolve.alias        │   │
+│  │     ├─ env.NEXT_PUBLIC_HARNESS_FE_PROJECT_ID │            │  │
+│  │     ├─ env.NEXT_PUBLIC_HARNESS_FE_BUILD_ID   │            │  │
+│  │     └─ adds @harness-fe/runtime as resolve.alias        │   │
 │  └────────────────────────────────────────────────┼──────────┘  │
 │                                                   │             │
 │  ┌─────────────────────────────────────────────────▼──────────┐  │
-│  │  @harnessa-fe/next-swc (Rust → wasm)                       │  │
-│  │     • Same AST walk as @harnessa-fe/unplugin/transform.ts  │  │
+│  │  @harness-fe/next-swc (Rust → wasm)                       │  │
+│  │     • Same AST walk as @harness-fe/unplugin/transform.ts  │  │
 │  │     • Tags JSXOpeningElement with data-morphix-loc/comp    │  │
 │  │     • Runs ONCE inside Next's SWC pass (no SWC duplication)│  │
 │  └────────────────────────────────────────────────────────────┘  │
@@ -45,9 +45,9 @@ This mirrors how Sentry, Vercel Analytics, PostHog all do Next.js integration.
 ┌──────────────────────────────────────────────────────────────────┐
 │  user's app/layout.tsx                                           │
 │  ┌────────────────────────────────────────────────────────────┐  │
-│  │  <HarnessaScript />  (from '@harnessa-fe/next/script')     │  │
-│  │     • Reads NEXT_PUBLIC_HARNESSA_FE_* env at render time   │  │
-│  │     • Inline <script>window.__HARNESSA_FE__ = {...}</script>│ │
+│  │  <HarnessScript />  (from '@harness-fe/next/script')     │  │
+│  │     • Reads NEXT_PUBLIC_HARNESS_FE_* env at render time   │  │
+│  │     • Inline <script>window.__HARNESS_FE__ = {...}</script>│ │
 │  │     • <Script src="..." strategy="afterInteractive" />     │  │
 │  │     • Auto no-op in production                             │  │
 │  └────────────────────────────────────────────────────────────┘  │
@@ -58,7 +58,7 @@ This mirrors how Sentry, Vercel Analytics, PostHog all do Next.js integration.
 
 ## Pillar 1: SWC plugin
 
-### New crate `crates/harnessa-fe-swc`
+### New crate `crates/harness-fe-swc`
 
 Rust crate, builds to `.wasm`. Functionality mirrors `packages/unplugin/src/transform.ts`:
 
@@ -80,7 +80,7 @@ struct Config {
 }
 ```
 
-Published as `@harnessa-fe/next-swc` with pre-built `.wasm` (single artifact, no platform-specific binaries — `.wasm` is portable).
+Published as `@harness-fe/next-swc` with pre-built `.wasm` (single artifact, no platform-specific binaries — `.wasm` is portable).
 
 **Estimated effort**: 4-6 days for a senior dev with SWC familiarity. Reference: Sentry's SWC plugin is ~600 LOC Rust.
 
@@ -103,13 +103,13 @@ One implementation, every Next.js mode.
 
 ## Pillar 2: Runtime + HTML injection
 
-### `withHarnessa()` HoC
+### `withHarness()` HoC
 
 ```ts
 // packages/next/src/index.ts
 import type { NextConfig } from 'next';
 
-export interface HarnessaNextOptions {
+export interface HarnessNextOptions {
     projectId: string;
     parentProjectId?: string;
     displayName?: string;
@@ -118,8 +118,8 @@ export interface HarnessaNextOptions {
     disabled?: boolean;    // for prod / CI
 }
 
-export function withHarnessa(
-    opts: HarnessaNextOptions,
+export function withHarness(
+    opts: HarnessNextOptions,
     nextConfig: NextConfig = {},
 ): NextConfig {
     if (opts.disabled || process.env.NODE_ENV !== 'development') {
@@ -134,56 +134,56 @@ export function withHarnessa(
             ...nextConfig.experimental,
             swcPlugins: [
                 ...(nextConfig.experimental?.swcPlugins ?? []),
-                ['@harnessa-fe/next-swc', { projectId: opts.projectId }],
+                ['@harness-fe/next-swc', { projectId: opts.projectId }],
             ],
         },
         env: {
             ...nextConfig.env,
-            NEXT_PUBLIC_HARNESSA_FE_PROJECT_ID: opts.projectId,
-            NEXT_PUBLIC_HARNESSA_FE_PARENT_ID: opts.parentProjectId ?? '',
-            NEXT_PUBLIC_HARNESSA_FE_DISPLAY: opts.displayName ?? '',
-            NEXT_PUBLIC_HARNESSA_FE_BUILD_ID: buildId,
-            NEXT_PUBLIC_HARNESSA_FE_MCP_URL:
+            NEXT_PUBLIC_HARNESS_FE_PROJECT_ID: opts.projectId,
+            NEXT_PUBLIC_HARNESS_FE_PARENT_ID: opts.parentProjectId ?? '',
+            NEXT_PUBLIC_HARNESS_FE_DISPLAY: opts.displayName ?? '',
+            NEXT_PUBLIC_HARNESS_FE_BUILD_ID: buildId,
+            NEXT_PUBLIC_HARNESS_FE_MCP_URL:
                 opts.mcpUrl ??
-                process.env.HARNESSA_FE_URL ??
+                process.env.HARNESS_FE_URL ??
                 'ws://127.0.0.1:47729',
         },
     };
 }
 ```
 
-### `<HarnessaScript />` component
+### `<HarnessScript />` component
 
 ```tsx
 // packages/next/src/script.tsx
 import Script from 'next/script';
 
-export function HarnessaScript() {
+export function HarnessScript() {
     if (process.env.NODE_ENV !== 'development') return null;
-    const projectId = process.env.NEXT_PUBLIC_HARNESSA_FE_PROJECT_ID;
+    const projectId = process.env.NEXT_PUBLIC_HARNESS_FE_PROJECT_ID;
     if (!projectId) return null;
 
     const config = JSON.stringify({
         projectId,
-        parentProjectId: process.env.NEXT_PUBLIC_HARNESSA_FE_PARENT_ID || undefined,
-        displayName: process.env.NEXT_PUBLIC_HARNESSA_FE_DISPLAY || undefined,
-        buildId: process.env.NEXT_PUBLIC_HARNESSA_FE_BUILD_ID,
-        mcpUrl: process.env.NEXT_PUBLIC_HARNESSA_FE_MCP_URL,
+        parentProjectId: process.env.NEXT_PUBLIC_HARNESS_FE_PARENT_ID || undefined,
+        displayName: process.env.NEXT_PUBLIC_HARNESS_FE_DISPLAY || undefined,
+        buildId: process.env.NEXT_PUBLIC_HARNESS_FE_BUILD_ID,
+        mcpUrl: process.env.NEXT_PUBLIC_HARNESS_FE_MCP_URL,
     });
 
     return (
         <>
             <Script
-                id="harnessa-fe-config"
+                id="harness-fe-config"
                 strategy="beforeInteractive"
                 dangerouslySetInnerHTML={{
-                    __html: `window.__HARNESSA_FE__ = ${config};`,
+                    __html: `window.__HARNESS_FE__ = ${config};`,
                 }}
             />
             <Script
-                id="harnessa-fe-runtime"
+                id="harness-fe-runtime"
                 strategy="afterInteractive"
-                src="https://unpkg.com/@harnessa-fe/runtime@latest/dist/index.js"
+                src="https://unpkg.com/@harness-fe/runtime@latest/dist/index.js"
             />
         </>
     );
@@ -196,9 +196,9 @@ export function HarnessaScript() {
 
 ```ts
 // next.config.mjs
-import { withHarnessa } from '@harnessa-fe/next';
+import { withHarness } from '@harness-fe/next';
 
-export default withHarnessa(
+export default withHarness(
     { projectId: 'morphicai-web', displayName: 'MorphicAI Web' },
     {
         /* user's existing Next config */
@@ -208,13 +208,13 @@ export default withHarnessa(
 
 ```tsx
 // app/layout.tsx
-import { HarnessaScript } from '@harnessa-fe/next/script';
+import { HarnessScript } from '@harness-fe/next/script';
 
 export default function RootLayout({ children }) {
     return (
         <html>
             <body>
-                <HarnessaScript />
+                <HarnessScript />
                 {children}
             </body>
         </html>
@@ -228,8 +228,8 @@ Two lines of user config. No webpack hooks to write. Same pattern Sentry / PostH
 
 ## Pillar 3: Server/client boundaries
 
-- `<HarnessaScript />` is a **server component** that renders client `<Script>` tags. Server bundle never imports the runtime.
-- Runtime client (`@harnessa-fe/runtime`) only touches `window` at the **module-top level** — already client-safe because it's loaded via `<Script>` not via `import` in RSC.
+- `<HarnessScript />` is a **server component** that renders client `<Script>` tags. Server bundle never imports the runtime.
+- Runtime client (`@harness-fe/runtime`) only touches `window` at the **module-top level** — already client-safe because it's loaded via `<Script>` not via `import` in RSC.
 - SWC plugin runs on **all** components (server + client), but the injected `data-morphix-*` attributes are static strings — they harmlessly serialize through RSC.
 
 ---
@@ -238,12 +238,12 @@ Two lines of user config. No webpack hooks to write. Same pattern Sentry / PostH
 
 Turbopack reads the SAME `experimental.swcPlugins` config that webpack mode reads. So once the SWC plugin works, Turbopack mode works for free.
 
-Runtime injection: turbopack still renders HTML through Next.js's React pipeline — `<HarnessaScript />` works identically.
+Runtime injection: turbopack still renders HTML through Next.js's React pipeline — `<HarnessScript />` works identically.
 
 One caveat: Turbopack currently has known instability with SWC plugins as of Next 15.5. We document the workaround:
 
 ```
-HARNESSA_FE_TURBOPACK_FALLBACK=1 → withHarnessa() forces dev to webpack mode
+HARNESS_FE_TURBOPACK_FALLBACK=1 → withHarness() forces dev to webpack mode
 ```
 
 This is a release valve, not a permanent answer. Track Turbopack stability in Next.js issues.
@@ -254,16 +254,16 @@ This is a release valve, not a permanent answer. Track Turbopack stability in Ne
 
 ```
 packages/next/
-├── package.json                  @harnessa-fe/next
+├── package.json                  @harness-fe/next
 ├── src/
-│   ├── index.ts                  withHarnessa() HoC
-│   ├── script.tsx                <HarnessaScript /> component
+│   ├── index.ts                  withHarness() HoC
+│   ├── script.tsx                <HarnessScript /> component
 │   └── runtime-loader.ts         dynamic runtime loader
 ├── README.md
 └── tsconfig.json
 
-crates/harnessa-fe-swc/
-├── Cargo.toml                    @harnessa-fe/next-swc (built to wasm)
+crates/harness-fe-swc/
+├── Cargo.toml                    @harness-fe/next-swc (built to wasm)
 ├── src/
 │   ├── lib.rs                    SWC plugin entry
 │   ├── visitor.rs                JSX visitor (mirrors TS transform)
@@ -273,8 +273,8 @@ crates/harnessa-fe-swc/
 
 Two npm packages, separate releases:
 
-- `@harnessa-fe/next` — pure JS / React, fast iteration
-- `@harnessa-fe/next-swc` — Rust → `.wasm`, slower release cadence
+- `@harness-fe/next` — pure JS / React, fast iteration
+- `@harness-fe/next-swc` — Rust → `.wasm`, slower release cadence
 
 ---
 
@@ -283,20 +283,20 @@ Two npm packages, separate releases:
 ### Phase 1 — Foundation (2-3 days)
 
 - [ ] Scaffold `packages/next/` with TypeScript build
-- [ ] Implement `withHarnessa()` HoC (NO SWC plugin yet — leave that slot empty)
-- [ ] Implement `<HarnessaScript />` component
+- [ ] Implement `withHarness()` HoC (NO SWC plugin yet — leave that slot empty)
+- [ ] Implement `<HarnessScript />` component
 - [ ] Add `examples/next-demo/` (App Router minimal app)
-- [ ] e2e test: headless Chromium loads page, asserts `window.__harnessa_fe_client__` registered, WebSocket OPEN
+- [ ] e2e test: headless Chromium loads page, asserts `window.__harness_fe_client__` registered, WebSocket OPEN
 
 **Outcome**: morphicai-web team can plug in and get rrweb + console + network capture + agent commands. **No source-aware selectors yet** — agents must use CSS selectors as fallback.
 
 ### Phase 2 — Source intelligence (4-6 days)
 
-- [ ] Scaffold `crates/harnessa-fe-swc/`
+- [ ] Scaffold `crates/harness-fe-swc/`
 - [ ] Port `packages/unplugin/src/transform.ts` logic to Rust
 - [ ] Build pipeline: `cargo build --target wasm32-wasi --release` → `.wasm` artifact
-- [ ] Publish `@harnessa-fe/next-swc@0.1.0` with the `.wasm`
-- [ ] Wire `withHarnessa()` to add the plugin to `experimental.swcPlugins`
+- [ ] Publish `@harness-fe/next-swc@0.1.0` with the `.wasm`
+- [ ] Wire `withHarness()` to add the plugin to `experimental.swcPlugins`
 - [ ] Validation tests against React 18 / React 19 / Next 13 / 14 / 15 fixtures
 
 **Outcome**: full feature parity with Vite/Webpack. `project.where_is` works. `data-morphix-*` attrs on rendered DOM.
@@ -305,7 +305,7 @@ Two npm packages, separate releases:
 
 - [ ] Test Phase 2 on `next dev --turbo`
 - [ ] Document any caveats / known issues
-- [ ] Add `HARNESSA_FE_TURBOPACK_FALLBACK` escape hatch
+- [ ] Add `HARNESS_FE_TURBOPACK_FALLBACK` escape hatch
 
 **Outcome**: feature parity across all Next.js modes.
 
@@ -322,19 +322,19 @@ Two npm packages, separate releases:
 ## What we deliver at the end
 
 ```bash
-pnpm add -D @harnessa-fe/next @harnessa-fe/next-swc @harnessa-fe/runtime
+pnpm add -D @harness-fe/next @harness-fe/next-swc @harness-fe/runtime
 ```
 
 ```ts
 // next.config.mjs
-import { withHarnessa } from '@harnessa-fe/next';
-export default withHarnessa({ projectId: 'morphicai-web' }, {});
+import { withHarness } from '@harness-fe/next';
+export default withHarness({ projectId: 'morphicai-web' }, {});
 ```
 
 ```tsx
 // app/layout.tsx
-import { HarnessaScript } from '@harnessa-fe/next/script';
-// ... <body><HarnessaScript />{children}</body>
+import { HarnessScript } from '@harness-fe/next/script';
+// ... <body><HarnessScript />{children}</body>
 ```
 
 That's it. Works in dev (webpack and Turbopack), no-op in prod, supports App Router + Pages Router, gives full source-aware tagging + runtime.
@@ -349,7 +349,7 @@ That's it. Works in dev (webpack and Turbopack), no-op in prod, supports App Rou
 | 2: SWC plugin | 4-6 days | Source intelligence; canonical implementation |
 | 3: Turbopack | 2 days | All Next modes covered |
 | 4: Hardening | 1-2 days | Production-grade with version matrix |
-| **Total** | **9-13 days** | `@harnessa-fe/next` + `@harnessa-fe/next-swc` |
+| **Total** | **9-13 days** | `@harness-fe/next` + `@harness-fe/next-swc` |
 
 This is a real piece of work. The alternative — patching Next's `oneOf` rules at runtime — works for ~3 months until Next 16 ships and breaks it.
 
@@ -360,4 +360,4 @@ This is a real piece of work. The alternative — patching Next's `oneOf` rules 
 1. **Are we OK writing + maintaining a Rust crate?** SWC plugins must be Rust. If no Rust ownership long-term, fallback is Babel mode (build slowdown trade-off).
 2. **What's the support floor?** Next 13.5? 14? 15-only? Older versions have different SWC plugin APIs.
 3. **Pages Router support yes/no?** Most new apps are App Router; Pages Router adds maintenance.
-4. **CDN runtime vs bundled?** Phase 1 uses unpkg for simplicity. Phase 4 should ship `/public/harnessa-runtime.js` so users without internet still work.
+4. **CDN runtime vs bundled?** Phase 1 uses unpkg for simplicity. Phase 4 should ship `/public/harness-runtime.js` so users without internet still work.

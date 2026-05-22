@@ -1,6 +1,6 @@
 # Vision
 
-Harnessa-FE is **the runtime for software developed by agents**. Every AI-coded app should ship with it from day one — so the agent that built the app can keep watching, listening, and fixing the app after it ships.
+Harness-FE is **the runtime for software developed by agents**. Every AI-coded app should ship with it from day one — so the agent that built the app can keep watching, listening, and fixing the app after it ships.
 
 ## Three nested directions
 
@@ -50,10 +50,10 @@ A host product (e.g. morphicai-web) renders AI-generated mini-apps inside iframe
 
 ### Direction 3 — Foundation for the agent-development stack
 
-Every app produced by a Harness-aware code-gen pipeline (e.g. `@morphixai/code` mini-apps; future scaffolds for whole web/native apps) ships with `@harnessa-fe/runtime` + `@harnessa-fe/log` + `<HarnessaScript>` **by default**. The agent doesn't have to remember to add instrumentation — the harness is the runtime.
+Every app produced by a Harness-aware code-gen pipeline (e.g. `@morphixai/code` mini-apps; future scaffolds for whole web/native apps) ships with `@harness-fe/runtime` + `@harness-fe/log` + `<HarnessScript>` **by default**. The agent doesn't have to remember to add instrumentation — the harness is the runtime.
 
 **What this means:**
-- `@harnessa-fe/skill` becomes more than docs — it becomes the contract: "every Harness-aware agent knows how to use these tools"
+- `@harness-fe/skill` becomes more than docs — it becomes the contract: "every Harness-aware agent knows how to use these tools"
 - Mini-app templates, app scaffolds, and code-gen prompts all assume the runtime is present
 - Bug reports, telemetry, source navigation are first-class — not bolted on later
 

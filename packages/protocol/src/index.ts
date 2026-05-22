@@ -1,5 +1,5 @@
 /**
- * @harnessa-fe/protocol — shared types + Zod schemas.
+ * @harness-fe/protocol — shared types + Zod schemas.
  *
  * All three other packages (mcp-server / vite-plugin / runtime-client)
  * depend on this and nothing else from morphix. Keep it small and pure.
@@ -64,7 +64,7 @@ function buildUrl(scheme: 'ws' | 'http', { host, port, token, path }: UrlParts):
 export function parseWsUrl(url: string): { host: string; port: number; pathname: string } {
     const u = new URL(url);
     if (u.protocol !== 'ws:' && u.protocol !== 'wss:') {
-        throw new Error(`harnessa-fe: expected ws:// or wss:// URL, got ${u.protocol}`);
+        throw new Error(`harness-fe: expected ws:// or wss:// URL, got ${u.protocol}`);
     }
     const port = u.port ? Number(u.port) : DEFAULT_WS_PORT;
     return { host: u.hostname, port, pathname: u.pathname || '/' };

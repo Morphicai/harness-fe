@@ -8,8 +8,8 @@
  * read the same sessionId — and we can embed that id in the HTML payload
  * so the browser-side RuntimeClient adopts it instead of generating its own.
  *
- * Re-exported from `@harnessa-fe/node-runtime` so the Node SDK can use the
- * same helper without depending on `@harnessa-fe/next`.
+ * Re-exported from `@harness-fe/node-runtime` so the Node SDK can use the
+ * same helper without depending on `@harness-fe/next`.
  */
 
 // React 19 exports `cache()`; React 18 ships it but @types/react ^18 lacks
@@ -49,7 +49,7 @@ export const getSessionId: () => string = wrapWithCache(generateId);
 // if the host project hasn't installed it, this is a silent no-op.
 try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const nrt = require('@harnessa-fe/node-runtime') as {
+    const nrt = require('@harness-fe/node-runtime') as {
         setSessionIdProvider?: (fn: () => string | undefined) => void;
     };
     nrt.setSessionIdProvider?.(() => {
@@ -62,5 +62,5 @@ try {
         }
     });
 } catch {
-    // @harnessa-fe/node-runtime not installed — fine, log + Next still work
+    // @harness-fe/node-runtime not installed — fine, log + Next still work
 }

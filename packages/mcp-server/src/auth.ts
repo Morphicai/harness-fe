@@ -16,21 +16,29 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-export const DEFAULT_COOKIE_NAME = 'harnessa_fe_token';
+export const DEFAULT_COOKIE_NAME = 'harness_fe_token';
 export const DEFAULT_LOGIN_PATH = '/__auth';
-const WS_SUBPROTOCOL_PREFIX = 'harnessa-fe.token.';
+const WS_SUBPROTOCOL_PREFIX = 'harness-fe.token.';
 
 export interface AuthOptions {
-    /** Expected token. Empty/undefined disables auth. */
+    /** Expected token. Empty/undefined disables token auth. */
     token?: string;
-    /** Cookie name set after a successful login. Default: harnessa_fe_token. */
+    /**
+     * Custom authorization predicate. When supplied, runs *instead of* the
+     * token check on every HTTP request and WS upgrade. Synchronous: the
+     * WS upgrade handshake completes inline. For host-injected auth that
+     * needs an async lookup, cache the result in a cookie via the host's
+     * own middleware and have `authorize` read the cookie.
+     */
+    authorize?: (req: IncomingMessage) => boolean;
+    /** Cookie name set after a successful login. Default: harness_fe_token. */
     cookieName?: string;
     /** POST path that consumes the login form. Default: /__auth. */
     loginPath?: string;
 }
 
 export function isAuthEnabled(opts: AuthOptions): boolean {
-    return !!opts.token;
+    return !!(opts.token || opts.authorize);
 }
 
 /** Pull token from header / cookie / query / WS subprotocol (first match wins). */
@@ -78,9 +86,12 @@ export function verifyToken(provided: string | undefined, expected: string): boo
     return timingSafeEqual(a, b);
 }
 
-/** True if request is allowed (auth disabled OR token matches). */
+/** True if request is allowed (auth disabled, custom predicate accepts, or token matches). */
 export function isAuthorized(req: IncomingMessage, opts: AuthOptions): boolean {
     if (!isAuthEnabled(opts)) return true;
+    // Custom predicate wins when supplied. Hosts that embed the daemon pass
+    // their own check here (e.g. JWT verification reading from a cookie).
+    if (opts.authorize) return opts.authorize(req);
     return verifyToken(extractToken(req, opts), opts.token!);
 }
 
@@ -93,8 +104,12 @@ export function sendUnauthorized(
     res: ServerResponse,
     opts: AuthOptions,
 ): void {
+    // Custom-authorize mode is for host apps that own their own login UX —
+    // the built-in token form is never the right answer there. Always 401
+    // as JSON and let the host redirect.
+    const wantsLoginForm = !opts.authorize;
     const accept = (req.headers.accept ?? '').toLowerCase();
-    const wantsHtml = accept.includes('text/html');
+    const wantsHtml = accept.includes('text/html') && wantsLoginForm;
     if (wantsHtml) {
         res.statusCode = 401;
         res.setHeader('content-type', 'text/html; charset=utf-8');
@@ -104,12 +119,12 @@ export function sendUnauthorized(
     }
     res.statusCode = 401;
     res.setHeader('content-type', 'application/json; charset=utf-8');
-    res.setHeader('www-authenticate', 'Bearer realm="harnessa-fe"');
+    res.setHeader('www-authenticate', 'Bearer realm="harness-fe"');
     res.end(
         JSON.stringify({
             error: 'unauthorized',
             message:
-                'Missing or invalid token. Provide Authorization: Bearer <token>, ?token=<token>, or the harnessa_fe_token cookie.',
+                'Missing or invalid token. Provide Authorization: Bearer <token>, ?token=<token>, or the harness_fe_token cookie.',
         }),
     );
 }
@@ -122,8 +137,9 @@ export async function handleLoginPost(
     res: ServerResponse,
     opts: AuthOptions,
 ): Promise<void> {
-    if (!isAuthEnabled(opts)) {
-        // Auth disabled — nothing to login. Redirect home to keep UX consistent.
+    if (!isAuthEnabled(opts) || opts.authorize) {
+        // Auth disabled, or the host owns auth via a custom predicate — the
+        // built-in login form isn't meaningful here. Redirect home.
         res.statusCode = 303;
         res.setHeader('location', '/');
         res.end();
@@ -210,7 +226,7 @@ function renderLoginPage(opts: AuthOptions, next: string, error?: string): strin
         : '';
     return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>harnessa-fe — sign in</title>
+<title>harness-fe — sign in</title>
 <style>
 body{font:14px/1.4 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#fafafa;color:#222;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
 form{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:24px;max-width:360px;width:100%;box-shadow:0 4px 12px rgba(0,0,0,.04)}
@@ -221,7 +237,7 @@ button{display:block;width:100%;padding:10px;background:#111;color:#fff;border:0
 </style></head>
 <body>
 <form method="post" action="${escapeHtml(loginPath)}" autocomplete="off">
-  <h1>harnessa-fe</h1>
+  <h1>harness-fe</h1>
   ${errBlock}
   <input type="password" name="token" placeholder="token" autofocus required>
   <input type="hidden" name="next" value="${safeN}">

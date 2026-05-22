@@ -1,17 +1,17 @@
 {
-    "name": "@harnessa-fe/node-runtime",
+    "name": "@harness-fe/node-runtime",
     "version": "3.0.0",
-    "description": "Node.js server-side SDK for Harnessa-FE. Captures server errors, console output, and Route Handler traces — links them to the browser session via a shared sessionId.",
+    "description": "Node.js server-side SDK for Harness-FE. Captures server errors, console output, and Route Handler traces — links them to the browser session via a shared sessionId.",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
         "directory": "packages/node-runtime"
     },
-    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
-        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harness-fe/issues"
     },
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -42,7 +42,7 @@
         "test": "vitest run"
     },
     "dependencies": {
-        "@harnessa-fe/protocol": "workspace:*"
+        "@harness-fe/protocol": "workspace:*"
     },
     "peerDependencies": {
         "ws": "^8.18.0"
@@ -63,7 +63,7 @@
         "access": "public"
     },
     "keywords": [
-        "harnessa-fe",
+        "harness-fe",
         "node",
         "server",
         "next.js",

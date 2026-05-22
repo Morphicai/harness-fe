@@ -35,7 +35,7 @@ const VIEWER_HTML = (exportId: string, meta: { sessionId: string; tabId?: string
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Harnessa replay · ${escapeHtml(exportId)}</title>
+<title>Harness replay · ${escapeHtml(exportId)}</title>
 <link rel="stylesheet" href="/replay/static/player.css" />
 <style>
   html, body { margin: 0; padding: 0; background: #1a1a1a; color: #eee; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -74,7 +74,7 @@ const VIEWER_HTML = (exportId: string, meta: { sessionId: string; tabId?: string
       });
     } catch (err) {
       stage.innerHTML = '<div class="error">Replay failed: ' + (err && err.message ? String(err.message).replace(/[<>&]/g, '') : 'unknown error') + '</div>';
-      console.error('[harnessa replay]', err);
+      console.error('[harness replay]', err);
     }
   })();
 </script>

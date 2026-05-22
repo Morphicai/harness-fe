@@ -32,14 +32,14 @@ function makeFakeClient(overrides: Partial<OverlayClient> = {}): OverlayClient &
 
 describe('installOverlay', () => {
     afterEach(() => {
-        document.getElementById('__harnessa_fe_overlay__')?.remove();
+        document.getElementById('__harness_fe_overlay__')?.remove();
     });
 
     it('mounts a single Shadow-DOM host with a FAB labeled "H"', () => {
         setupDom();
         const client = makeFakeClient();
         installOverlay(client);
-        const host = document.getElementById('__harnessa_fe_overlay__');
+        const host = document.getElementById('__harness_fe_overlay__');
         expect(host).toBeTruthy();
         const fab = host!.shadowRoot!.querySelector('.fab') as HTMLButtonElement;
         expect(fab.textContent).toBe('H');
@@ -50,7 +50,7 @@ describe('installOverlay', () => {
         setupDom();
         const client = makeFakeClient();
         installOverlay(client);
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const fab = root.querySelector('.fab') as HTMLButtonElement;
         fab.click();
         const card = root.querySelector('.info-card') as HTMLElement;
@@ -66,7 +66,7 @@ describe('installOverlay', () => {
         setupDom();
         const client = makeFakeClient({ buildId: undefined });
         installOverlay(client);
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         (root.querySelector('.fab') as HTMLButtonElement).click();
         expect(root.querySelector('[data-role=build]')!.textContent).toBe('—');
     });
@@ -75,7 +75,7 @@ describe('installOverlay', () => {
         setupDom();
         const client = makeFakeClient();
         installOverlay(client);
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         (root.querySelector('.fab') as HTMLButtonElement).click();
         (root.querySelector('[data-role=report]') as HTMLButtonElement).click();
         const fab = root.querySelector('.fab') as HTMLButtonElement;
@@ -94,7 +94,7 @@ describe('installOverlay', () => {
 
         const client = makeFakeClient();
         installOverlay(client);
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
 
         // Open → report → fake-pick → submit.
         (root.querySelector('.fab') as HTMLButtonElement).click();
@@ -139,7 +139,7 @@ describe('installOverlay', () => {
         setupDom();
         const client = makeFakeClient();
         installOverlay(client);
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         (root.querySelector('.fab') as HTMLButtonElement).click();
         const card = root.querySelector('.info-card') as HTMLElement;
         expect(card.style.display).toBe('flex');
@@ -153,7 +153,7 @@ describe('installOverlay', () => {
         installOverlay(client);
         installOverlay(client);
         installOverlay(client);
-        const hosts = document.querySelectorAll('#__harnessa_fe_overlay__');
+        const hosts = document.querySelectorAll('#__harness_fe_overlay__');
         expect(hosts.length).toBe(1);
     });
 
@@ -161,7 +161,7 @@ describe('installOverlay', () => {
         setupDom();
         try { window.localStorage?.clear(); } catch { /* swallow */ }
         installOverlay(makeFakeClient());
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const fab = root.querySelector('.fab') as HTMLButtonElement;
         expect(fab.style.left).toMatch(/px$/);
         expect(fab.style.top).toMatch(/px$/);
@@ -172,11 +172,11 @@ describe('installOverlay', () => {
     it('restores FAB position from localStorage on next mount', () => {
         setupDom();
         window.localStorage?.setItem(
-            '__harnessa_fe_fab_pos__',
+            '__harness_fe_fab_pos__',
             JSON.stringify({ x: 120, y: 80 }),
         );
         installOverlay(makeFakeClient());
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const fab = root.querySelector('.fab') as HTMLButtonElement;
         expect(fab.style.left).toBe('120px');
         expect(fab.style.top).toBe('80px');
@@ -186,12 +186,12 @@ describe('installOverlay', () => {
     it('clamps a persisted position into the current viewport (resilient against window shrink)', () => {
         setupDom();
         window.localStorage?.setItem(
-            '__harnessa_fe_fab_pos__',
+            '__harness_fe_fab_pos__',
             // Saved on a huge monitor; happy-dom's default viewport is much smaller.
             JSON.stringify({ x: 9999, y: 9999 }),
         );
         installOverlay(makeFakeClient());
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const fab = root.querySelector('.fab') as HTMLButtonElement;
         const left = Number.parseInt(fab.style.left, 10);
         const top = Number.parseInt(fab.style.top, 10);
@@ -204,10 +204,10 @@ describe('installOverlay', () => {
 
     it('ignores a malformed persisted value and falls back to the default position', () => {
         setupDom();
-        window.localStorage?.setItem('__harnessa_fe_fab_pos__', 'not json {{{');
+        window.localStorage?.setItem('__harness_fe_fab_pos__', 'not json {{{');
         expect(() => installOverlay(makeFakeClient())).not.toThrow();
         const fab = document
-            .getElementById('__harnessa_fe_overlay__')!
+            .getElementById('__harness_fe_overlay__')!
             .shadowRoot!.querySelector('.fab') as HTMLButtonElement;
         expect(fab.style.left).toMatch(/px$/);
         expect(fab.style.top).toMatch(/px$/);
@@ -217,7 +217,7 @@ describe('installOverlay', () => {
     it('shows the "Open dashboard" button only when the client has an mcpUrl', () => {
         setupDom();
         installOverlay(makeFakeClient({ mcpUrl: 'ws://127.0.0.1:47729?token=demo' }));
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
         expect(btn.style.display).toBe('');
         expect(btn.title).toContain('http://127.0.0.1:47729/dashboard/sessions/');
@@ -227,15 +227,15 @@ describe('installOverlay', () => {
     it('hides the "Open dashboard" button when mcpUrl is missing', () => {
         setupDom();
         installOverlay(makeFakeClient()); // no mcpUrl
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
         expect(btn.style.display).toBe('none');
     });
 
     it('clicking "Open dashboard" calls window.open with the derived URL in a new tab', () => {
         setupDom();
-        installOverlay(makeFakeClient({ mcpUrl: 'wss://harnessa.lan:8443?token=t' }));
-        const root = document.getElementById('__harnessa_fe_overlay__')!.shadowRoot!;
+        installOverlay(makeFakeClient({ mcpUrl: 'wss://harness.lan:8443?token=t' }));
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const calls: Array<{ url: string; target: string; features: string }> = [];
         (globalThis.window as unknown as { open: typeof window.open }).open = ((
             url?: string | URL,
@@ -248,7 +248,7 @@ describe('installOverlay', () => {
         const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
         btn.click();
         expect(calls).toHaveLength(1);
-        expect(calls[0].url).toBe('https://harnessa.lan:8443/dashboard/sessions/sess-12345-abcdef-9876?token=t');
+        expect(calls[0].url).toBe('https://harness.lan:8443/dashboard/sessions/sess-12345-abcdef-9876?token=t');
         expect(calls[0].target).toBe('_blank');
         expect(calls[0].features).toMatch(/noopener/);
     });
@@ -298,7 +298,7 @@ describe('annotate engine', () => {
 
 describe('buildCssPath', () => {
     afterEach(() => {
-        document.getElementById('__harnessa_fe_overlay__')?.remove();
+        document.getElementById('__harness_fe_overlay__')?.remove();
     });
 
     it('returns a sensible path with id anchor when present', () => {

@@ -56,7 +56,7 @@
 
 ## Phase 9: Validation
 
-- [ ] 31. Run `pnpm --filter @harnessa-fe/protocol test` and `pnpm --filter @harnessa-fe/mcp-server test`; both should be green.
+- [ ] 31. Run `pnpm --filter @harness-fe/protocol test` and `pnpm --filter @harness-fe/mcp-server test`; both should be green.
 - [ ] 32. Manually exercise the example page: refresh three times, confirm three loads appear in the dashboard with snapshots matching the actual browser state.
 - [ ] 33. Issue a POST `fetch` with a JSON body and confirm the dashboard shows matching `req` / `res` entries with body content and a redacted `Authorization` header.
 - [ ] 34. Trigger an SSE response and confirm the body cap kicks in with `truncated: true`.

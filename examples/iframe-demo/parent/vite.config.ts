@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { harnessaFE } from '@harnessa-fe/vite';
+import { harnessFE } from '@harness-fe/vite';
 import { resolve } from 'node:path';
 
 /**
@@ -9,13 +9,13 @@ import { resolve } from 'node:path';
  * - Serves the parent app on http://localhost:5180/
  * - Reverse-proxies /child/* to the child vite dev server on :5181,
  *   so the iframe loads under the parent's origin (same-origin).
- * - The harnessa-fe plugin reports projectId="iframe-parent".
+ * - The harness-fe plugin reports projectId="iframe-parent".
  */
 export default defineConfig({
     root: resolve(__dirname),
     plugins: [
         react(),
-        harnessaFE({
+        harnessFE({
             projectId: 'iframe-parent',
             displayName: 'Parent Shell',
         }),

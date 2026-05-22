@@ -9,7 +9,7 @@ import type {
     ConsoleEntry,
     ErrorEntry,
     NetworkEntry,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 import { RingBuffer } from './buffer.js';
 import { installFetchPatch } from './fetchPatch.js';
 import { installXhrPatch } from './xhrPatch.js';

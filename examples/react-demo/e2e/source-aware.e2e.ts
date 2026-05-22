@@ -11,9 +11,9 @@
  */
 
 import { createServer } from 'vite';
-import { Bridge } from '@harnessa-fe/mcp-server';
-import { harnessaFE } from '@harnessa-fe/vite';
-import { COMMAND } from '@harnessa-fe/protocol';
+import { Bridge } from '@harness-fe/mcp-server';
+import { harnessFE } from '@harness-fe/vite';
+import { COMMAND } from '@harness-fe/protocol';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -42,7 +42,7 @@ async function run() {
         root: projectRoot,
         configFile: false,
         plugins: [
-            harnessaFE({
+            harnessFE({
                 projectId: 'react-demo',
                 mcpUrl: `ws://127.0.0.1:${port}`,
             }),

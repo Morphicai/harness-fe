@@ -23,7 +23,7 @@
 ## Phase 4: Replay ergonomics
 
 - [x] 12. Add a replay-oriented export + local viewer for bounded recording slices.
-        - Bundled `rrweb-player` in `@harnessa-fe/mcp-server`.
+        - Bundled `rrweb-player` in `@harness-fe/mcp-server`.
         - Bridge now serves HTTP and WS on the same port; `/replay/:id` returns a self-contained viewer page, `/replay/:id.json` returns raw events.
         - New MCP tool `session.replay.create` builds an export from `{ts, windowMs?}` or `{since, until}` and returns `viewerUrl`.
         - Available in both leader and follower modes (proxied via `storeReplayCreate` mcp.call method).

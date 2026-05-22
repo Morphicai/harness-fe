@@ -57,14 +57,14 @@ export const helloFrameSchema = z.object({
     projectId: z.string(),
     /**
      * Parent project's id (declared by plugin or inferred by runtime via
-     * `window.parent.__HARNESSA_FE__.projectId`). Builds the project tree.
+     * `window.parent.__HARNESS_FE__.projectId`). Builds the project tree.
      */
     parentProjectId: z.string().optional(),
     /** Human-readable project name; defaults to package.json `name`. */
     displayName: z.string().optional(),
     /**
      * Build artifact id — identifies a particular compilation of the source.
-     * Plugin sets this on every hello; runtime echoes it via `__HARNESSA_FE__.buildId`.
+     * Plugin sets this on every hello; runtime echoes it via `__HARNESS_FE__.buildId`.
      * Stable across HMR, changes on dev-server restart or prod build.
      */
     buildId: z.string().optional(),
@@ -86,7 +86,7 @@ export const helloFrameSchema = z.object({
     visitorId: z.string().optional(),
     /**
      * App-supplied identifier (e.g. `supabase.user.id`). Optional — when the
-     * app exposes it via `HarnessaScript userId=…`, daemon attaches it to
+     * app exposes it via `HarnessScript userId=…`, daemon attaches it to
      * VisitorMeta. Empty / undefined for anonymous traffic.
      */
     userId: z.string().optional(),

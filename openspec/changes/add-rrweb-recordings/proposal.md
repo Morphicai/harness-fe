@@ -2,7 +2,7 @@
 
 ## Why
 
-Current Harnessa-FE observability is strong for logs, errors, network history, and command traces, but weak for reconstructing what actually happened in the UI before and during a failure. Agents can see symptoms without seeing the browser state transitions that produced them.
+Current Harness-FE observability is strong for logs, errors, network history, and command traces, but weak for reconstructing what actually happened in the UI before and during a failure. Agents can see symptoms without seeing the browser state transitions that produced them.
 
 rrweb fills that gap. It gives the system a browser-native recording layer that can be aligned with the existing timeline so an agent can move from:
 
@@ -12,7 +12,7 @@ rrweb fills that gap. It gives the system a browser-native recording layer that 
 
 ## What Changes
 
-This change adds a first-class rrweb recording pipeline to Harnessa-FE:
+This change adds a first-class rrweb recording pipeline to Harness-FE:
 
 - the runtime client records browser activity with rrweb
 - recordings are chunked and streamed to the MCP server

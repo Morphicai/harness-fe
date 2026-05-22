@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 async function makeTempDir(): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), 'harnessa-test-'));
+    const dir = await mkdtemp(join(tmpdir(), 'harness-test-'));
     tempDirs.push(dir);
     return dir;
 }
@@ -29,7 +29,7 @@ describe('Property 1: Project ID resolution priority', () => {
                 fc.tuple(fc.option(fc.uuidV(4)), fc.boolean()),
                 async ([userConfig, filePresent]) => {
                     const root = await makeTempDir();
-                    const idFilePath = join(root, '.harnessa-id');
+                    const idFilePath = join(root, '.harness-id');
                     const fileUuid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
                     if (filePresent) {
@@ -60,19 +60,19 @@ describe('Property 1: Project ID resolution priority', () => {
     });
 });
 
-// Feature: persistence, Property 2: .harnessa-id file format round-trip
-describe('Property 2: .harnessa-id file format round-trip', () => {
-    it('UUID written to .harnessa-id round-trips exactly with no extra characters', async () => {
+// Feature: persistence, Property 2: .harness-id file format round-trip
+describe('Property 2: .harness-id file format round-trip', () => {
+    it('UUID written to .harness-id round-trips exactly with no extra characters', async () => {
         // Validates: Requirements 1.5
         await fc.assert(
             fc.asyncProperty(
                 fc.uuidV(4),
                 async (_uuid) => {
                     // We call resolveProjectId with no userConfig and no existing file,
-                    // so it generates a fresh UUID and writes it to .harnessa-id.
+                    // so it generates a fresh UUID and writes it to .harness-id.
                     // We then verify the file content matches the returned UUID exactly.
                     const root = await makeTempDir();
-                    const idFilePath = join(root, '.harnessa-id');
+                    const idFilePath = join(root, '.harness-id');
 
                     const returned = await resolveProjectId(root, undefined);
 

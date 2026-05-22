@@ -1,25 +1,25 @@
 /**
- * @harnessa-fe/node-runtime
+ * @harness-fe/node-runtime
  *
- * Node.js server-side SDK. Connects to the Harnessa-FE daemon (morphix-dev-bridge)
+ * Node.js server-side SDK. Connects to the Harness-FE daemon (morphix-dev-bridge)
  * with `role: 'node-runtime'`, captures server errors and optionally console
  * output, and links events to the per-request sessionId so server and client
- * events land in the same `~/.harnessa/data/sessions/{id}/timeline.jsonl`.
+ * events land in the same `~/.harness/data/sessions/{id}/timeline.jsonl`.
  *
  * Usage (Path A — explicit):
  *   // instrumentation.ts (Next.js 15+)
  *   export async function register() {
  *     if (process.env.NEXT_RUNTIME === 'nodejs') {
- *       const { register } = await import('@harnessa-fe/node-runtime');
+ *       const { register } = await import('@harness-fe/node-runtime');
  *       register({ projectId: 'my-app' });
  *     }
  *   }
  *
- * Usage (Path B — via withHarnessa):
+ * Usage (Path B — via withHarness):
  *   // next.config.mjs
- *   import { withHarnessa } from '@harnessa-fe/next/config';
- *   export default withHarnessa({ ... });
- *   // withHarnessa injects `import '@harnessa-fe/node-runtime/auto'` into the
+ *   import { withHarness } from '@harness-fe/next/config';
+ *   export default withHarness({ ... });
+ *   // withHarness injects `import '@harness-fe/node-runtime/auto'` into the
  *   // server bundle, which auto-calls register() from env vars.
  */
 
@@ -29,7 +29,7 @@ import {
     PROTOCOL_VERSION,
     type EventFrame,
     type HelloAckFrame,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 import { selectTransport, type Transport } from './transport.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,10 +47,10 @@ export interface RegisterOptions {
     baseUrl?: string;
     /**
      * Capture `console.*` output and forward to daemon as `server-log` events.
-     * Default: **on**. Set `HARNESSA_FE_NODE_CONSOLE=0` env var to disable
+     * Default: **on**. Set `HARNESS_FE_NODE_CONSOLE=0` env var to disable
      * (or pass `captureConsole: false` here) when you don't want auto
      * forwarding — useful in noisy frameworks where you'd rather use
-     * `@harnessa-fe/log` exclusively for structured logs.
+     * `@harness-fe/log` exclusively for structured logs.
      */
     captureConsole?: boolean;
 }
@@ -66,18 +66,18 @@ export interface EventContext {
 
 /**
  * ALS store: maps the current async execution context to a request-scoped sessionId.
- * Set inside `withHarnessaTracing()` HOC or via `setRequestSessionId()`.
+ * Set inside `withHarnessTracing()` HOC or via `setRequestSessionId()`.
  */
 const als = new AsyncLocalStorage<{ sessionId: string }>();
 
 /**
  * Optional adapter-supplied sessionId resolver. Framework adapters (e.g.
- * `@harnessa-fe/next`) call `setSessionIdProvider()` on module load to plug
+ * `@harness-fe/next`) call `setSessionIdProvider()` on module load to plug
  * in a request-scoped getter — for Next, that's a `cache()`-backed function
  * that returns a fresh sessionId per Server Component render scope.
  *
  * Stays `null` when no adapter has registered → server-side `console.*` and
- * `reportLog` calls outside `withHarnessaTracing()` will emit as orphans
+ * `reportLog` calls outside `withHarnessTracing()` will emit as orphans
  * (sessionId undefined), which is correct: better than misattributing.
  *
  * This is the dependency-injection direction (L2 framework adapter → L1
@@ -100,14 +100,14 @@ export function setSessionIdProvider(fn: (() => string | undefined) | null): voi
  * outside any traced scope.
  *
  * Resolution order:
- *   1. AsyncLocalStorage (populated by `withHarnessaTracing()` HOC)
+ *   1. AsyncLocalStorage (populated by `withHarnessTracing()` HOC)
  *   2. Adapter-supplied provider — for Next this is a React `cache()`-backed
  *      getter, automatic inside any Server Component render, Route Handler,
  *      or Server Action. Adapter pushes itself in via `setSessionIdProvider`.
  */
 export function getRequestSessionId(): string | undefined {
     // ALS wins because it's explicit user intent — if they bothered to wrap
-    // a handler with withHarnessaTracing, respect that.
+    // a handler with withHarnessTracing, respect that.
     const fromAls = als.getStore()?.sessionId;
     if (fromAls !== undefined) return fromAls;
     if (sessionIdProvider) {
@@ -167,7 +167,7 @@ export function _resetForTest(): void {
  * only the first invocation has effect.
  *
  * Selects a transport automatically:
- *   - Edge Runtime (NEXT_RUNTIME=edge) or HARNESSA_FE_TRANSPORT=http → HttpBatchTransport
+ *   - Edge Runtime (NEXT_RUNTIME=edge) or HARNESS_FE_TRANSPORT=http → HttpBatchTransport
  *   - `ws` module available → WsTransport
  *   - Fallback → HttpBatchTransport
  *
@@ -194,9 +194,9 @@ export function register(opts: RegisterOptions): void {
 
     installProcessHandlers();
 
-    // Default-on. Opt out via captureConsole: false OR HARNESSA_FE_NODE_CONSOLE=0.
+    // Default-on. Opt out via captureConsole: false OR HARNESS_FE_NODE_CONSOLE=0.
     const captureConsole = opts.captureConsole ??
-        (process.env.HARNESSA_FE_NODE_CONSOLE !== '0');
+        (process.env.HARNESS_FE_NODE_CONSOLE !== '0');
     if (captureConsole) {
         installConsoleCapture();
     }
@@ -228,7 +228,7 @@ export function reportLog(
 }
 
 /**
- * Context for an explicit app-log event emitted by `@harnessa-fe/log`.
+ * Context for an explicit app-log event emitted by `@harness-fe/log`.
  *
  * Distinct from `EventContext` (which is for auto-captured events) so the
  * bridge can write a separate `t: 'app-log'` row. The `scope` field comes
@@ -236,7 +236,7 @@ export function reportLog(
  * logger call site.
  */
 export interface AppLogContext {
-    /** Per-request sessionId. Read fresh via getRequestSessionId() in @harnessa-fe/log/node-emit. */
+    /** Per-request sessionId. Read fresh via getRequestSessionId() in @harness-fe/log/node-emit. */
     sessionId?: string;
     /** Dot-separated logger scope, e.g. "cart.checkout". */
     scope?: string;
@@ -247,7 +247,7 @@ export interface AppLogContext {
 /**
  * Report an explicit app log line to the daemon as an `app.log` event.
  *
- * Called by `@harnessa-fe/log`'s node-emit path — not for console capture.
+ * Called by `@harness-fe/log`'s node-emit path — not for console capture.
  * Emits `name: 'app.log'` so the bridge writes a `t: 'app-log'` row,
  * distinguishable from auto-captured `server-log` rows.
  *
@@ -277,11 +277,11 @@ export function reportAppLog(
  * back to a fresh UUID if the header is absent.
  *
  * Usage:
- *   export const GET = withHarnessaTracing(async (req) => {
+ *   export const GET = withHarnessTracing(async (req) => {
  *     return new Response('ok');
  *   });
  */
-export function withHarnessaTracing<
+export function withHarnessTracing<
     Args extends unknown[],
     Return,
 >(handler: (...args: Args) => Promise<Return>): (...args: Args) => Promise<Return> {

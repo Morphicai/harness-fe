@@ -1,4 +1,4 @@
-# @harnessa-fe/dashboard-ui
+# @harness-fe/dashboard-ui
 
 ## 0.2.0
 
@@ -6,7 +6,7 @@
 
 - 88e41a2: Wire up the React SPA dashboard end-to-end (PR C of A-E).
 
-  ### `@harnessa-fe/dashboard-ui`
+  ### `@harness-fe/dashboard-ui`
 
   - Real routes — `ProjectList` (`/`) and `SessionDetail` (`/sessions/:id`) — replacing the placeholder hero
   - Glass header with a live-pill indicator that flashes green on each `dashboard.update`
@@ -15,14 +15,14 @@
   - `useApi` / `useLiveBridge` hooks: GET wrapper with token auth + singleton WS subscriber with backoff reconnect
   - ~64 KB gzip total bundle
 
-  ### `@harnessa-fe/mcp-server`
+  ### `@harness-fe/mcp-server`
 
-  - New `dashboardSpa.ts` handler — serves the SPA at `/dashboard/*` from `@harnessa-fe/dashboard-ui/dist`. Hashed assets get long-lived immutable cache; `index.html` is `no-store`. Path traversal blocked
+  - New `dashboardSpa.ts` handler — serves the SPA at `/dashboard/*` from `@harness-fe/dashboard-ui/dist`. Hashed assets get long-lived immutable cache; `index.html` is `no-store`. Path traversal blocked
   - WS subscriber registry: clients sending `hello { role: 'dashboard-client' }` get added to `dashboardSubscribers` and receive `dashboard.update` frames
   - Broadcast hooks at `upsertSession` (new/update), `closeSession`, `appendRecording` (debounced 200ms per session), and `writeExport` (via API callback)
   - `notifyDashboard()` public method so future code paths can push their own update kinds
 
-  ### `@harnessa-fe/protocol`
+  ### `@harness-fe/protocol`
 
   - New peer role `dashboard-client`
   - New `dashboardUpdateFrameSchema` carrying `{ kind, sessionId?, projectId?, ts }`
@@ -32,7 +32,7 @@
   the redirect + legacy deletion lands in PR D.
 
 - 7d3f830: First publish: scaffold of the React SPA that will replace the legacy
-  server-rendered dashboard in `@harnessa-fe/mcp-server`. Ships with Vite +
+  server-rendered dashboard in `@harness-fe/mcp-server`. Ships with Vite +
   React 18 + Tailwind 3 and a Linear-style dark palette. No real routes
   yet — the project list and live session detail land in follow-up PRs.
 

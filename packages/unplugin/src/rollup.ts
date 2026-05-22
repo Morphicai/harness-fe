@@ -2,11 +2,11 @@
  * Rollup-specific export.
  *
  * Usage:
- *   import { harnessaFE } from '@harnessa-fe/unplugin/rollup'
+ *   import { harnessFE } from '@harness-fe/unplugin/rollup'
  */
 
 import { unplugin } from './core.js';
-export type { HarnessaFEOptions } from './core.js';
+export type { HarnessFEOptions } from './core.js';
 
-export const harnessaFE = unplugin.rollup;
-export default harnessaFE;
+export const harnessFE = unplugin.rollup;
+export default harnessFE;

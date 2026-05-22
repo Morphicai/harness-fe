@@ -23,7 +23,7 @@ import {
     selectorSchema,
     typeArgsSchema,
     waitForArgsSchema,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 import type { IBridge } from './bridge.js';
 import type { Bridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';
@@ -32,14 +32,14 @@ import { createReplayExport } from './replayCreate.js';
 import { openBrowser } from './openBrowser.js';
 import { buildDashboardUrl } from './dashboardUrl.js';
 
-const SERVER_NAME = 'harnessa-fe';
+const SERVER_NAME = 'harness-fe';
 const tabIdParam = z
     .string()
     .optional()
     .describe('Optional tab id (from tab.list). Default = most-recent active tab.');
 
 /**
- * Build an McpServer with every harnessa-fe tool registered for the given
+ * Build an McpServer with every harness-fe tool registered for the given
  * bridge. Transport (stdio / HTTP) is attached separately.
  */
 export function createMcpServer(bridge: IBridge): McpServer {
@@ -376,13 +376,13 @@ function registerTools(server: McpServer, bridge: IBridge): void {
         COMMAND.DASHBOARD_OPEN,
         {
             description:
-                'Return the dev-dashboard URL for this Harnessa-FE daemon and, optionally, launch the user\'s default browser to it. The dashboard shows live sessions, recordings, exports, and is the primary surface a human uses to inspect what an agent is doing. Useful when the agent wants the human to look at something concrete.',
+                'Return the dev-dashboard URL for this Harness-FE daemon and, optionally, launch the user\'s default browser to it. The dashboard shows live sessions, recordings, exports, and is the primary surface a human uses to inspect what an agent is doing. Useful when the agent wants the human to look at something concrete.',
             inputSchema: {
                 launchBrowser: z
                     .boolean()
                     .optional()
                     .describe(
-                        'When true, try to open the URL in the user\'s default browser (requires the daemon to run on the user\'s host machine — no effect in remote/Docker contexts; set HARNESSA_FE_HEADLESS=1 in those environments to suppress the launch attempt).',
+                        'When true, try to open the URL in the user\'s default browser (requires the daemon to run on the user\'s host machine — no effect in remote/Docker contexts; set HARNESS_FE_HEADLESS=1 in those environments to suppress the launch attempt).',
                     ),
                 sessionId: z
                     .string()

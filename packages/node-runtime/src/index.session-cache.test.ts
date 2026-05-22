@@ -1,7 +1,7 @@
 /**
  * Tests for the adapter-supplied sessionId provider path.
  *
- * Architecture: framework adapters (e.g. @harnessa-fe/next) push a request-
+ * Architecture: framework adapters (e.g. @harness-fe/next) push a request-
  * scoped sessionId resolver into node-runtime via `setSessionIdProvider()`.
  * For Next this is a React `cache()`-backed getter. node-runtime stays
  * React-agnostic; dependency direction is L2 → L1 (correct).
@@ -22,11 +22,11 @@ import {
     register,
     getRequestSessionId,
     setSessionIdProvider,
-    withHarnessaTracing,
+    withHarnessTracing,
     _resetForTest,
 } from './index.js';
 
-// Stand-in for `@harnessa-fe/next/sessionId.getSessionId` — tests inject
+// Stand-in for `@harness-fe/next/sessionId.getSessionId` — tests inject
 // it via setSessionIdProvider, exactly the way the real Next adapter does
 // on module load.
 const mockGetSessionId = vi.fn<() => string | undefined>(() => undefined);
@@ -65,7 +65,7 @@ async function closeServer(): Promise<void> {
 beforeAll(async () => {
     await spawnTestServer();
     register({ projectId: 'cache-test', mcpUrl: `ws://127.0.0.1:${port}` });
-    // Mimic what @harnessa-fe/next's sessionId.ts side-effect does on
+    // Mimic what @harness-fe/next's sessionId.ts side-effect does on
     // module load — plug the mock getter in via the public DI API.
     setSessionIdProvider(() => mockGetSessionId());
     // Let WS handshake complete.
@@ -103,7 +103,7 @@ describe('getRequestSessionId() adapter provider fallback', () => {
 
     it('ALS sessionId wins over adapter provider when both are populated', async () => {
         mockGetSessionId.mockReturnValue('cache-sid');
-        const handler = withHarnessaTracing(async () => getRequestSessionId());
+        const handler = withHarnessTracing(async () => getRequestSessionId());
         const req = {
             headers: {
                 get: (k: string) => (k === 'x-hfe-session-id' ? 'als-sid' : null),

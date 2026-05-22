@@ -1,6 +1,6 @@
 <template>
     <main class="app">
-        <h1>harnessa-fe · vue demo</h1>
+        <h1>harness-fe · vue demo</h1>
         <p>Open Claude Code / Cursor and call MCP tools to drive this page.</p>
 
         <section class="counter">

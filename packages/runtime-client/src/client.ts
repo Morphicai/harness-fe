@@ -16,7 +16,7 @@ import {
     type HelloFrame,
     type ResponseFrame,
     frameSchema,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 import { getCaptureStore } from './capture.js';
 import { commandHandlers, type CommandContext } from './commands.js';
 import { Outbox } from './outbox.js';
@@ -29,13 +29,13 @@ import {
     publishVisitorIdToWindow,
     tryInheritVisitorFromParent,
 } from './visitor.js';
-import type { QueryFrame, QueryMethod, QueryResponseFrame } from '@harnessa-fe/protocol';
+import type { QueryFrame, QueryMethod, QueryResponseFrame } from '@harness-fe/protocol';
 
 export interface ClientOptions {
     projectId: string;
     mcpUrl?: string;
     /**
-     * Build artifact id, threaded through `window.__HARNESSA_FE__.buildId`.
+     * Build artifact id, threaded through `window.__HARNESS_FE__.buildId`.
      * Stamped on every event so agents can trace "what code was running".
      */
     buildId?: string;
@@ -50,7 +50,7 @@ export interface ClientOptions {
     /**
      * App-supplied user identifier (e.g. supabase.user.id, auth0 sub, …).
      * Optional. When absent, traffic is treated as anonymous (only stitched
-     * by visitorId). Propagated by HarnessaScript via window.__HARNESSA_FE__.userId.
+     * by visitorId). Propagated by HarnessScript via window.__HARNESS_FE__.userId.
      */
     userId?: string;
 }
@@ -86,24 +86,24 @@ function generateSessionId(): string {
 }
 
 /**
- * Attempt to read a server-generated sessionId from `window.__HARNESSA_FE_SEED__`
- * or from `window.__HARNESSA_FE__.sessionId` (both written by `<HarnessaScript>`).
+ * Attempt to read a server-generated sessionId from `window.__HARNESS_FE_SEED__`
+ * or from `window.__HARNESS_FE__.sessionId` (both written by `<HarnessScript>`).
  *
  * When found, the client adopts that id instead of generating its own. This
- * ensures server-side events emitted by `@harnessa-fe/node-runtime` during
+ * ensures server-side events emitted by `@harness-fe/node-runtime` during
  * the same request and client-side events all land in the same
  * `sessions/{sessionId}/timeline.jsonl` on the daemon.
  *
  * Returns `undefined` when no seed is present (e.g. app doesn't use
- * `<HarnessaScript>` or running outside a browser).
+ * `<HarnessScript>` or running outside a browser).
  */
 function tryAdoptServerSeed(): string | undefined {
     if (typeof window === 'undefined') return undefined;
     const w = window as unknown as {
-        __HARNESSA_FE_SEED__?: { sessionId?: string };
-        __HARNESSA_FE__?: { sessionId?: string };
+        __HARNESS_FE_SEED__?: { sessionId?: string };
+        __HARNESS_FE__?: { sessionId?: string };
     };
-    return w.__HARNESSA_FE_SEED__?.sessionId ?? w.__HARNESSA_FE__?.sessionId;
+    return w.__HARNESS_FE_SEED__?.sessionId ?? w.__HARNESS_FE__?.sessionId;
 }
 
 // Re-export inheritance helper. Implementation lives in parent-inherit.ts
@@ -342,7 +342,7 @@ export class RuntimeClient {
         return new Promise<TResult>((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pendingQueries.delete(id);
-                reject(new Error(`harnessa-fe query "${method}" timed out after ${timeoutMs}ms`));
+                reject(new Error(`harness-fe query "${method}" timed out after ${timeoutMs}ms`));
             }, timeoutMs);
             this.pendingQueries.set(id, {
                 resolve: (v: unknown) => { clearTimeout(timer); resolve(v as TResult); },
@@ -399,7 +399,7 @@ function isStickyFrame(frame: Frame): boolean {
 /** Pull the well-known config object planted by the Vite plugin on window. */
 export function readInjectedConfig(): ClientOptions {
     const w = window as unknown as {
-        __HARNESSA_FE__?: {
+        __HARNESS_FE__?: {
             projectId?: string;
             mcpUrl?: string;
             buildId?: string;
@@ -410,12 +410,12 @@ export function readInjectedConfig(): ClientOptions {
         };
     };
     return {
-        projectId: w.__HARNESSA_FE__?.projectId ?? 'unknown-project',
-        mcpUrl: w.__HARNESSA_FE__?.mcpUrl,
-        buildId: w.__HARNESSA_FE__?.buildId,
-        parentProjectId: w.__HARNESSA_FE__?.parentProjectId,
-        displayName: w.__HARNESSA_FE__?.displayName,
-        userId: w.__HARNESSA_FE__?.userId,
+        projectId: w.__HARNESS_FE__?.projectId ?? 'unknown-project',
+        mcpUrl: w.__HARNESS_FE__?.mcpUrl,
+        buildId: w.__HARNESS_FE__?.buildId,
+        parentProjectId: w.__HARNESS_FE__?.parentProjectId,
+        displayName: w.__HARNESS_FE__?.displayName,
+        userId: w.__HARNESS_FE__?.userId,
     };
 }
 

@@ -5,7 +5,7 @@ import { tryInheritFromParent } from './parent-inherit.js';
 /**
  * tryInheritFromParent has three branches:
  *   1. `window.parent === window` → top-level page, return {}
- *   2. same-origin parent with harnessa-fe runtime → read tabId/sessionId/projectId
+ *   2. same-origin parent with harness-fe runtime → read tabId/sessionId/projectId
  *   3. cross-origin parent → SecurityError when accessing parent props → catch → {}
  *
  * happy-dom doesn't enforce cross-origin security boundaries, so branch 3 is
@@ -19,8 +19,8 @@ describe('tryInheritFromParent', () => {
             Object.defineProperty(window, 'parent', origParentDescriptor);
         }
         delete (window as any).__hfe_session_id__;
-        delete (window as any).__harnessa_fe_client__;
-        delete (window as any).__HARNESSA_FE__;
+        delete (window as any).__harness_fe_client__;
+        delete (window as any).__HARNESS_FE__;
         try {
             sessionStorage.removeItem('__hfe_tab_id__');
         } catch {
@@ -34,15 +34,15 @@ describe('tryInheritFromParent', () => {
         expect(tryInheritFromParent()).toEqual({});
     });
 
-    it('reads parent tabId / sessionId / projectId when same-origin parent has harnessa-fe', () => {
+    it('reads parent tabId / sessionId / projectId when same-origin parent has harness-fe', () => {
         const fakeParent = {
             __hfe_session_id__: 'parent-session-xyz',
-            __harnessa_fe_client__: {
+            __harness_fe_client__: {
                 tabId: 'parent-tab-abc',
                 sessionId: 'parent-session-xyz',
             },
-            __HARNESSA_FE__: { projectId: 'iframe-parent' },
-            // sessionStorage isn't read because __harnessa_fe_client__.tabId
+            __HARNESS_FE__: { projectId: 'iframe-parent' },
+            // sessionStorage isn't read because __harness_fe_client__.tabId
             // already returns a value. Keeping it minimal here.
             sessionStorage: undefined as unknown as Storage,
         };
@@ -62,7 +62,7 @@ describe('tryInheritFromParent', () => {
             getItem: (key: string) => (key === '__hfe_tab_id__' ? 'storage-tab' : null),
         } as unknown as Storage;
         const fakeParent = {
-            __HARNESSA_FE__: { projectId: 'iframe-parent' },
+            __HARNESS_FE__: { projectId: 'iframe-parent' },
             sessionStorage: fakeStorage,
         };
         Object.defineProperty(window, 'parent', { value: fakeParent, configurable: true });

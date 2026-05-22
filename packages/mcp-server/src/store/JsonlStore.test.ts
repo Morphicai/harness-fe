@@ -9,7 +9,7 @@ import { WriteQueue } from './WriteQueue.js';
 
 /** Helper: create a fresh store + temp dir */
 function makeStore() {
-    const dir = mkdtempSync(join(tmpdir(), 'harnessa-store-test-'));
+    const dir = mkdtempSync(join(tmpdir(), 'harness-store-test-'));
     const store = new JsonlStore(dir);
     return { store, dir };
 }

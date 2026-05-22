@@ -1,4 +1,4 @@
-# Harnessa-FE Architecture
+# Harness-FE Architecture
 
 ## Layers
 
@@ -20,16 +20,16 @@ graph LR
 
 | Layer | Package | Responsibility |
 |-------|---------|---------------|
-| Build Plugin | `@harnessa-fe/vite` / `.webpack` | Source-aware transform at build time; forward HMR + Node.js logs; report `projectId` / `buildId` / `parentProjectId` to daemon |
-| Runtime Client | `@harnessa-fe/runtime` | Capture browser events (console / network / errors / rrweb); execute agent commands; **inherit identity from same-origin parent iframe** |
-| Node Runtime | `@harnessa-fe/node-runtime` | Server-side capture (`uncaughtException`, `unhandledRejection`, `console.*`, Route Handler traces); ALS + provider-based `sessionId` resolution; dual transport (WS / HTTP-batch for Edge) |
-| Framework Adapter | `@harnessa-fe/next` | Bridges Next.js into the runtime: `<HarnessaScript>` Server Component seeds the same `sessionId` into SSR HTML and the client; `setSessionIdProvider` DI plugs Next's `cache()`-backed getter into node-runtime |
-| User API | `@harnessa-fe/log` | Isomorphic structured logger; same `log.info(...)` in Server Components, Route Handlers, and Client Components; delegates `sessionId` resolution to the runtimes |
-| MCP Server | `@harnessa-fe/mcp-server` | Global daemon; bridges agent ↔ peers; owns persistence (`IStore`) + project tree |
-| Unplugin Core | `@harnessa-fe/unplugin` | Shared transform + WebSocket lifecycle for every bundler; resolves `buildId` |
-| Protocol | `@harnessa-fe/protocol` | Wire frames + Zod schemas + URL helpers |
-| JSX Runtime | `@harnessa-fe/react-jsx` | `jsxImportSource` adapter that tags every React element with `data-morphix-loc` / `data-morphix-comp` — works in any React 17+ toolchain without a bundler plugin |
-| Agent Playbook | `@harnessa-fe/skill` | Standalone npm — drops a `SKILL.md` into agent projects teaching them how to use the Harnessa MCP toolset |
+| Build Plugin | `@harness-fe/vite` / `.webpack` | Source-aware transform at build time; forward HMR + Node.js logs; report `projectId` / `buildId` / `parentProjectId` to daemon |
+| Runtime Client | `@harness-fe/runtime` | Capture browser events (console / network / errors / rrweb); execute agent commands; **inherit identity from same-origin parent iframe** |
+| Node Runtime | `@harness-fe/node-runtime` | Server-side capture (`uncaughtException`, `unhandledRejection`, `console.*`, Route Handler traces); ALS + provider-based `sessionId` resolution; dual transport (WS / HTTP-batch for Edge) |
+| Framework Adapter | `@harness-fe/next` | Bridges Next.js into the runtime: `<HarnessScript>` Server Component seeds the same `sessionId` into SSR HTML and the client; `setSessionIdProvider` DI plugs Next's `cache()`-backed getter into node-runtime |
+| User API | `@harness-fe/log` | Isomorphic structured logger; same `log.info(...)` in Server Components, Route Handlers, and Client Components; delegates `sessionId` resolution to the runtimes |
+| MCP Server | `@harness-fe/mcp-server` | Global daemon; bridges agent ↔ peers; owns persistence (`IStore`) + project tree |
+| Unplugin Core | `@harness-fe/unplugin` | Shared transform + WebSocket lifecycle for every bundler; resolves `buildId` |
+| Protocol | `@harness-fe/protocol` | Wire frames + Zod schemas + URL helpers |
+| JSX Runtime | `@harness-fe/react-jsx` | `jsxImportSource` adapter that tags every React element with `data-morphix-loc` / `data-morphix-comp` — works in any React 17+ toolchain without a bundler plugin |
+| Agent Playbook | `@harness-fe/skill` | Standalone npm — drops a `SKILL.md` into agent projects teaching them how to use the Harness MCP toolset |
 
 The MCP server is a **global daemon** — not tied to any single project. Multiple projects share one process.
 
@@ -38,7 +38,7 @@ The MCP server is a **global daemon** — not tied to any single project. Multip
 ## Core narrative concepts
 
 ```
-Project              ← stable identity for a codebase (UUID, .harnessa-id)
+Project              ← stable identity for a codebase (UUID, .harness-id)
   ├─ parentProjectId? ← project tree, supports micro-frontends
   ├─ displayName?     ← human-readable label (defaults to package.json `name`)
   └─ Builds           ← one source-code snapshot per dev-server start / per prod build
@@ -58,20 +58,20 @@ Tab                  ← one browser tab lifecycle (persists across refresh)
 
 When the runtime boots inside a same-origin iframe, `tryInheritFromParent()` reads:
 
-- `window.parent.__harnessa_fe_client__.tabId` / `.sessionId`
+- `window.parent.__harness_fe_client__.tabId` / `.sessionId`
 - `window.parent.__hfe_session_id__` (fallback if client global isn't set yet)
 - `window.parent.sessionStorage['__hfe_tab_id__']` (fallback)
-- `window.parent.__HARNESSA_FE__.projectId` → reported as `parentProjectId`
+- `window.parent.__HARNESS_FE__.projectId` → reported as `parentProjectId`
 
 Cross-origin parent → `SecurityError` caught silently → child generates its own identity.
 
-The parent runtime exposes itself on `window.__harnessa_fe_client__` and `window.__hfe_session_id__` precisely so children can read these.
+The parent runtime exposes itself on `window.__harness_fe_client__` and `window.__hfe_session_id__` precisely so children can read these.
 
 ---
 
 ## sessionId resolution (server side)
 
-The defining property of Harnessa: **one page-load = one sessionId, and every event from that page-load (server + client + iframe) carries it**. The mechanism on the server side is layered:
+The defining property of Harness: **one page-load = one sessionId, and every event from that page-load (server + client + iframe) carries it**. The mechanism on the server side is layered:
 
 ```
                               getRequestSessionId()
@@ -80,7 +80,7 @@ The defining property of Harnessa: **one page-load = one sessionId, and every ev
                        ▼                               ▼
         1. AsyncLocalStorage                  2. Adapter-supplied provider
            (explicit user intent —             (Next: React cache()-backed
-            withHarnessaTracing wraps           getter; pushed in via
+            withHarnessTracing wraps           getter; pushed in via
             a handler)                          setSessionIdProvider)
                        │                               │
                        └───────────┬───────────────────┘
@@ -89,9 +89,9 @@ The defining property of Harnessa: **one page-load = one sessionId, and every ev
                        (filed under sessions/server-orphans/)
 ```
 
-**Why ALS wins**: explicit user intent. If a developer wraps a handler in `withHarnessaTracing`, they want that exact id used.
+**Why ALS wins**: explicit user intent. If a developer wraps a handler in `withHarnessTracing`, they want that exact id used.
 
-**The DI direction matters**: `@harnessa-fe/node-runtime` does NOT import `@harnessa-fe/next`. Instead, the Next adapter's `sessionId.ts` module has a side-effect `try { require('@harnessa-fe/node-runtime').setSessionIdProvider(getSessionId) }` that fires on first `<HarnessaScript>` render. Dependency direction is L2 framework adapter → L1 runtime SDK (correct); node-runtime stays React-agnostic.
+**The DI direction matters**: `@harness-fe/node-runtime` does NOT import `@harness-fe/next`. Instead, the Next adapter's `sessionId.ts` module has a side-effect `try { require('@harness-fe/node-runtime').setSessionIdProvider(getSessionId) }` that fires on first `<HarnessScript>` render. Dependency direction is L2 framework adapter → L1 runtime SDK (correct); node-runtime stays React-agnostic.
 
 **One-request lifecycle**:
 
@@ -99,19 +99,19 @@ The defining property of Harnessa: **one page-load = one sessionId, and every ev
 request arrives
   │
   ▼
-<HarnessaScript> renders (Server Component)
+<HarnessScript> renders (Server Component)
   ├─ ensureNodeRuntimeBooted() ─ first-render-only register() of node-runtime
   ├─ side-effect import './sessionId.js' ─ setSessionIdProvider(getSessionId)
   └─ getSessionId() ────────► cache() allocates sid-X for this render scope
                                                 │
                                                 ▼
-                                       seed: window.__HARNESSA_FE_SEED__ = { sessionId: 'sid-X' }
+                                       seed: window.__HARNESS_FE_SEED__ = { sessionId: 'sid-X' }
                                                 │
 Server Component renders, fires console.log    │
         └─► node-runtime.getRequestSessionId() reads provider → 'sid-X'
                                                 │
 HTML reaches browser                            │
-        └─► <HarnessaScriptClient> hydrates → adopts seed → window.__harnessa_fe_client__.sessionId = 'sid-X'
+        └─► <HarnessScriptClient> hydrates → adopts seed → window.__harness_fe_client__.sessionId = 'sid-X'
                                                 │
 Client console.log / log.info                  │
         └─► runtime-client.sendEvent stamps 'sid-X'
@@ -119,7 +119,7 @@ Client console.log / log.info                  │
                           One sessions/sid-X/timeline.jsonl with all events
 ```
 
-**Cross-request isolation**: React `cache()` is request-scoped via `AsyncLocalStorage` under the hood. Two tabs hitting the same Next process in parallel get separate cache scopes; their `console.log` / `log.info` rows go to separate session timelines. Verified by `@harnessa-fe/node-runtime` test suite (28 cases, including a `Promise.all([renderA, renderB])` interleaved-`console.log` case).
+**Cross-request isolation**: React `cache()` is request-scoped via `AsyncLocalStorage` under the hood. Two tabs hitting the same Next process in parallel get separate cache scopes; their `console.log` / `log.info` rows go to separate session timelines. Verified by `@harness-fe/node-runtime` test suite (28 cases, including a `Promise.all([renderA, renderB])` interleaved-`console.log` case).
 
 **Orphans are correct**: a `log.info()` from a background timer, cold-start init, or post-response callback has no request to belong to. Marking it `sessionId: undefined` and filing under `server-orphans/` is more honest than guessing.
 
@@ -131,10 +131,10 @@ Client console.log / log.info                  │
 |---|---|---|
 | `console` | Browser `console.*` (auto-captured by runtime-client) | `t: 'console'` |
 | `network` | Browser `fetch` / XHR (auto-captured) | `t: 'network'` |
-| `app-log` | Explicit `log.*` calls via `@harnessa-fe/log` (browser or server) | `t: 'app-log'` |
+| `app-log` | Explicit `log.*` calls via `@harness-fe/log` (browser or server) | `t: 'app-log'` |
 | `server-log` | Server-side `console.*` (auto-captured by node-runtime) | `t: 'server-log'` |
 | `server-err` | `uncaughtException` / `unhandledRejection` / explicit `reportError` | `t: 'server-err'` |
-| `server-action` | Handler wrapped in `withHarnessaTracing` — duration + status | `t: 'server-action'` |
+| `server-action` | Handler wrapped in `withHarnessTracing` — duration + status | `t: 'server-action'` |
 | `task` | User submitting an annotated screenshot via the overlay | `t: 'task'` |
 | `rrweb` | Browser DOM snapshots (one chunk every few seconds) | written to `recording.jsonl` |
 
@@ -161,18 +161,18 @@ Client console.log / log.info                  │
 
 ### Node Runtime → MCP Server
 
-`@harnessa-fe/node-runtime` boots from Next's `instrumentation.ts` (or auto-injected via `withHarnessa(next.config)`). It picks a transport at startup:
+`@harness-fe/node-runtime` boots from Next's `instrumentation.ts` (or auto-injected via `withHarness(next.config)`). It picks a transport at startup:
 
 | Transport | When | Wire |
 |---|---|---|
 | **WS** | Node runtime (default) | Same WebSocket as the browser SDK, role `node-runtime` |
-| **HTTP-batch** | Edge Runtime (`process.env.NEXT_RUNTIME === 'edge'`) or `HARNESSA_FE_TRANSPORT=http`, or when `require('ws')` fails | `POST /events` on the daemon, batches every 500 ms / 50 events, retries on 5xx with exp backoff |
+| **HTTP-batch** | Edge Runtime (`process.env.NEXT_RUNTIME === 'edge'`) or `HARNESS_FE_TRANSPORT=http`, or when `require('ws')` fails | `POST /events` on the daemon, batches every 500 ms / 50 events, retries on 5xx with exp backoff |
 
 Both transports emit the same `EventFrame` shape. Daemon's `bridge.ts` accepts `role: 'node-runtime'` hellos and joins the existing `SessionMeta` when sessionIds match the client side.
 
-**Session continuity** between server and client for a single refresh: `<HarnessaScript>` is a Server Component that calls a `React.cache()`-backed `getSessionId()` to allocate one stable id per request render, inlines a `<script>window.__HARNESSA_FE_SEED__ = { sessionId }</script>` before any client code runs, and the browser-side runtime adopts that seed via `tryAdoptServerSeed()`. The Node SDK reads from the same `cache()`, so server logs and client logs for one refresh land in **one** `~/.harnessa/data/sessions/{sessionId}/timeline.jsonl`.
+**Session continuity** between server and client for a single refresh: `<HarnessScript>` is a Server Component that calls a `React.cache()`-backed `getSessionId()` to allocate one stable id per request render, inlines a `<script>window.__HARNESS_FE_SEED__ = { sessionId }</script>` before any client code runs, and the browser-side runtime adopts that seed via `tryAdoptServerSeed()`. The Node SDK reads from the same `cache()`, so server logs and client logs for one refresh land in **one** `~/.harness/data/sessions/{sessionId}/timeline.jsonl`.
 
-Errors captured by the Node SDK (default-on): `process.on('uncaughtException')` / `unhandledRejection`. Errors thrown inside a Server Component render are caught by the SDK's React error boundary integration. Console output is opt-in via `HARNESSA_FE_NODE_CONSOLE=1`. Route Handlers / Server Actions can be wrapped with `withHarnessaTracing(handler)` for per-call duration + error events.
+Errors captured by the Node SDK (default-on): `process.on('uncaughtException')` / `unhandledRejection`. Errors thrown inside a Server Component render are caught by the SDK's React error boundary integration. Console output is opt-in via `HARNESS_FE_NODE_CONSOLE=1`. Route Handlers / Server Actions can be wrapped with `withHarnessTracing(handler)` for per-call duration + error events.
 
 ### MCP Server → AI Agent (stdio MCP tools)
 
@@ -193,12 +193,12 @@ Tool groups:
 
 ## Persistence (`IStore`)
 
-All data lives in `~/.harnessa/data/` — the daemon's global directory. Projects write only a single `.harnessa-id` to their own root.
+All data lives in `~/.harness/data/` — the daemon's global directory. Projects write only a single `.harness-id` to their own root.
 
 ### Disk layout (v0.7+)
 
 ```
-~/.harnessa/data/
+~/.harness/data/
 ├── projects/
 │   └── {projectId}/
 │       ├── meta.json                       ProjectMeta — id, parentProjectId, displayName, tags
@@ -227,9 +227,9 @@ All data lives in `~/.harnessa/data/` — the daemon's global directory. Project
 - Sessions are top-level (one pageload = one bucket); `projects/`, `tabs/`, `visitors/` are sibling top-level dirs holding metadata only — they don't own events.
 - Every event line carries row-level `projectId`, `buildId`, `visitorId` so cross-cutting queries filter row-side with no merge.
 - Parent + same-origin iframe runtimes share `sessionId` (via `tryInheritFromParent`) → their events land in the **same** `timeline.jsonl`.
-- Server-side events from `@harnessa-fe/node-runtime` (Node OR Edge via HTTP-batch) land in the SAME `sessions/{sessionId}/timeline.jsonl` as the matching browser-side events for that pageload (via the `cache()` seed mechanism).
+- Server-side events from `@harness-fe/node-runtime` (Node OR Edge via HTTP-batch) land in the SAME `sessions/{sessionId}/timeline.jsonl` as the matching browser-side events for that pageload (via the `cache()` seed mechanism).
 - `visitors/` stitches user activity across refreshes / tabs / iframes; agents query via `visitor.list` / `visitor.get` / `visitor.journey`.
-- v0.7 dropped pre-1.0 read-compat for pre-0.4 disk layouts; existing data older than that needs `rm -rf ~/.harnessa/data`.
+- v0.7 dropped pre-1.0 read-compat for pre-0.4 disk layouts; existing data older than that needs `rm -rf ~/.harness/data`.
 
 ### Storage strategy
 
@@ -266,21 +266,21 @@ A single env var governs the daemon ↔ plugin handshake:
 
 | Env var | Default | Meaning |
 |---|---|---|
-| `HARNESSA_FE_URL` | `ws://127.0.0.1:47729` | WebSocket URL the daemon listens on AND the plugins/runtimes connect to |
+| `HARNESS_FE_URL` | `ws://127.0.0.1:47729` | WebSocket URL the daemon listens on AND the plugins/runtimes connect to |
 
 The plugin can also accept an explicit option:
 
 ```ts
-harnessaFE({ mcpUrl: 'ws://10.0.0.5:9000' })
+harnessFE({ mcpUrl: 'ws://10.0.0.5:9000' })
 ```
 
 Resolution order (highest first):
 
-1. `harnessaFE({ mcpUrl: '…' })` plugin option
-2. `HARNESSA_FE_URL` env var
+1. `harnessFE({ mcpUrl: '…' })` plugin option
+2. `HARNESS_FE_URL` env var
 3. Default `ws://127.0.0.1:47729`
 
-Earlier `HARNESSA_FE_HOST` + `HARNESSA_FE_PORT` were dropped in favor of the single URL.
+Earlier `HARNESS_FE_HOST` + `HARNESS_FE_PORT` were dropped in favor of the single URL.
 
 ---
 
@@ -293,4 +293,4 @@ Earlier `HARNESSA_FE_HOST` + `HARNESSA_FE_PORT` were dropped in favor of the sin
 - **Unplugin** — one plugin codebase → Vite / Webpack / Rspack / esbuild / Rollup adapters
 - **JSONL timeline** — agents read events linearly; no query DSL required
 - **Global daemon** — MCP server isn't project-scoped; multiple projects share one process
-- **`.harnessa-id`** — only file written into the user's project directory; everything else lives under `~/.harnessa/`
+- **`.harness-id`** — only file written into the user's project directory; everything else lives under `~/.harness/`

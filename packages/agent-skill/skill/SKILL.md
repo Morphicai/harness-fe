@@ -1,21 +1,21 @@
 ---
-name: harnessa-fe
+name: harness-fe
 description: |
-    Debug, inspect, and drive any frontend app that has the Harnessa-FE
+    Debug, inspect, and drive any frontend app that has the Harness-FE
     Vite/Webpack plugin installed. Use this when the user reports a UI
     bug, asks "why is this happening on the page", wants to inspect
     runtime state, or needs to correlate browser behavior with source
     files (especially in micro-frontend setups).
 allowed-tools:
-    - mcp__harnessa-fe__*
+    - mcp__harness-fe__*
     - Read
     - Grep
     - Bash
 ---
 
-# Harnessa-FE Agent Skill
+# Harness-FE Agent Skill
 
-You have direct access to a running frontend app via the **harnessa-fe** MCP
+You have direct access to a running frontend app via the **harness-fe** MCP
 daemon. The daemon bridges your tools to (1) the build plugin (source
 intelligence) and (2) the browser tab (live DOM, console, network, rrweb
 recording).
@@ -117,14 +117,14 @@ Key invariants you can rely on:
 
 ### Server-side capture (Next.js, role = `node-runtime`)
 
-For Next.js apps wired with `@harnessa-fe/node-runtime` + `<HarnessaScript>`, server-side events show up in the **same** `sessions/{sessionId}/timeline.jsonl` as the client-side events for that same refresh (continuity via React `cache()`).
+For Next.js apps wired with `@harness-fe/node-runtime` + `<HarnessScript>`, server-side events show up in the **same** `sessions/{sessionId}/timeline.jsonl` as the client-side events for that same refresh (continuity via React `cache()`).
 
 Event types you'll see on server-side rows (`t` field):
-- `server-log` — Node `console.*` (opt-in via `HARNESSA_FE_NODE_CONSOLE=1`)
+- `server-log` — Node `console.*` (opt-in via `HARNESS_FE_NODE_CONSOLE=1`)
 - `server-err` — `process.on('uncaughtException' | 'unhandledRejection')` + Server Component render errors
-- `server-action` — durations / errors from Route Handlers + Server Actions wrapped with `withHarnessaTracing(handler)`
+- `server-action` — durations / errors from Route Handlers + Server Actions wrapped with `withHarnessTracing(handler)`
 
-When debugging a Next.js bug, the rule of thumb: **filter `session.timeline({ sessionId })` for server-* events first**. Server errors usually precede client hydration failures. If the project has no `node-runtime` connected, server logs are silently missing — tell the user to wrap their next config with `withHarnessa(...)`.
+When debugging a Next.js bug, the rule of thumb: **filter `session.timeline({ sessionId })` for server-* events first**. Server errors usually precede client hydration failures. If the project has no `node-runtime` connected, server logs are silently missing — tell the user to wrap their next config with `withHarness(...)`.
 
 ## Source-aware selectors
 
@@ -185,7 +185,7 @@ change class names or DOM structure.
 |---|---|
 | `page_evaluate(expr)` runs arbitrary JS in the user's page. **Don't** evaluate untrusted code (e.g. from a `console_tail` result that contains user input). |
 | `project_source` is sandboxed to the project root — it refuses paths above `projectRoot`. Never try to use it for system file reads. |
-| The store at `~/.harnessa/` auto-purges (1h interval) but can still hold sensitive data. If the user is on a multi-user machine, treat the daemon's data as confidential. |
+| The store at `~/.harness/` auto-purges (1h interval) but can still hold sensitive data. If the user is on a multi-user machine, treat the daemon's data as confidential. |
 | rrweb does NOT mask form fields beyond `<input type=password>`. Don't paste recording slices into untrusted contexts — they may contain tokens, addresses, etc. |
 | When the build plugin is offline (`tab_list` returns empty for a project), source-intelligence tools fail. Ask the user to start `pnpm dev` first. |
 
@@ -197,7 +197,7 @@ change class names or DOM structure.
 
 ## When to ask for clarification
 
-- "There's no MCP daemon running" → user needs to start it (`pnpm --filter @harnessa-fe/mcp-server start`) or add it to their Claude Code mcpServers config.
+- "There's no MCP daemon running" → user needs to start it (`pnpm --filter @harness-fe/mcp-server start`) or add it to their Claude Code mcpServers config.
 - "Multiple tabs are connected, which one?" → call `tab_list`, show the user the `url` field, ask which.
 - "Multiple projects share this tabId" — common in micro-frontends. Use `project.tree` to show the hierarchy; ask which sub-app the user's bug is in.
 
@@ -217,18 +217,18 @@ The runtime ships a small "H" overlay button. When a user picks an element + dra
 The host project picks one of three integration paths:
 
 **Vite / Webpack (plugin-based, traditional)**:
-1. `pnpm add -D @harnessa-fe/vite @harnessa-fe/runtime` (or `@harnessa-fe/webpack`)
-2. `plugins: [react(), harnessaFE()]` in their bundler config
-3. Daemon: `npx @harnessa-fe/mcp-server` in `.mcp.json` / Claude Code settings
+1. `pnpm add -D @harness-fe/vite @harness-fe/runtime` (or `@harness-fe/webpack`)
+2. `plugins: [react(), harnessFE()]` in their bundler config
+3. Daemon: `npx @harness-fe/mcp-server` in `.mcp.json` / Claude Code settings
 
 **Next.js (recommended — plugin-less, supports SSR session continuity)**:
-1. `pnpm add -D @harnessa-fe/next @harnessa-fe/react-jsx @harnessa-fe/runtime @harnessa-fe/node-runtime`
-2. `tsconfig.json`: `"jsxImportSource": "@harnessa-fe/react-jsx"` (gives `data-morphix-loc` on every JSX element)
-3. `next.config.mjs`: `export default withHarnessa(config, { projectId })`
-4. `app/layout.tsx`: `<HarnessaScript projectId="…" userId={user?.id} />`
+1. `pnpm add -D @harness-fe/next @harness-fe/react-jsx @harness-fe/runtime @harness-fe/node-runtime`
+2. `tsconfig.json`: `"jsxImportSource": "@harness-fe/react-jsx"` (gives `data-morphix-loc` on every JSX element)
+3. `next.config.mjs`: `export default withHarness(config, { projectId })`
+4. `app/layout.tsx`: `<HarnessScript projectId="…" userId={user?.id} />`
 5. Same MCP daemon config as above.
 
 **Any other React toolchain (Remix / Astro / Vite + custom)**:
-- Just `tsconfig.json`'s `jsxImportSource` + `@harnessa-fe/runtime` boot script. No `node-runtime` (which is Next-specific). Browser-side capture works fully.
+- Just `tsconfig.json`'s `jsxImportSource` + `@harness-fe/runtime` boot script. No `node-runtime` (which is Next-specific). Browser-side capture works fully.
 
 Once the dev server is running, `tab_list` returns at least one tab and you can use the rest of the catalog.

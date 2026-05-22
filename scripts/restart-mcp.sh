@@ -7,12 +7,12 @@
 #   # or directly:
 #   bash scripts/restart-mcp.sh
 #
-# The script writes a PID file to ~/.harnessa/mcp.pid so subsequent runs
+# The script writes a PID file to ~/.harness/mcp.pid so subsequent runs
 # can reliably kill the previous process.
 #
 # Kill strategy (in order, all attempted):
-#   1. PID file ($HARNESSA_PID_FILE, default ~/.harnessa/mcp.pid)
-#   2. Whatever is listening on the bridge port (parsed from $HARNESSA_FE_URL,
+#   1. PID file ($HARNESS_PID_FILE, default ~/.harness/mcp.pid)
+#   2. Whatever is listening on the bridge port (parsed from $HARNESS_FE_URL,
 #      default 47729) — catches leaders spawned by Kiro/Claude/Codex as stdio
 #      children, which the PID file does not track.
 #   3. Any `node …/mcp-server/dist/cli.js` orphan by full path match.
@@ -21,12 +21,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PID_FILE="${HARNESSA_PID_FILE:-$HOME/.harnessa/mcp.pid}"
-LOG_FILE="${HARNESSA_LOG_FILE:-$HOME/.harnessa/mcp.log}"
-# Parse port from HARNESSA_FE_URL (e.g. ws://host:47729/) — fallback 47729.
+PID_FILE="${HARNESS_PID_FILE:-$HOME/.harness/mcp.pid}"
+LOG_FILE="${HARNESS_LOG_FILE:-$HOME/.harness/mcp.log}"
+# Parse port from HARNESS_FE_URL (e.g. ws://host:47729/) — fallback 47729.
 # Bash regex instead of sed because BSD sed (macOS default) chokes on the
 # `; t; ` test/branch idiom GNU sed handles fine.
-URL_VAR="${HARNESSA_FE_URL:-ws://127.0.0.1:47729}"
+URL_VAR="${HARNESS_FE_URL:-ws://127.0.0.1:47729}"
 if [[ "$URL_VAR" =~ ^[a-z]+://[^:/]+:([0-9]+) ]]; then
     PORT="${BASH_REMATCH[1]}"
 else
@@ -36,7 +36,7 @@ CLI_PATH="$REPO_ROOT/packages/mcp-server/dist/cli.js"
 
 # ── 1. Build ──────────────────────────────────────────────────────────────────
 echo "[restart-mcp] building mcp-server..."
-pnpm --filter @harnessa-fe/mcp-server build
+pnpm --filter @harness-fe/mcp-server build
 echo "[restart-mcp] build succeeded"
 
 # ── 2. Kill any previous instance ─────────────────────────────────────────────

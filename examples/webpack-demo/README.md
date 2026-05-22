@@ -4,7 +4,7 @@ Webpack 5 + React demo. Promoted to **stable** in v0.2 once the runtime injectio
 
 ## What it shows
 
-- Source-aware JSX tagging in a webpack pipeline (babel-loader runs after the harnessa transform)
+- Source-aware JSX tagging in a webpack pipeline (babel-loader runs after the harness transform)
 - Runtime client bundled into the user's main chunk via `webpack.EntryPlugin` — no bare-specifier `<script>` to 404 on
 - HTML config injection via `html-webpack-plugin` (with a `processAssets` fallback for projects that don't use it)
 
@@ -12,15 +12,15 @@ Webpack 5 + React demo. Promoted to **stable** in v0.2 once the runtime injectio
 
 ```bash
 pnpm install
-pnpm --filter harnessa-fe-webpack-demo dev   # http://localhost:3001
+pnpm --filter harness-fe-webpack-demo dev   # http://localhost:3001
 ```
 
-Override the daemon URL with `HARNESSA_FE_URL` if needed.
+Override the daemon URL with `HARNESS_FE_URL` if needed.
 
 ## Build for inspection
 
 ```bash
-pnpm --filter harnessa-fe-webpack-demo build
+pnpm --filter harness-fe-webpack-demo build
 grep -oE 'data-morphix-loc"[^"]+' dist/bundle.js | head    # see tagged locations
 ```
 

@@ -1,5 +1,5 @@
 /**
- * HTTP handler that serves the React SPA built by `@harnessa-fe/dashboard-ui`.
+ * HTTP handler that serves the React SPA built by `@harness-fe/dashboard-ui`.
  *
  * Routing rules (after the `isAuthorized` middleware in bridge.ts):
  *   - GET /                          → 302 to /dashboard/?token=<preserved> (legacy root)
@@ -24,7 +24,7 @@ import { DEFAULT_COOKIE_NAME } from './auth.js';
 const require = createRequire(import.meta.url);
 
 /**
- * If a request arrived with `?token=` AND no harnessa_fe_token cookie yet,
+ * If a request arrived with `?token=` AND no harness_fe_token cookie yet,
  * stamp the cookie and 302 back to the same path without the query.
  *
  * Why this matters: the SPA bundle is loaded by the browser as
@@ -68,7 +68,7 @@ function maybeHandleTokenHandoff(req: IncomingMessage, res: ServerResponse, url:
 
 function resolveDashboardDist(): string | undefined {
     try {
-        const pkgPath = require.resolve('@harnessa-fe/dashboard-ui/package.json');
+        const pkgPath = require.resolve('@harness-fe/dashboard-ui/package.json');
         const dist = join(dirname(pkgPath), 'dist');
         return existsSync(join(dist, 'index.html')) ? dist : undefined;
     } catch {

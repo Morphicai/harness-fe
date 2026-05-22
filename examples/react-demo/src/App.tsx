@@ -29,7 +29,7 @@ export function App() {
                 }}
             >
                 <span style={{ color: '#e94560', fontWeight: 700, fontSize: 18, marginRight: 16, padding: '14px 0' }}>
-                    Harnessa-FE Demo
+                    Harness-FE Demo
                 </span>
                 {navLinks.map(({ to, label }) => (
                     <NavLink

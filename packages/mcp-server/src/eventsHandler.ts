@@ -17,7 +17,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { PROTOCOL_VERSION, httpBatchSchema } from '@harnessa-fe/protocol';
+import { PROTOCOL_VERSION, httpBatchSchema } from '@harness-fe/protocol';
 import type { Bridge } from './bridge.js';
 
 // ─── CORS helpers ────────────────────────────────────────────────────────────

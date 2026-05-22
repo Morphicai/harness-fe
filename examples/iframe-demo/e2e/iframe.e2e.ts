@@ -22,8 +22,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { chromium, type Frame } from 'playwright';
-import { Bridge } from '@harnessa-fe/mcp-server';
-import { JsonlStore } from '@harnessa-fe/mcp-server';
+import { Bridge } from '@harness-fe/mcp-server';
+import { JsonlStore } from '@harness-fe/mcp-server';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -58,7 +58,7 @@ async function shutdown(code: number): Promise<never> {
 function spawnVite(configRel: string): ChildProcessWithoutNullStreams {
     const proc = spawn('pnpm', ['exec', 'vite', '--config', configRel], {
         cwd: ROOT,
-        env: { ...process.env, FORCE_COLOR: '0', HARNESSA_FE_URL: bridgeUrl() },
+        env: { ...process.env, FORCE_COLOR: '0', HARNESS_FE_URL: bridgeUrl() },
         stdio: ['ignore', 'pipe', 'pipe'],
     });
     proc.stderr.on('data', (d) => process.stderr.write(d));
@@ -115,14 +115,14 @@ async function readClientGlobals(frame: Frame): Promise<{
 }> {
     return frame.evaluate(() => {
         const w = window as unknown as {
-            __harnessa_fe_client__?: { tabId?: string; sessionId?: string; parentProjectId?: string };
-            __HARNESSA_FE__?: { projectId?: string };
+            __harness_fe_client__?: { tabId?: string; sessionId?: string; parentProjectId?: string };
+            __HARNESS_FE__?: { projectId?: string };
         };
         return {
-            tabId: w.__harnessa_fe_client__?.tabId,
-            sessionId: w.__harnessa_fe_client__?.sessionId,
-            parentProjectId: w.__harnessa_fe_client__?.parentProjectId,
-            projectId: w.__HARNESSA_FE__?.projectId,
+            tabId: w.__harness_fe_client__?.tabId,
+            sessionId: w.__harness_fe_client__?.sessionId,
+            parentProjectId: w.__harness_fe_client__?.parentProjectId,
+            projectId: w.__HARNESS_FE__?.projectId,
         };
     });
 }

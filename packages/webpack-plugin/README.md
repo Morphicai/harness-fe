@@ -1,6 +1,6 @@
-# @harnessa-fe/webpack
+# @harness-fe/webpack
 
-> Webpack plugin for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe) — the frontend harness for AI agents.
+> Webpack plugin for [Harness-FE](https://github.com/Morphicai/harness-fe) — the frontend harness for AI agents.
 
 Source-aware transform + runtime injection + MCP bridge for Webpack projects. Tags every JSX element with `data-morphix-loc` / `data-morphix-comp` so AI agents can map any UI element back to a file:line:column.
 
@@ -11,27 +11,27 @@ Source-aware transform + runtime injection + MCP bridge for Webpack projects. Ta
 ## Install
 
 ```bash
-pnpm add -D @harnessa-fe/webpack @harnessa-fe/runtime
+pnpm add -D @harness-fe/webpack @harness-fe/runtime
 ```
 
 ## Usage
 
 ```js
 // webpack.config.js
-const { harnessaFE } = require('@harnessa-fe/webpack');
+const { harnessFE } = require('@harness-fe/webpack');
 
 module.exports = {
-    plugins: [harnessaFE()],
+    plugins: [harnessFE()],
 };
 ```
 
 ESM:
 
 ```ts
-import { harnessaFE } from '@harnessa-fe/webpack';
+import { harnessFE } from '@harness-fe/webpack';
 
 export default {
-    plugins: [harnessaFE()],
+    plugins: [harnessFE()],
 };
 ```
 
@@ -39,12 +39,12 @@ The plugin auto-disables in production builds — zero overhead in your shipped 
 
 ## Options
 
-Same as [`@harnessa-fe/vite`](https://www.npmjs.com/package/@harnessa-fe/vite). All bundler-specific plugins share the same option surface via the underlying `unplugin`.
+Same as [`@harness-fe/vite`](https://www.npmjs.com/package/@harness-fe/vite). All bundler-specific plugins share the same option surface via the underlying `unplugin`.
 
 ## Docs
 
-- [Root README](https://github.com/Morphicai/harnessa-fe#readme)
-- [Architecture](https://github.com/Morphicai/harnessa-fe/blob/main/ARCHITECTURE.md)
+- [Root README](https://github.com/Morphicai/harness-fe#readme)
+- [Architecture](https://github.com/Morphicai/harness-fe/blob/main/ARCHITECTURE.md)
 
 ## License
 

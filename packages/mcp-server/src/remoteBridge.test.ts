@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { Bridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';
-import type { Frame, HelloAckFrame, ResponseFrame } from '@harnessa-fe/protocol';
+import type { Frame, HelloAckFrame, ResponseFrame } from '@harness-fe/protocol';
 
 async function spawnLeader(): Promise<Bridge> {
     const bridge = new Bridge({ port: 0, host: '127.0.0.1', tasksFile: '', store: null });

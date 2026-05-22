@@ -15,7 +15,7 @@
  * Legacy layout (v0.3.x, read-only fallback):
  *   {dataDir}/{projectId}/sessions/{buildId}/tabs/{tabId}/...
  *   On startup, if legacy dirs are detected a warning is emitted pointing
- *   users to `rm -rf ~/.harnessa/data`.
+ *   users to `rm -rf ~/.harness/data`.
  */
 
 import {
@@ -54,7 +54,7 @@ import type {
     TailOptions,
     VisitorMeta,
 } from './types.js';
-import type { VisitorEnv } from '@harnessa-fe/protocol';
+import type { VisitorEnv } from '@harness-fe/protocol';
 
 /**
  * Append to a deduped LRU list capped at `max` entries. Pushing an existing
@@ -71,7 +71,7 @@ function lruAppend(existing: string[] | undefined, value: string | undefined, ma
     return list;
 }
 
-const DEFAULT_DATA_DIR = join(homedir(), '.harnessa', 'data');
+const DEFAULT_DATA_DIR = join(homedir(), '.harness', 'data');
 const DEFAULT_RETENTION = {
     maxAgeDays: 7,
     maxSessions: 200,
@@ -180,8 +180,8 @@ function parseRecordingChunkLine(
 
     if (typeof parsed.chunkId !== 'string') {
         process.stderr.write(
-            `[harnessa-fe] recording chunk at index ${index} is missing chunkId — skipping (pre-0.4 data). ` +
-            `Run \`rm -rf ~/.harnessa/data\` to clear legacy data.\n`,
+            `[harness-fe] recording chunk at index ${index} is missing chunkId — skipping (pre-0.4 data). ` +
+            `Run \`rm -rf ~/.harness/data\` to clear legacy data.\n`,
         );
         return undefined;
     }
@@ -229,7 +229,7 @@ function enforceExtensionBudget(meta: { tags?: unknown; metadata?: unknown }, la
     const size = Buffer.byteLength(open, 'utf-8');
     if (size > META_EXTENSION_LIMIT_BYTES) {
         throw new Error(
-            `[harnessa-fe] refused to write ${label}: tags+metadata payload is ${size} bytes (limit ${META_EXTENSION_LIMIT_BYTES}).`,
+            `[harness-fe] refused to write ${label}: tags+metadata payload is ${size} bytes (limit ${META_EXTENSION_LIMIT_BYTES}).`,
         );
     }
 }
@@ -566,7 +566,7 @@ export class JsonlStore implements IStore {
         const line = JSON.stringify(event);
         if (Buffer.byteLength(line, 'utf-8') > MAX_EVENT_BYTES) {
             process.stderr.write(
-                `[harnessa-fe] dropping oversized event (${Buffer.byteLength(line, 'utf-8')} bytes > ${MAX_EVENT_BYTES}) — type=${event.t}\n`,
+                `[harness-fe] dropping oversized event (${Buffer.byteLength(line, 'utf-8')} bytes > ${MAX_EVENT_BYTES}) — type=${event.t}\n`,
             );
             return;
         }
@@ -580,7 +580,7 @@ export class JsonlStore implements IStore {
             const line = JSON.stringify(event);
             if (Buffer.byteLength(line, 'utf-8') > MAX_EVENT_BYTES) {
                 process.stderr.write(
-                    `[harnessa-fe] dropping oversized event in batch (${Buffer.byteLength(line, 'utf-8')} bytes) — type=${event.t}\n`,
+                    `[harness-fe] dropping oversized event in batch (${Buffer.byteLength(line, 'utf-8')} bytes) — type=${event.t}\n`,
                 );
                 continue;
             }
@@ -594,7 +594,7 @@ export class JsonlStore implements IStore {
         const serialized = JSON.stringify(line);
         if (Buffer.byteLength(serialized, 'utf-8') > MAX_RECORDING_CHUNK_BYTES) {
             process.stderr.write(
-                `[harnessa-fe] dropping oversized rrweb chunk (${Buffer.byteLength(serialized, 'utf-8')} bytes > ${MAX_RECORDING_CHUNK_BYTES})\n`,
+                `[harness-fe] dropping oversized rrweb chunk (${Buffer.byteLength(serialized, 'utf-8')} bytes > ${MAX_RECORDING_CHUNK_BYTES})\n`,
             );
             return;
         }
@@ -624,7 +624,7 @@ export class JsonlStore implements IStore {
         if (patch.parentProjectId !== undefined && patch.parentProjectId !== null) {
             if (patch.parentProjectId === projectId) {
                 throw new Error(
-                    `[harnessa-fe] refused to set parentProjectId=${projectId} on itself`,
+                    `[harness-fe] refused to set parentProjectId=${projectId} on itself`,
                 );
             }
             const visited = new Set<string>();
@@ -632,7 +632,7 @@ export class JsonlStore implements IStore {
             while (cursor) {
                 if (cursor === projectId) {
                     throw new Error(
-                        `[harnessa-fe] refused to create parent-project cycle: ${projectId} → … → ${projectId}`,
+                        `[harness-fe] refused to create parent-project cycle: ${projectId} → … → ${projectId}`,
                     );
                 }
                 if (visited.has(cursor)) break;

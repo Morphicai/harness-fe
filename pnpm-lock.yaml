@@ -33,13 +33,13 @@ importers:
         specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
     devDependencies:
-      '@harnessa-fe/mcp-server':
+      '@harness-fe/mcp-server':
         specifier: workspace:*
         version: link:../../packages/mcp-server
-      '@harnessa-fe/runtime':
+      '@harness-fe/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime-client
-      '@harnessa-fe/vite':
+      '@harness-fe/vite':
         specifier: workspace:*
         version: link:../../packages/vite-plugin
       '@types/node':
@@ -79,16 +79,16 @@ importers:
         specifier: ^6.28.0
         version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
-      '@harnessa-fe/mcp-server':
+      '@harness-fe/mcp-server':
         specifier: workspace:*
         version: link:../../packages/mcp-server
-      '@harnessa-fe/protocol':
+      '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
-      '@harnessa-fe/runtime':
+      '@harness-fe/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime-client
-      '@harnessa-fe/vite':
+      '@harness-fe/vite':
         specifier: workspace:*
         version: link:../../packages/vite-plugin
       '@playwright/test':
@@ -128,7 +128,7 @@ importers:
         specifier: ^3.4.0
         version: 3.5.34(typescript@5.9.3)
     devDependencies:
-      '@harnessa-fe/vite':
+      '@harness-fe/vite':
         specifier: workspace:*
         version: link:../../packages/vite-plugin
       '@types/node':
@@ -168,7 +168,7 @@ importers:
       '@babel/preset-react':
         specifier: ^7.24.0
         version: 7.28.5(@babel/core@7.29.0)
-      '@harnessa-fe/webpack':
+      '@harness-fe/webpack':
         specifier: workspace:*
         version: link:../../packages/webpack-plugin
       babel-loader:
@@ -193,7 +193,7 @@ importers:
         specifier: ^3.4.0
         version: 3.5.34(typescript@5.9.3)
     devDependencies:
-      '@harnessa-fe/webpack':
+      '@harness-fe/webpack':
         specifier: workspace:*
         version: link:../../packages/webpack-plugin
       '@types/node':
@@ -241,7 +241,7 @@ importers:
         specifier: ^6.28.0
         version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
-      '@harnessa-fe/vite':
+      '@harness-fe/vite':
         specifier: workspace:*
         version: link:../vite-plugin
       '@types/react':
@@ -274,7 +274,7 @@ importers:
 
   packages/log:
     devDependencies:
-      '@harnessa-fe/node-runtime':
+      '@harness-fe/node-runtime':
         specifier: workspace:*
         version: link:../node-runtime
       '@types/node':
@@ -289,10 +289,10 @@ importers:
 
   packages/mcp-server:
     dependencies:
-      '@harnessa-fe/dashboard-ui':
+      '@harness-fe/dashboard-ui':
         specifier: workspace:*
         version: link:../dashboard-ui
-      '@harnessa-fe/protocol':
+      '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@modelcontextprotocol/sdk':
@@ -326,10 +326,10 @@ importers:
 
   packages/next:
     devDependencies:
-      '@harnessa-fe/node-runtime':
+      '@harness-fe/node-runtime':
         specifier: workspace:*
         version: link:../node-runtime
-      '@harnessa-fe/runtime':
+      '@harness-fe/runtime':
         specifier: workspace:*
         version: link:../runtime-client
       '@types/react':
@@ -347,7 +347,7 @@ importers:
 
   packages/node-runtime:
     dependencies:
-      '@harnessa-fe/protocol':
+      '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
     devDependencies:
@@ -400,7 +400,7 @@ importers:
 
   packages/runtime-client:
     dependencies:
-      '@harnessa-fe/protocol':
+      '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@zumer/snapdom':
@@ -431,7 +431,7 @@ importers:
       '@babel/types':
         specifier: ^7.29.0
         version: 7.29.0
-      '@harnessa-fe/protocol':
+      '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@vue/compiler-dom':
@@ -471,7 +471,7 @@ importers:
 
   packages/vite-plugin:
     dependencies:
-      '@harnessa-fe/unplugin':
+      '@harness-fe/unplugin':
         specifier: workspace:*
         version: link:../unplugin
     devDependencies:
@@ -487,10 +487,10 @@ importers:
 
   packages/webpack-plugin:
     dependencies:
-      '@harnessa-fe/protocol':
+      '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@harnessa-fe/unplugin':
+      '@harness-fe/unplugin':
         specifier: workspace:*
         version: link:../unplugin
     devDependencies:

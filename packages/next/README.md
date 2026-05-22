@@ -1,16 +1,16 @@
-# @harnessa-fe/next
+# @harness-fe/next
 
-Next.js integration for Harnessa-FE. Drop-in Server Component + config wrapper. Works with App Router + Pages Router, webpack + Turbopack, Node + Edge runtime.
+Next.js integration for Harness-FE. Drop-in Server Component + config wrapper. Works with App Router + Pages Router, webpack + Turbopack, Node + Edge runtime.
 
 ```bash
-pnpm add -D @harnessa-fe/next @harnessa-fe/react-jsx @harnessa-fe/runtime @harnessa-fe/node-runtime
+pnpm add -D @harness-fe/next @harness-fe/react-jsx @harness-fe/runtime @harness-fe/node-runtime
 ```
 
 ## What it does
 
-1. **Server Component `<HarnessaScript />`** — boots the runtime client in the browser AND auto-registers `@harnessa-fe/node-runtime` on first server render (no `instrumentation.ts` boilerplate).
+1. **Server Component `<HarnessScript />`** — boots the runtime client in the browser AND auto-registers `@harness-fe/node-runtime` on first server render (no `instrumentation.ts` boilerplate).
 2. **`getSessionId()`** — React `cache()`-backed, request-scoped UUID. Same id reused across every Server Component, Route Handler, and Server Action in one request, and seeded into the HTML so the browser client adopts it.
-3. **`withHarnessa()`** — wraps `next.config.mjs` to inject the auto-boot import into the server bundle (alternative path for projects that don't render `<HarnessaScript>` at the root).
+3. **`withHarness()`** — wraps `next.config.mjs` to inject the auto-boot import into the server bundle (alternative path for projects that don't render `<HarnessScript>` at the root).
 
 ## Quickstart (App Router)
 
@@ -18,27 +18,27 @@ pnpm add -D @harnessa-fe/next @harnessa-fe/react-jsx @harnessa-fe/runtime @harne
 ```jsonc
 {
   "compilerOptions": {
-    "jsxImportSource": "@harnessa-fe/react-jsx"
+    "jsxImportSource": "@harness-fe/react-jsx"
   }
 }
 ```
 
-**2. next.config.mjs** — *(optional, alternative to `<HarnessaScript>`):*
+**2. next.config.mjs** — *(optional, alternative to `<HarnessScript>`):*
 ```ts
-import { withHarnessa } from '@harnessa-fe/next/config';
+import { withHarness } from '@harness-fe/next/config';
 const nextConfig = { /* …your config… */ };
-export default withHarnessa(nextConfig, { projectId: 'my-app' });
+export default withHarness(nextConfig, { projectId: 'my-app' });
 ```
 
 **3. app/layout.tsx** — Server Component, no `'use client'` needed:
 ```tsx
-import { HarnessaScript } from '@harnessa-fe/next';
+import { HarnessScript } from '@harness-fe/next';
 
 export default async function RootLayout({ children }) {
     return (
         <html>
             <body>
-                <HarnessaScript
+                <HarnessScript
                     projectId="my-app"
                     userId={someUser?.id}
                     buildId={process.env.NEXT_PUBLIC_GIT_SHA}
@@ -50,9 +50,9 @@ export default async function RootLayout({ children }) {
 }
 ```
 
-**4.** Start the daemon (`pnpm exec @harnessa-fe/mcp-server` or any installed binary) then `pnpm dev`. Two `peer connected` lines should appear in the daemon log per refresh — one `role=node-runtime`, one `role=runtime-client`, **same `sessionId`**.
+**4.** Start the daemon (`pnpm exec @harness-fe/mcp-server` or any installed binary) then `pnpm dev`. Two `peer connected` lines should appear in the daemon log per refresh — one `role=node-runtime`, one `role=runtime-client`, **same `sessionId`**.
 
-## `<HarnessaScript />` props
+## `<HarnessScript />` props
 
 | Prop | Type | Default | Notes |
 |---|---|---|---|
@@ -63,7 +63,7 @@ export default async function RootLayout({ children }) {
 | `parentProjectId` | `string?` | — | Set when this app is hosted inside another via iframe / module federation |
 | `mcpUrl` | `string?` | `ws://127.0.0.1:47729` | Daemon WebSocket URL |
 
-In production (`NODE_ENV !== 'development'`) `<HarnessaScript>` renders `null` and pulls no code into client bundles.
+In production (`NODE_ENV !== 'development'`) `<HarnessScript>` renders `null` and pulls no code into client bundles.
 
 ## How sessionId stays unified
 
@@ -73,14 +73,14 @@ This is the value-add over a plain pair of "server SDK + browser SDK":
 request arrives
   │
   ▼
-<HarnessaScript> renders (Server Component)
-  │  ├─ ensureNodeRuntimeBooted() ─ registers @harnessa-fe/node-runtime once per process
+<HarnessScript> renders (Server Component)
+  │  ├─ ensureNodeRuntimeBooted() ─ registers @harness-fe/node-runtime once per process
   │  ├─ import('./sessionId.js')   ─ side-effect: setSessionIdProvider(getSessionId)
   │  └─ getSessionId() ────────────► React cache() allocates sid-X for this render
   │                                                                │
   │                                                                ▼
   ▼                                                       server-side console.log
-seed <script>window.__HARNESSA_FE_SEED__={sessionId:'sid-X'}                │
+seed <script>window.__HARNESS_FE_SEED__={sessionId:'sid-X'}                │
                                                                 ▼
                                                        node-runtime
                                                        .getRequestSessionId()
@@ -90,8 +90,8 @@ seed <script>window.__HARNESSA_FE_SEED__={sessionId:'sid-X'}                │
 HTML reaches browser
   │
   ▼
-<HarnessaScriptClient> hydrates
-  └─ reads window.__HARNESSA_FE_SEED__ → adopts sid-X
+<HarnessScriptClient> hydrates
+  └─ reads window.__HARNESS_FE_SEED__ → adopts sid-X
                 │
                 ▼
             client console.log / log.info
@@ -102,13 +102,13 @@ Result: **one refresh = one `sessions/{sid-X}/timeline.jsonl`** containing both 
 
 ## Edge runtime
 
-`<HarnessaScript>` detects `process.env.NEXT_RUNTIME === 'edge'` and loads `@harnessa-fe/node-runtime/auto-edge` instead of the WebSocket-based main entry. Edge requests post events to the daemon over HTTP-batch (`POST /events`) since Edge can't keep a long-lived WS or call `process.on`. Same `sessionId`, same timeline.
+`<HarnessScript>` detects `process.env.NEXT_RUNTIME === 'edge'` and loads `@harness-fe/node-runtime/auto-edge` instead of the WebSocket-based main entry. Edge requests post events to the daemon over HTTP-batch (`POST /events`) since Edge can't keep a long-lived WS or call `process.on`. Same `sessionId`, same timeline.
 
-## Auto-boot via webpack vs `<HarnessaScript>`
+## Auto-boot via webpack vs `<HarnessScript>`
 
 Two paths to register the Node SDK:
 
-| | `<HarnessaScript>` | `withHarnessa()` |
+| | `<HarnessScript>` | `withHarness()` |
 |---|---|---|
 | Where it boots | First server render | Server bundle entry-point |
 | Required for SSR-less routes (Route Handlers only) | No | Yes |
@@ -120,14 +120,14 @@ You can use both at once; `register()` is idempotent.
 ## Exports
 
 ```ts
-// @harnessa-fe/next
-export { HarnessaScript, type HarnessaScriptProps };
+// @harness-fe/next
+export { HarnessScript, type HarnessScriptProps };
 export { getSessionId };
 
-// @harnessa-fe/next/config
-export { withHarnessa, type WithHarnessaOptions };
+// @harness-fe/next/config
+export { withHarness, type WithHarnessOptions };
 
-// @harnessa-fe/next/sessionId
+// @harness-fe/next/sessionId
 export const getSessionId: () => string;   // React cache()-backed
 ```
 
@@ -135,7 +135,7 @@ export const getSessionId: () => string;   // React cache()-backed
 
 Inlined script in the body, runs before hydration:
 ```html
-<script id="__hfe_seed__">window.__HARNESSA_FE_SEED__={"sessionId":"01HM..."};</script>
+<script id="__hfe_seed__">window.__HARNESS_FE_SEED__={"sessionId":"01HM..."};</script>
 ```
 
 The runtime client reads this at `DOMContentLoaded` and adopts the id instead of generating a fresh UUID — that's how server and client end up with the same `sessionId`.

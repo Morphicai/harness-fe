@@ -12,19 +12,19 @@ Vite + Vue 3 demo. Promoted to **stable** in v0.2.
 
 ```bash
 pnpm install
-pnpm --filter harnessa-fe-vue-demo dev   # http://localhost:5174
+pnpm --filter harness-fe-vue-demo dev   # http://localhost:5174
 ```
 
 ## Verify
 
 ```bash
-pnpm --filter harnessa-fe-vue-demo e2e
+pnpm --filter harness-fe-vue-demo e2e
 ```
 
 Two scripts:
 
 - `build.e2e.ts` — runs `vite build`, asserts the bundle carries 8+ tagged locations with file-relative line numbers and `data-morphix-comp="App"` (proves `defineOptions` was honored)
-- `runtime.e2e.ts` — headless Chromium loads the dev page, asserts: 13+ tagged DOM elements visible, `window.__harnessa_fe_client__` registered, WebSocket to MCP daemon `OPEN`
+- `runtime.e2e.ts` — headless Chromium loads the dev page, asserts: 13+ tagged DOM elements visible, `window.__harness_fe_client__` registered, WebSocket to MCP daemon `OPEN`
 
 ## Source of truth
 

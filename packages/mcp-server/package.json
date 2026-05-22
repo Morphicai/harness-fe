@@ -1,22 +1,22 @@
 {
-    "name": "@harnessa-fe/mcp-server",
+    "name": "@harness-fe/mcp-server",
     "version": "3.0.1",
     "description": "Unified MCP daemon: stdio MCP for AI agents + WS bridge for Vite plugin and runtime client.",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Morphicai/harnessa-fe.git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
         "directory": "packages/mcp-server"
     },
-    "homepage": "https://github.com/Morphicai/harnessa-fe#readme",
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
-        "url": "https://github.com/Morphicai/harnessa-fe/issues"
+        "url": "https://github.com/Morphicai/harness-fe/issues"
     },
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "bin": {
-        "harnessa-fe": "./dist/cli.js"
+        "harness-fe": "./dist/cli.js"
     },
     "exports": {
         ".": {
@@ -44,8 +44,8 @@
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.26.0",
-        "@harnessa-fe/dashboard-ui": "workspace:*",
-        "@harnessa-fe/protocol": "workspace:*",
+        "@harness-fe/dashboard-ui": "workspace:*",
+        "@harness-fe/protocol": "workspace:*",
         "rrweb-player": "1.0.0-alpha.4",
         "ws": "^8.18.0",
         "zod": "^4.4.3"

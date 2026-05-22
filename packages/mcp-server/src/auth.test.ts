@@ -29,23 +29,23 @@ describe('auth: extractToken', () => {
         const req = fakeReq({ headers: { authorization: 'Bearer my-token' } });
         expect(extractToken(req)).toBe('my-token');
     });
-    it('reads cookie harnessa_fe_token=…', () => {
-        const req = fakeReq({ headers: { cookie: 'other=1; harnessa_fe_token=cookie-tok; bar=2' } });
+    it('reads cookie harness_fe_token=…', () => {
+        const req = fakeReq({ headers: { cookie: 'other=1; harness_fe_token=cookie-tok; bar=2' } });
         expect(extractToken(req)).toBe('cookie-tok');
     });
     it('reads ?token=… query string', () => {
         const req = fakeReq({ url: '/dashboard?foo=1&token=qs-tok&bar=2' });
         expect(extractToken(req)).toBe('qs-tok');
     });
-    it('reads WS subprotocol harnessa-fe.token.…', () => {
+    it('reads WS subprotocol harness-fe.token.…', () => {
         const req = fakeReq({
-            headers: { 'sec-websocket-protocol': 'json, harnessa-fe.token.ws-tok' },
+            headers: { 'sec-websocket-protocol': 'json, harness-fe.token.ws-tok' },
         });
         expect(extractToken(req)).toBe('ws-tok');
     });
     it('header beats cookie beats query', () => {
         const req = fakeReq({
-            headers: { authorization: 'Bearer hdr', cookie: 'harnessa_fe_token=ck' },
+            headers: { authorization: 'Bearer hdr', cookie: 'harness_fe_token=ck' },
             url: '/?token=qs',
         });
         expect(extractToken(req)).toBe('hdr');

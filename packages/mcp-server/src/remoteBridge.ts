@@ -16,7 +16,7 @@ import {
     type Task,
     type TaskStatus,
     frameSchema,
-} from '@harnessa-fe/protocol';
+} from '@harness-fe/protocol';
 import type { IBridge, SendCommandOptions } from './bridge.js';
 import type {
     BuildMeta,

@@ -5,7 +5,7 @@
  * browser-side runtime client is:
  *   1. bundled into the user's main chunk (no bare-specifier 404),
  *   2. boots itself on page load (idempotent start),
- *   3. registers `window.__harnessa_fe_client__`,
+ *   3. registers `window.__harness_fe_client__`,
  *   4. opens a WebSocket to the local MCP daemon (port 47729).
  *
  * Requires the MCP daemon to be running locally on the default port.
@@ -78,9 +78,9 @@ try {
 
     // 2. Runtime client booted and registered itself
     const hasClient = await page.evaluate(() => {
-        return Boolean((window as any).__harnessa_fe_client__);
+        return Boolean((window as any).__harness_fe_client__);
     });
-    console.log(`window.__harnessa_fe_client__ present: ${hasClient}`);
+    console.log(`window.__harness_fe_client__ present: ${hasClient}`);
     if (!hasClient) {
         console.error('FAIL: runtime client did not register on window');
         console.error('--- console ---\n' + consoleMsgs.join('\n'));
@@ -90,7 +90,7 @@ try {
 
     // 3. Runtime opened a WebSocket
     const wsOpen = await page.evaluate(async () => {
-        const client = (window as any).__harnessa_fe_client__;
+        const client = (window as any).__harness_fe_client__;
         // Internal: client exposes a `ws` field that holds the active socket.
         for (let i = 0; i < 20; i++) {
             const ws = client?.ws;

@@ -18,7 +18,7 @@ import {
     getTemplateLineOffset,
     type ComponentMap,
     type VueTransformOptions,
-} from '@harnessa-fe/unplugin';
+} from '@harness-fe/unplugin';
 
 export interface RunTransformResult {
     code: string;
