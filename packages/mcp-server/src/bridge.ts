@@ -89,6 +89,12 @@ export interface IBridge {
      */
     getViewerBaseUrl(): string | undefined;
     /**
+     * The configured auth token, or undefined if auth is disabled. Used to
+     * compose URLs that the user (or agent) can hit without an extra
+     * authentication step.
+     */
+    getAuthToken(): string | undefined;
+    /**
      * Read an attachment PNG for a task. Returns base64-encoded PNG or null.
      * The task must exist in the in-memory map so we can look up its projectId.
      */
@@ -519,6 +525,10 @@ export class Bridge implements IBridge {
         const port = this.getBoundPort() ?? this.opts.port;
         if (!port) return undefined;
         return `http://${this.getPublicHost()}:${port}`;
+    }
+
+    getAuthToken(): string | undefined {
+        return this.auth.token;
     }
 
     /**
