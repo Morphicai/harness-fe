@@ -131,6 +131,13 @@ export const commandHandlers: Record<string, CommandHandler> = {
         const args = raw as ScreenshotArgs;
         const format = args.format ?? 'webp';
         const maxWidth = args.maxWidth ?? 1280;
+        // Default to opaque white so transparent pages don't render a blank
+        // screenshot. Callers can pass `null` to opt back into transparency.
+        // JPEG has no alpha channel so the field is effectively always set.
+        const backgroundColor =
+            args.backgroundColor === null
+                ? undefined
+                : (args.backgroundColor ?? (format === 'jpeg' ? '#fff' : '#ffffff'));
 
         let target: Element;
         let via = 'document';
@@ -147,22 +154,33 @@ export const commandHandlers: Record<string, CommandHandler> = {
         const naturalWidth = Math.max(1, Math.round(rect.width || target.clientWidth || window.innerWidth));
         const width = naturalWidth > maxWidth ? maxWidth : naturalWidth;
 
-        const result = await snapdom(target as HTMLElement, {
-            fast: true,
-            width,
-            backgroundColor: format === 'jpeg' ? '#fff' : undefined,
-        });
-        const canvas = await result.toCanvas();
-        const mime = format === 'jpeg' ? 'image/jpeg' : `image/${format}`;
-        const quality = format === 'png' ? undefined : 0.85;
-        const dataUrl = canvas.toDataURL(mime, quality);
-        return {
-            via,
-            format,
-            width: canvas.width,
-            height: canvas.height,
-            dataUrl,
-        };
+        // Hide our own overlay during capture so the screenshot reflects the
+        // real page state. Without this, the floating "H" FAB and any open
+        // info card would always end up in the corner of every shot.
+        const overlayHost = document.getElementById('__harnessa_fe_overlay__') as HTMLElement | null;
+        const prevVisibility = overlayHost?.style.visibility ?? '';
+        if (overlayHost) overlayHost.style.visibility = 'hidden';
+
+        try {
+            const result = await snapdom(target as HTMLElement, {
+                fast: true,
+                width,
+                backgroundColor,
+            });
+            const canvas = await result.toCanvas();
+            const mime = format === 'jpeg' ? 'image/jpeg' : `image/${format}`;
+            const quality = format === 'png' ? undefined : 0.85;
+            const dataUrl = canvas.toDataURL(mime, quality);
+            return {
+                via,
+                format,
+                width: canvas.width,
+                height: canvas.height,
+                dataUrl,
+            };
+        } finally {
+            if (overlayHost) overlayHost.style.visibility = prevVisibility;
+        }
     },
 
     [COMMAND.PAGE_DOM_QUERY]: async (raw) => {
