@@ -110,7 +110,86 @@ rm -rf ~/.harnessa/data
 
 The MCP `console_tail` / `events_recent` tools page from the disk. If the agent's session cached an old cursor, ask it to re-list. The daemon is the source of truth — if `cat timeline.jsonl` shows it, the agent can see it.
 
-## 10. Still stuck
+## 10. LAN mode — 401 / phone can't connect
+
+Most LAN-mode connectivity issues fall into one of these buckets.
+
+### "401 Unauthorized" in the browser
+
+Token didn't match. Check, in order:
+
+1. The exact token from the daemon banner. Tokens are case-sensitive, no
+   surrounding whitespace.
+2. If you set `HARNESSA_FE_TOKEN` in your shell rc, did the daemon and
+   the browser-paste URL pick up the **same** value? `echo
+   $HARNESSA_FE_TOKEN` in both terminals.
+3. The cookie. After a successful login the daemon sets
+   `harnessa_fe_token`. If you copied a stale URL with a different
+   token, clear `harnessa_fe_token` for that origin (Chrome DevTools →
+   Application → Cookies).
+
+### Daemon refuses to start: "refusing to bind 0.0.0.0 without a token"
+
+The safety guard. You bound a non-loopback host but didn't supply
+`--token`. Either:
+- Add `--token auto` for an ephemeral token, OR
+- `export HARNESSA_FE_TOKEN=...` first then re-run
+
+### Phone can reach the dashboard but the plugin's WS connection fails
+
+Two common causes:
+
+1. **macOS firewall blocking node**. Settings → Network → Firewall →
+   Options → ensure `node` is allowed (or temporarily disable to
+   confirm). On Linux check `ufw status` / `iptables -L`.
+2. **Wrong IP**. `--host 0.0.0.0` makes the daemon listen on every
+   interface, but the dashboard URL only prints **one** auto-detected
+   LAN IP. On multi-homed machines (Docker, VPN, multiple NICs) it
+   might be the wrong one. Override:
+   ```bash
+   npx @harnessa-fe/mcp-server --host 0.0.0.0 --token ... --public-host 192.168.x.y
+   ```
+   Or look at `ifconfig` / `ip addr` to find the right LAN IP and
+   substitute it into the URL manually.
+
+### Browser WebSocket fails but `curl` with `?token=` works
+
+Browsers can't set `Authorization` headers on `new WebSocket(...)`. The
+runtime client falls back to the URL query, which is what the plugin
+injects via `__HARNESSA_FE__.mcpUrl`. Confirm:
+
+```js
+// In the page console:
+window.__HARNESSA_FE__.mcpUrl
+// Should be something like: ws://192.168.x.y:47729?token=...
+```
+
+If `mcpUrl` is missing the token, your plugin config doesn't have it.
+Pass `token: process.env.HARNESSA_FE_TOKEN` (or hard-code the value)
+when calling `harnessaFE(...)`.
+
+### Agent gets 401 from MCP HTTP
+
+Check the `Authorization: Bearer <token>` header in your agent config
+matches the daemon's token. Some clients trim trailing whitespace from
+multi-line JSON values — easy to introduce by accident when copy-paste.
+
+### "warning: bound to non-loopback host"
+
+Not an error — it's a reminder. The daemon will start, but anyone on
+the LAN with the token can read your console / network / recordings.
+Don't expose to public WiFi.
+
+## 11. Vue 2 codebase — files aren't getting `data-morphix-loc`
+
+`{{ x | filter }}` and `<template functional>` aren't valid Vue 3
+syntax; the plugin skips those files instead of producing broken
+output. Run `HARNESSA_FE_DRY_RUN=1 pnpm build` to see the coverage
+report on stderr — you'll get a list of which files are missing
+attributes and why. Full guide:
+[docs/vue2-compat.md](./vue2-compat.md).
+
+## 12. Still stuck
 
 - Run the daemon with `DEBUG=harnessa-fe:* pnpm start:mcp` for verbose logging
 - File an issue with: the relevant timeline.jsonl excerpt (redact what you must), the daemon stdout, your Next / Vite / Webpack version, and what you expected

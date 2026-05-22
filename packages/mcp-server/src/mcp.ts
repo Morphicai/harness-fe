@@ -36,7 +36,11 @@ const tabIdParam = z
     .optional()
     .describe('Optional tab id (from tab.list). Default = most-recent active tab.');
 
-export async function startMcpStdioServer(bridge: IBridge): Promise<McpServer> {
+/**
+ * Build an McpServer with every harnessa-fe tool registered for the given
+ * bridge. Transport (stdio / HTTP) is attached separately.
+ */
+export function createMcpServer(bridge: IBridge): McpServer {
     const server = new McpServer({
         name: SERVER_NAME,
         version: PROTOCOL_VERSION,
@@ -48,14 +52,17 @@ export async function startMcpStdioServer(bridge: IBridge): Promise<McpServer> {
     // (proxied via RemoteBridge → mcp.call channel to the leader).
     const leaderStore = (bridge as Bridge).store;
     if (leaderStore != null) {
-        // Leader: direct in-process access
         const memoryStore = bridge.getMemoryStore();
         registerStoreTools(server, leaderStore, memoryStore, bridge);
     } else if (bridge instanceof RemoteBridge) {
-        // Follower: proxy store/memory operations to the leader
         registerRemoteStoreTools(server, bridge);
     }
 
+    return server;
+}
+
+export async function startMcpStdioServer(bridge: IBridge): Promise<McpServer> {
+    const server = createMcpServer(bridge);
     const transport = new StdioServerTransport();
     await server.connect(transport);
     return server;

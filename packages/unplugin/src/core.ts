@@ -43,6 +43,9 @@ import {
     transformVueTemplate,
     resolveVueComponentName,
     getTemplateLineOffset,
+    createVueTransformStats,
+    formatVueTransformReport,
+    type VueTransformOptions,
 } from './vue-transform.js';
 import { resolveProjectId } from './resolveProjectId.js';
 
@@ -68,11 +71,35 @@ export interface HarnessaFEOptions {
      * (or CI env vars) and falls back to a dev-stable hash of config files.
      */
     buildId?: string;
+    /**
+     * Token to authenticate against the daemon when it's bound to a non-
+     * loopback host. Appended as `?token=…` to the WS URL and propagated
+     * to the runtime client via `__HARNESSA_FE__`. Read from
+     * `HARNESSA_FE_TOKEN` when omitted.
+     */
+    token?: string;
+    /**
+     * Vue SFC transform safety: when true (default), the plugin re-parses
+     * its own output to catch any mis-aligned attribute injection — old
+     * Vue 2 syntax (`{{ x | filter }}`, `<template functional>`, …) is
+     * silently dropped instead of risking a corrupt template fed to
+     * vue-loader. Set to false only if you've measured the perf overhead
+     * and your project is pure Vue 3.
+     */
+    safeMode?: boolean;
 }
 
 function newId(): string {
     const g = globalThis as { crypto?: { randomUUID?: () => string } };
     return g.crypto?.randomUUID ? g.crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+}
+
+/** Append `?token=…` (or `&token=…`) onto a URL, idempotent on empty token. */
+function appendTokenQuery(url: string, token: string | undefined): string {
+    if (!token) return url;
+    if (/[?&]token=/.test(url)) return url;
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}token=${encodeURIComponent(token)}`;
 }
 
 /**
@@ -105,14 +132,40 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
     // Resolve mcpUrl: explicit option > HARNESSA_FE_URL env var > default.
     // mcp-server's CLI reads the same env var, so plugin + daemon always
     // agree on which socket to use even when mcp.json overrides the default.
-    const mcpUrl =
+    const baseMcpUrl =
         options.mcpUrl ?? process.env.HARNESSA_FE_URL ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+    const token = options.token ?? process.env.HARNESSA_FE_TOKEN;
+    const mcpUrl = appendTokenQuery(baseMcpUrl, token);
     let ws: WebSocket | undefined;
     let isActive = false;
     let projectRoot = process.cwd();
     let peerRole: 'vite-plugin' | 'webpack-plugin' = 'vite-plugin';
     const componentMap: ComponentMap = new Map();
     let logCaptureCleanup: (() => void) | undefined;
+
+    // Vue 2 hardening — safeMode on by default, dry-run gated by env so
+    // legacy projects can collect a coverage report before flipping the
+    // plugin on for real.
+    const dryRun = process.env.HARNESSA_FE_DRY_RUN === '1';
+    const vueStats = createVueTransformStats();
+    const vueOptions: VueTransformOptions = {
+        safeMode: options.safeMode !== false,
+        dryRun,
+        stats: vueStats,
+    };
+    let dumpReportInstalled = false;
+    function ensureExitReport(): void {
+        if (dumpReportInstalled) return;
+        dumpReportInstalled = true;
+        const dump = () => {
+            if (vueStats.filesAttempted === 0) return;
+            process.stderr.write(formatVueTransformReport(vueStats) + '\n');
+        };
+        process.once('exit', dump);
+        process.once('SIGINT', () => { dump(); process.exit(0); });
+        process.once('SIGTERM', () => { dump(); process.exit(0); });
+    }
+    if (dryRun) ensureExitReport();
 
     // Build identity — resolved lazily from projectRoot once it's known.
     // The startTs is captured once so dev-mode fallback ids stay stable for
@@ -208,7 +261,9 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
 
     function connectMcp(): void {
         try {
-            ws = new WebSocket(mcpUrl);
+            const headers: Record<string, string> = {};
+            if (token) headers.authorization = `Bearer ${token}`;
+            ws = new WebSocket(mcpUrl, { headers });
             ws.on('open', () => {
                 const hello: HelloFrame = {
                     type: 'hello',
@@ -322,7 +377,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
                 } catch {
                     /* fall through with no offset / no name */
                 }
-                const out = transformVueTemplate(code, rel, componentName, componentMap, lineOffset);
+                const out = transformVueTemplate(code, rel, componentName, componentMap, lineOffset, vueOptions);
                 if (!out) return null;
                 return { code: out.code, map: out.map as any };
             }
@@ -333,7 +388,7 @@ export const unpluginFactory: UnpluginFactory<HarnessaFEOptions | undefined> = (
             // populates the component index, which is what matters for source
             // intelligence tools.
             if (filePath.endsWith('.vue') && !query) {
-                const out = transformVueSFC(code, rel, componentMap);
+                const out = transformVueSFC(code, rel, componentMap, vueOptions);
                 if (!out) return null;
                 return { code: out.code, map: out.map as any };
             }

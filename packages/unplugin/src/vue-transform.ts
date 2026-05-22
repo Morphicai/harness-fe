@@ -23,6 +23,66 @@ export interface VueTransformResult {
     componentName: string | undefined;
 }
 
+/**
+ * Counters maintained across calls — populated even in dry-run mode. The
+ * unplugin core attaches a single instance per dev-server lifetime and
+ * dumps it on process exit so users can see how many Vue 2-era files were
+ * skipped (filter syntax, functional templates, malformed offsets, …).
+ */
+export interface VueTransformStats {
+    filesAttempted: number;
+    filesInjected: number;
+    elementsTagged: number;
+    skippedSfcError: number;
+    skippedTemplateError: number;
+    skippedWalkError: number;
+    skippedSelfCheck: number;
+    /** Sample of skipped file paths (capped at 50 to bound memory). */
+    skippedPaths: string[];
+}
+
+export function createVueTransformStats(): VueTransformStats {
+    return {
+        filesAttempted: 0,
+        filesInjected: 0,
+        elementsTagged: 0,
+        skippedSfcError: 0,
+        skippedTemplateError: 0,
+        skippedWalkError: 0,
+        skippedSelfCheck: 0,
+        skippedPaths: [],
+    };
+}
+
+export interface VueTransformOptions {
+    /**
+     * When true (default), the transform re-parses its own output before
+     * returning it. Catches MagicString offset bugs against malformed Vue
+     * 2-era syntax before vue-loader ever sees them.
+     */
+    safeMode?: boolean;
+    /**
+     * When true, walk the AST and populate the componentMap as usual, but
+     * always return null (no source injection). Used by the dry-run
+     * coverage report.
+     */
+    dryRun?: boolean;
+    /** Counters to update; ignored if omitted. */
+    stats?: VueTransformStats;
+}
+
+const SKIP_PATH_CAP = 50;
+
+type SkipKind = 'skippedSfcError' | 'skippedTemplateError' | 'skippedWalkError' | 'skippedSelfCheck';
+
+function recordSkip(stats: VueTransformStats | undefined, kind: SkipKind, relPath: string): void {
+    if (!stats) return;
+    stats[kind] += 1;
+    if (stats.skippedPaths.length < SKIP_PATH_CAP) {
+        stats.skippedPaths.push(relPath);
+    }
+}
+
 const ATTR_COMP = 'data-morphix-comp';
 const ATTR_LOC = 'data-morphix-loc';
 
@@ -116,12 +176,18 @@ export function transformVueTemplate(
     componentName: string | undefined,
     componentMap: ComponentMap,
     lineOffset: number = 0,
+    options: VueTransformOptions = {},
 ): { code: string; map?: object; taggedCount: number } | null {
+    const safeMode = options.safeMode !== false;
+    const stats = options.stats;
+    if (stats) stats.filesAttempted++;
+
     let ast;
     try {
         ast = parseTemplate(templateSource);
     } catch (err) {
         console.warn(`[harnessa-fe] Failed to parse Vue template fragment: ${relPath}`, err);
+        recordSkip(stats, 'skippedTemplateError', relPath);
         return null;
     }
 
@@ -158,12 +224,46 @@ export function transformVueTemplate(
         if (node.children) for (const child of node.children) walkNode(child);
     }
 
-    for (const child of ast.children) walkNode(child as TemplateNode);
+    try {
+        for (const child of ast.children) walkNode(child as TemplateNode);
+    } catch (err) {
+        console.warn(`[harnessa-fe] template walk failed in ${relPath}`, err);
+        recordSkip(stats, 'skippedWalkError', relPath);
+        return null;
+    }
 
     if (taggedCount === 0) return null;
 
+    const code = magic.toString();
+
+    // SafeMode self-check: re-parse our output to make sure we didn't
+    // produce something vue-loader will choke on. Cheap insurance — Vue 2
+    // legacy syntax is the typical reason this fires.
+    if (safeMode) {
+        try {
+            parseTemplate(code);
+        } catch (err) {
+            console.warn(
+                `[harnessa-fe] safeMode dropped template injection in ${relPath} (self-check failed)`,
+                err,
+            );
+            recordSkip(stats, 'skippedSelfCheck', relPath);
+            return null;
+        }
+    }
+
+    if (options.dryRun) {
+        if (stats) stats.elementsTagged += taggedCount;
+        return null;
+    }
+
+    if (stats) {
+        stats.filesInjected++;
+        stats.elementsTagged += taggedCount;
+    }
+
     return {
-        code: magic.toString(),
+        code,
         map: magic.generateMap({ hires: true, source: relPath, includeContent: true }),
         taggedCount,
     };
@@ -207,34 +307,41 @@ export function transformVueSFC(
     source: string,
     relPath: string,
     componentMap: ComponentMap,
+    options: VueTransformOptions = {},
 ): VueTransformResult | null {
-    // Parse the SFC
+    const safeMode = options.safeMode !== false;
+    const stats = options.stats;
+    if (stats) stats.filesAttempted++;
+
     let descriptor;
     try {
         const result = parseSFC(source, { filename: relPath });
+        // Strict downgrade: if @vue/compiler-sfc surfaces any errors we don't
+        // trust the offsets it reports either. Skip the file entirely so
+        // vue-loader sees pristine source.
         if (result.errors.length > 0) {
             console.warn(`[harnessa-fe] Vue SFC parse errors in ${relPath}:`, result.errors);
+            recordSkip(stats, 'skippedSfcError', relPath);
+            return null;
         }
         descriptor = result.descriptor;
     } catch (err) {
         console.warn(`[harnessa-fe] Failed to parse Vue SFC: ${relPath}`, err);
+        recordSkip(stats, 'skippedSfcError', relPath);
         return null;
     }
 
-    // Must have a template block
-    if (!descriptor.template) {
-        return null;
-    }
+    if (!descriptor.template) return null;
 
     const componentName = resolveComponentName(descriptor, relPath);
 
-    // Parse the template AST using @vue/compiler-dom
     const templateContent = descriptor.template.content;
     let templateAst;
     try {
         templateAst = parseTemplate(templateContent);
     } catch (err) {
         console.warn(`[harnessa-fe] Failed to parse template in ${relPath}`, err);
+        recordSkip(stats, 'skippedTemplateError', relPath);
         return null;
     }
 
@@ -242,35 +349,26 @@ export function transformVueSFC(
     const templateOffset = descriptor.template.loc.start.offset;
     let taggedCount = 0;
 
-    // Walk the AST and inject attributes on element nodes
     function walkNode(node: TemplateNode): void {
         if (node.type === NODE_ELEMENT && node.tag) {
             const line = node.loc.start.line;
             const col = node.loc.start.column;
             const locValue = `${relPath}:${line}:${col}`;
 
-            // Check if attributes already exist
             const hasLoc = node.props?.some((p) => p.name === ATTR_LOC) ?? false;
             const hasComp = node.props?.some((p) => p.name === ATTR_COMP) ?? false;
 
             const attrs: string[] = [];
-            if (!hasLoc) {
-                attrs.push(`${ATTR_LOC}="${escapeAttr(locValue)}"`);
-            }
-            if (!hasComp && componentName) {
+            if (!hasLoc) attrs.push(`${ATTR_LOC}="${escapeAttr(locValue)}"`);
+            if (!hasComp && componentName)
                 attrs.push(`${ATTR_COMP}="${escapeAttr(componentName)}"`);
-            }
 
             if (attrs.length > 0) {
-                // Insert after the tag name in the original source
-                // The tag starts at node.loc.start.offset in the template content
-                // In the full source, add templateOffset
-                const tagNameEnd = templateOffset + node.loc.start.offset + 1 + node.tag.length; // +1 for '<'
+                const tagNameEnd = templateOffset + node.loc.start.offset + 1 + node.tag.length;
                 magic.appendLeft(tagNameEnd, ' ' + attrs.join(' '));
                 taggedCount++;
             }
 
-            // Register in component map
             if (componentName) {
                 const entries = componentMap.get(componentName) ?? [];
                 entries.push({ file: relPath, line, col });
@@ -278,24 +376,80 @@ export function transformVueSFC(
             }
         }
 
-        // Recurse into children
         if (node.children) {
-            for (const child of node.children) {
-                walkNode(child);
-            }
+            for (const child of node.children) walkNode(child);
         }
     }
 
-    for (const child of templateAst.children) {
-        walkNode(child as TemplateNode);
+    try {
+        for (const child of templateAst.children) walkNode(child as TemplateNode);
+    } catch (err) {
+        console.warn(`[harnessa-fe] SFC walk failed in ${relPath}`, err);
+        recordSkip(stats, 'skippedWalkError', relPath);
+        return null;
     }
 
     if (taggedCount === 0) return null;
 
+    const code = magic.toString();
+
+    if (safeMode) {
+        try {
+            const recheck = parseSFC(code, { filename: relPath });
+            if (recheck.errors.length > 0) {
+                console.warn(
+                    `[harnessa-fe] safeMode dropped SFC injection in ${relPath} (self-check found errors)`,
+                    recheck.errors,
+                );
+                recordSkip(stats, 'skippedSelfCheck', relPath);
+                return null;
+            }
+        } catch (err) {
+            console.warn(
+                `[harnessa-fe] safeMode dropped SFC injection in ${relPath} (self-check threw)`,
+                err,
+            );
+            recordSkip(stats, 'skippedSelfCheck', relPath);
+            return null;
+        }
+    }
+
+    if (options.dryRun) {
+        if (stats) stats.elementsTagged += taggedCount;
+        return null;
+    }
+
+    if (stats) {
+        stats.filesInjected++;
+        stats.elementsTagged += taggedCount;
+    }
+
     return {
-        code: magic.toString(),
+        code,
         map: magic.generateMap({ hires: true, source: relPath, includeContent: true }),
         taggedCount,
         componentName,
     };
+}
+
+/**
+ * Format the stats counter for a human-readable shutdown report. Used by
+ * the unplugin core's process-exit handler.
+ */
+export function formatVueTransformReport(stats: VueTransformStats): string {
+    const lines = [
+        '[harnessa-fe] Vue transform coverage report',
+        `  files attempted:        ${stats.filesAttempted}`,
+        `  files injected:         ${stats.filesInjected}`,
+        `  elements tagged:        ${stats.elementsTagged}`,
+        `  skipped (SFC error):    ${stats.skippedSfcError}`,
+        `  skipped (template):     ${stats.skippedTemplateError}`,
+        `  skipped (walk error):   ${stats.skippedWalkError}`,
+        `  skipped (self-check):   ${stats.skippedSelfCheck}`,
+    ];
+    if (stats.skippedPaths.length > 0) {
+        lines.push(`  first ${Math.min(stats.skippedPaths.length, 20)} skipped paths:`);
+        for (const p of stats.skippedPaths.slice(0, 20)) lines.push(`    ${p}`);
+    }
+    return lines.join('\n');
 }
