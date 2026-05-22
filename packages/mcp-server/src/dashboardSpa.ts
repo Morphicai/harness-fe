@@ -2,6 +2,8 @@
  * HTTP handler that serves the React SPA built by `@harnessa-fe/dashboard-ui`.
  *
  * Routing rules (after the `isAuthorized` middleware in bridge.ts):
+ *   - GET /                          → 302 to /dashboard/?token=<preserved> (legacy root)
+ *   - GET /sessions/:id              → 302 to /dashboard/sessions/:id?token=… (legacy bookmarks)
  *   - GET /dashboard                 → 302 to /dashboard/?token=<preserved>
  *   - GET /dashboard/                → serve index.html (SPA shell)
  *   - GET /dashboard/<asset.ext>     → serve that file from dist/ (if it exists)
@@ -62,9 +64,27 @@ export function createDashboardSpaHandler(): (
         if (!req.url) return false;
         const url = new URL(req.url, 'http://localhost');
         const path = url.pathname;
-        if (!path.startsWith('/dashboard')) return false;
         const method = req.method ?? 'GET';
         if (method !== 'GET' && method !== 'HEAD') return false;
+
+        // Legacy paths from the old server-rendered dashboard — redirect into
+        // the SPA preserving the token query so the user stays authenticated.
+        if (path === '/' || path === '/index.html') {
+            res.statusCode = 302;
+            res.setHeader('location', `/dashboard/${url.search ?? ''}`);
+            res.end();
+            return true;
+        }
+        const legacySession = path.match(/^\/sessions\/([^/]+)$/);
+        if (legacySession) {
+            const sid = legacySession[1];
+            res.statusCode = 302;
+            res.setHeader('location', `/dashboard/sessions/${sid}${url.search ?? ''}`);
+            res.end();
+            return true;
+        }
+
+        if (!path.startsWith('/dashboard')) return false;
 
         // If dashboard-ui isn't installed (someone using an older deploy
         // or running tests in isolation), fall through with a friendly

@@ -38,6 +38,31 @@ async function bootBridge() {
 }
 
 describe('Dashboard SPA handler', () => {
+    it('GET / redirects to /dashboard/ preserving query (legacy root)', async () => {
+        const { bridge, port } = await bootBridge();
+        try {
+            const resp = await fetch(`http://127.0.0.1:${port}/?token=xyz`, { redirect: 'manual' });
+            expect(resp.status).toBe(302);
+            expect(resp.headers.get('location')).toBe('/dashboard/?token=xyz');
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('GET /sessions/:id redirects to /dashboard/sessions/:id (legacy bookmark)', async () => {
+        const { bridge, port } = await bootBridge();
+        try {
+            const resp = await fetch(
+                `http://127.0.0.1:${port}/sessions/abc-123?token=xyz`,
+                { redirect: 'manual' },
+            );
+            expect(resp.status).toBe(302);
+            expect(resp.headers.get('location')).toBe('/dashboard/sessions/abc-123?token=xyz');
+        } finally {
+            await bridge.stop();
+        }
+    });
+
     it('GET /dashboard redirects to /dashboard/ preserving query', async () => {
         const { bridge, port } = await bootBridge();
         try {
