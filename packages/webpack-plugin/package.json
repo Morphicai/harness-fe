@@ -1,7 +1,7 @@
 {
     "name": "@harnessa-fe/webpack",
     "version": "2.0.0",
-    "description": "Webpack plugin for Harnessa-FE: source-aware transforms, runtime injection, and MCP bridge.",
+    "description": "Native webpack plugin for Harnessa-FE: source-aware transforms, runtime injection, and MCP bridge. thread-loader compatible.",
     "type": "module",
     "license": "MIT",
     "repository": {
@@ -19,6 +19,10 @@
         ".": {
             "types": "./dist/index.d.ts",
             "default": "./dist/index.js"
+        },
+        "./loader": {
+            "types": "./dist/loader.d.ts",
+            "default": "./dist/loader.js"
         }
     },
     "files": [
@@ -33,6 +37,7 @@
         "test": "vitest run --passWithNoTests"
     },
     "dependencies": {
+        "@harnessa-fe/protocol": "workspace:*",
         "@harnessa-fe/unplugin": "workspace:*"
     },
     "peerDependencies": {

@@ -441,6 +441,9 @@ importers:
 
   packages/webpack-plugin:
     dependencies:
+      '@harnessa-fe/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@harnessa-fe/unplugin':
         specifier: workspace:*
         version: link:../unplugin

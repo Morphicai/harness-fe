@@ -1,11 +1,11 @@
 # @harnessa-fe/unplugin
 
-> Unified build plugin core for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe). Powers the Vite, Webpack, Rspack, esbuild, and Rollup adapters.
+> Unified build plugin core for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe). Powers the Vite, Rspack, esbuild, and Rollup adapters.
 
 You normally do **not** install this directly — install the bundler-specific package instead:
 
 - [`@harnessa-fe/vite`](https://www.npmjs.com/package/@harnessa-fe/vite)
-- [`@harnessa-fe/webpack`](https://www.npmjs.com/package/@harnessa-fe/webpack)
+- [`@harnessa-fe/webpack`](https://www.npmjs.com/package/@harnessa-fe/webpack) — **native** webpack plugin (not a unplugin adapter). Required for thread-loader compatibility.
 
 ## Install (advanced)
 
@@ -17,8 +17,10 @@ pnpm add -D @harnessa-fe/unplugin
 
 ```ts
 import { harnessaFE } from '@harnessa-fe/unplugin/vite';
-// or '/webpack' '/rspack' '/esbuild' '/rollup'
+// or '/rspack' '/esbuild' '/rollup'
 ```
+
+**Webpack users**: install `@harnessa-fe/webpack` instead. The `./webpack` subpath export has been removed because unplugin's webpack adapter serializes the plugin instance into loader options, which breaks `thread-loader` (the plugin holds a `compiler` reference and JSON.stringify trips on `Compiler.root`). See the changeset for details.
 
 For custom integrations, import the raw factory:
 
@@ -28,10 +30,11 @@ import { unplugin, unpluginFactory } from '@harnessa-fe/unplugin';
 
 ## Public API
 
-- `unplugin` — pre-built unplugin instance (call `.vite()` / `.webpack()` / etc.)
+- `unplugin` — pre-built unplugin instance (call `.vite()` / `.rspack()` / etc.)
 - `unpluginFactory` — raw factory for fully custom adapters
 - `transformJsx` — JSX/TSX source transform with location attribute injection
-- `transformVueSFC` — Vue SFC `<template>` transform
+- `transformVueSFC` / `transformVueTemplate` — Vue SFC + template transforms
+- `createMcpClient`, `installNodeLogCapture`, `createBuildIdentity`, `appendTokenQuery` — internal building blocks used by `@harnessa-fe/webpack` to assemble a native plugin without going through unplugin's webpack adapter
 
 ## Docs
 
