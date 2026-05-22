@@ -1,5 +1,12 @@
 # @harnessa-fe/next
 
+## 4.0.0
+
+### Patch Changes
+
+- Updated dependencies [3cb3cc8]
+  - @harnessa-fe/runtime@4.0.0
+
 ## 3.0.0
 
 ### Patch Changes
