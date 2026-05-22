@@ -12,6 +12,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Bridge, IBridge } from './bridge.js';
 import { createMcpServer } from './mcp.js';
+import { MemoryEventStore } from './store/MemoryEventStore.js';
+import type { EventStore } from './store/types.js';
 
 export interface McpHttpOptions {
     /** URL path the transport listens on. Default `/mcp`. */
@@ -22,6 +24,14 @@ export interface McpHttpOptions {
      * Claude Code expects.
      */
     stateful?: boolean;
+    /**
+     * EventStore for SSE resumability via `Last-Event-ID`. If a client
+     * reconnects after a transient disconnect, the transport replays the
+     * events it missed. Defaults to a `MemoryEventStore` with conservative
+     * caps (1000 events / 5 minutes / 50 MiB total). Pass `null` to
+     * disable resumability entirely.
+     */
+    eventStore?: EventStore | null;
 }
 
 export interface McpHttpHandle {
@@ -41,10 +51,15 @@ export async function startMcpHttpServer(
 ): Promise<McpHttpHandle> {
     const path = opts.path ?? '/mcp';
     const stateful = opts.stateful !== false;
+    const eventStore =
+        opts.eventStore === null
+            ? undefined
+            : opts.eventStore ?? new MemoryEventStore();
 
     const server = createMcpServer(bridge);
     const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: stateful ? () => randomUUID() : undefined,
+        eventStore,
     });
     await server.connect(transport);
 

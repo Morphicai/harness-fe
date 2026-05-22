@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { Bridge } from './bridge.js';
 import { startMcpHttpServer } from './mcpHttp.js';
+import { MemoryEventStore } from './store/MemoryEventStore.js';
+import type { EventStore } from './store/types.js';
 
 const cleanups: Array<() => Promise<void> | void> = [];
 
@@ -43,6 +46,39 @@ describe('mcpHttp', () => {
         // request reached the transport, i.e. it's NOT the bridge 404 body).
         const body = await mcpRes.text();
         expect(body).not.toBe('Not Found');
+    });
+
+    it('accepts a custom EventStore and disables resumability when passed null', async () => {
+        const bridge = await startBridge();
+
+        // Spy store records which events the SDK hands it.
+        const stored: Array<{ streamId: string; message: JSONRPCMessage }> = [];
+        const spy: EventStore = {
+            async storeEvent(streamId, message) {
+                stored.push({ streamId, message });
+                return `${streamId}::${stored.length}`;
+            },
+            async replayEventsAfter() {
+                return '';
+            },
+        };
+
+        const h1 = await startMcpHttpServer(bridge, { path: '/mcp1', eventStore: spy });
+        cleanups.push(() => h1.close());
+        expect(h1.path).toBe('/mcp1');
+
+        // Disabling resumability is a supported configuration.
+        const h2 = await startMcpHttpServer(bridge, { path: '/mcp2', eventStore: null });
+        cleanups.push(() => h2.close());
+        expect(h2.path).toBe('/mcp2');
+
+        // And the default path keeps the built-in MemoryEventStore.
+        const h3 = await startMcpHttpServer(bridge, {
+            path: '/mcp3',
+            eventStore: new MemoryEventStore({ maxEventsPerStream: 10 }),
+        });
+        cleanups.push(() => h3.close());
+        expect(h3.path).toBe('/mcp3');
     });
 
     it('requires token when bridge has auth enabled', async () => {

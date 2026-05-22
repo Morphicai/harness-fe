@@ -36,6 +36,32 @@ Register the daemon as an MCP server in your Claude Code settings:
 
 Cursor, Kiro, and other MCP-compatible clients use the same pattern.
 
+## Multiple daemons (port = identity)
+
+The daemon's identity is its listening port. Same port = same daemon
+= same on-disk store. Different port = independent daemons with
+independent stores.
+
+This means:
+
+- **All IDEs targeting default 47729 share one daemon automatically.**
+  No extra config needed. Cursor + Claude Desktop + Kiro on the same
+  machine see the same sessions, browser tabs, and projects.
+- **Want isolation? Pick a different `--port`.** That's the whole
+  isolation knob.
+
+| Scenario | Config |
+|---|---|
+| Single shared daemon (default) | Nothing extra |
+| One project gets its own daemon | `"args": ["...", "--port", "47730"]` in that IDE's mcp.json |
+| Monorepo: aggregate everything | All IDEs use default port — they pool automatically |
+| Friendly name in banner / dashboard | `"env": { "HARNESSA_FE_LABEL": "my-mono" }` (cosmetic only) |
+
+Data lives at `~/.harnessa/daemons/<port>/data/`. The label is purely
+cosmetic — isolation comes from the port, never the label.
+
+Full guide: [docs/multi-daemon.md](https://github.com/Morphicai/harnessa-fe/blob/main/docs/multi-daemon.md)
+
 ## LAN mode (real-device debugging)
 
 The daemon binds `127.0.0.1` by default. Token is **entirely
