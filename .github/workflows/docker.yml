@@ -1,0 +1,106 @@
+name: Docker
+
+# Build and push the harnessa-fe MCP daemon image to GHCR.
+#
+# Triggers:
+#   - Every time @harnessa-fe/mcp-server publishes to npm (the changesets
+#     release workflow finishes successfully on main). We re-detect the
+#     freshly published version and tag the image accordingly.
+#   - Manual workflow_dispatch with an explicit version. Useful for
+#     republishing an existing npm version against a new base image.
+#
+# Image tags applied:
+#   - ghcr.io/morphicai/harnessa-fe:<version>   e.g. 2.0.0
+#   - ghcr.io/morphicai/harnessa-fe:latest      always tracks newest semver
+#
+# Multi-arch build (linux/amd64 + linux/arm64) so Apple Silicon dev VMs +
+# typical x86 servers both work.
+
+on:
+    workflow_run:
+        workflows: ["Release"]
+        types:
+            - completed
+        branches:
+            - main
+    workflow_dispatch:
+        inputs:
+            version:
+                description: 'mcp-server version to image (e.g. 2.0.0)'
+                required: true
+                type: string
+
+permissions:
+    contents: read
+    packages: write
+
+concurrency:
+    group: docker-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    build:
+        # Skip when the upstream Release workflow failed.
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - name: Resolve version
+              id: ver
+              run: |
+                if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                  version="${{ inputs.version }}"
+                else
+                  version=$(npm view @harnessa-fe/mcp-server version)
+                fi
+                if [ -z "$version" ]; then
+                  echo "::error::could not resolve @harnessa-fe/mcp-server version"
+                  exit 1
+                fi
+                # Skip if this version's image is already on GHCR. Avoids
+                # double-publishing when Release reruns for docs-only changes.
+                if curl -sf -H "Authorization: Bearer $(echo -n '${{ secrets.GITHUB_TOKEN }}' | base64)" \
+                  "https://ghcr.io/v2/morphicai/harnessa-fe/manifests/$version" > /dev/null 2>&1; then
+                  echo "image already published for $version, skipping"
+                  echo "skip=true" >> "$GITHUB_OUTPUT"
+                else
+                  echo "skip=false" >> "$GITHUB_OUTPUT"
+                fi
+                echo "version=$version" >> "$GITHUB_OUTPUT"
+                echo "Building harnessa-fe v$version"
+
+            - uses: actions/checkout@v4
+              if: steps.ver.outputs.skip != 'true'
+
+            - name: Set up QEMU
+              if: steps.ver.outputs.skip != 'true'
+              uses: docker/setup-qemu-action@v3
+
+            - name: Set up Docker Buildx
+              if: steps.ver.outputs.skip != 'true'
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GHCR
+              if: steps.ver.outputs.skip != 'true'
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push
+              if: steps.ver.outputs.skip != 'true'
+              uses: docker/build-push-action@v6
+              with:
+                  context: packages/mcp-server
+                  file: packages/mcp-server/Dockerfile
+                  platforms: linux/amd64,linux/arm64
+                  build-args: |
+                      VERSION=${{ steps.ver.outputs.version }}
+                  tags: |
+                      ghcr.io/morphicai/harnessa-fe:${{ steps.ver.outputs.version }}
+                      ghcr.io/morphicai/harnessa-fe:latest
+                  push: true
+                  provenance: false
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max

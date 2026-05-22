@@ -109,6 +109,8 @@ yarn add -D @harnessa-fe/vite @harnessa-fe/runtime
    - Local-only by default. For phone / second-machine debugging:
      `npx @harnessa-fe/mcp-server --host 0.0.0.0 --token auto`
      ([details](docs/lan-mode.md))
+   - Hosting it for a team on a shared dev VM?
+     `ghcr.io/morphicai/harnessa-fe:latest` ([Docker guide](docs/docker.md))
 4. **Start your dev server** — `pnpm dev`
 5. **Connect your AI agent** — register the MCP server in your AI tool (Claude Code, Cursor, Kiro). The agent now sees and drives your running app.
 
