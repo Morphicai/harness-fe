@@ -1,47 +1,152 @@
 version: 2
+# Library-project dependabot policy:
+#   - monthly cadence (weekly was too noisy — 25-PR explosion on first scan)
+#   - group minor/patch into one PR per ecosystem to cut churn
+#   - per-package configs share a `dev-tooling` group so devDep updates that
+#     appear in N packages don't fan out into N PRs
+#   - ignore: test-runner / type-checker / type-definition majors stay pinned
+#     until a real reason forces an upgrade (security CVE, dropped Node, etc.)
+#   - explicit PR caps so first-scan or bulk-release events can't open 25+
+#     PRs again
 updates:
-    # Pin GitHub Actions by SHA — Dependabot tracks upstream SHA changes.
+    # GitHub Actions (SHA-pinned in workflows).
     - package-ecosystem: github-actions
       directory: /
       schedule:
-          interval: weekly
-      open-pull-requests-limit: 5
+          interval: monthly
+      open-pull-requests-limit: 3
       labels: [deps, ci]
+      groups:
+          gh-actions:
+              patterns: ['*']
+              update-types: [minor, patch]
 
-    # Root workspace npm deps
+    # Root workspace npm deps.
     - package-ecosystem: npm
       directory: /
       schedule:
-          interval: weekly
-      open-pull-requests-limit: 5
+          interval: monthly
+      open-pull-requests-limit: 3
       labels: [deps]
-      # Group patch/minor bumps to reduce PR noise; majors stay separate for review.
       groups:
-          minor-and-patch:
+          root-minor-patch:
               update-types: [minor, patch]
+      ignore:
+          # Test runner — major upgrades require coordinated workspace bump.
+          - dependency-name: vitest
+            update-types: [version-update:semver-major]
+          # Type checker — major bumps cascade through every package.
+          - dependency-name: typescript
+            update-types: [version-update:semver-major]
+          # Node type defs must follow runtime Node version (we run on Node 20).
+          - dependency-name: '@types/node'
+            update-types: [version-update:semver-major]
 
-    # Per-package npm deps
+    # Per-package configs — same ignore + grouping rules.
+    # Anchors are duplicated inline because Dependabot's YAML parser doesn't
+    # support YAML anchors.
     - package-ecosystem: npm
       directory: /packages/protocol
-      schedule: { interval: weekly }
+      schedule: { interval: monthly }
+      open-pull-requests-limit: 2
       labels: [deps, protocol]
+      groups:
+          protocol-minor-patch:
+              update-types: [minor, patch]
+      ignore:
+          - dependency-name: vitest
+            update-types: [version-update:semver-major]
+          - dependency-name: typescript
+            update-types: [version-update:semver-major]
+          - dependency-name: '@types/node'
+            update-types: [version-update:semver-major]
+
     - package-ecosystem: npm
       directory: /packages/unplugin
-      schedule: { interval: weekly }
+      schedule: { interval: monthly }
+      open-pull-requests-limit: 2
       labels: [deps, unplugin]
+      groups:
+          unplugin-minor-patch:
+              update-types: [minor, patch]
+      ignore:
+          - dependency-name: vitest
+            update-types: [version-update:semver-major]
+          - dependency-name: typescript
+            update-types: [version-update:semver-major]
+          - dependency-name: '@types/node'
+            update-types: [version-update:semver-major]
+          # fast-check 4 changes property API surface; manual review only.
+          - dependency-name: fast-check
+            update-types: [version-update:semver-major]
+          # vite is a peer of @vitejs/plugin tooling — coordinate manually.
+          - dependency-name: vite
+            update-types: [version-update:semver-major]
+
     - package-ecosystem: npm
       directory: /packages/vite-plugin
-      schedule: { interval: weekly }
+      schedule: { interval: monthly }
+      open-pull-requests-limit: 2
       labels: [deps, vite-plugin]
+      groups:
+          vite-plugin-minor-patch:
+              update-types: [minor, patch]
+      ignore:
+          - dependency-name: vitest
+            update-types: [version-update:semver-major]
+          - dependency-name: typescript
+            update-types: [version-update:semver-major]
+          - dependency-name: '@types/node'
+            update-types: [version-update:semver-major]
+          - dependency-name: vite
+            update-types: [version-update:semver-major]
+
     - package-ecosystem: npm
       directory: /packages/webpack-plugin
-      schedule: { interval: weekly }
+      schedule: { interval: monthly }
+      open-pull-requests-limit: 2
       labels: [deps, webpack-plugin]
+      groups:
+          webpack-plugin-minor-patch:
+              update-types: [minor, patch]
+      ignore:
+          - dependency-name: vitest
+            update-types: [version-update:semver-major]
+          - dependency-name: typescript
+            update-types: [version-update:semver-major]
+          - dependency-name: '@types/node'
+            update-types: [version-update:semver-major]
+
     - package-ecosystem: npm
       directory: /packages/runtime-client
-      schedule: { interval: weekly }
+      schedule: { interval: monthly }
+      open-pull-requests-limit: 2
       labels: [deps, runtime-client]
+      groups:
+          runtime-client-minor-patch:
+              update-types: [minor, patch]
+      ignore:
+          - dependency-name: vitest
+            update-types: [version-update:semver-major]
+          - dependency-name: typescript
+            update-types: [version-update:semver-major]
+          - dependency-name: '@types/node'
+            update-types: [version-update:semver-major]
+
     - package-ecosystem: npm
       directory: /packages/mcp-server
-      schedule: { interval: weekly }
+      schedule: { interval: monthly }
+      open-pull-requests-limit: 2
       labels: [deps, mcp-server]
+      groups:
+          mcp-server-minor-patch:
+              update-types: [minor, patch]
+      ignore:
+          - dependency-name: vitest
+            update-types: [version-update:semver-major]
+          - dependency-name: typescript
+            update-types: [version-update:semver-major]
+          - dependency-name: '@types/node'
+            update-types: [version-update:semver-major]
+          - dependency-name: fast-check
+            update-types: [version-update:semver-major]
