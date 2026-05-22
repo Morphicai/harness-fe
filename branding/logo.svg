@@ -1,21 +1,48 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#6C5CE7;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#00D2D3;stop-opacity:1" />
+    <!--
+      Outer "harness ring" — three accent stops sweep across the square so
+      the perimeter reads as a single multi-color band. We approximate the
+      dashboard's conic gradient with a 3-stop linear sweep along the
+      diagonal, which renders identically in every viewer (GitHub, npmjs,
+      VSCode preview) without needing SVG mesh / conic support.
+    -->
+    <linearGradient id="harnessa-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#818cf8"/>
+      <stop offset="45%"  stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#fb7185"/>
+    </linearGradient>
+
+    <!-- Subtle inner-edge highlight for depth between ring and dark plate. -->
+    <linearGradient id="harnessa-seam" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.30"/>
     </linearGradient>
   </defs>
-  <!-- Background circle -->
-  <circle cx="64" cy="64" r="60" fill="url(#grad)" />
-  <!-- Abstract "H" letterform representing Harnessa -->
-  <g fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Left vertical -->
-    <line x1="40" y1="36" x2="40" y2="92" />
-    <!-- Right vertical -->
-    <line x1="88" y1="36" x2="88" y2="92" />
-    <!-- Horizontal bridge (the "harness" connection) -->
-    <path d="M40 64 C52 52, 76 76, 88 64" />
+
+  <!-- Outer rounded square painted with the ring gradient. -->
+  <rect x="0" y="0" width="128" height="128" rx="28" ry="28"
+        fill="url(#harnessa-ring)"/>
+
+  <!-- Inner dark plate, 6px inset, slightly tighter corner radius. -->
+  <rect x="6" y="6" width="116" height="116" rx="22" ry="22"
+        fill="#09090b"/>
+
+  <!-- Inner-edge seam highlight for depth. -->
+  <rect x="6" y="6" width="116" height="116" rx="22" ry="22"
+        fill="url(#harnessa-seam)" opacity="0.6"/>
+
+  <!--
+    "H" letterform. Inter-style geometry: even stroke weight, crossbar at
+    optical center (~52% from top). Rendered as paths so it doesn't depend
+    on a font being installed.
+  -->
+  <g fill="#fafafa">
+    <!-- Left stem -->
+    <rect x="40" y="40" width="12" height="48" rx="2"/>
+    <!-- Right stem -->
+    <rect x="76" y="40" width="12" height="48" rx="2"/>
+    <!-- Crossbar -->
+    <rect x="40" y="58" width="48" height="12" rx="2"/>
   </g>
-  <!-- Small diamond accent -->
-  <polygon points="64,28 70,34 64,40 58,34" fill="#00D2D3" opacity="0.9" />
 </svg>

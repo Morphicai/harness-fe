@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Morphicai/harnessa-fe/main/branding/logo.svg" alt="Harnessa-FE" width="96" />
+</p>
+
 # @harnessa-fe/runtime
 
 > Browser runtime client for [Harnessa-FE](https://github.com/Morphicai/harnessa-fe). Captures DOM/console/network events and executes commands from the MCP server in the user's real browser tab.

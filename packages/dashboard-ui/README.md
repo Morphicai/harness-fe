@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Morphicai/harnessa-fe/main/branding/logo.svg" alt="Harnessa-FE" width="96" />
+</p>
+
 # @harnessa-fe/dashboard-ui
 
 > React SPA for the Harnessa-FE dev dashboard. Built with Vite + Tailwind, served as static assets by [`@harnessa-fe/mcp-server`](../mcp-server).
