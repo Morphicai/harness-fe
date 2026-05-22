@@ -67,7 +67,7 @@ jobs:
                 echo "version=$version" >> "$GITHUB_OUTPUT"
                 echo "Building harnessa-fe v$version"
 
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
             - name: Set up QEMU
               uses: docker/setup-qemu-action@v3
