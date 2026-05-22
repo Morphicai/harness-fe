@@ -1,6 +1,7 @@
 name: Docker
 
-# Build and push the harnessa-fe MCP daemon image to GHCR.
+# Build and push the harnessa-fe MCP daemon image to Docker Hub
+# (morphixai/harnessa-fe).
 #
 # Triggers:
 #   - Every time @harnessa-fe/mcp-server publishes to npm (the changesets
@@ -10,11 +11,15 @@ name: Docker
 #     republishing an existing npm version against a new base image.
 #
 # Image tags applied:
-#   - ghcr.io/morphicai/harnessa-fe:<version>   e.g. 2.0.0
-#   - ghcr.io/morphicai/harnessa-fe:latest      always tracks newest semver
+#   - docker.io/morphixai/harnessa-fe:<version>   e.g. 2.0.0
+#   - docker.io/morphixai/harnessa-fe:latest      always tracks newest semver
 #
 # Multi-arch build (linux/amd64 + linux/arm64) so Apple Silicon dev VMs +
 # typical x86 servers both work.
+#
+# Required repo secrets:
+#   DOCKERHUB_USERNAME    a Docker Hub account with push to morphixai/*
+#   DOCKERHUB_TOKEN       a Docker Hub PAT (Settings → Security → New token)
 
 on:
     workflow_run:
@@ -32,11 +37,13 @@ on:
 
 permissions:
     contents: read
-    packages: write
 
 concurrency:
     group: docker-${{ github.ref }}
     cancel-in-progress: false
+
+env:
+    IMAGE: morphixai/harnessa-fe
 
 jobs:
     build:
@@ -57,39 +64,38 @@ jobs:
                   echo "::error::could not resolve @harnessa-fe/mcp-server version"
                   exit 1
                 fi
-                # Skip if this version's image is already on GHCR. Avoids
-                # double-publishing when Release reruns for docs-only changes.
-                if curl -sf -H "Authorization: Bearer $(echo -n '${{ secrets.GITHUB_TOKEN }}' | base64)" \
-                  "https://ghcr.io/v2/morphicai/harnessa-fe/manifests/$version" > /dev/null 2>&1; then
-                  echo "image already published for $version, skipping"
-                  echo "skip=true" >> "$GITHUB_OUTPUT"
-                else
-                  echo "skip=false" >> "$GITHUB_OUTPUT"
-                fi
                 echo "version=$version" >> "$GITHUB_OUTPUT"
                 echo "Building harnessa-fe v$version"
 
             - uses: actions/checkout@v4
-              if: steps.ver.outputs.skip != 'true'
 
             - name: Set up QEMU
-              if: steps.ver.outputs.skip != 'true'
               uses: docker/setup-qemu-action@v3
 
             - name: Set up Docker Buildx
-              if: steps.ver.outputs.skip != 'true'
               uses: docker/setup-buildx-action@v3
 
-            - name: Log in to GHCR
-              if: steps.ver.outputs.skip != 'true'
+            - name: Log in to Docker Hub
               uses: docker/login-action@v3
               with:
-                  registry: ghcr.io
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Skip if version already published
+              id: exists
+              run: |
+                # Cheap "already there" probe: `docker buildx imagetools inspect`
+                # exits non-zero when the tag is missing. Auth is already in
+                # place from the login step above.
+                if docker buildx imagetools inspect "${IMAGE}:${{ steps.ver.outputs.version }}" > /dev/null 2>&1; then
+                  echo "image already published for ${{ steps.ver.outputs.version }}, skipping"
+                  echo "skip=true" >> "$GITHUB_OUTPUT"
+                else
+                  echo "skip=false" >> "$GITHUB_OUTPUT"
+                fi
 
             - name: Build and push
-              if: steps.ver.outputs.skip != 'true'
+              if: steps.exists.outputs.skip != 'true'
               uses: docker/build-push-action@v6
               with:
                   context: packages/mcp-server
@@ -98,8 +104,8 @@ jobs:
                   build-args: |
                       VERSION=${{ steps.ver.outputs.version }}
                   tags: |
-                      ghcr.io/morphicai/harnessa-fe:${{ steps.ver.outputs.version }}
-                      ghcr.io/morphicai/harnessa-fe:latest
+                      ${{ env.IMAGE }}:${{ steps.ver.outputs.version }}
+                      ${{ env.IMAGE }}:latest
                   push: true
                   provenance: false
                   cache-from: type=gha

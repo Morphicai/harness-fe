@@ -16,7 +16,7 @@
 
 services:
   harnessa-fe:
-    image: ghcr.io/morphicai/harnessa-fe:latest
+    image: morphixai/harnessa-fe:latest
     container_name: harnessa-fe
     restart: unless-stopped
     ports:

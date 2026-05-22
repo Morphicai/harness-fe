@@ -11,7 +11,7 @@
 #   docker run --rm -p 47729:47729 \
 #     -e HARNESSA_FE_TOKEN=$(openssl rand -base64 24) \
 #     -v harnessa-data:/data \
-#     ghcr.io/morphicai/harnessa-fe:latest
+#     morphixai/harnessa-fe:latest
 #
 # Defaults are tuned for container use:
 #   - HARNESSA_FE_HOST=0.0.0.0 (the only sensible bind inside a container)

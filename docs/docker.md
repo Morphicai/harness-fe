@@ -22,8 +22,8 @@ Not useful when:
 ## Image
 
 ```
-ghcr.io/morphicai/harnessa-fe:<version>
-ghcr.io/morphicai/harnessa-fe:latest
+morphixai/harnessa-fe:<version>
+morphixai/harnessa-fe:latest
 ```
 
 Published from [`.github/workflows/docker.yml`](../.github/workflows/docker.yml)
@@ -36,7 +36,7 @@ on every successful npm release of `@harnessa-fe/mcp-server`. Multi-arch
 docker run --rm -p 47729:47729 \
   -e HARNESSA_FE_TOKEN="$(openssl rand -base64 24)" \
   -v harnessa-data:/data \
-  ghcr.io/morphicai/harnessa-fe:latest
+  morphixai/harnessa-fe:latest
 ```
 
 Container defaults that differ from `npx`:

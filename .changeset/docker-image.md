@@ -2,7 +2,7 @@
 '@harnessa-fe/mcp-server': patch
 ---
 
-Add a self-hosted Docker image (`ghcr.io/morphicai/harnessa-fe`) for teams
+Add a self-hosted Docker image (`morphixai/harnessa-fe`) for teams
 who want to run the daemon on a shared dev VM instead of `npx` on each
 laptop. Multi-arch (amd64 + arm64), publishes automatically on every
 mcp-server release.
