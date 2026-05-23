@@ -59,6 +59,26 @@ Every app produced by a Harness-aware code-gen pipeline (e.g. `@morphixai/code` 
 
 This is the **endgame**: Harness is not a tool the developer integrates, it's the substrate every agent-built app runs on.
 
+### Platform horizon
+
+The first runtime target is Web because it gives us the cleanest source-aware loop: DOM element → source location → runtime event → MCP tool → agent action. The next targets keep that same loop but swap the runtime adapter:
+
+| Platform | Goal | Notes |
+|---|---|---|
+| Web | Current foundation | Vite / Webpack / Next / Vue / React runtime, overlay, rrweb, MCP tools |
+| React Native | Next native app target | Dev-only runtime client, Metro / Babel source mapping, device interaction, and React Native Harness as the real-device test backend |
+| Expo | First-class React Native workflow | Support Expo projects and Expo dev clients rather than treating Expo as an afterthought |
+| Flutter | Second native app target | Dart runtime adapter / VM-service bridge for logs, screenshots, widget or semantics queries, and agent interaction |
+| WeChat Mini Program | Deferred | Not a near-term target; revisit after the runtime-adapter model is proven on Web, React Native / Expo, and Flutter |
+
+The product line does not become "web observability plus some mobile integrations." The stable abstraction is **source-aware runtime access for agents**. Each platform adapter should answer the same questions:
+
+- What is on screen?
+- What happened in this session?
+- Which source file produced the broken UI or behavior?
+- What can the agent safely do next?
+- How can the fix be verified in the real runtime?
+
 ## Why we're building this
 
 LLMs can already write code. The hard part is **closing the loop** — getting them feedback from the running app fast enough that they can iterate the way a human developer iterates. Today that loop is mediated by humans: a user reports a bug in some chat channel, a human files a ticket, a human runs the agent, the agent has no context. Each hop loses fidelity.
@@ -76,6 +96,8 @@ The work that actually moves us forward toward the mission falls into three buck
 1. **Make direction 1 deployable** (1.1.x focus) — daemon embeddable in a product; HTTP MCP for clean integration; auth and persistence boundaries for multi-user dev environments.
 2. **Make direction 2 routable** (1.2.x focus) — project-to-agent binding; per-tenant isolation; feedback fan-in across many mini-apps.
 3. **Make direction 3 the default** (2.0.x focus) — Harness-baked code-gen templates; scaffold tooling; "every new agent-built app starts with Harness" becomes the path of least resistance.
+4. **Generalize the runtime adapter model** — Web first, then React Native / Expo, then Flutter. WeChat Mini Program support is explicitly deferred.
+5. **Make the overlay extensible** — the built-in overlay is the default experience, but developers must be able to add their own panels and actions, such as creating a Jira issue linked to a Harness task.
 
 See [ROADMAP.md](./ROADMAP.md) for the milestone-level breakdown.
 
