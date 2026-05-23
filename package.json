@@ -3,7 +3,7 @@
     "version": "0.6.2",
     "private": true,
     "packageManager": "pnpm@9.15.0",
-    "description": "The agent that built it never leaves. A source-aware harness for every AI-built app — build plugins, MCP daemon, and runtime client that keep AI agents bonded to the apps they ship.",
+    "description": "The agent that built it never leaves. A source-aware harness for every AI-built app — source-mapped build plugins, an MCP daemon, and a runtime client that let the agent keep watching, listening, and fixing the app long after it ships.",
     "type": "module",
     "license": "MIT",
     "repository": {
