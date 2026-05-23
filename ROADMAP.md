@@ -43,7 +43,9 @@ Today the daemon assumes a developer running it on `localhost`. To put Harness i
 - [ ] **Auth on the daemon boundary** — token-based; the in-process API doesn't need it, the network boundary does
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)
 - [ ] **Multi-bundler reach** — Rspack + esbuild + Rollup adapters via unplugin
-- [ ] **Documentation site** (Vitepress)
+- [ ] **Documentation site** (VitePress) — public docs with a clear problem statement, architecture, quickstarts, agent setup, framework guides, and roadmap pages
+- [ ] **Overlay plugin API** — turn the built-in "H" overlay into an extensible surface so developers can add custom actions and panels without forking `@harness-fe/runtime`
+- [ ] **Official issue-tracker plugin example** — Jira first: create a linked external issue from a selected element, screenshot, source location, logs, network tail, and session metadata
 
 ---
 
@@ -66,7 +68,11 @@ The endgame: every Harness-aware code-gen pipeline (`@morphixai/code` mini-apps;
 - [ ] **`@morphixai/code` template integration** — mini-app templates include `@harness-fe/log` + `<HarnessScript>` by default; the agent doesn't need to remember
 - [ ] **Scaffold CLI** — `npx @harness-fe/create-app` produces a project pre-wired with everything
 - [ ] **Harness-first Skill v2** — `@harness-fe/skill` evolves from "how to use the tools" into "the contract every Harness-aware agent follows"
-- [ ] **Native runtime client (React Native + Capacitor)** — rrweb-equivalent native capture; same `sessionId` semantics
+- [ ] **React Native runtime client** — dev-only `@harness-fe/react-native` runtime for console / errors / network / screenshots / basic interaction; same `sessionId` and MCP semantics as web
+- [ ] **Expo support** — first-class Expo development workflow support, including Expo dev clients where native modules are present
+- [ ] **React Native Harness integration** — expose React Native Harness as a real-device test backend that agents can initialize, run, inspect, and use for regression verification
+- [ ] **React Native source-aware mapping** — Metro / Babel transform that maps RN elements, `testID`, accessibility metadata, component names, and source locations back to files
+- [ ] **Flutter runtime client** — dev-only Dart package / VM-service bridge for logs, errors, screenshots, widget or semantics tree queries, and basic interaction
 - [ ] **Multi-user collaborative sessions** — pair-debugging where two humans + the agent share one session timeline
 
 ---
@@ -84,3 +90,4 @@ The endgame: every Harness-aware code-gen pipeline (`@morphixai/code` mini-apps;
 - **Cloud-hosted dashboard for end users** — out of scope. The daemon being embeddable (1.1.x) covers the "host app integrates it" case without us running a SaaS.
 - **Telemetry phoning home from a user's machine** — the dev tool stays silent unless the user explicitly opts in.
 - **Closed protocol** — the wire format, the SDKs, and the daemon stay open. Third-party agents that aren't ours must be able to consume the data.
+- **WeChat Mini Program support for now** — valuable, but intentionally deferred until Web, React Native / Expo, and Flutter have solid runtime-adapter foundations.
