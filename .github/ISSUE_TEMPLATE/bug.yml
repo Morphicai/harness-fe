@@ -1,0 +1,82 @@
+name: Bug report
+description: Something behaves differently than documented or expected.
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. A small repro almost always lets us fix this faster than a long description — please share one if you can.
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Which package?
+      description: Tick the package(s) you believe are affected. If unsure, leave blank.
+      multiple: true
+      options:
+        - "@harness-fe/mcp-server"
+        - "@harness-fe/runtime (browser SDK)"
+        - "@harness-fe/node-runtime"
+        - "@harness-fe/vite"
+        - "@harness-fe/webpack"
+        - "@harness-fe/unplugin (rspack / esbuild / rollup)"
+        - "@harness-fe/next"
+        - "@harness-fe/react-jsx"
+        - "@harness-fe/log"
+        - "@harness-fe/skill"
+        - "@harness-fe/protocol"
+        - "@harness-fe/dashboard-ui"
+        - Unsure / cross-cutting
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `npm ls @harness-fe/mcp-server` or the version line in package.json.
+      placeholder: "0.6.2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what did you see?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal repro
+      description: A repo / gist / code snippet that reproduces the issue. Without one, triage may take longer.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: |
+        Please share:
+          - Node version (`node -v`)
+          - Package manager (`pnpm -v` / `npm -v` / `yarn -v`)
+          - OS
+          - Framework (Vite / Webpack / Next.js / Rspack / …) and its version
+          - Browser if relevant
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Daemon / browser logs
+      description: Any relevant output from the harness daemon, browser console, or `~/.harness-fe/...` data dir.
+      render: shell
+    validations:
+      required: false

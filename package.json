@@ -3,7 +3,7 @@
     "version": "0.6.2",
     "private": true,
     "packageManager": "pnpm@9.15.0",
-    "description": "The frontend harness for AI agents. Source-aware Vite plugin + MCP daemon + runtime client — lets agents drive any page in the user's real browser with full-stack understanding.",
+    "description": "The agent that built it never leaves. A source-aware harness for every AI-built app — build plugins, MCP daemon, and runtime client that keep AI agents bonded to the apps they ship.",
     "type": "module",
     "license": "MIT",
     "repository": {

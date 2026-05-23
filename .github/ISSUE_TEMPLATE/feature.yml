@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest a capability, integration, or change in behaviour.
+title: "[feat] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening — a quick check of [open issues](https://github.com/Morphicai/harness-fe/issues?q=is%3Aissue+sort%3Aupdated-desc) and the [roadmap](../../ROADMAP.md) often surfaces existing work.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the situation, not the solution. Concrete examples beat abstract requirements.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed direction
+      description: What shape would a fix take? A pseudo-API or sketch is plenty.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Workarounds you've tried, other libraries you looked at, etc.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      multiple: true
+      options:
+        - Daemon / MCP server
+        - Browser runtime / overlay
+        - Server-side capture (Node / Next)
+        - Build plugin (Vite / Webpack / Rspack)
+        - Dashboard UI
+        - Agent skill / SKILL.md
+        - Docs / examples
+        - Other
+    validations:
+      required: false

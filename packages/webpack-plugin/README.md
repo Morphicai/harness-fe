@@ -1,6 +1,6 @@
 # @harness-fe/webpack
 
-> Webpack plugin for [Harness-FE](https://github.com/Morphicai/harness-fe) — the frontend harness for AI agents.
+> Webpack plugin for [Harness-FE](https://github.com/Morphicai/harness-fe) — _the agent that built it never leaves._
 
 Source-aware transform + runtime injection + MCP bridge for Webpack projects. Tags every JSX element with `data-morphix-loc` / `data-morphix-comp` so AI agents can map any UI element back to a file:line:column.
 

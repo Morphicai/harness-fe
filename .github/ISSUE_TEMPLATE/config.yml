@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/Morphicai/harness-fe/discussions
+    about: Ask a question, share an idea, or discuss usage patterns.
+  - name: Security report
+    url: https://github.com/Morphicai/harness-fe/security/advisories/new
+    about: Privately report a vulnerability via GitHub Security Advisories.

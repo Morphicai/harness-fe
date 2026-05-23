@@ -5,16 +5,26 @@
 <h1 align="center">Harness-FE</h1>
 
 <p align="center">
-  The frontend harness for AI agents. Source-aware Vite plugin + MCP daemon + runtime client — lets agents drive any page in the user's real browser with full-stack understanding.
+  <strong>The agent that built it never leaves.</strong>
 </p>
 
 <p align="center">
-  <em>Building toward: every AI-coded app ships with the runtime that lets the agent that built it keep watching, listening, and fixing the app after it ships.</em> — see <a href="./VISION.md">VISION.md</a>
+  A source-aware harness for every AI-built app — source-mapped build plugins, an MCP daemon, and a runtime client that let the agent keep watching, listening, and fixing the app long after it ships.
+</p>
+
+<p align="center">
+  <em>Every AI-coded app should ship with the runtime that keeps it bonded to the agent that built it.</em> — see <a href="./VISION.md">VISION.md</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/Morphicai/harness-fe/actions/workflows/ci.yml"><img src="https://github.com/Morphicai/harness-fe/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://www.npmjs.com/package/@harness-fe/mcp-server"><img src="https://img.shields.io/npm/v/@harness-fe/mcp-server?label=mcp-server&color=4f46e5" alt="npm @harness-fe/mcp-server" /></a>
+  <a href="https://www.npmjs.com/package/@harness-fe/vite"><img src="https://img.shields.io/npm/v/@harness-fe/vite?label=vite&color=10b981" alt="npm @harness-fe/vite" /></a>
+  <a href="https://www.npmjs.com/package/@harness-fe/next"><img src="https://img.shields.io/npm/v/@harness-fe/next?label=next&color=fb7185" alt="npm @harness-fe/next" /></a>
+  <a href="https://www.npmjs.com/package/@harness-fe/mcp-server"><img src="https://img.shields.io/npm/dm/@harness-fe/mcp-server?label=downloads&color=64748b" alt="npm downloads" /></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-3c873a" alt="Node ≥ 20" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
+  <a href="./CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-fbbf24" alt="PRs welcome" /></a>
 </p>
 
 ---
@@ -67,6 +77,8 @@ graph LR
 | Any React toolchain (Remix, Astro, Turbopack, …) | React 17+ | ✅ Stable via `@harness-fe/react-jsx` jsxImportSource |
 
 ## Getting Started
+
+> **In a hurry?** Jump to the 90-second [Quickstart](./docs/quickstart.md).
 
 ### Prerequisites
 

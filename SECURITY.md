@@ -48,9 +48,7 @@ If you see any of these, file a public issue immediately and pin to the last kno
 
 Please **do not** file public GitHub issues for security problems.
 
-Email: **security@morphix.ai** (PGP key on request)
-
-Or use [GitHub's private vulnerability reporting](https://github.com/Morphicai/harness-fe/security/advisories/new).
+Use [GitHub's private vulnerability reporting](https://github.com/Morphicai/harness-fe/security/advisories/new) — reports route only to maintainers and stay private until a fix is ready.
 
 We aim to:
 
