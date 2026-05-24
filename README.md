@@ -82,7 +82,7 @@ graph LR
 
 ### Prerequisites
 
-- **Node.js** >= 18
+- **Node.js** >= 20
 - **pnpm** >= 8 (recommended), npm >= 9, or yarn >= 1.22
 
 ### Installation

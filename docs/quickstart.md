@@ -6,7 +6,7 @@ project's docs live in [`docs/`](./) and the [README](../README.md).
 
 ## Prerequisites
 
-- Node.js ≥ 20 (Node 18 still works for client packages but the daemon needs 20)
+- Node.js ≥ 20
 - A package manager: pnpm ≥ 8 (recommended), npm ≥ 9, or yarn ≥ 1.22
 - An MCP-aware agent runtime — Claude Code, Cursor, Kiro, Windsurf, or any
   client that speaks the [Model Context Protocol](https://modelcontextprotocol.io)
