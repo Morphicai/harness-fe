@@ -4,7 +4,7 @@ Thanks for considering a contribution. This guide covers the minimal workflow to
 
 ## Prerequisites
 
-- **Node.js** ≥ 18
+- **Node.js** ≥ 20
 - **pnpm** 9.15.0 (locked via `packageManager` field; corepack handles this for you)
 
 ## Setup

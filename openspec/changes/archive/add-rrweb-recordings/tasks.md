@@ -3,7 +3,7 @@
 ## Phase 1: Core protocol and persistence
 
 - [x] 1. Add rrweb recording to the runtime client and flush buffered events as chunks with `chunkId`, `startTs`, `endTs`, and `eventCount`.
-- [ ] 2. Extend protocol validation for rrweb chunk payloads and marker payloads.
+- [x] 2. Extend protocol validation for rrweb chunk payloads and marker payloads. (rrwebChunkPayloadSchema in packages/protocol/src/messages.ts + test in index.test.ts.)
 - [x] 3. Update the bridge so `event.name === "rrweb"` does not flow through generic timeline append logic.
 - [x] 4. Persist raw rrweb chunk payloads through the recording storage path and append only compact chunk metadata to the timeline.
 - [x] 5. Add tests proving rrweb chunks are stored outside ordinary timeline payloads.

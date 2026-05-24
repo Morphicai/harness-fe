@@ -284,6 +284,70 @@ Earlier `HARNESS_FE_HOST` + `HARNESS_FE_PORT` were dropped in favor of the singl
 
 ---
 
+## Embedded daemon (`createDaemon`)
+
+The CLI (`npx @harness-fe/mcp-server`) is the **default** boot path —
+a standalone process speaking MCP over stdio. For host applications
+that want to run the daemon *inside* their own Node process (sharing
+auth, storage, and lifecycle), `@harness-fe/mcp-server` also exposes a
+programmatic factory:
+
+```ts
+import { createDaemon } from '@harness-fe/mcp-server';
+
+const daemon = createDaemon({
+    port: 47730,
+    host: '127.0.0.1',
+    authorize: (req) => verifyJwt(req.headers.authorization), // host's auth
+    store: customStore,        // optional IStore; null disables persistence
+    eventStore: null,          // optional; null disables Last-Event-ID resume
+    mcpHttp: true,             // mount /mcp on the daemon's listener
+    label: 'my-app',
+});
+
+await daemon.start();
+process.on('SIGTERM', () => daemon.stop());
+```
+
+The CLI is a thin wrapper over this factory — there is **exactly one
+boot path**, so embedding hosts and standalone users see identical
+runtime behaviour. CLI-specific concerns (`--token` flag → `authorize`
+predicate; leader / follower attachment via `RemoteBridge` when the port
+is taken; banner printing; signal handlers) live in `cli.ts` and stay
+out of the factory.
+
+### Auth pipeline
+
+`authorize?: (req: IncomingMessage) => boolean` runs synchronously on
+every HTTP request and WS upgrade. Returning `false` rejects with 401.
+The CLI's `--token <value>` translates to a predicate that does a
+constant-time compare against the configured token; the same predicate
+shape is exposed to host applications so they can plug in JWT / cookie
+/ session validation against their existing auth layer.
+
+There is no separate token pipeline behind the scenes — `auth.ts` runs
+exactly one check, and `authorize` is what it runs.
+
+### Resumable SSE
+
+The HTTP MCP transport persists every outgoing message through a
+pluggable `EventStore` (default `MemoryEventStore`: 1000 events / 5 min
+/ 50 MiB cap per stream). When a client reconnects with the
+`Last-Event-ID` header, the SDK calls `replayEventsAfter(id, …)` on the
+store; the integration test in `mcpHttp.test.ts` proves the wiring is
+live (storeEvent fires during streaming, replay path triggers on reconnect).
+Set `eventStore: null` to opt out.
+
+### Scope boundary (v1)
+
+The factory **owns its listener**. Mounting onto a host-owned
+`http.Server` (middleware mode) is a future enhancement — it needs
+Bridge surgery for the WS upgrade handshake. The leader / follower
+cross-process attach logic (`RemoteBridge`) similarly stays in the CLI;
+embedded mode is single-process by design.
+
+---
+
 ## Key design decisions
 
 - **Single source of truth on disk** — events are append-only JSONL; indexes are derivable, not persisted. Multi-instance deployments share storage without sync.
