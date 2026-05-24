@@ -12,9 +12,9 @@ Harness-FE is **the runtime for software developed by agents**. Every AI-coded a
                                   │                                     │
                                   │   ┌────────────────────────────┐    │
                                   │   │  2. Hosted apps inside a   │    │
-                                  │   │     product (e.g. AI-      │    │
-                                  │   │     generated apps in      │    │
-                                  │   │     morphicai-web) report  │    │
+                                  │   │     product (AI-generated  │    │
+                                  │   │     apps in a host         │    │
+                                  │   │     application) report    │    │
                                   │   │     to the agent that      │    │
                                   │   │     built them             │    │
                                   │   │                            │    │
@@ -36,19 +36,19 @@ Each ring is a **superset** of the inner one. Building the inner well is a prere
 
 ### Direction 1 — Product feedback loop
 
-Users of a shipped product (e.g. **morphicai-web**) hit "Report a problem" in the in-page overlay; the annotated screenshot + session timeline reach the agent that owns the product; the agent uses `data-morphix-loc` to jump straight to the failing component and ships a patch.
+Users of a shipped product hit "Report a problem" in the in-page overlay; the annotated screenshot + session timeline reach the agent that owns the product; the agent uses `data-morphix-loc` to jump straight to the failing component and ships a patch.
 
 **Status (May 2026):** functionally complete locally — overlay, tasks, MCP tools, source-aware navigation all work. Gap is **deployment**: today's daemon assumes a developer running it on `localhost`. Productionising means daemon-in-product (embedded in the host web app) or daemon-as-service (hosted, authenticated, multi-tenant).
 
-**Current phase (deliberate):** Harness-FE is used **only in the development environment** of host products (currently morphicai-web). End users never see the harness — `process.env.NODE_ENV === 'development'` guards every instrumentation path. The productionising work above remains the long-term direction; it is not the work in flight today. Today's focus is making the dev-time loop unbreakable, with one clean reference integration in morphicai-web.
+**Current phase (deliberate):** Harness-FE is used **only in the development environment** of the host applications that consume it. End users never see the harness — `process.env.NODE_ENV === 'development'` guards every instrumentation path. The productionising work above remains the long-term direction; it is not the work in flight today. Today's focus is making the dev-time loop unbreakable, with a clean reference integration on the host side.
 
 ### Direction 2 — Multi-tenant: AI-generated apps reporting to their generating agent
 
-A host product (e.g. morphicai-web) renders AI-generated mini-apps inside iframes / module-federation slots. Each mini-app has its own agent author. When a user reports a problem inside a mini-app, the report must route to **the agent that generated that mini-app**, not the host product's agent.
+A host product renders AI-generated mini-apps inside iframes / module-federation slots. Each mini-app has its own agent author. When a user reports a problem inside a mini-app, the report must route to **the agent that generated that mini-app**, not the host product's agent.
 
 **What we have:** `parentProjectId` + same-origin iframe identity inheritance — one `sessionId` spans parent + child frames, child events tagged with their own `projectId`. The timeline already preserves "which app produced this event".
 
-**What's missing:** an explicit **`project → agent` binding index** + a routing mechanism, and isolation guarantees so agents only see feedback from their own apps. This sits on top of morphix-api's workspace model.
+**What's missing:** an explicit **`project → agent` binding index** + a routing mechanism, and isolation guarantees so agents only see feedback from their own apps. This sits on top of the host's user / project model.
 
 ### Direction 3 — Foundation for the agent-development stack
 
