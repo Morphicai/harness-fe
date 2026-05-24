@@ -40,7 +40,7 @@
         "test": "vitest run"
     },
     "engines": {
-        "node": ">=20"
+        "node": ">=18"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.26.0",

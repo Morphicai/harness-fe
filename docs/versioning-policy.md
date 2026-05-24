@@ -119,3 +119,25 @@ This document gets stricter:
 
 For now (pre-launch), prefer slow version movement. We can always
 release more often once users are watching.
+
+## Node version: docs vs `engines` (intentional gap)
+
+Public-facing docs (README badge, README prereq, CONTRIBUTING,
+`docs/quickstart.md`) state **Node ≥ 20**. The `engines` field in
+`packages/mcp-server/package.json` stays at **`>=18`**.
+
+This is deliberate, not drift:
+
+- **Code reality**: no Node 20-only API is used anywhere. Node 18 runs
+  the daemon and every adapter just fine. (Verify: `grep -rn
+  "import.meta.resolve\|node:test" packages/*/src` → 0 hits.)
+- **Docs recommendation 20**: Node 18 reached EOL in 2025-04 — running
+  it in 2026 means no security patches. We recommend the current LTS.
+- **`engines: ">=18"` enforcement**: keeping it loose avoids slamming
+  the door on users who are still on 18. They get a warning from
+  package managers about EOL, not a hard install failure from us.
+
+**Don't "fix" the gap by aligning them.** Bumping `engines` to `>=20`
+adds zero technical correctness and only frustrates users who'd
+otherwise be successfully running the daemon. Re-evaluate when a real
+Node 20-only feature is needed.
