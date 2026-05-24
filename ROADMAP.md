@@ -42,7 +42,7 @@ Today the daemon assumes a developer running it on `localhost`. To put Harness i
 - [x] **HTTP Streamable MCP transport** — drop the one-stdio-subprocess-per-agent model; one daemon serves all agents; remote-friendly; standard MCP transport. (`mcpHttp.ts` + `StreamableHTTPServerTransport`; opt-in via `--mcp-transport http`, stdio remains the default.)
 - [x] **Embeddable daemon** — `createDaemon({ port, store, authorize, token, eventStore, mcpHttp, … })` factory for in-process embedding. CLI is now a thin wrapper around it (one boot path). README's "Embedding into a host app" section covers the contract. Mounting onto a host-owned `http.Server` (middleware mode) is out of scope here and tracked separately.
 - [x] **`Last-Event-ID` SSE reconnection** — survives transient disconnects during long agent runs (in-memory `MemoryEventStore` default; pluggable via `eventStore` option on `startMcpHttpServer`)
-- [ ] **Auth on the daemon boundary** — token-based; the in-process API doesn't need it, the network boundary does
+- [x] **Auth on the daemon boundary** — `auth.ts` enforces a single check across HTTP MCP, WS upgrade, and dashboard requests. Two modes: built-in `token` (Bearer header / cookie / `?token=` / WS subprotocol) or host-supplied `authorize(req) => boolean` for custom JWT / session integrations. Loopback is unprotected by default; non-loopback binds emit a banner warning when no token is set.
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)
 - [ ] **Multi-bundler reach** — Rspack + esbuild + Rollup adapters via unplugin
 - [ ] **Documentation site** (VitePress) — public docs with a clear problem statement, architecture, quickstarts, agent setup, framework guides, and roadmap pages
