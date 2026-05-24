@@ -199,7 +199,7 @@ export function HarnessScript() {
 import { withHarness } from '@harness-fe/next';
 
 export default withHarness(
-    { projectId: 'morphicai-web', displayName: 'MorphicAI Web' },
+    { projectId: 'my-app', displayName: 'My App' },
     {
         /* user's existing Next config */
     },
@@ -288,7 +288,7 @@ Two npm packages, separate releases:
 - [ ] Add `examples/next-demo/` (App Router minimal app)
 - [ ] e2e test: headless Chromium loads page, asserts `window.__harness_fe_client__` registered, WebSocket OPEN
 
-**Outcome**: morphicai-web team can plug in and get rrweb + console + network capture + agent commands. **No source-aware selectors yet** — agents must use CSS selectors as fallback.
+**Outcome**: early adopters can plug in and get rrweb + console + network capture + agent commands. **No source-aware selectors yet** — agents must use CSS selectors as fallback.
 
 ### Phase 2 — Source intelligence (4-6 days)
 
@@ -328,7 +328,7 @@ pnpm add -D @harness-fe/next @harness-fe/next-swc @harness-fe/runtime
 ```ts
 // next.config.mjs
 import { withHarness } from '@harness-fe/next';
-export default withHarness({ projectId: 'morphicai-web' }, {});
+export default withHarness({ projectId: 'my-app' }, {});
 ```
 
 ```tsx
