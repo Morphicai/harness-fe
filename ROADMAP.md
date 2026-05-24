@@ -37,8 +37,10 @@ The foundation that the mission rests on. All directions need this.
 
 Today the daemon assumes a developer running it on `localhost`. To put Harness inside a real product, it must be embeddable, addressable, and authenticatable.
 
-- [ ] **HTTP Streamable MCP transport** — drop the one-stdio-subprocess-per-agent model; one daemon serves all agents; remote-friendly; standard MCP transport. Prereq for everything else in this milestone.
-- [ ] **Embeddable daemon** — `createDaemon({ port, store })` API so a host app (morphicai-web) can run the daemon in-process or as a sidecar
+> **Current phase (deliberate):** the items below describe the *long-term* productionising path. The work actually in flight is a tighter target: make harness-fe rock-solid in the **development environment** of host products (currently morphicai-web), with zero footprint in production builds. Productionising (embed in a host product, daemon-as-service) is queued behind that and is **not** the focus right now. The architectural prerequisites — embeddable daemon factory, resumable SSE — are still being completed because they're worth landing regardless of when they're consumed in production.
+
+- [x] **HTTP Streamable MCP transport** — drop the one-stdio-subprocess-per-agent model; one daemon serves all agents; remote-friendly; standard MCP transport. (`mcpHttp.ts` + `StreamableHTTPServerTransport`; opt-in via `--mcp-transport http`, stdio remains the default.)
+- [x] **Embeddable daemon** — `createDaemon({ port, store, authorize, token, eventStore, mcpHttp, … })` factory for in-process embedding. CLI is now a thin wrapper around it (one boot path). README's "Embedding into a host app" section covers the contract. Mounting onto a host-owned `http.Server` (middleware mode) is out of scope here and tracked separately.
 - [x] **`Last-Event-ID` SSE reconnection** — survives transient disconnects during long agent runs (in-memory `MemoryEventStore` default; pluggable via `eventStore` option on `startMcpHttpServer`)
 - [ ] **Auth on the daemon boundary** — token-based; the in-process API doesn't need it, the network boundary does
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)

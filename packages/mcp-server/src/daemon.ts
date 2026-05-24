@@ -47,8 +47,19 @@ export interface DaemonOptions {
      * skipped — there is exactly one auth pipeline. Synchronous because the
      * WS upgrade handshake completes inline; async auth should be cached in
      * a cookie by the host's own middleware and read back here.
+     *
+     * Mutually exclusive with `token`. If both are provided, `authorize`
+     * wins and `token` is ignored.
      */
     authorize?: (req: IncomingMessage) => boolean;
+    /**
+     * Static token; auth requires `Authorization: Bearer <token>`, the
+     * `harness_fe_token` cookie, `?token=<token>`, or the matching WS
+     * subprotocol. Use this when you want the daemon's built-in auth and
+     * have no reason to plug in custom logic — the CLI's `--token` flag
+     * flows through here. Mutually exclusive with `authorize`.
+     */
+    token?: string;
     /**
      * IStore implementation. Omit for the default JSONL store at `dataDir`.
      * Pass `null` to disable session/event persistence entirely.
@@ -80,6 +91,14 @@ export interface DaemonOptions {
      * Claude Code, Cursor, and the MCP spec default expect).
      */
     mcpStateful?: boolean;
+    /**
+     * Whether to mount the MCP HTTP Streamable transport at `mcpPath`.
+     * Default `true`. Set to `false` if the host only needs the WS bridge
+     * (and wires up MCP over stdio externally — that's how the CLI's
+     * stdio mode boots the daemon through this factory without also
+     * exposing an HTTP MCP endpoint).
+     */
+    mcpHttp?: boolean;
 }
 
 export interface DaemonHandle {
@@ -103,6 +122,16 @@ export interface DaemonHandle {
 
 export function createDaemon(opts: DaemonOptions = {}): DaemonHandle {
     const mcpPath = opts.mcpPath ?? '/mcp';
+    const mountMcpHttp = opts.mcpHttp ?? true;
+
+    // Resolve auth: authorize wins if both are set. `undefined` here means
+    // no auth at all (loopback dev default). One pipeline — Bridge sees
+    // exactly one of `{ authorize }`, `{ token }`, or nothing.
+    const auth = opts.authorize
+        ? { authorize: opts.authorize }
+        : opts.token
+            ? { token: opts.token }
+            : undefined;
 
     const bridge = new Bridge({
         port: opts.port,
@@ -113,7 +142,7 @@ export function createDaemon(opts: DaemonOptions = {}): DaemonHandle {
         memoryStore: opts.memoryStore,
         dataDir: opts.dataDir,
         label: opts.label,
-        auth: opts.authorize ? { authorize: opts.authorize } : undefined,
+        auth,
     });
 
     let mcpHandle: Awaited<ReturnType<typeof startMcpHttpServer>> | undefined;
@@ -128,13 +157,15 @@ export function createDaemon(opts: DaemonOptions = {}): DaemonHandle {
             if (started) return;
             started = true;
             await bridge.start();
-            // Forward eventStore as-is so `null` opts out of resumability and
-            // `undefined` falls through to the default MemoryEventStore.
-            mcpHandle = await startMcpHttpServer(bridge, {
-                path: mcpPath,
-                stateful: opts.mcpStateful,
-                eventStore: opts.eventStore,
-            });
+            if (mountMcpHttp) {
+                // Forward eventStore as-is so `null` opts out of resumability and
+                // `undefined` falls through to the default MemoryEventStore.
+                mcpHandle = await startMcpHttpServer(bridge, {
+                    path: mcpPath,
+                    stateful: opts.mcpStateful,
+                    eventStore: opts.eventStore,
+                });
+            }
         },
 
         async stop() {
