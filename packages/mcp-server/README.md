@@ -123,6 +123,70 @@ Matching env vars: `HARNESS_FE_HOST`, `HARNESS_FE_PORT`,
 `HARNESS_FE_TOKEN`, `HARNESS_FE_MCP_TRANSPORT`, `HARNESS_FE_MCP_PATH`,
 `HARNESS_FE_HEADLESS`.
 
+## Embedding into a host app
+
+For most users, running the CLI as a separate process is the right call.
+If you're shipping your **own** product and want the harness daemon to live
+inside *your* Node process — sharing your auth, your storage, your lifecycle
+— use `createDaemon`:
+
+```ts
+import { createDaemon } from '@harness-fe/mcp-server';
+
+const daemon = createDaemon({
+    port: 47730,                       // pick a port distinct from devs' local 47729
+    host: '127.0.0.1',
+    authorize: (req) => verifyMyJwt(req.headers.authorization), // your auth
+    label: 'my-app',
+});
+
+await daemon.start();
+process.on('SIGTERM', () => daemon.stop());
+```
+
+That call starts the WS bridge **and** mounts the MCP HTTP transport at
+`/mcp` on the daemon's own listener. The CLI uses the same factory under
+the hood — there is exactly one boot path.
+
+### Picking the right options
+
+| Option | When to use |
+|---|---|
+| `authorize: (req) => boolean` | You already have an auth layer (JWT, session cookie, etc.). Return `true` to accept the request. The built-in token check is skipped. |
+| `token: 'xxxx'` | You want the built-in token gate. Mutually exclusive with `authorize`. Same wire conventions as the CLI's `--token`. |
+| `store`, `taskStore`, `memoryStore` | Plug in custom `IStore` implementations to land data in your own DB instead of `~/.harness/`. Pass `null` to disable persistence entirely. |
+| `eventStore` | Custom SSE `EventStore` for resumable streaming. Omit for the in-memory default; pass `null` to disable Last-Event-ID resumption. |
+| `mcpHttp: false` | Boot only the WS bridge; skip mounting `/mcp`. Use when you want to wire MCP through stdio yourself (this is how the CLI's stdio mode embeds the daemon). |
+| `mcpPath: '/agents/mcp'` | Move the MCP HTTP endpoint to a non-default path. |
+| `dataDir` | Override the on-disk root for default JSONL stores. |
+
+### Resumable SSE
+
+The MCP HTTP transport supports `Last-Event-ID` reconnection out of the
+box. Long agent runs survive transient network drops — when a client
+reconnects with the `Last-Event-ID` header, the server replays every
+event past that id with no duplicates and no gaps.
+
+Defaults: in-memory ring with 1000 events / 5 minutes / 50 MiB cap per
+stream. Override with `eventStore: new MemoryEventStore({...})` or plug
+in your own backend. Set `eventStore: null` to opt out.
+
+### Working example
+
+A self-contained example lives at
+[`examples/embed-express/`](https://github.com/Morphicai/harness-fe/tree/main/packages/mcp-server/examples/embed-express):
+an Express app and the harness daemon share one Node process, with a
+custom `authorize` hook standing in for the host's real auth.
+
+### Embedding vs running the CLI: which?
+
+- **CLI** is right for development. Devs run `npx @harness-fe/mcp-server`
+  alongside their dev server; AI agents (Claude Code / Cursor / Kiro)
+  speak to it over stdio MCP. **The CLI is what 99% of users want.**
+- **`createDaemon`** is right when your *product* embeds the harness —
+  for example, a hosted dev environment that runs the daemon under its
+  own auth so users don't have to install or configure anything.
+
 ## What it exposes
 
 Tools across these domains (see [Architecture](https://github.com/Morphicai/harness-fe/blob/main/ARCHITECTURE.md)):

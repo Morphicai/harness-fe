@@ -24,10 +24,10 @@ import {
     isLoopbackHost,
     parseWsUrl,
 } from '@harness-fe/protocol';
-import { Bridge, defaultDataDir, type IBridge } from './bridge.js';
+import { defaultDataDir, type IBridge } from './bridge.js';
+import { createDaemon, type DaemonHandle } from './daemon.js';
 import { RemoteBridge } from './remoteBridge.js';
 import { startMcpStdioServer } from './mcp.js';
-import { startMcpHttpServer } from './mcpHttp.js';
 
 type McpTransport = 'stdio' | 'http';
 
@@ -247,11 +247,13 @@ async function main() {
     const { active, shutdown, role } = await startBridgeOrAttach(cfg);
     printBanner(cfg, role, active.getViewerBaseUrl());
 
-    let mcpShutdown: (() => Promise<void>) | undefined;
     if (cfg.mcpTransport === 'stdio') {
         await startMcpStdioServer(active);
         process.stderr.write('[harness-fe] MCP stdio server connected\n');
     } else {
+        // HTTP transport: the leader's createDaemon() call already mounted
+        // /mcp via mcpHttp:true. Followers fall through here with no leader
+        // attached, so HTTP mode is unsupported for them.
         if (role === 'follower') {
             process.stderr.write(
                 '[harness-fe] --mcp-transport=http is only supported on the leader. ' +
@@ -260,16 +262,11 @@ async function main() {
             await shutdown();
             process.exit(2);
         }
-        const handle = await startMcpHttpServer(active, { path: cfg.mcpPath });
-        process.stderr.write(`[harness-fe] MCP http server mounted at ${handle.path}\n`);
-        mcpShutdown = () => handle.close();
+        process.stderr.write(`[harness-fe] MCP http server mounted at ${cfg.mcpPath}\n`);
     }
 
     const onSignal = async () => {
         process.stderr.write('[harness-fe] shutting down\n');
-        if (mcpShutdown) {
-            try { await mcpShutdown(); } catch { /* swallow */ }
-        }
         await shutdown();
         process.exit(0);
     };
@@ -280,23 +277,31 @@ async function main() {
 async function startBridgeOrAttach(
     cfg: CliConfig,
 ): Promise<{ active: IBridge; shutdown: () => Promise<void>; role: 'leader' | 'follower' }> {
-    const bridge = new Bridge({
+    // Leader path: use createDaemon so there's exactly one boot path between
+    // the CLI and any host application that embeds the daemon. The factory
+    // mounts /mcp itself when mcpHttp:true, so we don't need to call
+    // startMcpHttpServer here.
+    const daemon: DaemonHandle = createDaemon({
         port: cfg.port,
         host: cfg.host,
         dataDir: cfg.dataDir,
         label: cfg.label,
-        auth: cfg.token ? { token: cfg.token } : undefined,
+        token: cfg.token,
         publicHost: cfg.publicHost,
+        mcpHttp: cfg.mcpTransport === 'http',
+        mcpPath: cfg.mcpPath,
     });
     try {
-        await bridge.start();
+        await daemon.start();
         return {
-            active: bridge,
-            shutdown: () => bridge.stop(),
+            active: daemon.bridge,
+            shutdown: () => daemon.stop(),
             role: 'leader',
         };
     } catch (err) {
         if ((err as NodeJS.ErrnoException)?.code !== 'EADDRINUSE') throw err;
+        // Factory's bridge.start failed on EADDRINUSE; the factory itself
+        // didn't mount anything else, so there's nothing further to clean up.
     }
 
     // Port already taken — attach as follower.

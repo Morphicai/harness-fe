@@ -98,4 +98,106 @@ describe('mcpHttp', () => {
         // bodyless GET) means we made it past the auth layer.
         expect(withAuth.status).not.toBe(401);
     });
+
+    // SSE Last-Event-ID resumption — end-to-end wiring proof.
+    //
+    // What this asserts:
+    //   1. A real MCP HTTP session goes through the wire protocol cleanly.
+    //   2. The configured `EventStore` actually sees `storeEvent` calls
+    //      (the SDK is wired to persist outgoing messages through the
+    //      transport — not just sitting unused).
+    //   3. When a new GET arrives with `Last-Event-ID`, the SDK invokes
+    //      `replayEventsAfter` on the same store with that id (the resume
+    //      path is taken; replay isn't a no-op).
+    //
+    // The actual "no dupes / no gaps" invariant is covered comprehensively
+    // by MemoryEventStore.test.ts — here we prove the transport drives it.
+    it('drives the EventStore on stream and replays after Last-Event-ID', async () => {
+        const bridge = await startBridge();
+
+        // Spy that mirrors MemoryEventStore's contract while recording calls.
+        const storeCalls: Array<{ streamId: string; eventId: string }> = [];
+        const replayCalls: Array<{ lastEventId: string }> = [];
+        const eventsByStream = new Map<
+            string,
+            Array<{ eventId: string; message: JSONRPCMessage }>
+        >();
+        let seq = 0;
+        const spy: EventStore = {
+            async storeEvent(streamId, message) {
+                seq += 1;
+                const eventId = `${streamId}_${seq}`;
+                storeCalls.push({ streamId, eventId });
+                const arr = eventsByStream.get(streamId) ?? [];
+                arr.push({ eventId, message });
+                eventsByStream.set(streamId, arr);
+                return eventId;
+            },
+            async replayEventsAfter(lastEventId, { send }) {
+                replayCalls.push({ lastEventId });
+                // Recover streamId from event id and replay everything past it.
+                const streamId = lastEventId.split('_')[0];
+                const arr = eventsByStream.get(streamId) ?? [];
+                let resuming = false;
+                for (const { eventId, message } of arr) {
+                    if (resuming) await send(eventId, message);
+                    if (eventId === lastEventId) resuming = true;
+                }
+                return streamId;
+            },
+        };
+
+        const handle = await startMcpHttpServer(bridge, {
+            path: '/mcp',
+            eventStore: spy,
+        });
+        cleanups.push(() => handle.close());
+        const port = bridge.getBoundPort()!;
+        const url = `http://127.0.0.1:${port}/mcp`;
+
+        // 1. Initialize MCP session. The response goes back over the
+        //    Streamable HTTP response stream, so the SDK persists each
+        //    outgoing message through our spy store.
+        const init = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                accept: 'application/json, text/event-stream',
+            },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'initialize',
+                params: {
+                    protocolVersion: '2024-11-05',
+                    capabilities: {},
+                    clientInfo: { name: 'mcpHttp.test', version: '0.0.0' },
+                },
+            }),
+        });
+        const sessionId = init.headers.get('mcp-session-id');
+        expect(sessionId).toBeTruthy();
+        // Drain the response body so the connection can be reused.
+        await init.text();
+
+        // 2. The SDK should have persisted at least one message to the
+        //    EventStore by now — the initialize response.
+        expect(storeCalls.length).toBeGreaterThan(0);
+        const firstEventId = storeCalls[0]!.eventId;
+
+        // 3. Reopen the stream with Last-Event-ID set. This is what a
+        //    real client would do after a transient disconnect.
+        const resumed = await fetch(url, {
+            headers: {
+                accept: 'text/event-stream',
+                'mcp-session-id': sessionId!,
+                'last-event-id': firstEventId,
+            },
+        });
+        // Status varies (200 SSE) but the salient assertion is the spy
+        // saw the replay path get hit with the same id we passed.
+        expect(replayCalls).toEqual([{ lastEventId: firstEventId }]);
+        // Drop the long-lived stream we just opened — it has no consumer.
+        await resumed.body?.cancel();
+    });
 });

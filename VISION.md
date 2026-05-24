@@ -40,6 +40,8 @@ Users of a shipped product (e.g. **morphicai-web**) hit "Report a problem" in th
 
 **Status (May 2026):** functionally complete locally — overlay, tasks, MCP tools, source-aware navigation all work. Gap is **deployment**: today's daemon assumes a developer running it on `localhost`. Productionising means daemon-in-product (embedded in the host web app) or daemon-as-service (hosted, authenticated, multi-tenant).
 
+**Current phase (deliberate):** Harness-FE is used **only in the development environment** of host products (currently morphicai-web). End users never see the harness — `process.env.NODE_ENV === 'development'` guards every instrumentation path. The productionising work above remains the long-term direction; it is not the work in flight today. Today's focus is making the dev-time loop unbreakable, with one clean reference integration in morphicai-web.
+
 ### Direction 2 — Multi-tenant: AI-generated apps reporting to their generating agent
 
 A host product (e.g. morphicai-web) renders AI-generated mini-apps inside iframes / module-federation slots. Each mini-app has its own agent author. When a user reports a problem inside a mini-app, the report must route to **the agent that generated that mini-app**, not the host product's agent.
