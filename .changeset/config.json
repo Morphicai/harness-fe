@@ -10,6 +10,8 @@
       "@harness-fe/runtime",
       "@harness-fe/node-runtime",
       "@harness-fe/next",
+      "@harness-fe/log",
+      "@harness-fe/react-jsx",
       "@harness-fe/vite",
       "@harness-fe/webpack",
       "@harness-fe/unplugin"
@@ -18,6 +20,9 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
+  "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
+    "onlyUpdatePeerDependentsWhenOutOfRange": true
+  },
   "ignore": [
     "harness-fe-react-demo",
     "harness-fe-vue-demo",

@@ -45,8 +45,8 @@
         "typecheck": "tsc --noEmit"
     },
     "peerDependencies": {
-        "@harness-fe/runtime": "workspace:*",
-        "@harness-fe/node-runtime": "workspace:*",
+        "@harness-fe/runtime": "workspace:^",
+        "@harness-fe/node-runtime": "workspace:^",
         "next": "^13.0.0 || ^14.0.0 || ^15.0.0",
         "react": "^17.0.0 || ^18.0.0 || ^19.0.0"
     },
