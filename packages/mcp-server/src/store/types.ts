@@ -48,6 +48,7 @@ export type EventType =
     | 'note'         // project-level note written by agent/user
     | 'load'         // page-load initial snapshot
     | 'storage'      // localStorage/sessionStorage/cookie mutation
+    | 'ws'           // WebSocket frame (open / send / recv / close)
     | 'server-log'   // Node.js console log from node-runtime SDK
     | 'server-err'   // Node.js uncaughtException / unhandledRejection from node-runtime SDK
     | 'server-action'// Route Handler / Server Action timing from withHarnessTracing()

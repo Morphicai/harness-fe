@@ -305,20 +305,177 @@ export const commandHandlers: Record<string, CommandHandler> = {
     },
 
     [COMMAND.CONSOLE_TAIL]: async (raw, ctx) => {
-        const args = raw as { n: number };
-        return { entries: ctx.capture.console.tail(args.n) };
+        const args = raw as TailArgs & { level?: string };
+        const all = ctx.capture.console.tail(args.n ?? 20);
+        return { entries: filterTail(all, args, (e) => {
+            if (args.level && e.level !== args.level) return undefined;
+            return JSON.stringify({ level: e.level, args: e.args });
+        }) };
     },
 
     [COMMAND.NETWORK_TAIL]: async (raw, ctx) => {
-        const args = raw as { n: number };
-        return { entries: ctx.capture.network.tail(args.n) };
+        const args = raw as TailArgs & {
+            urlContains?: string;
+            method?: string;
+            statusCode?: number;
+        };
+        const all = ctx.capture.network.tail(args.n ?? 20);
+        return { entries: filterTail(all, args, (e) => {
+            if (args.urlContains && !e.url.includes(args.urlContains)) return undefined;
+            if (args.method && e.method.toUpperCase() !== args.method.toUpperCase()) return undefined;
+            if (args.statusCode !== undefined && e.status !== args.statusCode) return undefined;
+            return JSON.stringify({ url: e.url, method: e.method, requestBody: e.requestBody, responseBody: e.responseBody });
+        }) };
     },
 
     [COMMAND.ERRORS_TAIL]: async (raw, ctx) => {
-        const args = raw as { n: number };
-        return { entries: ctx.capture.errors.tail(args.n) };
+        const args = raw as TailArgs;
+        const all = ctx.capture.errors.tail(args.n ?? 20);
+        return { entries: filterTail(all, args, (e) =>
+            JSON.stringify({ message: e.message, stack: e.stack, source: e.source }),
+        ) };
+    },
+
+    [COMMAND.WS_TAIL]: async (raw, ctx) => {
+        const args = raw as TailArgs & { phase?: string };
+        const all = ctx.capture.ws.tail(args.n ?? 20);
+        return { entries: filterTail(all, args, (e) => {
+            if (args.phase && e.phase !== args.phase) return undefined;
+            return JSON.stringify({ url: e.url, payload: e.payload, reason: e.reason });
+        }) };
+    },
+
+    [COMMAND.NETWORK_WAIT_FOR]: async (raw, ctx) => {
+        const args = raw as {
+            urlContains?: string;
+            urlRegex?: string;
+            method?: string;
+            statusCode?: number;
+            timeoutMs?: number;
+        };
+        const timeoutMs = args.timeoutMs ?? 10_000;
+        const deadline = Date.now() + timeoutMs;
+        const regex = args.urlRegex ? safeRegex(args.urlRegex) : undefined;
+        // Anchor on the existing buffer head so we only consider new requests
+        // (otherwise an old matching entry would resolve immediately).
+        const baselineLen = ctx.capture.network.size();
+        while (Date.now() < deadline) {
+            const all = ctx.capture.network.tail(500);
+            const newOnes = all.slice(Math.max(0, all.length - (ctx.capture.network.size() - baselineLen)));
+            for (const e of newOnes) {
+                if (args.urlContains && !e.url.includes(args.urlContains)) continue;
+                if (regex && !regex.test(e.url)) continue;
+                if (args.method && e.method.toUpperCase() !== args.method.toUpperCase()) continue;
+                if (args.statusCode !== undefined && e.status !== args.statusCode) continue;
+                return { ok: true, entry: e, after: Date.now() };
+            }
+            await new Promise((r) => setTimeout(r, 50));
+        }
+        throw new Error(`network.wait_for: no matching request within ${timeoutMs}ms`);
+    },
+
+    [COMMAND.NETWORK_WAIT_FOR_IDLE]: async (raw, ctx) => {
+        const args = raw as { idleMs?: number; timeoutMs?: number };
+        const idleMs = args.idleMs ?? 500;
+        const timeoutMs = args.timeoutMs ?? 10_000;
+        const deadline = Date.now() + timeoutMs;
+        let lastSize = ctx.capture.network.size();
+        let stableSince = Date.now();
+        while (Date.now() < deadline) {
+            const currentSize = ctx.capture.network.size();
+            if (currentSize !== lastSize) {
+                lastSize = currentSize;
+                stableSince = Date.now();
+            } else if (Date.now() - stableSince >= idleMs) {
+                return { ok: true, idleFor: Date.now() - stableSince, after: Date.now() };
+            }
+            await new Promise((r) => setTimeout(r, 50));
+        }
+        throw new Error(`network.wait_for_idle: never quiet for ${idleMs}ms within ${timeoutMs}ms`);
+    },
+
+    [COMMAND.NETWORK_GET]: async (raw, ctx) => {
+        const args = raw as { reqId: string };
+        // Return both req + res entries for this id (one or both may exist).
+        const all = ctx.capture.network.tail(200);
+        const matches = all.filter((e) => e.id === args.reqId);
+        return { entries: matches, found: matches.length > 0 };
+    },
+
+    [COMMAND.WS_GET]: async (raw, ctx) => {
+        const args = raw as { wsId: string };
+        const all = ctx.capture.ws.tail(200);
+        const matches = all.filter((e) => e.id === args.wsId);
+        return { entries: matches, found: matches.length > 0 };
+    },
+
+    [COMMAND.STORAGE_TAIL]: async (raw, ctx) => {
+        const args = raw as TailArgs & {
+            which?: string;
+            op?: string;
+            key?: string;
+        };
+        const all = ctx.capture.storage.tail(args.n ?? 20);
+        return { entries: filterTail(all, args, (e) => {
+            if (args.which && e.which !== args.which) return undefined;
+            if (args.op && e.op !== args.op) return undefined;
+            if (args.key && e.key !== args.key) return undefined;
+            return JSON.stringify({ op: e.op, which: e.which, key: e.key, value: e.value });
+        }) };
     },
 };
+
+interface TailArgs {
+    n?: number;
+    filter?: string;
+    match?: 'contains' | 'regex';
+}
+
+/**
+ * Apply caller-supplied filtering to a tail() result. `pickHaystack` returns
+ * the string to match against (or `undefined` to drop the entry due to a
+ * type-specific narrow like `level` / `urlContains`). The shared `filter`
+ * string then runs as substring (default) or regex against the haystack.
+ */
+function safeRegex(source: string): RegExp | undefined {
+    try {
+        return new RegExp(source, 'i');
+    } catch {
+        return undefined;
+    }
+}
+
+function filterTail<T>(
+    items: T[],
+    args: TailArgs,
+    pickHaystack: (item: T) => string | undefined,
+): T[] {
+    const filter = args.filter?.trim();
+    const useRegex = args.match === 'regex';
+    let regex: RegExp | undefined;
+    if (filter && useRegex) {
+        try {
+            regex = new RegExp(filter, 'i');
+        } catch {
+            // Invalid regex: fall back to substring match rather than throwing.
+            regex = undefined;
+        }
+    }
+    const out: T[] = [];
+    for (const item of items) {
+        const haystack = pickHaystack(item);
+        if (haystack === undefined) continue;
+        if (filter) {
+            if (regex) {
+                if (!regex.test(haystack)) continue;
+            } else {
+                if (!haystack.toLowerCase().includes(filter.toLowerCase())) continue;
+            }
+        }
+        out.push(item);
+    }
+    return out;
+}
 
 function truncate(s: string, n: number): string {
     if (s.length <= n) return s;

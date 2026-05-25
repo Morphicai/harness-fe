@@ -28,6 +28,7 @@ import type { IBridge } from './bridge.js';
 import type { Bridge } from './bridge.js';
 import { RemoteBridge } from './remoteBridge.js';
 import type { IStore, IMemoryStore } from './store/index.js';
+import { buildVisitorTimeline } from './visitorTimeline.js';
 import { createReplayExport } from './replayCreate.js';
 import { openBrowser } from './openBrowser.js';
 import { buildDashboardUrl } from './dashboardUrl.js';
@@ -308,17 +309,27 @@ function registerTools(server: McpServer, bridge: IBridge): void {
         },
     );
 
+    const filterParam = z.string().optional().describe('Substring or regex (see `match`). Filters entries by their serialized payload before return.');
+    const matchParam = z.enum(['contains', 'regex']).optional().describe('How to interpret `filter`. Default: contains (case-insensitive). regex is case-insensitive too.');
+
     server.registerTool(
         COMMAND.CONSOLE_TAIL,
         {
-            description: 'Return the last N console entries from the page.',
+            description: 'Return the last N console entries from the page. Pass `filter` for substring/regex match against {level, args}; `level` for an exact match. Buffer is in-memory and cleared on navigate — use `session.tail` (type=["log"]) for cross-navigate history.',
             inputSchema: {
                 n: z.number().int().positive().default(20).optional(),
+                filter: filterParam,
+                match: matchParam,
+                level: z.enum(['log', 'info', 'warn', 'error', 'debug']).optional(),
                 tabId: tabIdParam,
             },
         },
-        async ({ n, tabId }) => {
-            const out = await bridge.sendCommand(COMMAND.CONSOLE_TAIL, { n: n ?? 20 }, { tabId });
+        async ({ n, filter, match, level, tabId }) => {
+            const out = await bridge.sendCommand(
+                COMMAND.CONSOLE_TAIL,
+                { n: n ?? 20, filter, match, level },
+                { tabId },
+            );
             return ok(out);
         },
     );
@@ -326,17 +337,22 @@ function registerTools(server: McpServer, bridge: IBridge): void {
     server.registerTool(
         COMMAND.NETWORK_TAIL,
         {
-            description: 'Return the last N network requests captured by the runtime client.',
+            description: 'Return the last N network requests captured by the runtime client. Each entry has phase=req|res keyed by `id`, and (for requests) an `initiator.stack` so you can see which code issued the call. Pass `filter` (against {url, method, body}), or narrow via `urlContains` / `method` / `statusCode`. Buffer is in-memory and cleared on navigate — use `session.tail` (type=["req","res"]) for cross-navigate history.',
             inputSchema: {
                 n: z.number().int().positive().default(20).optional(),
                 includeBody: z.boolean().optional(),
+                filter: filterParam,
+                match: matchParam,
+                urlContains: z.string().optional().describe('Substring filter on url (case-sensitive).'),
+                method: z.string().optional().describe('Exact HTTP method match (e.g. "POST"). Case-insensitive.'),
+                statusCode: z.number().int().optional().describe('Exact status code match (response entries only).'),
                 tabId: tabIdParam,
             },
         },
-        async ({ n, includeBody, tabId }) => {
+        async ({ n, includeBody, filter, match, urlContains, method, statusCode, tabId }) => {
             const out = await bridge.sendCommand(
                 COMMAND.NETWORK_TAIL,
-                { n: n ?? 20, includeBody: includeBody ?? false },
+                { n: n ?? 20, includeBody: includeBody ?? false, filter, match, urlContains, method, statusCode },
                 { tabId },
             );
             return ok(out);
@@ -346,14 +362,145 @@ function registerTools(server: McpServer, bridge: IBridge): void {
     server.registerTool(
         COMMAND.ERRORS_TAIL,
         {
-            description: 'Return the last N JavaScript errors captured by the runtime client.',
+            description: 'Return the last N JavaScript errors captured by the runtime client. Pass `filter` for substring/regex match against {message, stack, source}. Buffer is in-memory and cleared on navigate — use `session.tail` (type=["err"]) for cross-navigate history.',
             inputSchema: {
                 n: z.number().int().positive().default(20).optional(),
+                filter: filterParam,
+                match: matchParam,
                 tabId: tabIdParam,
             },
         },
-        async ({ n, tabId }) => {
-            const out = await bridge.sendCommand(COMMAND.ERRORS_TAIL, { n: n ?? 20 }, { tabId });
+        async ({ n, filter, match, tabId }) => {
+            const out = await bridge.sendCommand(
+                COMMAND.ERRORS_TAIL,
+                { n: n ?? 20, filter, match },
+                { tabId },
+            );
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.WS_TAIL,
+        {
+            description:
+                'Return the last N WebSocket frames captured by the runtime client. Each entry has phase=open|send|recv|close, a stable id per connection, payload (text/JSON when possible, [binary Nb] for buffers), and initiator.stack on open/send so you can see which code opened the connection or sent the frame. Pass `filter` for substring/regex match against {url, payload, reason}; `phase` for an exact match. Buffer is in-memory and cleared on navigate — use `session.tail` (type=["ws"]) for cross-navigate history.',
+            inputSchema: {
+                n: z.number().int().positive().default(20).optional(),
+                filter: filterParam,
+                match: matchParam,
+                phase: z.enum(['open', 'send', 'recv', 'close']).optional(),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ n, filter, match, phase, tabId }) => {
+            const out = await bridge.sendCommand(
+                COMMAND.WS_TAIL,
+                { n: n ?? 20, filter, match, phase },
+                { tabId },
+            );
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.NETWORK_WAIT_FOR,
+        {
+            description:
+                'Resolve when a network request matching the predicate happens (or rejects on timeout). Considers requests issued AFTER this call — pre-existing matches in the buffer do not satisfy the wait.',
+            inputSchema: {
+                urlContains: z.string().optional(),
+                urlRegex: z.string().optional().describe('Case-insensitive regex against url.'),
+                method: z.string().optional(),
+                statusCode: z.number().int().optional(),
+                timeoutMs: z.number().int().positive().default(10000).optional(),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ urlContains, urlRegex, method, statusCode, timeoutMs, tabId }) => {
+            const out = await bridge.sendCommand(
+                COMMAND.NETWORK_WAIT_FOR,
+                { urlContains, urlRegex, method, statusCode, timeoutMs },
+                { tabId },
+            );
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.NETWORK_WAIT_FOR_IDLE,
+        {
+            description:
+                'Resolve when no new network entries arrived for `idleMs` (default 500ms) — analogous to Playwright `waitForLoadState("networkidle")`. Useful for sequencing actions after a navigation or interaction.',
+            inputSchema: {
+                idleMs: z.number().int().positive().default(500).optional(),
+                timeoutMs: z.number().int().positive().default(10000).optional(),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ idleMs, timeoutMs, tabId }) => {
+            const out = await bridge.sendCommand(
+                COMMAND.NETWORK_WAIT_FOR_IDLE,
+                { idleMs, timeoutMs },
+                { tabId },
+            );
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.NETWORK_GET,
+        {
+            description:
+                'Return all entries (req + res) for a single network request id. Use after `network.tail` when you need the full request/response body without the truncation pressure that comes from a multi-entry response.',
+            inputSchema: {
+                reqId: z.string().describe('id field from a `network.tail` entry'),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ reqId, tabId }) => {
+            const out = await bridge.sendCommand(COMMAND.NETWORK_GET, { reqId }, { tabId });
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.WS_GET,
+        {
+            description:
+                'Return all frames (open / send / recv / close) for a single WebSocket id. Use after `ws.tail` when you need the full session of a particular connection.',
+            inputSchema: {
+                wsId: z.string().describe('id field from a `ws.tail` entry'),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ wsId, tabId }) => {
+            const out = await bridge.sendCommand(COMMAND.WS_GET, { wsId }, { tabId });
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.STORAGE_TAIL,
+        {
+            description:
+                'Return the last N localStorage / sessionStorage / cookie mutations. Each entry has op=set|remove|clear, which=local|session|cookie, key/value, an `initiator.stack` showing who issued the write, and crossTab=true when the mutation arrived via the native storage event from another tab. Filter via `filter` (against {op, which, key, value}), or narrow with `which` / `op` / `key`. Buffer is in-memory and cleared on navigate — use `session.tail` (type=["storage"]) for cross-navigate history.',
+            inputSchema: {
+                n: z.number().int().positive().default(20).optional(),
+                filter: filterParam,
+                match: matchParam,
+                which: z.enum(['local', 'session', 'cookie']).optional(),
+                op: z.enum(['set', 'remove', 'clear']).optional(),
+                key: z.string().optional().describe('Exact key match (case-sensitive).'),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ n, filter, match, which, op, key, tabId }) => {
+            const out = await bridge.sendCommand(
+                COMMAND.STORAGE_TAIL,
+                { n: n ?? 20, filter, match, which, op, key },
+                { tabId },
+            );
             return ok(out);
         },
     );
@@ -602,7 +749,7 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
     server.registerTool(
         'session.tail',
         {
-            description: 'Read the last N events from a session timeline. Optionally filter by event type or projectId.',
+            description: 'Read the last N events from a session timeline. Optionally filter by event type or projectId. For cross-tab debugging within one visitor, use `visitor.timeline` to merge multiple sessions.',
             inputSchema: {
                 sessionId: z.string(),
                 n: z.number().int().positive().default(50).optional(),
@@ -837,6 +984,34 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
             sessionsOut.sort((a, b) => b.startedAt - a.startedAt);
             const slice = limit ? sessionsOut.slice(0, limit) : sessionsOut;
             return ok({ visitor, sessions: slice });
+        },
+    );
+
+    server.registerTool(
+        'visitor.timeline',
+        {
+            description:
+                'Merged event timeline across all sessions for one visitor, ascending by ts. Use this for cross-tab debugging (e.g. a ws frame in tab A causing a storage write in tab B). Each event carries `sessionId` and `tab` so the source tab is visible. Pass `sessionIds` to skip auto-discovery and merge a known set.',
+            inputSchema: {
+                visitorId: z.string(),
+                since: z.number().optional().describe('Only events after this Unix ts (ms)'),
+                until: z.number().optional().describe('Only events before this Unix ts (ms)'),
+                types: z.union([z.string(), z.array(z.string())]).optional()
+                    .describe('Filter by event type(s): log, err, req, res, ws, storage, cmd, resp, ...'),
+                tabIds: z.array(z.string()).optional()
+                    .describe('Narrow merge to specific tabIds. Default: all tabs known to this visitor.'),
+                sessionIds: z.array(z.string()).optional()
+                    .describe('Explicit session list to merge. When set, skips visitor → session discovery.'),
+                limit: z.number().int().positive().optional()
+                    .describe('Max events returned (newest). Default 200.'),
+            },
+        },
+        async ({ visitorId, since, until, types, tabIds, sessionIds, limit }) => {
+            const result = buildVisitorTimeline(store, visitorId, {
+                since, until, types, tabIds, sessionIds, limit,
+            });
+            if ('error' in result) return err(result.error);
+            return ok(result);
         },
     );
 
@@ -1087,7 +1262,7 @@ function registerRemoteStoreTools(server: McpServer, bridge: RemoteBridge): void
     server.registerTool(
         'session.tail',
         {
-            description: 'Read the last N events from a session timeline. Optionally filter by event type or projectId.',
+            description: 'Read the last N events from a session timeline. Optionally filter by event type or projectId. For cross-tab debugging within one visitor, use `visitor.timeline` to merge multiple sessions.',
             inputSchema: {
                 sessionId: z.string(),
                 n: z.number().int().positive().default(50).optional(),
