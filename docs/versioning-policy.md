@@ -2,7 +2,7 @@
 
 This repo is a monorepo with **linked** versions across the core packages
 (see `.changeset/config.json` — `linked: [...]`). One package's bump
-drags all 10 to the same version number. That makes for clean
+drags all 8 to the same version number. That makes for clean
 "all-3.1.0" install stories, but it also means **a careless `minor`
 changeset turns into a major-looking jump across the whole ecosystem**.
 
@@ -13,15 +13,24 @@ The packages currently in the linked group:
 @harness-fe/mcp-server    @harness-fe/webpack
 @harness-fe/runtime       @harness-fe/unplugin
 @harness-fe/node-runtime  @harness-fe/next
-@harness-fe/log           @harness-fe/react-jsx
 ```
 
 Unlinked (independent version numbers):
 
 ```
+@harness-fe/log            (small log helper on its own 1.x track)
+@harness-fe/react-jsx      (jsxImportSource helper on its own 1.x track)
 @harness-fe/dashboard-ui   (shipped inside mcp-server's tarball)
 @harness-fe/agent-skill    (separate concern)
 ```
+
+**Why `@harness-fe/log` and `@harness-fe/react-jsx` are no longer linked:**
+they had drifted to 1.x while the rest of the group was at 3.x. Keeping
+them linked meant any `minor` bump on the 3.x group was forced into a
+`major` bump (4.0.0) so changesets could unify versions to the same
+number across all members. Unlinking lets the 3.x group keep doing
+minor / patch bumps cleanly; `log` and `react-jsx` move independently
+on their own 1.x track until there's a reason to bump their major.
 
 ## Pre-1.0 / pre-launch posture
 
