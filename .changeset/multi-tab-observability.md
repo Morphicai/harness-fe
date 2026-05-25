@@ -7,6 +7,8 @@
 '@harness-fe/vite': minor
 '@harness-fe/webpack': minor
 '@harness-fe/unplugin': minor
+'@harness-fe/log': minor
+'@harness-fe/react-jsx': minor
 ---
 
 **Multi-tab observability** — fill the gaps that made Electron / multi-tab / WebSocket-driven bugs hard to diagnose. All schema changes are additive; existing jsonl data continues to work.
