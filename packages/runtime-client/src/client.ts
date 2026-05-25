@@ -163,7 +163,11 @@ export class RuntimeClient {
 
 
     start(): void {
-        this.ctx.capture.install((name, payload) => this.sendEvent(name, payload));
+        const daemonUrl = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+        this.ctx.capture.install(
+            (name, payload) => this.sendEvent(name, payload),
+            { daemonUrl },
+        );
         this.recorder.start();
         this.connect();
     }

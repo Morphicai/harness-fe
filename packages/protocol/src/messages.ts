@@ -334,6 +334,12 @@ export const COMMAND = {
     CONSOLE_TAIL: 'console.tail',
     NETWORK_TAIL: 'network.tail',
     ERRORS_TAIL: 'errors.tail',
+    WS_TAIL: 'ws.tail',
+    STORAGE_TAIL: 'storage.tail',
+    NETWORK_GET: 'network.get',
+    WS_GET: 'ws.get',
+    NETWORK_WAIT_FOR: 'network.wait_for',
+    NETWORK_WAIT_FOR_IDLE: 'network.wait_for_idle',
     TAB_LIST: 'tab.list',
     PROJECT_SOURCE: 'project.source',
     PROJECT_MODULE_GRAPH: 'project.module_graph',
@@ -401,8 +407,18 @@ export const storagePayloadSchema = z.object({
     value: z.string().optional(),
     /** True when the mutation came from another tab via the native `storage` event. */
     crossTab: z.boolean().optional(),
+    /** Caller stack — see NetworkEntry.initiator for rationale. Absent on crossTab events. */
+    initiator: z.object({
+        stack: z.string().optional(),
+    }).optional(),
 });
 export type StoragePayload = z.infer<typeof storagePayloadSchema>;
+
+/** Storage mutation entry as stored in the runtime-client RingBuffer (timestamped). */
+export const storageEntrySchema = storagePayloadSchema.extend({
+    ts: z.number(),
+});
+export type StorageEntry = z.infer<typeof storageEntrySchema>;
 
 // ─── User-submitted annotation tasks ────────────────────────────────────────
 

@@ -24,6 +24,7 @@
  */
 
 import type { NetworkEntry } from '@harness-fe/protocol';
+import { captureInitiator } from './initiator.js';
 
 const DEFAULT_BODY_CAP = 256 * 1024;
 const INTERNAL_FLAG = '__hfeInternal';
@@ -76,6 +77,7 @@ export function installFetchPatch(opts: FetchPatchOptions): () => void {
         const id = generateId();
         const startedAt = performance.now();
         const startedTs = Date.now();
+        const initiator = captureInitiator();
 
         // Emit request record eagerly (req body is read async — second emit
         // updates the record once body is serialized; consumers join by id).
@@ -86,6 +88,7 @@ export function installFetchPatch(opts: FetchPatchOptions): () => void {
             method: meta.method,
             url: meta.url,
             requestHeaders: meta.headers,
+            initiator,
         };
         emit(reqRecord);
         cloneRequestBody(input, init, bodyCap).then(

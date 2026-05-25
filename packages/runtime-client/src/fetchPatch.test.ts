@@ -101,6 +101,20 @@ describe('installFetchPatch — emission', () => {
         expect(res.responseBody).toEqual({ ok: true });
     });
 
+    it('stamps initiator.stack on req entries', async () => {
+        setMockFetch(() => Promise.resolve(jsonResponse({ ok: true })));
+        dispose = installFetchPatch({ onEntry: (e) => entries.push(e) });
+        await window.fetch('http://x/');
+        await new Promise((r) => setTimeout(r, 10));
+        const req = entries.find((e) => e.phase === 'req')!;
+        expect(req.initiator).toBeDefined();
+        // Stack should be a non-empty string when V8 produced one.
+        if (req.initiator?.stack !== undefined) {
+            expect(typeof req.initiator.stack).toBe('string');
+            expect(req.initiator.stack.length).toBeGreaterThan(0);
+        }
+    });
+
     it('captures and caps a large JSON response body', async () => {
         const huge = 'x'.repeat(2000);
         setMockFetch(() => Promise.resolve(jsonResponse({ s: huge })));
