@@ -9,30 +9,45 @@ import type {
     ConsoleEntry,
     ErrorEntry,
     NetworkEntry,
+    WsEntry,
+    StorageEntry,
 } from '@harness-fe/protocol';
 import { RingBuffer } from './buffer.js';
 import { installFetchPatch } from './fetchPatch.js';
 import { installXhrPatch } from './xhrPatch.js';
+import { installWsPatch } from './wsPatch.js';
+import { installStoragePatch } from './storagePatch.js';
 
 const CONSOLE_CAP = 500;
 const NETWORK_CAP = 200;
 const ERROR_CAP = 200;
+const WS_CAP = 200;
+const STORAGE_CAP = 200;
 
 export class CaptureStore {
     readonly console = new RingBuffer<ConsoleEntry>(CONSOLE_CAP);
     readonly network = new RingBuffer<NetworkEntry>(NETWORK_CAP);
     readonly errors = new RingBuffer<ErrorEntry>(ERROR_CAP);
+    readonly ws = new RingBuffer<WsEntry>(WS_CAP);
+    readonly storage = new RingBuffer<StorageEntry>(STORAGE_CAP);
 
     private installed = false;
     private fetchDispose?: () => void;
     private xhrDispose?: () => void;
+    private wsDispose?: () => void;
+    private storageDispose?: () => void;
 
-    install(onEvent: (name: string, payload: unknown) => void): void {
+    install(
+        onEvent: (name: string, payload: unknown) => void,
+        opts: { daemonUrl?: string } = {},
+    ): void {
         if (this.installed) return;
         this.installed = true;
         this.installConsole(onEvent);
         this.installFetch(onEvent);
         this.installXhr(onEvent);
+        this.installWs(onEvent, opts.daemonUrl);
+        this.installStorage(onEvent);
         this.installErrors(onEvent);
     }
 
@@ -41,6 +56,10 @@ export class CaptureStore {
         this.fetchDispose = undefined;
         this.xhrDispose?.();
         this.xhrDispose = undefined;
+        this.wsDispose?.();
+        this.wsDispose = undefined;
+        this.storageDispose?.();
+        this.storageDispose = undefined;
         this.installed = false;
     }
 
@@ -75,6 +94,33 @@ export class CaptureStore {
             onEntry: (entry) => {
                 this.network.push(entry);
                 onEvent('network', entry);
+            },
+        });
+    }
+
+    private installWs(onEvent: (name: string, payload: unknown) => void, daemonUrl?: string): void {
+        // Add the daemon URL itself to the denylist so our own bridge
+        // connection isn't intercepted (otherwise every event we send
+        // would emit a `ws send` that loops back into the outbox).
+        const extra: RegExp[] = [];
+        if (daemonUrl) {
+            const escaped = daemonUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            extra.push(new RegExp(`^${escaped}`));
+        }
+        this.wsDispose = installWsPatch({
+            denylist: extra.length > 0 ? [/\/__hfe\//, /sockjs-node/, ...extra] : undefined,
+            onEntry: (entry) => {
+                this.ws.push(entry);
+                onEvent('ws', entry);
+            },
+        });
+    }
+
+    private installStorage(onEvent: (name: string, payload: unknown) => void): void {
+        this.storageDispose = installStoragePatch({
+            onEntry: (entry) => {
+                this.storage.push(entry);
+                onEvent('storage', entry);
             },
         });
     }

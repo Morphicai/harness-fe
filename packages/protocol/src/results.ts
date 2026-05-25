@@ -81,8 +81,44 @@ export const networkEntrySchema = z.object({
     requestBodyTruncated: z.boolean().optional(),
     responseBodyTruncated: z.boolean().optional(),
     error: z.string().optional(),
+    /**
+     * Caller stack at request initiation. Best-effort: captured via
+     * `new Error().stack` in the runtime-client fetch/XHR/WebSocket patches,
+     * with framework frames trimmed. Helps answer "who sent this request?"
+     * without resorting to manual breakpoints.
+     */
+    initiator: z.object({
+        stack: z.string().optional(),
+    }).optional(),
 });
 export type NetworkEntry = z.infer<typeof networkEntrySchema>;
+
+export const wsEntrySchema = z.object({
+    ts: z.number(),
+    /** Stable per-WebSocket identifier — correlates open/send/recv/close. */
+    id: z.string(),
+    /** open = constructor call, send = client → server, recv = server → client, close = closed. */
+    phase: z.enum(['open', 'send', 'recv', 'close']),
+    /** Connection URL. Stamped on every phase for self-contained timeline rows. */
+    url: z.string(),
+    /** sub-protocol(s) negotiated at open. */
+    protocols: z.array(z.string()).optional(),
+    /** Frame payload (text/JSON parsed when possible, or binary size marker). Absent on open/close. */
+    payload: z.unknown().optional(),
+    /** True when payload was clipped at the body cap. */
+    payloadTruncated: z.boolean().optional(),
+    /** Close code (1xxx range). Present on close. */
+    code: z.number().int().optional(),
+    /** Close reason string from the close handshake. */
+    reason: z.string().optional(),
+    /** True when close was server-initiated (vs. client `close()`). */
+    wasClean: z.boolean().optional(),
+    /** Stack at constructor / send call. Best-effort like NetworkEntry.initiator. */
+    initiator: z.object({
+        stack: z.string().optional(),
+    }).optional(),
+});
+export type WsEntry = z.infer<typeof wsEntrySchema>;
 
 export const errorEntrySchema = z.object({
     ts: z.number(),

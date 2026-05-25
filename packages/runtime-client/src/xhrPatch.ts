@@ -19,6 +19,7 @@
  */
 
 import type { NetworkEntry } from '@harness-fe/protocol';
+import { captureInitiator } from './initiator.js';
 
 const DEFAULT_BODY_CAP = 256 * 1024;
 const PATCHED_FLAG = '__hfeXhrPatched';
@@ -113,6 +114,7 @@ export function installXhrPatch(opts: XhrPatchOptions): () => void {
         }
         meta.startedAt = performance.now();
         meta.startedTs = Date.now();
+        const initiator = captureInitiator();
 
         // Emit req eagerly with headers; body added on second emit after
         // serialization (mirrors fetchPatch behavior).
@@ -123,6 +125,7 @@ export function installXhrPatch(opts: XhrPatchOptions): () => void {
             method: meta.method,
             url: meta.url,
             requestHeaders: redactHeaders(meta.headers),
+            initiator,
         };
         emit(reqRecord);
         meta.reqEmitted = true;
