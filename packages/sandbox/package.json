@@ -1,13 +1,13 @@
 {
-    "name": "@harness-fe/runtime",
+    "name": "@harness-fe/sandbox",
     "version": "3.1.0",
-    "description": "Browser-side SDK injected into the dev page. Connects to the MCP server via WebSocket and executes commands.",
+    "description": "Browser sandbox + interceptor lib — observe and customize fetch / XHR / WebSocket / Storage / Navigation / console / errors with a unified middleware-style API. Used internally by @harness-fe/runtime; standalone-usable by any project (Tanka MF, MorphixAI base, etc.).",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
         "url": "https://github.com/Morphicai/harness-fe.git",
-        "directory": "packages/runtime-client"
+        "directory": "packages/sandbox"
     },
     "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
@@ -34,18 +34,23 @@
         "typecheck": "tsc --noEmit",
         "test": "vitest run"
     },
-    "dependencies": {
-        "@harness-fe/protocol": "workspace:*",
-        "@harness-fe/sandbox": "workspace:^",
-        "@zumer/snapdom": "^2.12.0",
-        "rrweb": "2.0.0-alpha.4"
-    },
     "devDependencies": {
+        "fake-indexeddb": "^6.0.0",
         "happy-dom": "^20.9.0",
-        "typescript": "^5.6.0",
-        "vitest": "^2.1.9"
+        "vitest": "^2.1.9",
+        "typescript": "^5.6.0"
     },
     "publishConfig": {
         "access": "public"
-    }
+    },
+    "keywords": [
+        "sandbox",
+        "interceptor",
+        "fetch",
+        "xhr",
+        "websocket",
+        "storage",
+        "navigation",
+        "observability"
+    ]
 }

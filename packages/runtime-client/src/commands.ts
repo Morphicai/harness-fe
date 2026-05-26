@@ -423,6 +423,36 @@ export const commandHandlers: Record<string, CommandHandler> = {
             return JSON.stringify({ op: e.op, which: e.which, key: e.key, value: e.value });
         }) };
     },
+
+    [COMMAND.NAVIGATION_TAIL]: async (raw, ctx) => {
+        const args = raw as TailArgs & { kind?: string };
+        const all = ctx.capture.navigation.tail(args.n ?? 20);
+        return { entries: filterTail(all, args, (e) => {
+            if (args.kind && e.kind !== args.kind) return undefined;
+            return JSON.stringify({ kind: e.kind, url: e.url, replace: e.replace });
+        }) };
+    },
+
+    [COMMAND.GLOBALS_TAIL]: async (raw, ctx) => {
+        const args = raw as TailArgs & { op?: string; key?: string };
+        const all = ctx.capture.globals.tail(args.n ?? 20);
+        return { entries: filterTail(all, args, (e) => {
+            if (args.op && e.op !== args.op) return undefined;
+            if (args.key && e.key !== args.key) return undefined;
+            return JSON.stringify({ op: e.op, key: e.key, value: e.value });
+        }) };
+    },
+
+    [COMMAND.INDEXEDDB_TAIL]: async (raw, ctx) => {
+        const args = raw as TailArgs & { op?: string; store?: string; db?: string };
+        const all = ctx.capture.indexeddb.tail(args.n ?? 20);
+        return { entries: filterTail(all, args, (e) => {
+            if (args.op && e.op !== args.op) return undefined;
+            if (args.store && e.store !== args.store) return undefined;
+            if (args.db && e.db !== args.db) return undefined;
+            return JSON.stringify({ op: e.op, store: e.store, key: e.key });
+        }) };
+    },
 };
 
 interface TailArgs {

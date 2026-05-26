@@ -5,6 +5,7 @@ import { FormsPage } from './pages/FormsPage.js';
 import { NetworkPage } from './pages/NetworkPage.js';
 import { ErrorsPage } from './pages/ErrorsPage.js';
 import { StylesPage } from './pages/StylesPage.js';
+import { SandboxPage } from './pages/SandboxPage.js';
 
 const navLinks = [
     { to: '/', label: 'Home' },
@@ -13,6 +14,7 @@ const navLinks = [
     { to: '/network', label: 'Network' },
     { to: '/errors', label: 'Errors' },
     { to: '/styles', label: 'Styles' },
+    { to: '/sandbox', label: 'Sandbox' },
 ];
 
 export function App() {
@@ -58,6 +60,7 @@ export function App() {
                     <Route path="/network" element={<NetworkPage />} />
                     <Route path="/errors" element={<ErrorsPage />} />
                     <Route path="/styles" element={<StylesPage />} />
+                    <Route path="/sandbox" element={<SandboxPage />} />
                 </Routes>
             </main>
         </div>

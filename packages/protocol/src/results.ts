@@ -128,6 +128,51 @@ export const errorEntrySchema = z.object({
 });
 export type ErrorEntry = z.infer<typeof errorEntrySchema>;
 
+// ─── Navigation entry ──────────────────────────────────────────────
+export const navigationEntrySchema = z.object({
+    ts: z.number(),
+    /**
+     * - push    : history.pushState
+     * - replace : history.replaceState
+     * - pop     : popstate event (browser back/forward)
+     * - hash    : hashchange event / location.hash setter
+     * - assign  : location.href setter / location.assign() / location.replace()
+     */
+    kind: z.enum(['push', 'replace', 'pop', 'hash', 'assign']),
+    url: z.string().optional(),
+    state: z.unknown().optional(),
+    /** true for replace-style operations (no new history entry). */
+    replace: z.boolean().optional(),
+    initiator: z.object({ stack: z.string().optional() }).optional(),
+});
+export type NavigationEntry = z.infer<typeof navigationEntrySchema>;
+
+// ─── Globals entry (window.X) ──────────────────────────────────────
+export const globalsEntrySchema = z.object({
+    ts: z.number(),
+    op: z.enum(['get', 'set', 'delete']),
+    key: z.string(),
+    value: z.unknown().optional(),
+    previousValue: z.unknown().optional(),
+    initiator: z.object({ stack: z.string().optional() }).optional(),
+});
+export type GlobalsEntry = z.infer<typeof globalsEntrySchema>;
+
+// ─── IndexedDB entry ───────────────────────────────────────────────
+export const indexedDbEntrySchema = z.object({
+    ts: z.number(),
+    op: z.enum(['open', 'put', 'add', 'get', 'getAll', 'delete', 'clear', 'cursor']),
+    db: z.string().optional(),
+    version: z.number().optional(),
+    store: z.string().optional(),
+    key: z.unknown().optional(),
+    value: z.unknown().optional(),
+    success: z.boolean().optional(),
+    error: z.string().optional(),
+    initiator: z.object({ stack: z.string().optional() }).optional(),
+});
+export type IndexedDbEntry = z.infer<typeof indexedDbEntrySchema>;
+
 export const tabInfoSchema = z.object({
     tabId: z.string(),
     projectId: z.string(),

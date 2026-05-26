@@ -49,6 +49,9 @@ export type EventType =
     | 'load'         // page-load initial snapshot
     | 'storage'      // localStorage/sessionStorage/cookie mutation
     | 'ws'           // WebSocket frame (open / send / recv / close)
+    | 'navigation'   // history.pushState/replaceState/popstate/hashchange + location.* setters
+    | 'globals'      // window.X get/set/delete (build-time-watched keys)
+    | 'indexeddb'    // IDB open / put / add / get / delete / clear / cursor
     | 'server-log'   // Node.js console log from node-runtime SDK
     | 'server-err'   // Node.js uncaughtException / unhandledRejection from node-runtime SDK
     | 'server-action'// Route Handler / Server Action timing from withHarnessTracing()
