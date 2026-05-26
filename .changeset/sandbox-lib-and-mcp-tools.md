@@ -66,6 +66,10 @@ Each follows the existing `*.tail` family:
 - 3 new `COMMAND` codes
 - `EventType` union gains `'navigation' | 'globals' | 'indexeddb'` literals
 
+## Bug fixes carried by the refactor
+
+- **`storage.setItem` no longer crashes when given non-string values.** The 3.1.x in-tree `storagePatch` forwarded raw values into a `clip(value).slice(...)` call and threw `TypeError: s.slice is not a function` for `setItem(key, Date.now())` / `setItem(key, true)` / `setItem(key, {...})` etc. Native Storage implicitly `ToString`s the value (Web Storage spec), and a lot of business code relies on that. The sandbox rewrite stringifies the value at every setItem entry (proxy method, proxy `set` trap, `Storage.prototype.setItem.call(...)` bypass path) before any clipping. 5 regression tests pin the behaviour.
+
 ## Tests
 
 - `@harness-fe/sandbox`: 84 unit / 2 skip / 86 total
