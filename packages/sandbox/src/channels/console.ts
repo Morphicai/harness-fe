@@ -8,7 +8,7 @@
 
 import type { ConsoleObservation, SandboxCtx, SandboxEvent } from '../types.js';
 import { captureInitiator } from '../initiator.js';
-import { emit, registerPatch } from '../chain.js';
+import { emit, registerPatch, runGuarded } from '../chain.js';
 
 const METHODS = ['log', 'info', 'warn', 'error', 'debug'] as const;
 
@@ -29,27 +29,32 @@ function installConsolePatch(): () => void {
             const bound = original.bind(console);
 
             const wrapper = (...args: unknown[]): void => {
-                try {
-                    const ts = Date.now();
-                    const data: ConsoleObservation = {
-                        level,
-                        args: args.map(safeClone),
-                    };
-                    const ctx: SandboxCtx = {
-                        channel: 'console',
-                        kind: level,
-                        initiator: captureInitiator(),
-                        ts,
-                    };
-                    const event: SandboxEvent = {
-                        ts,
-                        source: 'console',
-                        kind: level,
-                        data,
-                        initiator: ctx.initiator,
-                    };
-                    emit('console', event);
-                } catch { /* never let observer crash console */ }
+                runGuarded(
+                    () => {
+                        try {
+                            const ts = Date.now();
+                            const data: ConsoleObservation = {
+                                level,
+                                args: args.map(safeClone),
+                            };
+                            const ctx: SandboxCtx = {
+                                channel: 'console',
+                                kind: level,
+                                initiator: captureInitiator(),
+                                ts,
+                            };
+                            const event: SandboxEvent = {
+                                ts,
+                                source: 'console',
+                                kind: level,
+                                data,
+                                initiator: ctx.initiator,
+                            };
+                            emit('console', event);
+                        } catch { /* never let observer crash console */ }
+                    },
+                    () => { /* recursive console.log — skip emit */ },
+                );
                 return bound(...args);
             };
 

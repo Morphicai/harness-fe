@@ -22,7 +22,7 @@
 
 import type { SandboxCtx, StorageObservation } from '../types.js';
 import { captureInitiator } from '../initiator.js';
-import { emit, getChain, registerPatch } from '../chain.js';
+import { emit, getChain, isInSandbox, registerPatch, runGuarded } from '../chain.js';
 
 const VALUE_CAP = 4 * 1024;
 
@@ -116,26 +116,46 @@ function makeStorageProxy(real: Storage, which: StorageObservation['which']): St
     const wrappedMethods = {
         setItem(key: string, value: string): void {
             const k = String(key), v = String(value);
-            const { blocked, key: fk, value: fv, ctx } = runOnSet(k, v, which);
-            emitStorage('set', which, fk, clip(fv), undefined, ctx.initiator);
-            if (!blocked) origSet(fk, fv);
+            return runGuarded(
+                () => {
+                    const { blocked, key: fk, value: fv, ctx } = runOnSet(k, v, which);
+                    emitStorage('set', which, fk, clip(fv), undefined, ctx.initiator);
+                    if (!blocked) origSet(fk, fv);
+                },
+                () => { origSet(k, v); },
+            );
         },
         getItem(key: string): string | null {
             const k = String(key);
-            const override = runOnGet(k, which);
-            if (override !== undefined) return override;
-            return origGet(k);
+            return runGuarded(
+                () => {
+                    const override = runOnGet(k, which);
+                    if (override !== undefined) return override;
+                    return origGet(k);
+                },
+                () => origGet(k),
+            );
         },
         removeItem(key: string): void {
             const k = String(key);
-            const { blocked, ctx } = runOnRemove(k, which);
-            emitStorage('remove', which, k, undefined, undefined, ctx.initiator);
-            if (!blocked) origRemove(k);
+            return runGuarded(
+                () => {
+                    const { blocked, ctx } = runOnRemove(k, which);
+                    emitStorage('remove', which, k, undefined, undefined, ctx.initiator);
+                    if (!blocked) origRemove(k);
+                },
+                () => { origRemove(k); },
+            );
         },
         clear(): void {
-            const { blocked, ctx } = runOnClear(which);
-            emitStorage('clear', which, undefined, undefined, undefined, ctx.initiator);
-            if (!blocked) origClear();
+            return runGuarded(
+                () => {
+                    const { blocked, ctx } = runOnClear(which);
+                    emitStorage('clear', which, undefined, undefined, undefined, ctx.initiator);
+                    if (!blocked) origClear();
+                },
+                () => { origClear(); },
+            );
         },
         key(index: number): string | null {
             return origKey(index);
@@ -160,23 +180,38 @@ function makeStorageProxy(real: Storage, which: StorageObservation['which']): St
         set(target, prop, value) {
             if (typeof prop !== 'symbol') {
                 const k = String(prop), v = String(value);
-                const { blocked, key: fk, value: fv, ctx } = runOnSet(k, v, which);
-                emitStorage('set', which, fk, clip(fv), undefined, ctx.initiator);
-                if (blocked) return true;  // pretend success
-                // Use origSet so we don't recurse through proxy.
-                origSet(fk, fv);
-                return true;
+                if (isInSandbox()) {
+                    origSet(k, v);
+                    return true;
+                }
+                return runGuarded(
+                    () => {
+                        const { blocked, key: fk, value: fv, ctx } = runOnSet(k, v, which);
+                        emitStorage('set', which, fk, clip(fv), undefined, ctx.initiator);
+                        if (!blocked) origSet(fk, fv);
+                        return true;
+                    },
+                    () => { origSet(k, v); return true; },
+                );
             }
             return Reflect.set(target, prop, value, target);
         },
         deleteProperty(target, prop) {
             if (typeof prop !== 'symbol') {
                 const k = String(prop);
-                const { blocked, ctx } = runOnRemove(k, which);
-                emitStorage('remove', which, k, undefined, undefined, ctx.initiator);
-                if (blocked) return true;
-                origRemove(k);
-                return true;
+                if (isInSandbox()) {
+                    origRemove(k);
+                    return true;
+                }
+                return runGuarded(
+                    () => {
+                        const { blocked, ctx } = runOnRemove(k, which);
+                        emitStorage('remove', which, k, undefined, undefined, ctx.initiator);
+                        if (!blocked) origRemove(k);
+                        return true;
+                    },
+                    () => { origRemove(k); return true; },
+                );
             }
             return Reflect.deleteProperty(target, prop);
         },
@@ -278,34 +313,58 @@ function installStoragePatch(): () => void {
             const which = whichOf(this);
             if (!which) return origProtoSet.call(this, key, value);
             const k = String(key), v = String(value);
-            const { blocked, key: fk, value: fv, ctx } = runOnSet(k, v, which);
-            emitStorage('set', which, fk, clip(fv), undefined, ctx.initiator);
-            if (!blocked) origProtoSet.call(realOf(which)!, fk, fv);
+            const target = realOf(which)!;
+            return runGuarded(
+                () => {
+                    const { blocked, key: fk, value: fv, ctx } = runOnSet(k, v, which);
+                    emitStorage('set', which, fk, clip(fv), undefined, ctx.initiator);
+                    if (!blocked) origProtoSet.call(target, fk, fv);
+                },
+                () => { origProtoSet.call(target, k, v); },
+            );
         };
 
         Storage.prototype.getItem = function patchedGet(this: Storage, key: string): string | null {
             const which = whichOf(this);
             if (!which) return origProtoGet.call(this, key);
-            const override = runOnGet(String(key), which);
-            if (override !== undefined) return override;
-            return origProtoGet.call(realOf(which)!, key);
+            const target = realOf(which)!;
+            return runGuarded(
+                () => {
+                    const override = runOnGet(String(key), which);
+                    if (override !== undefined) return override;
+                    return origProtoGet.call(target, key);
+                },
+                () => origProtoGet.call(target, key),
+            );
         };
 
         Storage.prototype.removeItem = function patchedRemove(this: Storage, key: string): void {
             const which = whichOf(this);
             if (!which) return origProtoRemove.call(this, key);
             const k = String(key);
-            const { blocked, ctx } = runOnRemove(k, which);
-            emitStorage('remove', which, k, undefined, undefined, ctx.initiator);
-            if (!blocked) origProtoRemove.call(realOf(which)!, k);
+            const target = realOf(which)!;
+            return runGuarded(
+                () => {
+                    const { blocked, ctx } = runOnRemove(k, which);
+                    emitStorage('remove', which, k, undefined, undefined, ctx.initiator);
+                    if (!blocked) origProtoRemove.call(target, k);
+                },
+                () => { origProtoRemove.call(target, k); },
+            );
         };
 
         Storage.prototype.clear = function patchedClear(this: Storage): void {
             const which = whichOf(this);
             if (!which) return origProtoClear.call(this);
-            const { blocked, ctx } = runOnClear(which);
-            emitStorage('clear', which, undefined, undefined, undefined, ctx.initiator);
-            if (!blocked) origProtoClear.call(realOf(which)!);
+            const target = realOf(which)!;
+            return runGuarded(
+                () => {
+                    const { blocked, ctx } = runOnClear(which);
+                    emitStorage('clear', which, undefined, undefined, undefined, ctx.initiator);
+                    if (!blocked) origProtoClear.call(target);
+                },
+                () => { origProtoClear.call(target); },
+            );
         };
 
         restores.push(() => {

@@ -49,6 +49,59 @@ function makeSlot(): ChannelSlot {
 }
 
 let entrySeq = 0;
+
+// ───────────────────────────────────────────────────────────────────
+// Reentry guard
+//
+// When a patched API runs an interceptor or emits an event, the consumer
+// callback may itself touch another (or the same) patched API:
+//   onSet: (k, v) => { localStorage.setItem('echo:' + k, v); }
+//
+// Without protection that becomes an infinite loop. The guard:
+//   - any patched method first checks `isInSandbox()`. If true, it bypasses
+//     interceptors + emits and goes straight to native — the recursive call
+//     STILL functions (legit writes aren't dropped), it just isn't observed.
+//   - on entry it bumps the depth counter; on exit it decrements.
+//
+// One counter per JS thread is enough — single-threaded JS guarantees no
+// concurrent install / dispose / patch invocation.
+// ───────────────────────────────────────────────────────────────────
+
+// Use a globalThis-mounted counter so cross-module-instance sandbox installs
+// (e.g. HMR re-import, accidental dup) share the same depth and don't
+// double-observe each other recursively.
+const GLOBAL_DEPTH_KEY = '__hfeSandboxReentryDepth__';
+interface DepthHolder { [GLOBAL_DEPTH_KEY]?: number }
+function getHolder(): DepthHolder {
+    return (typeof globalThis !== 'undefined' ? globalThis : {}) as DepthHolder;
+}
+
+export function isInSandbox(): boolean {
+    return (getHolder()[GLOBAL_DEPTH_KEY] ?? 0) > 0;
+}
+export function enterSandbox(): void {
+    const h = getHolder();
+    h[GLOBAL_DEPTH_KEY] = (h[GLOBAL_DEPTH_KEY] ?? 0) + 1;
+}
+export function exitSandbox(): void {
+    const h = getHolder();
+    const d = h[GLOBAL_DEPTH_KEY] ?? 0;
+    if (d > 0) h[GLOBAL_DEPTH_KEY] = d - 1;
+}
+
+/**
+ * Run a guarded patched-method body. `fn` is the full "interceptor + emit + native"
+ * sequence; `fallback` runs only the native side-effect (skipping observation).
+ *
+ * Returns whatever `fn` or `fallback` returns. Always restores the depth, even
+ * if either fn or fallback throws.
+ */
+export function runGuarded<T>(fn: () => T, fallback: () => T): T {
+    if (isInSandbox()) return fallback();
+    enterSandbox();
+    try { return fn(); }
+    finally { exitSandbox(); }
+}
 const slots: Record<SandboxChannel, ChannelSlot> = {
     fetch: makeSlot(),
     xhr: makeSlot(),

@@ -15,7 +15,7 @@
 
 import type { NavigationObservation, SandboxCtx } from '../types.js';
 import { captureInitiator } from '../initiator.js';
-import { emit, getChain, registerPatch } from '../chain.js';
+import { emit, getChain, registerPatch, runGuarded } from '../chain.js';
 
 function emitNav(kind: NavigationObservation['kind'], url: string | undefined, state?: unknown, replace?: boolean, initiator?: SandboxCtx['initiator']): void {
     const data: NavigationObservation = { kind, url, state, replace };
@@ -99,29 +99,41 @@ function installNavigationPatch(): () => void {
         const origReplace = History.prototype.replaceState;
 
         History.prototype.pushState = function patchedPush(this: History, state: unknown, _unused: string, url?: string | URL | null): void {
-            try {
-                const urlStr = url == null ? undefined : (typeof url === 'string' ? url : url.toString());
-                const init = captureInitiator();
-                const r = runOnPush(urlStr, state);
-                emitNav('push', r.url, r.state, false, init);
-                if (r.blocked) return;
-                return origPush.call(this, r.state, _unused, r.url ?? null);
-            } catch {
-                return origPush.call(this, state, _unused, url ?? null);
-            }
+            const self = this;
+            return runGuarded(
+                () => {
+                    try {
+                        const urlStr = url == null ? undefined : (typeof url === 'string' ? url : url.toString());
+                        const init = captureInitiator();
+                        const r = runOnPush(urlStr, state);
+                        emitNav('push', r.url, r.state, false, init);
+                        if (r.blocked) return;
+                        return origPush.call(self, r.state, _unused, r.url ?? null);
+                    } catch {
+                        return origPush.call(self, state, _unused, url ?? null);
+                    }
+                },
+                () => origPush.call(self, state, _unused, url ?? null),
+            );
         };
 
         History.prototype.replaceState = function patchedReplace(this: History, state: unknown, _unused: string, url?: string | URL | null): void {
-            try {
-                const urlStr = url == null ? undefined : (typeof url === 'string' ? url : url.toString());
-                const init = captureInitiator();
-                const r = runOnReplace(urlStr, state);
-                emitNav('replace', r.url, r.state, true, init);
-                if (r.blocked) return;
-                return origReplace.call(this, r.state, _unused, r.url ?? null);
-            } catch {
-                return origReplace.call(this, state, _unused, url ?? null);
-            }
+            const self = this;
+            return runGuarded(
+                () => {
+                    try {
+                        const urlStr = url == null ? undefined : (typeof url === 'string' ? url : url.toString());
+                        const init = captureInitiator();
+                        const r = runOnReplace(urlStr, state);
+                        emitNav('replace', r.url, r.state, true, init);
+                        if (r.blocked) return;
+                        return origReplace.call(self, r.state, _unused, r.url ?? null);
+                    } catch {
+                        return origReplace.call(self, state, _unused, url ?? null);
+                    }
+                },
+                () => origReplace.call(self, state, _unused, url ?? null),
+            );
         };
 
         restores.push(() => {

@@ -14,7 +14,7 @@
 
 import type { SandboxCtx, WsObservation } from '../types.js';
 import { captureInitiator } from '../initiator.js';
-import { emit, getChain, registerPatch } from '../chain.js';
+import { emit, enterSandbox, exitSandbox, getChain, isInSandbox, registerPatch } from '../chain.js';
 
 const DEFAULT_BODY_CAP = 256 * 1024;
 const PATCHED_FLAG = '__hfeSandboxWsPatched__';
@@ -201,6 +201,9 @@ function installWsPatch(): () => void {
     // also goes through interceptors (red list #12).
     const origProtoSend = OriginalWS.prototype.send;
     const patchedProtoSend = function send(this: PatchedWs, data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
+        // Re-entrant call (e.g. interceptor wrote back to this WS) → straight through.
+        if (isInSandbox()) return origProtoSend.call(this, data);
+        enterSandbox();
         const id = this[INSTANCE_ID] ?? '?';
         const initiator = captureInitiator();
         try {
@@ -244,6 +247,8 @@ function installWsPatch(): () => void {
         } catch {
             // Anything goes wrong in our wrapper → pass through to original send to preserve business behavior.
             return origProtoSend.call(this, data);
+        } finally {
+            exitSandbox();
         }
     } as typeof origProtoSend;
 

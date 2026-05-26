@@ -16,7 +16,7 @@ import type {
     XhrResObservation,
 } from '../types.js';
 import { captureInitiator } from '../initiator.js';
-import { emit, getChain, registerPatch } from '../chain.js';
+import { emit, enterSandbox, exitSandbox, getChain, isInSandbox, registerPatch } from '../chain.js';
 
 const META_KEY = '__hfeSandboxXhrMeta__';
 const PATCHED_FLAG = '__hfeSandboxXhrPatched__';
@@ -73,6 +73,9 @@ function installXhrPatch(): () => void {
     const patchedSend = function send(this: PatchedXhr, body?: Document | XMLHttpRequestBodyInit | null): void {
         const meta = this[META_KEY];
         if (!meta) return origSend.call(this, body ?? null);
+        if (isInSandbox()) return origSend.call(this, body ?? null);
+        enterSandbox();
+        try {
 
         const reqObs: XhrReqObservation = {
             id: meta.id,
@@ -143,6 +146,9 @@ function installXhrPatch(): () => void {
         this.addEventListener('loadend', onLoadEnd);
 
         return origSend.call(this, body ?? null);
+        } finally {
+            exitSandbox();
+        }
     } as typeof proto.send;
 
     try {

@@ -15,7 +15,7 @@ import type {
     SandboxCtx,
 } from '../types.js';
 import { captureInitiator } from '../initiator.js';
-import { emit, getChain, registerPatch } from '../chain.js';
+import { emit, enterSandbox, exitSandbox, getChain, isInSandbox, registerPatch } from '../chain.js';
 
 const DEFAULT_BODY_CAP = 256 * 1024;
 const PATCHED_FLAG = '__hfeSandboxFetchPatched__';
@@ -101,6 +101,8 @@ function installFetchPatch(): () => void {
         input: RequestInfo | URL,
         init?: RequestInit,
     ): Promise<Response> {
+        // Re-entrant: interceptor / observer triggered another fetch → straight through.
+        if (isInSandbox()) return original.call(window, input as RequestInfo, init);
         // selfUrls denylist (any install opts that set selfUrls should skip)
         const meta = extractMeta(input, init);
         for (const entry of getChain('fetch')) {
@@ -109,6 +111,8 @@ function installFetchPatch(): () => void {
                 return original.call(window, input as RequestInfo, init);
             }
         }
+        enterSandbox();
+        try {
 
         const id = generateId();
         const ts = Date.now();
@@ -173,6 +177,9 @@ function installFetchPatch(): () => void {
         });
 
         return finalRes;
+        } finally {
+            exitSandbox();
+        }
     };
 
     try {

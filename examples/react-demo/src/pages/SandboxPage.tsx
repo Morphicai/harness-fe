@@ -25,13 +25,36 @@ const PROBE_KEYS = ['__hfeSandboxProbe', '__hfeWatchedGlobal', '__hfeBlockedGlob
 export function SandboxPage() {
     const [results, setResults] = useState<CaseResult[]>([]);
     const [events, setEvents] = useState<SandboxEvent[]>([]);
+    const [currentCase, setCurrentCase] = useState<string>('not started');
     const ranRef = useRef(false);
 
+    // ?bare=1 — render absolutely static content, do NOT install sandbox, do NOT run suite.
+    // Used to determine if the freeze is in the page framework (React / vite / router) or in sandbox.
+    const isBare = typeof window !== 'undefined'
+        && new URLSearchParams(window.location.search).get('bare') === '1';
+
     useEffect(() => {
+        if (isBare) return;
         if (ranRef.current) return;
         ranRef.current = true;
-        void runSuite(setResults, setEvents);
-    }, []);
+        const params = new URLSearchParams(window.location.search);
+        const stop = params.has('stop') ? Number(params.get('stop')) : Infinity;
+        const installOnly = params.get('install') === 'only';
+        const noInstall = params.get('install') === 'none';
+        void runSuite(setResults, setEvents, setCurrentCase, { stop, installOnly, noInstall });
+    }, [isBare]);
+
+    if (isBare) {
+        return (
+            <div>
+                <h1>Sandbox (bare mode)</h1>
+                <p>This page renders no sandbox code. If THIS page also freezes, the bug is in the demo framework (React / Vite / Router), not in @harness-fe/sandbox.</p>
+                <div data-testid="bare-ok" style={{ padding: 12, background: '#f0fff4', border: '2px solid #2dd573', borderRadius: 8, fontWeight: 700 }}>
+                    ✓ bare page rendered
+                </div>
+            </div>
+        );
+    }
 
     const summary = {
         total: results.length,
@@ -55,6 +78,7 @@ export function SandboxPage() {
                 data-fail={summary.fail}
                 data-skip={summary.skip}
                 data-total={summary.total}
+                data-current={currentCase}
                 style={{
                     margin: '16px 0',
                     padding: 12,
@@ -70,6 +94,11 @@ export function SandboxPage() {
                 {summary.skip > 0 && `, ${summary.skip} skip`}
                 {' / '}
                 {summary.total} total
+                {currentCase !== 'done' && (
+                    <span style={{ marginLeft: 16, color: '#888', fontWeight: 400 }}>
+                        ▶ running: <code>{currentCase}</code>
+                    </span>
+                )}
             </div>
 
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -126,11 +155,19 @@ export function SandboxPage() {
 async function runSuite(
     setResults: (cb: (prev: CaseResult[]) => CaseResult[]) => void,
     setEvents: (cb: (prev: SandboxEvent[]) => SandboxEvent[]) => void,
+    setCurrentCase: (next: string) => void,
+    opts: { stop: number; installOnly: boolean; noInstall: boolean },
 ): Promise<void> {
     const out: CaseResult[] = [];
     const push = (r: CaseResult): void => {
         out.push(r);
         setResults(() => [...out]);
+        if (out.length >= opts.stop) {
+            // Mark "stopped" so the user knows where binary-search hit.
+            setCurrentCase('STOPPED by ?stop param');
+            // Force never-resolving promise on the next check call.
+            throw new Error('SUITE_STOPPED');
+        }
     };
     const check = (
         id: string,
@@ -139,8 +176,14 @@ async function runSuite(
         getDetails?: () => string,
     ): Promise<void> => {
         return (async () => {
+            setCurrentCase(id);
+            // Yield to React so the "running" indicator paints BEFORE we may freeze.
+            await new Promise((r) => setTimeout(r, 0));
+            const timeout = new Promise<boolean>((_, reject) =>
+                setTimeout(() => reject(new Error(`timeout after 3000ms`)), 3000),
+            );
             try {
-                const ok = await fn();
+                const ok = await Promise.race([Promise.resolve(fn()), timeout]);
                 push({ id, label, status: ok ? 'pass' : 'fail', details: getDetails?.() });
             } catch (err) {
                 push({ id, label, status: 'fail', details: err instanceof Error ? err.message : String(err) });
@@ -160,12 +203,28 @@ async function runSuite(
     try { window.sessionStorage.clear(); } catch { /* ignore */ }
 
     // Install sandbox with a broad observer + per-channel interceptors that
-    // exercise rewrite / block behaviors.
+    // exercise rewrite / block behaviors. NOTE: do NOT push setEvents on every
+    // emit — that causes hundreds of re-renders and freezes the page on a busy
+    // suite. We update setEvents periodically + once at the end.
     const seenEvents: SandboxEvent[] = [];
+    let lastFlush = 0;
+    const flushEvents = (force = false): void => {
+        const now = Date.now();
+        if (!force && now - lastFlush < 200) return;
+        lastFlush = now;
+        setEvents(() => seenEvents.slice(-200));
+    };
+
+    if (opts.noInstall) {
+        push({ id: 'no-install', label: 'mode=install-none — sandbox NOT installed', status: 'pass' });
+        setCurrentCase('done');
+        return;
+    }
+
     const handle = installSandbox({
         onEvent: (e) => {
             seenEvents.push(e);
-            setEvents(() => seenEvents.slice(-200));  // last 200
+            flushEvents();
         },
         storage: {
             onSet: (k, v) => {
@@ -189,6 +248,14 @@ async function runSuite(
             },
         },
     });
+
+    if (opts.installOnly) {
+        push({ id: 'install-only', label: 'mode=install-only — sandbox installed, no tests run', status: 'pass' });
+        setCurrentCase('done');
+        return;
+    }
+
+    try {
 
     // ──────────────────────────────────────────────────────────────
     // identity
@@ -341,6 +408,42 @@ async function runSuite(
     });
 
     // ──────────────────────────────────────────────────────────────
+    // reentry guard
+    // ──────────────────────────────────────────────────────────────
+    await check('reentry-storage-no-loop', 'onSet writing to storage from inside the interceptor does not loop', () => {
+        // Install a second sandbox that nests inside the page's main install.
+        // Inner onSet writes back to storage — without guard this is infinite.
+        let calls = 0;
+        const inner = installSandbox({
+            storage: {
+                onSet: (k, _v) => {
+                    calls++;
+                    if (!k.startsWith('echo:')) {
+                        window.localStorage.setItem(`echo:${k}`, 'X');
+                    }
+                    return undefined;
+                },
+            },
+        });
+        try {
+            window.localStorage.setItem('reentry-root', 'V');
+            return calls === 1
+                && window.localStorage.getItem('reentry-root') === 'V'
+                && window.localStorage.getItem('echo:reentry-root') === 'X';
+        } finally {
+            inner.dispose();
+        }
+    });
+
+    await check('reentry-globalthis', 'reentry depth lives on globalThis (survives cross-module duplicate)', () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const holder = (globalThis as any);
+        // Outside an active install path, depth should be 0 or undefined.
+        return holder['__hfeSandboxReentryDepth__'] === undefined
+            || holder['__hfeSandboxReentryDepth__'] === 0;
+    });
+
+    // ──────────────────────────────────────────────────────────────
     // dispose / cleanup
     // ──────────────────────────────────────────────────────────────
     await check('dispose-restores', 'dispose of last install restores native', () => {
@@ -354,6 +457,19 @@ async function runSuite(
             || (window.fetch as unknown as { __hfeSandboxFetchPatched__?: boolean }).__hfeSandboxFetchPatched__ === true;
         return isWrapped;
     });
+
+        flushEvents(true);
+        setCurrentCase('done');
+    } catch (err) {
+        if (err instanceof Error && err.message === 'SUITE_STOPPED') {
+            // currentCase already set to 'STOPPED by ?stop param' in push()
+            flushEvents(true);
+        } else {
+            push({ id: 'suite-error', label: 'unexpected suite error', status: 'fail', details: err instanceof Error ? err.message : String(err) });
+            flushEvents(true);
+            setCurrentCase('done');
+        }
+    }
 
     // Don't dispose `handle` — leaving installed so users can poke around in dev tools.
     void handle;

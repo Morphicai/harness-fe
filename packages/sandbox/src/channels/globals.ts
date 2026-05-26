@@ -15,7 +15,7 @@
 
 import type { GlobalsObservation, SandboxCtx } from '../types.js';
 import { captureInitiator } from '../initiator.js';
-import { emit, getChain, registerEntryHook, registerPatch, type ChainEntry } from '../chain.js';
+import { emit, enterSandbox, exitSandbox, getChain, isInSandbox, registerEntryHook, registerPatch, type ChainEntry } from '../chain.js';
 
 function emitGlobals(op: GlobalsObservation['op'], key: string, value: unknown, previousValue: unknown, initiator?: SandboxCtx['initiator']): void {
     const data: GlobalsObservation = { op, key, value, previousValue };
@@ -46,10 +46,30 @@ function startWatching(key: string): KeyState | null {
     }
 
     // First-time install for this key — defineProperty.
-    const original = Object.getOwnPropertyDescriptor(window, key);
+    let original = Object.getOwnPropertyDescriptor(window, key);
     if (original && !isConfigurable(original)) {
         // Locked native — degrade silently.
         return null;
+    }
+
+    // If the property already exists as an ACCESSOR (likely a stale install
+    // from a previous module instance after HMR / page reload), defineProperty
+    // on top of it can throw or behave unexpectedly in strict mode. Force-clear
+    // first by redefining to a plain data property, then we have a clean slate.
+    if (original && (original.get || original.set)) {
+        try {
+            // Try to call the existing getter to preserve the perceived value.
+            let prev: unknown;
+            try { prev = original.get?.call(window); } catch { prev = undefined; }
+            Object.defineProperty(window, key, {
+                value: prev,
+                writable: true,
+                enumerable: original.enumerable ?? true,
+                configurable: true,
+            });
+            // Re-read after the cleanup.
+            original = Object.getOwnPropertyDescriptor(window, key);
+        } catch { /* fall through — proceed with what we have */ }
     }
 
     const initialValue: unknown = original?.get
@@ -68,44 +88,47 @@ function startWatching(key: string): KeyState | null {
             configurable: true,
             enumerable: original?.enumerable ?? true,
             get(): unknown {
-                // Walk the chain to allow onGet override.
-                const initiator = captureInitiator();
-                let value: unknown = state!.currentValue;
-
-                // Iterate installed entries (deferred import to avoid circular).
-                const chain = getCurrentChainSnapshot();
-                for (const entry of chain) {
-                    const interceptor = entry.opts.globals;
-                    if (!interceptor?.onGet) continue;
-                    if (!interceptor.watch?.includes(key)) continue;
-                    try {
-                        const r = interceptor.onGet(key, value, makeCtx('get', initiator));
-                        if (r !== undefined) value = r;
-                    } catch { /* skip */ }
-                }
-                emitGlobals('get', key, value, undefined, initiator);
-                return value;
+                if (isInSandbox()) return state!.currentValue;
+                enterSandbox();
+                try {
+                    const initiator = captureInitiator();
+                    let value: unknown = state!.currentValue;
+                    const chain = getCurrentChainSnapshot();
+                    for (const entry of chain) {
+                        const interceptor = entry.opts.globals;
+                        if (!interceptor?.onGet) continue;
+                        if (!interceptor.watch?.includes(key)) continue;
+                        try {
+                            const r = interceptor.onGet(key, value, makeCtx('get', initiator));
+                            if (r !== undefined) value = r;
+                        } catch { /* skip */ }
+                    }
+                    emitGlobals('get', key, value, undefined, initiator);
+                    return value;
+                } finally { exitSandbox(); }
             },
             set(next: unknown): void {
-                const initiator = captureInitiator();
-                const previous = state!.currentValue;
-                let finalValue: unknown = next;
-                let blocked = false;
-
-                const chain = getCurrentChainSnapshot();
-                for (const entry of chain) {
-                    const interceptor = entry.opts.globals;
-                    if (!interceptor?.onSet) continue;
-                    if (!interceptor.watch?.includes(key)) continue;
-                    try {
-                        const r = interceptor.onSet(key, finalValue, makeCtx('set', initiator));
-                        if (r === false) { blocked = true; break; }
-                        if (r !== undefined) finalValue = r;
-                    } catch { /* skip */ }
-                }
-
-                emitGlobals('set', key, finalValue, previous, initiator);
-                if (!blocked) state!.currentValue = finalValue;
+                if (isInSandbox()) { state!.currentValue = next; return; }
+                enterSandbox();
+                try {
+                    const initiator = captureInitiator();
+                    const previous = state!.currentValue;
+                    let finalValue: unknown = next;
+                    let blocked = false;
+                    const chain = getCurrentChainSnapshot();
+                    for (const entry of chain) {
+                        const interceptor = entry.opts.globals;
+                        if (!interceptor?.onSet) continue;
+                        if (!interceptor.watch?.includes(key)) continue;
+                        try {
+                            const r = interceptor.onSet(key, finalValue, makeCtx('set', initiator));
+                            if (r === false) { blocked = true; break; }
+                            if (r !== undefined) finalValue = r;
+                        } catch { /* skip */ }
+                    }
+                    emitGlobals('set', key, finalValue, previous, initiator);
+                    if (!blocked) state!.currentValue = finalValue;
+                } finally { exitSandbox(); }
             },
         });
     } catch {
