@@ -220,7 +220,7 @@ Every captured event carries an `initiator.stack` — a trimmed JS stack at the 
 
 1. `navigation_tail({ kind: 'push' })` → every history.pushState the page made, with the issuing stack.
 2. Distinguish SDK-driven (react-router) vs explicit (`location.assign`) navigations by `kind`.
-3. To block / rewrite in real time: install a custom sandbox interceptor (see "Sandbox extension" below).
+3. Pair with `navigation_wait_for`-style flows if you need to block until a specific route change happens — or use `session_tail({ type: 'navigation' })` for cross-navigate history.
 
 ## Constraints & safety
 
@@ -232,39 +232,11 @@ Every captured event carries an `initiator.stack` — a trimmed JS stack at the 
 | rrweb does NOT mask form fields beyond `<input type=password>`. Don't paste recording slices into untrusted contexts — they may contain tokens, addresses, etc. |
 | When the build plugin is offline (`tab_list` returns empty for a project), source-intelligence tools fail. Ask the user to start `pnpm dev` first. |
 
-## Sandbox extension (advanced)
+## Reading initiator stacks
 
-The runtime's browser-API hijacking lives in [`@harness-fe/sandbox`](../sandbox/README.md) — a standalone lib. You don't have to interact with it directly to use the MCP tools, but two cases benefit from knowing:
+Every event with an `initiator.stack` field (network/storage/ws/navigation/globals/indexeddb writes) gives you the JS call stack at the moment the API was used. The top frames may include framework internals (the runtime's own wrappers); **the meaningful frame is the first one pointing to user-source-code** (look for paths under `src/` or your app's domain).
 
-### When the user asks "can I rewrite/block X in dev?"
-
-Sandbox supports **interceptors** (not just observation). The consuming app can install its own sandbox layer on top of the runtime's and rewrite / block:
-
-```ts
-// In the user's app entry, e.g. src/main.tsx
-import { installSandbox } from '@harness-fe/sandbox';
-installSandbox({
-    fetch: { onRequest: (req) => req.url.includes('/analytics') ? false : undefined },
-    storage: { onSet: (k) => k === 'password' ? false : undefined },
-    navigation: { onAssign: (url) => url.startsWith('//external') ? false : undefined },
-});
-```
-
-Multiple installs nest (onion model). Reentry-safe — interceptor code that touches a patched API won't loop. See the package README for the full API.
-
-### When you spot a `[sandbox]` frame in an initiator stack
-
-Stacks like:
-
-```
-Error
-  at runOnSet                 ← sandbox/channels/storage.js
-  at runGuarded               ← sandbox/chain.js
-  at Proxy.setItem            ← sandbox proxy wrapper
-  at <user code>              ← actual caller
-```
-
-The first 3 frames are sandbox's own infrastructure — trim them when reporting to the user; the meaningful frame is `<user code>`. Don't confuse the sandbox frames with the bug location.
+When reporting "who did X" to the user, quote that frame — not the framework frames.
 
 ## Common gotchas
 

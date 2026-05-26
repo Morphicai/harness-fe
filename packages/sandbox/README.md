@@ -15,6 +15,35 @@ these APIs (micro-frontend base, debug overlay, MorphixAI runtime, etc.).
 pnpm add @harness-fe/sandbox
 ```
 
+## When does it actually hijack?
+
+**Importing the package does NOT touch the page.** It only fills internal
+maps so the lib knows how to install each channel later.
+
+**Patches only engage when `installSandbox(opts)` is called** — and only for
+the channels you enable. Calling `handle.dispose()` unwinds them.
+
+## Selective hijacking
+
+Three opt-in modes, ordered by intent:
+
+```ts
+// 1. Default — engages ALL 9 channels.
+installSandbox({});
+
+// 2. Allowlist — engages ONLY the listed channels; others fully uninstalled.
+installSandbox({ only: ['fetch', 'storage'] });
+
+// 3. Denylist — engages all channels EXCEPT the listed ones.
+installSandbox({ observe: { storage: false, indexeddb: false } });
+```
+
+`only` and `observe` are mutually exclusive; when both are set, `only` wins.
+
+`handle.enabled.X` is a runtime check for which channels are actually patched.
+A `false` value means either you opted out (via `only` / `observe`) OR the
+engine refused to patch (silent graceful degradation, see "Safety properties").
+
 ## 60-second example
 
 ```ts
@@ -104,7 +133,10 @@ interface SandboxOptions {
     globals?: GlobalsInterceptor;
     indexeddb?: IndexedDbInterceptor;
 
-    /** Selectively disable channels. All default to enabled. */
+    /** Allowlist mode: only the listed channels engage. Mutually exclusive with `observe`. */
+    only?: SandboxChannel[];
+
+    /** Denylist mode: all channels default to enabled, listed=false to opt out. */
     observe?: Partial<Record<SandboxChannel, boolean>>;
 
     /** Per-body byte cap for fetch/xhr/ws payloads. Default 256 KB. */
