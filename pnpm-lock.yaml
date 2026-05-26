@@ -69,6 +69,9 @@ importers:
 
   examples/react-demo:
     dependencies:
+      '@harness-fe/sandbox':
+        specifier: workspace:*
+        version: link:../../packages/sandbox
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -410,6 +413,21 @@ importers:
         specifier: 2.0.0-alpha.4
         version: 2.0.0-alpha.4
     devDependencies:
+      happy-dom:
+        specifier: ^20.9.0
+        version: 20.9.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@25.9.1)(happy-dom@20.9.0)(terser@5.47.1)
+
+  packages/sandbox:
+    devDependencies:
+      fake-indexeddb:
+        specifier: ^6.0.0
+        version: 6.2.5
       happy-dom:
         specifier: ^20.9.0
         version: 20.9.0
@@ -3002,6 +3020,10 @@ packages:
 
   extendable-error@0.1.7:
     resolution: {integrity: sha512-UOiS2in6/Q0FK0R0q6UY9vYpQ21mr/Qn1KOnte7vsACuNJf514WvCCUHSRCPcgjPT2bAhNIJdlE6bVap1GKmeg==}
+
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+    engines: {node: '>=18'}
 
   fast-check@3.23.2:
     resolution: {integrity: sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==}
@@ -7306,6 +7328,8 @@ snapshots:
       - supports-color
 
   extendable-error@0.1.7: {}
+
+  fake-indexeddb@6.2.5: {}
 
   fast-check@3.23.2:
     dependencies:
