@@ -27,6 +27,20 @@ import type {
     WsEntry,
 } from '@harness-fe/protocol';
 
+async function rmDirWithRetry(dir: string, attempts = 5): Promise<void> {
+    for (let i = 0; i < attempts; i++) {
+        try {
+            rmSync(dir, { recursive: true, force: true });
+            return;
+        } catch (err) {
+            const code = (err as NodeJS.ErrnoException).code;
+            if (code !== 'ENOTEMPTY' && code !== 'EBUSY' && code !== 'EPERM') throw err;
+            if (i === attempts - 1) throw err;
+            await new Promise((r) => setTimeout(r, 20 * (i + 1)));
+        }
+    }
+}
+
 interface TestEnv {
     bridge: Bridge;
     store: JsonlStore;
@@ -68,8 +82,8 @@ async function setup(): Promise<TestEnv> {
             await client.close();
             await server.close();
             await bridge.stop();
-            store.close();
-            rmSync(dir, { recursive: true, force: true });
+            await store.close();
+            await rmDirWithRetry(dir);
         },
     };
     envs.push(env);
