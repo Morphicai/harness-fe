@@ -284,6 +284,53 @@ describe('storage interceptor', () => {
         (window.localStorage as any).directAssign = 'val';
         expect(seen.find((e) => e.k === 'directAssign')?.v).toBe('val');
     });
+
+    // Regression: Web Storage spec defines value as DOMString and the engine
+    // ToStrings non-string values implicitly. Earlier storagePatch (pre-sandbox)
+    // forwarded raw value into `clip(value).slice(...)` and threw
+    // `TypeError: s.slice is not a function` for number/boolean/object values,
+    // breaking the host page. Pin the implicit ToString contract here.
+    describe('non-string value tolerance (matches native Storage)', () => {
+        it('setItem(key, number) is coerced to string, no throw', () => {
+            handle = installSandbox();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            expect(() => window.localStorage.setItem('n', 12345 as any)).not.toThrow();
+            expect(window.localStorage.getItem('n')).toBe('12345');
+        });
+
+        it('setItem(key, boolean) is coerced to string', () => {
+            handle = installSandbox();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            window.localStorage.setItem('b', true as any);
+            expect(window.localStorage.getItem('b')).toBe('true');
+        });
+
+        it('setItem(key, object) is coerced via String() like native', () => {
+            handle = installSandbox();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            window.localStorage.setItem('o', { a: 1 } as any);
+            expect(window.localStorage.getItem('o')).toBe('[object Object]');
+        });
+
+        it('onSet hook receives coerced string value', () => {
+            const seen: string[] = [];
+            handle = installSandbox({
+                storage: { onSet: (_k, v) => { seen.push(v); return undefined; } },
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            window.localStorage.setItem('ts', Date.now() as any);
+            expect(seen[0]).toMatch(/^\d+$/);
+        });
+
+        it('proto.setItem.call with non-string value also coerced (no .slice TypeError)', () => {
+            handle = installSandbox();
+            expect(() => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                Storage.prototype.setItem.call(window.localStorage, 'pn', 42 as any);
+            }).not.toThrow();
+            expect(window.localStorage.getItem('pn')).toBe('42');
+        });
+    });
 });
 
 // ────────────────────────────────────────────────────────────────────

@@ -20,6 +20,13 @@ import { addEntry, removeEntry, isChannelEnabled, ALL_CHANNELS, type ChainEntry 
 import type { SandboxChannel, SandboxHandle, SandboxOptions } from './types.js';
 
 function enabledChannelsFromOpts(opts: SandboxOptions): SandboxChannel[] {
+    // `only` is an explicit allowlist — when set, ONLY those channels engage.
+    // Everything else stays fully uninstalled (patches never run).
+    if (opts.only && opts.only.length > 0) {
+        const set = new Set(opts.only);
+        return ALL_CHANNELS.filter((c) => set.has(c));
+    }
+    // Otherwise: default-all-enabled, with `observe[c] === false` opting out.
     const observe = opts.observe ?? {};
     return ALL_CHANNELS.filter((c) => observe[c] !== false);
 }

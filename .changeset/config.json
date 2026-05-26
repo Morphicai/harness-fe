@@ -12,6 +12,7 @@
       "@harness-fe/next",
       "@harness-fe/log",
       "@harness-fe/react-jsx",
+      "@harness-fe/sandbox",
       "@harness-fe/vite",
       "@harness-fe/webpack",
       "@harness-fe/unplugin"
