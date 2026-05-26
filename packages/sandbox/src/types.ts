@@ -267,7 +267,22 @@ export interface SandboxOptions {
     globals?: GlobalsInterceptor;
     indexeddb?: IndexedDbInterceptor;
 
-    /** Selectively disable channels. All default to enabled. */
+    /**
+     * Allowlist of channels to enable. When set, ALL channels NOT in the list
+     * stay completely uninstalled — their patches are never even applied to
+     * the page. This is the "I only need fetch" mode.
+     *
+     * Mutually exclusive with `observe`: when both are set, `only` wins and
+     * `observe` is ignored.
+     */
+    only?: SandboxChannel[];
+
+    /**
+     * Selectively disable channels. All default to enabled. Use this as a
+     * denylist when you want most channels but specifically NOT one or two.
+     *
+     * Example: `observe: { storage: false }` enables 8 channels, skips storage.
+     */
     observe?: Partial<Record<SandboxChannel, boolean>>;
 
     /** Per-body byte cap for fetch/xhr/ws payloads. Default 256 KB. */

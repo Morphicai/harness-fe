@@ -73,11 +73,32 @@ Key invariants you can rely on:
 
 ### Telemetry tail
 
-| Tool | What you get |
+Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: number` for the last-N pagination, plus channel-specific narrows. Buffers are in-memory per page-load — for cross-navigate history use `session_tail({ type: 'X' })`.
+
+| Tool | What you get | Narrows |
+|---|---|---|
+| `console_tail` | console.log / .info / .warn / .error / .debug | `level` |
+| `network_tail` | fetch + XHR req/res entries with `initiator.stack` (who issued the call), keyed by `id` | `urlContains`, `method`, `statusCode` |
+| `ws_tail` | WebSocket frames: open / send / recv / close, with `initiator.stack` on send + binary payload size markers | `phase` |
+| `storage_tail` | localStorage / sessionStorage / cookie mutations with `initiator.stack` and `crossTab` flag | `which` (local/session/cookie), `op` (set/remove/clear), `key` |
+| `navigation_tail` | history.pushState / replaceState / popstate / hashchange / location.assign etc. | `kind` (push/replace/pop/hash/assign) |
+| `globals_tail` | reads/writes to watched `window.X` keys (only fires for keys registered in `globals.watch` at install) | `op` (get/set/delete), `key` |
+| `indexeddb_tail` | IDB ops: open / put / add / get / getAll / delete / clear / cursor | `op`, `store`, `db` |
+| `errors_tail` | Uncaught errors + unhandled promise rejections | — |
+
+### Targeted fetch / single entry
+
+| Tool | Use case |
 |---|---|
-| `console_tail` | Recent console.log / .error from the page |
-| `network_tail` | Recent fetch / XHR requests + responses |
-| `errors_tail` | Uncaught errors + unhandled promise rejections |
+| `network_get({ reqId })` | Pull a single request's full body when `network_tail` truncated it |
+| `ws_get({ wsId })` | All frames (open/send/recv/close) for one WebSocket id |
+
+### Wait for the page to do something
+
+| Tool | Use case |
+|---|---|
+| `network_wait_for({ urlContains, method?, statusCode?, timeoutMs })` | Block until a matching request happens. Anchored on call-time, so a pre-existing matching request does NOT satisfy. |
+| `network_wait_for_idle({ idleMs, timeoutMs })` | Block until `idleMs` elapses with no new network entry — analogous to Playwright `networkidle` |
 
 ### Replay & forensics
 
@@ -113,7 +134,8 @@ Key invariants you can rely on:
 |---|---|
 | `visitor.list({ projectId?, limit? })` | All visitors the daemon has seen, newest activity first |
 | `visitor.get(visitorId)` | One visitor's metadata: firstSeenAt / lastSeenAt / sessionCount / projectIds / **lastEnv** (UA, language, timezone, viewport, colorScheme) |
-| `visitor.journey({ visitorId, limit? })` | Chronological sessions for this visitor — answer "what did this person actually do?" |
+| `visitor.journey({ visitorId, limit? })` | Chronological **sessions** for this visitor — high-level "what did this person actually do?" |
+| **`visitor.timeline({ visitorId, types?, tabIds?, sessionIds?, since?, until?, limit? })`** | Chronological **events** merged across ALL sessions / tabs of this visitor. Each event carries `tab` + `sessionId`. Use this for cross-tab causality: "a ws.recv in tab A → storage.remove in tab B 3s later" |
 
 ### Server-side capture (Next.js, role = `node-runtime`)
 
@@ -179,6 +201,27 @@ change class names or DOM structure.
 2. `session_recordings_around({ ts })` → pull the rrweb window.
 3. `session_replay_create` → URL the user can open in browser.
 
+### Flow 5: "Who deleted my login token?" / "Who issued this fetch?"
+
+Every captured event carries an `initiator.stack` — a trimmed JS stack at the call site. Use it to attribute the action to a source file.
+
+1. `storage_tail({ op: 'remove', key: 'Tanka_tokenInfo' })` → see when the token was removed and the calling stack.
+2. The stack's first user-code frame names the file + line. `project_source({ file })` to read the offender.
+3. Same approach works for `network_tail` (who issued the request) and `ws_tail` (who opened / sent).
+
+### Flow 6: Cross-tab bug ("opening tab B kicks me out of tab A")
+
+1. `tab_list` → confirm both tabs are connected, find the `tabId`s.
+2. `visitor.get` of either tab's session → grab the shared `visitorId`.
+3. **`visitor.timeline({ visitorId, types: ['ws', 'storage', 'navigation'] })`** → merged timeline across BOTH tabs, each event tagged with its `tab`.
+4. Sequence: e.g. `ws.recv {kind:'kick'} in tab-A → storage.remove 'token' in tab-B → navigation.assign '/login' in tab-B`. One call, full causality.
+
+### Flow 7: Track SPA route changes
+
+1. `navigation_tail({ kind: 'push' })` → every history.pushState the page made, with the issuing stack.
+2. Distinguish SDK-driven (react-router) vs explicit (`location.assign`) navigations by `kind`.
+3. Pair with `navigation_wait_for`-style flows if you need to block until a specific route change happens — or use `session_tail({ type: 'navigation' })` for cross-navigate history.
+
 ## Constraints & safety
 
 | | |
@@ -188,6 +231,12 @@ change class names or DOM structure.
 | The store at `~/.harness/` auto-purges (1h interval) but can still hold sensitive data. If the user is on a multi-user machine, treat the daemon's data as confidential. |
 | rrweb does NOT mask form fields beyond `<input type=password>`. Don't paste recording slices into untrusted contexts — they may contain tokens, addresses, etc. |
 | When the build plugin is offline (`tab_list` returns empty for a project), source-intelligence tools fail. Ask the user to start `pnpm dev` first. |
+
+## Reading initiator stacks
+
+Every event with an `initiator.stack` field (network/storage/ws/navigation/globals/indexeddb writes) gives you the JS call stack at the moment the API was used. The top frames may include framework internals (the runtime's own wrappers); **the meaningful frame is the first one pointing to user-source-code** (look for paths under `src/` or your app's domain).
+
+When reporting "who did X" to the user, quote that frame — not the framework frames.
 
 ## Common gotchas
 

@@ -49,6 +49,38 @@ describe('installSandbox smoke', () => {
         b.dispose();
     });
 
+    it('only=["fetch"] enables ONLY fetch — others stay completely uninstalled', () => {
+        const handle = installSandbox({ only: ['fetch'] });
+        expect(handle.enabled.fetch).toBe(true);
+        expect(handle.enabled.storage).toBe(false);
+        expect(handle.enabled.ws).toBe(false);
+        expect(handle.enabled.console).toBe(false);
+        expect(handle.enabled.errors).toBe(false);
+        expect(handle.enabled.xhr).toBe(false);
+        expect(handle.enabled.navigation).toBe(false);
+        expect(handle.enabled.globals).toBe(false);
+        expect(handle.enabled.indexeddb).toBe(false);
+        handle.dispose();
+    });
+
+    it('only and observe are mutually exclusive — only wins', () => {
+        const handle = installSandbox({
+            only: ['storage'],
+            observe: { storage: false, fetch: true },  // both contradicted by `only`
+        });
+        expect(handle.enabled.storage).toBe(true);
+        expect(handle.enabled.fetch).toBe(false);
+        handle.dispose();
+    });
+
+    it('observe={storage:false} as denylist — others still on', () => {
+        const handle = installSandbox({ observe: { storage: false } });
+        expect(handle.enabled.storage).toBe(false);
+        expect(handle.enabled.fetch).toBe(true);
+        expect(handle.enabled.ws).toBe(true);
+        handle.dispose();
+    });
+
     it('pause / resume toggles event delivery without unpatching', () => {
         const events: unknown[] = [];
         const handle = installSandbox({ onEvent: (e) => events.push(e) });
