@@ -506,6 +506,78 @@ function registerTools(server: McpServer, bridge: IBridge): void {
     );
 
     server.registerTool(
+        COMMAND.NAVIGATION_TAIL,
+        {
+            description:
+                'Return the last N navigation events captured by the runtime: history.pushState / replaceState, popstate, hashchange, and location.href / location.hash / location.assign() / location.replace(). Each entry has `kind`, `url`, `replace`, and an `initiator.stack` for interceptable kinds. Filter via `filter` (against {kind, url, replace}) or narrow with `kind`. Buffer is in-memory and cleared on navigate — use `session.tail` (type=["navigation"]) for cross-navigate history.',
+            inputSchema: {
+                n: z.number().int().positive().default(20).optional(),
+                filter: filterParam,
+                match: matchParam,
+                kind: z.enum(['push', 'replace', 'pop', 'hash', 'assign']).optional(),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ n, filter, match, kind, tabId }) => {
+            const out = await bridge.sendCommand(
+                COMMAND.NAVIGATION_TAIL,
+                { n: n ?? 20, filter, match, kind },
+                { tabId },
+            );
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.GLOBALS_TAIL,
+        {
+            description:
+                'Return the last N read/writes to watched window globals. Only fires for keys registered via the install opts `globals.watch` list — global pollution detection or app-state debugging. Each entry has op=get|set|delete, key, value, previousValue (on set), and initiator.stack. Filter via `filter` or narrow with `op` / `key`. Buffer is in-memory; cross-navigate use `session.tail` (type=["globals"]).',
+            inputSchema: {
+                n: z.number().int().positive().default(20).optional(),
+                filter: filterParam,
+                match: matchParam,
+                op: z.enum(['get', 'set', 'delete']).optional(),
+                key: z.string().optional().describe('Exact window key match.'),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ n, filter, match, op, key, tabId }) => {
+            const out = await bridge.sendCommand(
+                COMMAND.GLOBALS_TAIL,
+                { n: n ?? 20, filter, match, op, key },
+                { tabId },
+            );
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
+        COMMAND.INDEXEDDB_TAIL,
+        {
+            description:
+                'Return the last N IndexedDB operations: open / put / add / get / getAll / delete / clear / cursor. Each entry has `op`, `store`, `key`, `value`, `db`, `version`, `success` and `initiator.stack`. Useful for tracking who reads/writes which IDB store key. Filter via `filter` (against {op, store, key}) or narrow with `op` / `store` / `db`. Buffer is in-memory; cross-navigate use `session.tail` (type=["indexeddb"]).',
+            inputSchema: {
+                n: z.number().int().positive().default(20).optional(),
+                filter: filterParam,
+                match: matchParam,
+                op: z.enum(['open', 'put', 'add', 'get', 'getAll', 'delete', 'clear', 'cursor']).optional(),
+                store: z.string().optional().describe('Exact object-store name.'),
+                db: z.string().optional().describe('Exact database name (open events only).'),
+                tabId: tabIdParam,
+            },
+        },
+        async ({ n, filter, match, op, store, db, tabId }) => {
+            const out = await bridge.sendCommand(
+                COMMAND.INDEXEDDB_TAIL,
+                { n: n ?? 20, filter, match, op, store, db },
+                { tabId },
+            );
+            return ok(out);
+        },
+    );
+
+    server.registerTool(
         COMMAND.TAB_LIST,
         {
             description: 'List all currently connected browser tabs.',

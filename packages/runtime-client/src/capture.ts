@@ -22,6 +22,9 @@ import type {
     NetworkEntry,
     WsEntry,
     StorageEntry,
+    NavigationEntry,
+    GlobalsEntry,
+    IndexedDbEntry,
 } from '@harness-fe/protocol';
 import {
     installSandbox,
@@ -33,6 +36,9 @@ import {
     type StorageObservation,
     type ConsoleObservation,
     type ErrorObservation,
+    type NavigationObservation,
+    type GlobalsObservation,
+    type IndexedDbObservation,
 } from '@harness-fe/sandbox';
 import { RingBuffer } from './buffer.js';
 
@@ -41,6 +47,9 @@ const NETWORK_CAP = 200;
 const ERROR_CAP = 200;
 const WS_CAP = 200;
 const STORAGE_CAP = 200;
+const NAVIGATION_CAP = 100;
+const GLOBALS_CAP = 200;
+const INDEXEDDB_CAP = 200;
 
 export class CaptureStore {
     readonly console = new RingBuffer<ConsoleEntry>(CONSOLE_CAP);
@@ -48,6 +57,9 @@ export class CaptureStore {
     readonly errors = new RingBuffer<ErrorEntry>(ERROR_CAP);
     readonly ws = new RingBuffer<WsEntry>(WS_CAP);
     readonly storage = new RingBuffer<StorageEntry>(STORAGE_CAP);
+    readonly navigation = new RingBuffer<NavigationEntry>(NAVIGATION_CAP);
+    readonly globals = new RingBuffer<GlobalsEntry>(GLOBALS_CAP);
+    readonly indexeddb = new RingBuffer<IndexedDbEntry>(INDEXEDDB_CAP);
 
     private handle?: SandboxHandle;
 
@@ -104,16 +116,21 @@ export class CaptureStore {
                 return;
             }
             case 'navigation': {
-                // No dedicated ring buffer yet — forward raw shape so the
-                // daemon records it under t='navigation' for `session.tail`.
-                onEvent('navigation', e.data);
+                const entry = adaptNavigation(e);
+                this.navigation.push(entry);
+                onEvent('navigation', entry);
                 return;
             }
-            case 'globals':
+            case 'globals': {
+                const entry = adaptGlobals(e);
+                this.globals.push(entry);
+                onEvent('globals', entry);
+                return;
+            }
             case 'indexeddb': {
-                // Pass-through. The daemon stores under t=source for
-                // session.tail; no runtime-side ring buffer (no tail tool).
-                onEvent(e.source, e.data);
+                const entry = adaptIndexedDb(e);
+                this.indexeddb.push(entry);
+                onEvent('indexeddb', entry);
                 return;
             }
         }
@@ -211,5 +228,45 @@ function adaptError(e: SandboxEvent & { source: 'errors' }): ErrorEntry {
         message: d.message,
         stack: d.stack,
         source: d.source,
+    };
+}
+
+function adaptNavigation(e: SandboxEvent & { source: 'navigation' }): NavigationEntry {
+    const d = e.data as NavigationObservation;
+    return {
+        ts: e.ts,
+        kind: d.kind,
+        url: d.url,
+        state: d.state,
+        replace: d.replace,
+        initiator: e.initiator,
+    };
+}
+
+function adaptGlobals(e: SandboxEvent & { source: 'globals' }): GlobalsEntry {
+    const d = e.data as GlobalsObservation;
+    return {
+        ts: e.ts,
+        op: d.op,
+        key: d.key,
+        value: d.value,
+        previousValue: d.previousValue,
+        initiator: e.initiator,
+    };
+}
+
+function adaptIndexedDb(e: SandboxEvent & { source: 'indexeddb' }): IndexedDbEntry {
+    const d = e.data as IndexedDbObservation;
+    return {
+        ts: e.ts,
+        op: d.op,
+        db: d.db,
+        version: d.version,
+        store: d.store,
+        key: d.key,
+        value: d.value,
+        success: d.success,
+        error: d.error,
+        initiator: e.initiator,
     };
 }
