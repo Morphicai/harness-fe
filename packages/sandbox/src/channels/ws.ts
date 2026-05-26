@@ -203,8 +203,13 @@ function installWsPatch(): () => void {
     const patchedProtoSend = function send(this: PatchedWs, data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
         // Re-entrant call (e.g. interceptor wrote back to this WS) → straight through.
         if (isInSandbox()) return origProtoSend.call(this, data);
+        // Denylisted instances never get an INSTANCE_ID — they bypassed the
+        // wrapping path entirely at construction. Skip prototype-level
+        // observation too, otherwise the daemon connection's sends get
+        // captured (defeats selfUrls).
+        if (!this[INSTANCE_ID]) return origProtoSend.call(this, data);
         enterSandbox();
-        const id = this[INSTANCE_ID] ?? '?';
+        const id = this[INSTANCE_ID];
         const initiator = captureInitiator();
         try {
             const { payload, truncated } = serializeFrame(data, bodyCap);

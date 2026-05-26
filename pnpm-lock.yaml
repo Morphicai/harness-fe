@@ -406,6 +406,9 @@ importers:
       '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@harness-fe/sandbox':
+        specifier: workspace:^
+        version: link:../sandbox
       '@zumer/snapdom':
         specifier: ^2.12.0
         version: 2.12.0
