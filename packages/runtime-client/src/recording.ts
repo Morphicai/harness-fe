@@ -5,6 +5,29 @@ export { RRWEB_FULL_SNAPSHOT_TYPE, chunkHasFullSnapshot } from './rrweb-types.js
 
 const FLUSH_MS = 5_000;
 const MAX_EVENTS = 200;
+// Default periodic-baseline cadence. Long-running sessions otherwise rely on
+// a single FullSnapshot at start() + one per ws reconnect, which makes
+// mid-session window replays expensive (rrweb has to roll forward all
+// incremental events back to the original baseline) and leaves a window of
+// vulnerability if the original baseline is ever evicted from the outbox.
+// 30 min is a deliberate middle ground: ~16 baselines per 8h session at
+// ~500KB each ≈ 8MB extra storage, which is acceptable for a dev tool.
+const DEFAULT_CHECKOUT_EVERY_MS = 30 * 60 * 1000;
+
+export interface RrwebRecorderOptions {
+    /**
+     * Force rrweb to emit a fresh FullSnapshot every N milliseconds. Caps how
+     * stale the most recent baseline can be, so window replays mid-session
+     * don't have to roll forward from a baseline that's potentially hours old.
+     *
+     * Set to `0` (or a negative number) to disable periodic baselines and
+     * rely solely on the start() baseline + reconnect baselines. Useful for
+     * extremely bandwidth-constrained deployments.
+     *
+     * @default 30 * 60 * 1000  (30 minutes)
+     */
+    checkoutEveryNms?: number;
+}
 
 export class RrwebRecorder {
     private stopRecording?: () => void;
@@ -12,16 +35,23 @@ export class RrwebRecorder {
     private chunkSeq = 0;
     private buffer: unknown[] = [];
 
-    constructor(private readonly onChunk: (chunk: RrwebChunkPayload) => void) {}
+    constructor(
+        private readonly onChunk: (chunk: RrwebChunkPayload) => void,
+        private readonly opts: RrwebRecorderOptions = {},
+    ) {}
 
     start(): void {
         if (this.stopRecording) return;
+        const checkoutEveryNms = this.opts.checkoutEveryNms ?? DEFAULT_CHECKOUT_EVERY_MS;
+        // rrweb interprets `checkoutEveryNms` falsy / undefined as "off".
+        // Pass undefined when disabled so we get the native off-path.
         this.stopRecording = record({
             emit: (event: unknown) => this.push(event),
             inlineImages: false,
             recordCanvas: false,
             collectFonts: false,
             maskAllInputs: false,
+            checkoutEveryNms: checkoutEveryNms > 0 ? checkoutEveryNms : undefined,
         });
         this.flushTimer = window.setInterval(() => this.flush(), FLUSH_MS);
     }

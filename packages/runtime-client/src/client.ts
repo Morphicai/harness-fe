@@ -53,6 +53,13 @@ export interface ClientOptions {
      * by visitorId). Propagated by HarnessScript via window.__HARNESS_FE__.userId.
      */
     userId?: string;
+    /**
+     * How often (in ms) rrweb should emit a fresh FullSnapshot baseline.
+     * Defaults to 30 minutes. Set to 0 to disable periodic baselines (the
+     * recorder still emits one at start() and one per ws reconnect).
+     * See {@link RrwebRecorderOptions.checkoutEveryNms} for the trade-off.
+     */
+    rrwebCheckoutEveryNms?: number;
 }
 
 const TAB_ID_KEY = '__hfe_tab_id__';
@@ -137,7 +144,10 @@ export class RuntimeClient {
     }
     private pageLoadSent = false;
     private readonly ctx: CommandContext = { capture: getCaptureStore() };
-    private readonly recorder = new RrwebRecorder((chunk) => this.sendEvent(EVENT_NAME.RRWEB, chunk));
+    // Initialized in constructor (parameter property `opts` isn't readable at
+    // class-field-initializer time — field initializers run before parameter
+    // property assignment).
+    private readonly recorder: RrwebRecorder;
     private reconnectAttempts = 0;
     private closed = false;
     private static readonly MAX_OUTBOX_FRAMES = 500;
@@ -159,6 +169,10 @@ export class RuntimeClient {
         const inheritedVisitor = tryInheritVisitorFromParent();
         this.visitorId = inheritedVisitor ?? getOrCreateVisitorId();
         publishVisitorIdToWindow(this.visitorId);
+        this.recorder = new RrwebRecorder(
+            (chunk) => this.sendEvent(EVENT_NAME.RRWEB, chunk),
+            { checkoutEveryNms: opts.rrwebCheckoutEveryNms },
+        );
     }
 
 
