@@ -46,10 +46,13 @@ function extractMeta(input: RequestInfo | URL, init?: RequestInit): {
     if (init?.headers) {
         const h = init.headers;
         if (h instanceof Headers) h.forEach((v, k) => { headers[k] = v; });
-        else if (Array.isArray(h)) for (const [k, v] of h) headers[k] = v;
-        else for (const k of Object.keys(h)) headers[k] = (h as Record<string, string>)[k];
+        else if (Array.isArray(h)) for (const [k, v] of h) headers[k] = String(v);
+        else for (const k of Object.keys(h)) headers[k] = String((h as Record<string, unknown>)[k]);
     }
-    return { method: method.toUpperCase(), url, headers };
+    // Match native fetch's ByteString coercion: non-string method (e.g.
+    // accidental `method: someNumber`) must not crash our wrapper. Native
+    // fetch ToStrings it; we do the same before .toUpperCase().
+    return { method: String(method).toUpperCase(), url, headers };
 }
 
 async function runRequestChain(

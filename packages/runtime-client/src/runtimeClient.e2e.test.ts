@@ -42,6 +42,20 @@ interface Env {
 
 let env: Env | undefined;
 
+async function rmDirWithRetry(dir: string, attempts = 5): Promise<void> {
+    for (let i = 0; i < attempts; i++) {
+        try {
+            rmSync(dir, { recursive: true, force: true });
+            return;
+        } catch (err) {
+            const code = (err as NodeJS.ErrnoException).code;
+            if (code !== 'ENOTEMPTY' && code !== 'EBUSY' && code !== 'EPERM') throw err;
+            if (i === attempts - 1) throw err;
+            await new Promise((r) => setTimeout(r, 20 * (i + 1)));
+        }
+    }
+}
+
 async function setup(): Promise<Env> {
     const dir = mkdtempSync(join(tmpdir(), 'harness-rt-e2e-'));
     const store = new JsonlStore(dir);
@@ -85,8 +99,12 @@ afterEach(async () => {
     if (!env) return;
     env.client.stop();
     await env.bridge.stop();
-    env.store.close();
-    rmSync(env.dir, { recursive: true, force: true });
+    // close() drains the async write queue — must await, else rmSync races
+    // file writes and the dir-recursive-rm trips ENOTEMPTY on Linux CI.
+    await env.store.close();
+    // Even after drain, Node's directory cache can lag by a tick on Linux —
+    // retry-with-backoff handles the residual race deterministically.
+    await rmDirWithRetry(env.dir);
     // Reset capture singleton so subsequent tests get a clean install.
     const cap = getCaptureStore();
     cap.dispose();

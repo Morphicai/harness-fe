@@ -52,12 +52,26 @@ async function setup(): Promise<TestEnv> {
     return env;
 }
 
+async function rmDirWithRetry(dir: string, attempts = 5): Promise<void> {
+    for (let i = 0; i < attempts; i++) {
+        try {
+            rmSync(dir, { recursive: true, force: true });
+            return;
+        } catch (err) {
+            const code = (err as NodeJS.ErrnoException).code;
+            if (code !== 'ENOTEMPTY' && code !== 'EBUSY' && code !== 'EPERM') throw err;
+            if (i === attempts - 1) throw err;
+            await new Promise((r) => setTimeout(r, 20 * (i + 1)));
+        }
+    }
+}
+
 afterEach(async () => {
     while (envs.length > 0) {
         const env = envs.pop()!;
         await env.bridge.stop();
-        env.store.close();
-        rmSync(env.dir, { recursive: true, force: true });
+        await env.store.close();
+        await rmDirWithRetry(env.dir);
     }
 });
 

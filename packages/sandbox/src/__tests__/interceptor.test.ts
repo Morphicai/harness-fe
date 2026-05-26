@@ -148,6 +148,33 @@ describe('fetch interceptor', () => {
         await window.fetch('https://api.test/');
         expect(phase).toBe('after-onRequest');
     });
+
+    // Regression: native fetch ByteString-coerces init.method, so business
+    // code occasionally passes non-string values. Our extractMeta did
+    // `method.toUpperCase()` raw which would TypeError on number / object,
+    // turning a working native call into a rejected Promise.
+    it('non-string init.method does not crash extractMeta', async () => {
+        stubFetch(async () => new Response(''));
+        handle = installSandbox();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await expect(window.fetch('https://api.test/', { method: 42 as any })).resolves.toBeInstanceOf(Response);
+    });
+
+    it('non-string header value coerced (no crash on { x-count: 42 })', async () => {
+        let capturedInit: RequestInit | undefined;
+        stubFetch(async (_i, init) => { capturedInit = init; return new Response(''); });
+        const observed: Record<string, string>[] = [];
+        handle = installSandbox({
+            fetch: { onRequest: (req) => { observed.push(req.headers); return req; } },
+        });
+        await window.fetch('https://api.test/', {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            headers: { 'x-count': 42 as any },
+        });
+        expect(observed[0]?.['x-count']).toBe('42');
+        // Original init still passed through untouched to the native fetch.
+        expect(capturedInit).toBeDefined();
+    });
 });
 
 // ────────────────────────────────────────────────────────────────────
