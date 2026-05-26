@@ -208,7 +208,8 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 |---------|-------------|
 | [`@harness-fe/protocol`](./packages/protocol) | Shared types, Zod schemas, message + wire definitions |
 | [`@harness-fe/mcp-server`](./packages/mcp-server) | MCP daemon — WS bridge + HTTP `POST /events` for Edge + dashboard + replay viewer |
-| [`@harness-fe/runtime`](./packages/runtime-client) | Browser SDK — capture, rrweb, overlay, "Report a problem", "My reports" |
+| [`@harness-fe/sandbox`](./packages/sandbox) | Standalone browser sandbox + interceptor lib (`fetch` / `xhr` / `ws` / `storage` / `navigation` / `globals` / `indexeddb` / `console` / `errors`). Used by `@harness-fe/runtime`; also consumable directly |
+| [`@harness-fe/runtime`](./packages/runtime-client) | Browser SDK — capture(via `@harness-fe/sandbox`), rrweb, overlay, "Report a problem", "My reports" |
 | [`@harness-fe/node-runtime`](./packages/node-runtime) | Node SDK — Server Component / Route Handler / uncaught error capture. Dual transport: WS in Node runtime, HTTP-batch in Edge runtime |
 | [`@harness-fe/next`](./packages/next) | Next.js integration — `<HarnessScript>` server component, `withHarness()` next-config wrapper |
 | [`@harness-fe/log`](./packages/log) | Isomorphic structured logger — same `log.info/warn/error` works in Server Components, Route Handlers, and Client Components; same `sessionId` everywhere |
@@ -222,6 +223,7 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 
 - [**VISION.md**](./VISION.md) — Why this project exists; the three deployment directions that drive the roadmap
 - [**ARCHITECTURE.md**](./ARCHITECTURE.md) — Package responsibilities, data flow diagrams, sessionId resolution chain, and protocol reference
+- [**docs/architecture/sandbox.md**](./docs/architecture/sandbox.md) — The `@harness-fe/sandbox` lib (browser API patching + interceptor middleware) — design + safety contract + 9-channel matrix
 - [**ROADMAP.md**](./ROADMAP.md) — Milestones, organised by mission direction
 - [**docs/troubleshooting.md**](./docs/troubleshooting.md) — Events not showing? sessionId mismatch? Where do timeline files live? Start here
 - [**CONTRIBUTING.md**](./CONTRIBUTING.md) — Development setup, commit conventions, and PR process
