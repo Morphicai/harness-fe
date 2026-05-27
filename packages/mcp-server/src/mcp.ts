@@ -34,6 +34,38 @@ import { openBrowser } from './openBrowser.js';
 import { buildDashboardUrl } from './dashboardUrl.js';
 
 const SERVER_NAME = 'harness-fe';
+
+export interface McpServerOptions {
+    /**
+     * Name of the environment variable that gates experimental tools.
+     *
+     * **Omit it (the default) and experimental tools are fully on** — no env
+     * var needed, lowest mental burden. Only supply a name when you *don't*
+     * want them unconditionally on: the tools then show up only if that env
+     * var is set to a non-empty value at server-construction time.
+     */
+    experimentalEnvVar?: string;
+}
+
+/**
+ * Experimental-feature gate.
+ *
+ * Default (no `envVar`): **fully enabled**. Experimental tools are registered
+ * unconditionally, so a plain dev setup gets them with zero config.
+ *
+ * Gated (an `envVar` name supplied): enabled only when that env var is set on
+ * the machine running the daemon. *Presence* enables — any non-empty value
+ * (after trimming) counts as "on"; unset or empty means off. There's
+ * deliberately no required magic value, so `=1`, `=true`, `=yes` all work.
+ */
+export function experimentalEnabled(envVar?: string): boolean {
+    // No gate configured → fully on.
+    if (envVar == null || envVar.trim() === '') return true;
+    // Gated → on only when the named env var carries a non-empty value.
+    const raw = process.env[envVar];
+    return typeof raw === 'string' && raw.trim() !== '';
+}
+
 const tabIdParam = z
     .string()
     .optional()
@@ -43,13 +75,19 @@ const tabIdParam = z
  * Build an McpServer with every harness-fe tool registered for the given
  * bridge. Transport (stdio / HTTP) is attached separately.
  */
-export function createMcpServer(bridge: IBridge): McpServer {
+export function createMcpServer(bridge: IBridge, options: McpServerOptions = {}): McpServer {
     const server = new McpServer({
         name: SERVER_NAME,
         version: PROTOCOL_VERSION,
     });
 
     registerTools(server, bridge);
+
+    // Experimental tools are on by default. They only get gated when the host
+    // supplies an env-var name to key off; see experimentalEnabled().
+    if (experimentalEnabled(options.experimentalEnvVar)) {
+        registerExperimentalTools(server, bridge);
+    }
 
     // Register store tools for both leader (direct store access) and follower
     // (proxied via RemoteBridge → mcp.call channel to the leader).
@@ -64,8 +102,11 @@ export function createMcpServer(bridge: IBridge): McpServer {
     return server;
 }
 
-export async function startMcpStdioServer(bridge: IBridge): Promise<McpServer> {
-    const server = createMcpServer(bridge);
+export async function startMcpStdioServer(
+    bridge: IBridge,
+    options: McpServerOptions = {},
+): Promise<McpServer> {
+    const server = createMcpServer(bridge, options);
     const transport = new StdioServerTransport();
     await server.connect(transport);
     return server;
@@ -784,6 +825,32 @@ function registerTools(server: McpServer, bridge: IBridge): void {
             };
         },
     );
+}
+
+// ─── Experimental tools (gated by HARNESS_FE_EXPERIMENTAL) ────────────────────
+
+/**
+ * Tools that are still in the testing phase. They are only registered when
+ * `experimentalEnabled()` is true, so default/production setups never see them
+ * in the tool list. When a feature graduates, move its `registerTool` call up
+ * into `registerTools` and drop it from here.
+ */
+function registerExperimentalTools(server: McpServer, bridge: IBridge): void {
+    // Probe tool: lets a developer confirm experimental mode is active on the
+    // daemon they're connected to. Also serves as the canonical example for how
+    // to add a gated tool. Safe to keep around — it touches nothing.
+    server.registerTool(
+        'experimental.ping',
+        {
+            description:
+                'Experimental-mode probe. Present whenever experimental tools are enabled (the default; ' +
+                'suppressed only when a gate env var is configured and unset on the daemon host). ' +
+                'Returns ok plus the protocol version — use it to confirm experimental tools are reachable.',
+            inputSchema: {},
+        },
+        async () => ok({ ok: true, experimental: true, protocolVersion: PROTOCOL_VERSION }),
+    );
+    void bridge;
 }
 
 // ─── Store tools (session history, timeline, memory) ──────────────────────────

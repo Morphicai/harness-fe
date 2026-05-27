@@ -116,12 +116,19 @@ Remote Claude Code / Cursor config:
 --mcp-transport <kind>  stdio (default) | http
 --mcp-path <path>       Default /mcp
 --public-host <addr>    Override the host printed in outbound URLs
+--experimental-env-var <name>
+                        Restrict experimental tools to hosts where <name> is
+                        set. Omit for fully-on (default).
 -h, --help
 ```
 
 Matching env vars: `HARNESS_FE_HOST`, `HARNESS_FE_PORT`,
 `HARNESS_FE_TOKEN`, `HARNESS_FE_MCP_TRANSPORT`, `HARNESS_FE_MCP_PATH`,
-`HARNESS_FE_HEADLESS`.
+`HARNESS_FE_HEADLESS`. Experimental (in-testing) tools are **on by default** —
+no config. To restrict them, pass `--experimental-env-var <name>` /
+`HARNESS_FE_EXPERIMENTAL_ENV_VAR` (or `createDaemon({ experimentalEnvVar })`
+when embedding): the tools then show up only on machines where `<name>` is set
+to a non-empty value.
 
 ## Embedding into a host app
 
@@ -159,6 +166,7 @@ the hood — there is exactly one boot path.
 | `mcpHttp: false` | Boot only the WS bridge; skip mounting `/mcp`. Use when you want to wire MCP through stdio yourself (this is how the CLI's stdio mode embeds the daemon). |
 | `mcpPath: '/agents/mcp'` | Move the MCP HTTP endpoint to a non-default path. |
 | `dataDir` | Override the on-disk root for default JSONL stores. |
+| `experimentalEnvVar: 'MY_FLAG'` | Restrict experimental (in-testing) tools to hosts where `MY_FLAG` is set to a non-empty value. Omit for fully-on (the default). |
 
 ### Resumable SSE
 

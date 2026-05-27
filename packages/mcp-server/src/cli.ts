@@ -42,6 +42,8 @@ interface CliConfig {
     label: string | undefined;
     /** Resolved data directory. Defaults to defaultDataDir(port). */
     dataDir: string;
+    /** Env-var name that gates experimental tools. Undefined = fully on (no gate). */
+    experimentalEnvVar: string | undefined;
 }
 
 function printHelpAndExit(): never {
@@ -60,14 +62,19 @@ Options:
   --mcp-path <path>      URL path for the MCP HTTP endpoint. Default /mcp.
   --public-host <addr>   Override the host printed in outbound URLs. Useful when
                          binding 0.0.0.0 and the auto-detected LAN IP is wrong.
+  --experimental-env-var <name>
+                         Restrict experimental (in-testing) tools to machines
+                         where <name> is set to a non-empty value. Omit this and
+                         experimental tools are fully on (the default).
   -h, --help             Show this help.
 
 Environment:
-  HARNESS_FE_HOST           Same as --host
-  HARNESS_FE_TOKEN          Same as --token (use "auto" to generate)
-  HARNESS_FE_MCP_TRANSPORT  Same as --mcp-transport
-  HARNESS_FE_MCP_PATH       Same as --mcp-path
-  HARNESS_FE_URL            Full ws:// URL (legacy; --host/--port override it)
+  HARNESS_FE_HOST                Same as --host
+  HARNESS_FE_TOKEN               Same as --token (use "auto" to generate)
+  HARNESS_FE_MCP_TRANSPORT       Same as --mcp-transport
+  HARNESS_FE_MCP_PATH            Same as --mcp-path
+  HARNESS_FE_EXPERIMENTAL_ENV_VAR  Same as --experimental-env-var
+  HARNESS_FE_URL                 Full ws:// URL (legacy; --host/--port override it)
 `;
     process.stderr.write(help);
     process.exit(0);
@@ -82,6 +89,7 @@ function parseArgs(argv: string[]): CliConfig {
     let mcpTransport: McpTransport | undefined;
     let mcpPath: string | undefined;
     let publicHost: string | undefined;
+    let experimentalEnvVar: string | undefined;
 
     for (let i = 0; i < args.length; i++) {
         const a = args[i];
@@ -126,6 +134,9 @@ function parseArgs(argv: string[]): CliConfig {
             case '--public-host':
                 publicHost = next();
                 break;
+            case '--experimental-env-var':
+                experimentalEnvVar = next();
+                break;
             default:
                 process.stderr.write(`harness-fe: unknown argument ${a}\n`);
                 process.exit(2);
@@ -169,6 +180,11 @@ function parseArgs(argv: string[]): CliConfig {
 
     const finalLabel = process.env.HARNESS_FE_LABEL || undefined;
 
+    // Omitted → undefined → experimental tools fully on (no gate). Supply a
+    // name only to restrict them to machines where that var is set.
+    const finalExperimentalEnvVar =
+        experimentalEnvVar || process.env.HARNESS_FE_EXPERIMENTAL_ENV_VAR || undefined;
+
     return {
         host: finalHost,
         port: finalPort,
@@ -178,6 +194,7 @@ function parseArgs(argv: string[]): CliConfig {
         publicHost,
         label: finalLabel,
         dataDir: finalDataDir,
+        experimentalEnvVar: finalExperimentalEnvVar,
     };
 }
 
@@ -248,7 +265,7 @@ async function main() {
     printBanner(cfg, role, active.getViewerBaseUrl());
 
     if (cfg.mcpTransport === 'stdio') {
-        await startMcpStdioServer(active);
+        await startMcpStdioServer(active, { experimentalEnvVar: cfg.experimentalEnvVar });
         process.stderr.write('[harness-fe] MCP stdio server connected\n');
     } else {
         // HTTP transport: the leader's createDaemon() call already mounted
@@ -290,6 +307,7 @@ async function startBridgeOrAttach(
         publicHost: cfg.publicHost,
         mcpHttp: cfg.mcpTransport === 'http',
         mcpPath: cfg.mcpPath,
+        experimentalEnvVar: cfg.experimentalEnvVar,
     });
     try {
         await daemon.start();
