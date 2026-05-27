@@ -22,7 +22,8 @@ name: Release
 on:
     push:
         branches:
-            - main
+            - main   # 3.x stable line → npm dist-tag `latest`
+            - next   # 4.0 experimental line (Changesets prerelease) → npm dist-tag `next`
 
 permissions:
     contents: write
@@ -108,6 +109,12 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+                  # Dual-line dist-tag: the 3.x line (`main`) publishes to
+                  # `latest`; the 4.0 prerelease line (`next`) publishes to
+                  # `next`. release-publish.sh reads this and, for any non-latest
+                  # tag, never touches `latest` — so a `4.0.0-next.x` publish can
+                  # never hijack the stable tag.
+                  NPM_DIST_TAG: ${{ github.ref_name == 'next' && 'next' || 'latest' }}
 
             # The Version Packages PR is opened by GITHUB_TOKEN, so GitHub's
             # anti-recursion rule means it never triggers the CI workflow —
@@ -125,9 +132,10 @@ jobs:
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  git fetch origin changeset-release/main
-                  SHA=$(git rev-parse origin/changeset-release/main)
-                  echo "Reporting required check on changeset-release/main @ ${SHA}"
+                  BOT_BRANCH="changeset-release/${{ github.ref_name }}"
+                  git fetch origin "$BOT_BRANCH"
+                  SHA=$(git rev-parse "origin/${BOT_BRANCH}")
+                  echo "Reporting required check on ${BOT_BRANCH} @ ${SHA}"
                   gh api -X POST "repos/${{ github.repository }}/statuses/${SHA}" \
                       -f state=success \
                       -f context="Lint / Typecheck / Test / Build" \
