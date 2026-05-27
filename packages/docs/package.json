@@ -1,0 +1,15 @@
+{
+    "name": "@harness-fe/docs",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "description": "Harness-FE documentation site (VitePress)",
+    "scripts": {
+        "dev": "vitepress dev .",
+        "build": "vitepress build .",
+        "preview": "vitepress preview ."
+    },
+    "devDependencies": {
+        "vitepress": "^1.6.3"
+    }
+}
