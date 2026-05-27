@@ -1,0 +1,25 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "harness-fe-iframe-demo": "0.0.1",
+    "harness-fe-react-demo": "0.0.1",
+    "harness-fe-vue-demo": "0.0.1",
+    "harness-fe-webpack-demo": "0.0.1",
+    "harness-fe-webpack5-vue3-demo": "0.0.1",
+    "@harness-fe/skill": "0.6.2",
+    "@harness-fe/dashboard-ui": "0.2.0",
+    "@harness-fe/log": "3.2.0",
+    "@harness-fe/mcp-server": "3.4.0",
+    "@harness-fe/next": "3.2.0",
+    "@harness-fe/node-runtime": "3.2.0",
+    "@harness-fe/protocol": "3.2.0",
+    "@harness-fe/react-jsx": "3.2.0",
+    "@harness-fe/runtime": "3.4.0",
+    "@harness-fe/sandbox": "3.2.0",
+    "@harness-fe/unplugin": "3.2.0",
+    "@harness-fe/vite": "3.2.0",
+    "@harness-fe/webpack": "3.2.0"
+  },
+  "changesets": []
+}
