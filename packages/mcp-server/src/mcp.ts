@@ -729,102 +729,108 @@ function registerTools(server: McpServer, bridge: IBridge): void {
     );
 
     // ─── tasks.* tools (user annotations submitted from page) ─────────────
+    // TODO: temporarily hidden — re-enable when the report feature is ready.
+    // To re-enable: remove the `if (false)` wrapper below and restore the block.
 
-    const taskStatusEnum = z.enum(['pending', 'claimed', 'resolved', 'all']);
+    /* eslint-disable no-constant-condition */
+    if (false) {
+        const taskStatusEnum = z.enum(['pending', 'claimed', 'resolved', 'all']);
 
-    server.registerTool(
-        COMMAND.TASKS_PENDING,
-        {
-            description:
-                'List user-submitted annotation tasks. Default `status="pending"`. Returns id/question/selector/url — call tasks.claim to fetch full element payload.',
-            inputSchema: {
-                status: taskStatusEnum.optional(),
-                limit: z.number().int().positive().optional(),
+        server.registerTool(
+            COMMAND.TASKS_PENDING,
+            {
+                description:
+                    'List user-submitted annotation tasks. Default `status="pending"`. Returns id/question/selector/url — call tasks.claim to fetch full element payload.',
+                inputSchema: {
+                    status: taskStatusEnum.optional(),
+                    limit: z.number().int().positive().optional(),
+                },
             },
-        },
-        async ({ status, limit }) => {
-            const tasks = await bridge.listTasks({ status: status ?? 'pending', limit });
-            const summary = tasks.map((t) => ({
-                id: t.id,
-                status: t.status,
-                question: t.question,
-                selector: t.selector,
-                url: t.url,
-                tabId: t.tabId,
-                createdAt: t.createdAt,
-                claimedAt: t.claimedAt,
-                resolvedAt: t.resolvedAt,
-                note: t.note,
-            }));
-            return ok({ count: summary.length, tasks: summary });
-        },
-    );
-
-    server.registerTool(
-        COMMAND.TASKS_CLAIM,
-        {
-            description:
-                'Claim a task by id. Marks it claimed, returns full payload (selector + element outerHTML + rect).',
-            inputSchema: {
-                taskId: z.string(),
+            async ({ status, limit }) => {
+                const tasks = await bridge.listTasks({ status: status ?? 'pending', limit });
+                const summary = tasks.map((t) => ({
+                    id: t.id,
+                    status: t.status,
+                    question: t.question,
+                    selector: t.selector,
+                    url: t.url,
+                    tabId: t.tabId,
+                    createdAt: t.createdAt,
+                    claimedAt: t.claimedAt,
+                    resolvedAt: t.resolvedAt,
+                    note: t.note,
+                }));
+                return ok({ count: summary.length, tasks: summary });
             },
-        },
-        async ({ taskId }) => {
-            const task = await bridge.claimTask(taskId);
-            if (!task) {
-                throw new Error(`tasks.claim: no task with id "${taskId}"`);
-            }
-            return ok(task);
-        },
-    );
+        );
 
-    server.registerTool(
-        COMMAND.TASKS_RESOLVE,
-        {
-            description:
-                'Mark a task as resolved with an optional note. Use after addressing the user request.',
-            inputSchema: {
-                taskId: z.string(),
-                note: z.string().optional(),
+        server.registerTool(
+            COMMAND.TASKS_CLAIM,
+            {
+                description:
+                    'Claim a task by id. Marks it claimed, returns full payload (selector + element outerHTML + rect).',
+                inputSchema: {
+                    taskId: z.string(),
+                },
             },
-        },
-        async ({ taskId, note }) => {
-            const task = await bridge.resolveTask(taskId, note);
-            if (!task) {
-                throw new Error(`tasks.resolve: no task with id "${taskId}"`);
-            }
-            return ok({ ok: true, task });
-        },
-    );
+            async ({ taskId }) => {
+                const task = await bridge.claimTask(taskId);
+                if (!task) {
+                    throw new Error(`tasks.claim: no task with id "${taskId}"`);
+                }
+                return ok(task);
+            },
+        );
 
-    server.registerTool(
-        'tasks.get_attachment',
-        {
-            description:
-                'Return a task screenshot attachment as a vision-ready image block. ' +
-                'Call after tasks.claim when the task summary includes an attachment pointer. ' +
-                'Compatible with Claude vision and GPT-4V.',
-            inputSchema: {
-                taskId: z.string().describe('Task id (from tasks.pending or tasks.claim).'),
-                attachmentId: z.string().describe('Attachment id (from task.attachments[].id).'),
+        server.registerTool(
+            COMMAND.TASKS_RESOLVE,
+            {
+                description:
+                    'Mark a task as resolved with an optional note. Use after addressing the user request.',
+                inputSchema: {
+                    taskId: z.string(),
+                    note: z.string().optional(),
+                },
             },
-        },
-        async ({ taskId, attachmentId }) => {
-            const base64 = await bridge.getTaskAttachmentData(taskId, attachmentId);
-            if (!base64) {
-                throw new Error(`tasks.get_attachment: attachment not found (taskId=${taskId}, attachmentId=${attachmentId})`);
-            }
-            return {
-                content: [
-                    {
-                        type: 'image' as const,
-                        mimeType: 'image/png' as const,
-                        data: base64,
-                    },
-                ],
-            };
-        },
-    );
+            async ({ taskId, note }) => {
+                const task = await bridge.resolveTask(taskId, note);
+                if (!task) {
+                    throw new Error(`tasks.resolve: no task with id "${taskId}"`);
+                }
+                return ok({ ok: true, task });
+            },
+        );
+
+        server.registerTool(
+            'tasks.get_attachment',
+            {
+                description:
+                    'Return a task screenshot attachment as a vision-ready image block. ' +
+                    'Call after tasks.claim when the task summary includes an attachment pointer. ' +
+                    'Compatible with Claude vision and GPT-4V.',
+                inputSchema: {
+                    taskId: z.string().describe('Task id (from tasks.pending or tasks.claim).'),
+                    attachmentId: z.string().describe('Attachment id (from task.attachments[].id).'),
+                },
+            },
+            async ({ taskId, attachmentId }) => {
+                const base64 = await bridge.getTaskAttachmentData(taskId, attachmentId);
+                if (!base64) {
+                    throw new Error(`tasks.get_attachment: attachment not found (taskId=${taskId}, attachmentId=${attachmentId})`);
+                }
+                return {
+                    content: [
+                        {
+                            type: 'image' as const,
+                            mimeType: 'image/png' as const,
+                            data: base64,
+                        },
+                    ],
+                };
+            },
+        );
+    }
+    /* eslint-enable no-constant-condition */
 }
 
 // ─── Experimental tools (gated by HARNESS_FE_EXPERIMENTAL) ────────────────────

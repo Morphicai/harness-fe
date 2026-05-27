@@ -309,6 +309,12 @@ export function installOverlay(client: OverlayClient): void {
     let pendingAttachment: TaskAttachment | null = null;
     /** Set while the picker is collecting an element for a `requiresElement` plugin. */
     let pluginAwaitingElement: OverlayPlugin | null = null;
+    /**
+     * Purpose of the current picker session:
+     * - 'copy': copy element info to clipboard for use with an agent (default)
+     * - 'report': legacy report-a-problem flow (still used internally by plugins)
+     */
+    let pickerPurpose: 'copy' | 'report' = 'copy';
 
     const setState = (next: State) => {
         state = next;
@@ -381,7 +387,7 @@ export function installOverlay(client: OverlayClient): void {
         lockedEl = hoveredEl;
         setHighlight(lockedEl);
         // A plugin requested the element — hand it straight to its onClick and
-        // skip the report/question flow entirely.
+        // skip all other flows.
         if (pluginAwaitingElement) {
             const plugin = pluginAwaitingElement;
             pluginAwaitingElement = null;
@@ -391,9 +397,18 @@ export function installOverlay(client: OverlayClient): void {
             void invokePlugin(plugin, el);
             return;
         }
-        // Go straight to the question step. Screenshots are now opt-in via
-        // the "Add screenshot" button inside the question panel — users
-        // shouldn't have to draw on every report.
+        // Copy mode: build element info and copy to clipboard for agent use.
+        if (pickerPurpose === 'copy') {
+            const el = lockedEl;
+            lockedEl = null;
+            const text = buildElementCopyText(el);
+            void copyText(text).then(() => {
+                showToast('✓ Element info copied');
+            });
+            setState('idle');
+            return;
+        }
+        // Report mode (legacy, no longer exposed in UI but kept for plugin compatibility).
         pendingAttachment = null;
         const info = questionPanel.querySelector<HTMLElement>('[data-role=info]')!;
         info.textContent = describeElement(lockedEl);
@@ -417,6 +432,7 @@ export function installOverlay(client: OverlayClient): void {
                 lockedEl = null;
                 pendingAttachment = null;
                 pluginAwaitingElement = null;
+                pickerPurpose = 'copy';
                 setState('info');
             } else if (state === 'info') {
                 setState('idle');
@@ -484,6 +500,30 @@ export function installOverlay(client: OverlayClient): void {
                 feedback.textContent = orig ?? '';
             }, 1200);
         }
+    };
+
+    /**
+     * Build a compact element-info block for pasting into an agent prompt.
+     * Omits HTML (too verbose); includes source location, component name, css
+     * path, and session context — enough for the agent to locate and fix the
+     * element without any further investigation.
+     */
+    const buildElementCopyText = (el: Element): string => {
+        const tag = el.tagName.toLowerCase();
+        const comp = el.getAttribute('data-morphix-comp');
+        const loc = el.getAttribute('data-morphix-loc');
+        const css = buildCssPath(el);
+        const lines: string[] = [];
+        lines.push(`### Element context`);
+        lines.push('');
+        if (comp) lines.push(`- component: \`${comp}\``);
+        if (loc) lines.push(`- source: \`${loc}\``);
+        lines.push(`- tag: \`${tag}\``);
+        lines.push(`- css: \`${css}\``);
+        lines.push(`- project: \`${client.projectId}\`${client.displayName ? ` (${client.displayName})` : ''}`);
+        lines.push(`- session: \`${client.sessionId}\``);
+        lines.push(`- url: ${location.href}`);
+        return lines.join('\n') + '\n';
     };
 
     const buildSnapshot = (): string => {
@@ -584,6 +624,9 @@ export function installOverlay(client: OverlayClient): void {
             btn.addEventListener('click', () => {
                 if (plugin.requiresElement) {
                     pluginAwaitingElement = plugin;
+                    pickerPurpose = 'report'; // plugins use the legacy element-selection flow
+                    const label = pickerBar.querySelector<HTMLElement>('[data-role=picker-label]');
+                    if (label) label.textContent = '🎯 Click an element';
                     setState('picker');
                 } else {
                     setState('idle');
@@ -803,17 +846,16 @@ export function installOverlay(client: OverlayClient): void {
 
     infoCard.querySelector('[data-role=close]')!.addEventListener('click', () => setState('idle'));
 
-    infoCard.querySelector('[data-role=report]')!.addEventListener('click', () => {
+    infoCard.querySelector('[data-role=pick-element]')!.addEventListener('click', () => {
+        pickerPurpose = 'copy';
+        const label = pickerBar.querySelector<HTMLElement>('[data-role=picker-label]');
+        if (label) label.textContent = '🔍 Click element to copy info';
         setState('picker');
     });
 
     infoCard.querySelector('[data-role=copy-snapshot]')!.addEventListener('click', (ev) => {
         const btn = ev.currentTarget as HTMLElement;
         void copyText(buildSnapshot(), btn);
-    });
-
-    infoCard.querySelector('[data-role=view-reports]')!.addEventListener('click', () => {
-        setState('reports');
     });
 
     // "Open dashboard" — derive the daemon's dashboard URL from mcpUrl and
@@ -869,6 +911,7 @@ export function installOverlay(client: OverlayClient): void {
     pickerBar.querySelector('[data-role=cancel]')!.addEventListener('click', () => {
         lockedEl = null;
         pluginAwaitingElement = null;
+        pickerPurpose = 'copy';
         setState('info');
     });
 
@@ -2071,16 +2114,15 @@ function buildInfoCard(): HTMLDivElement {
             <div class="row"><span class="key">url</span><span class="pill url" data-role="url"></span></div>
         </div>
         <div class="actions">
-            <button class="primary" data-role="report" type="button">
-                <span class="icon">🎯</span>
-                <span class="label">Report a problem</span>
-                <span class="hint">Pick an element →</span>
+            <button class="primary" data-role="pick-element" type="button">
+                <span class="icon">🔍</span>
+                <span class="label">Copy element info</span>
+                <span class="hint">pick element →</span>
             </button>
             <button class="secondary" data-role="open-dashboard" type="button" style="display:none">
                 <span class="icon">↗</span>
                 <span>Open dashboard</span>
             </button>
-            <button class="secondary" data-role="view-reports" type="button">📁 My reports</button>
             <button class="secondary" data-role="copy-snapshot" type="button">📋 Copy snapshot</button>
         </div>
         <div class="plugin-actions" data-role="plugin-actions" style="display:none"></div>
@@ -2113,7 +2155,7 @@ function buildPickerBar(): HTMLDivElement {
     const bar = document.createElement('div');
     bar.className = 'picker-bar';
     bar.innerHTML = `
-        <span class="label">🎯 Click an element to flag it</span>
+        <span class="label" data-role="picker-label">🔍 Click element to copy info</span>
         <span class="hint">esc to cancel</span>
         <button data-role="cancel" type="button">Cancel</button>
     `;
