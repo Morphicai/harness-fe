@@ -34,13 +34,23 @@ Harness-FE is **the runtime for software developed by agents**. Every AI-coded a
 
 Each ring is a **superset** of the inner one. Building the inner well is a prerequisite for the outer.
 
+## Maturity trajectory (3 → 4 → 5)
+
+The directions above are *who reports to whom*. Orthogonal to that is *how far it's deployed* — the release lines we now ship along:
+
+- **3.x — personal dev tool (today).** Rock-solid in the host app's development environment, zero production footprint. This is the proven core.
+- **4.0 — team-usable (experimental, `@next`).** One shared daemon a team self-hosts; identity + isolation + routing so members don't collide and each sees only their own. The trusted-team step toward Direction 2.
+- **5.0 — production-grade.** High availability + a hosted **cloud service**: multi-instance, shared persistence, remote MCP, observability, SLA. Built on 4.0's isolation.
+
+3.x keeps shipping (fixes + dev polish) while 4.0 develops in parallel. See [ROADMAP.md](./ROADMAP.md).
+
 ### Direction 1 — Product feedback loop
 
 Users of a shipped product hit "Report a problem" in the in-page overlay; the annotated screenshot + session timeline reach the agent that owns the product; the agent uses `data-morphix-loc` to jump straight to the failing component and ships a patch.
 
 **Status (May 2026):** functionally complete locally — overlay, tasks, MCP tools, source-aware navigation all work. Gap is **deployment**: today's daemon assumes a developer running it on `localhost`. Productionising means daemon-in-product (embedded in the host web app) or daemon-as-service (hosted, authenticated, multi-tenant).
 
-**Current phase (deliberate):** Harness-FE is used **only in the development environment** of the host applications that consume it. End users never see the harness — `process.env.NODE_ENV === 'development'` guards every instrumentation path. The productionising work above remains the long-term direction; it is not the work in flight today. Today's focus is making the dev-time loop unbreakable, with a clean reference integration on the host side.
+**Where this sits on the maturity trajectory:** the **3.x** line is used **only in the development environment** of the host apps that consume it — end users never see the harness (`process.env.NODE_ENV === 'development'` guards every instrumentation path), and that stays true for 3.x. The productionising work (shared team daemon, then hosted cloud service) is no longer "someday" — it's the explicit **4.0** (team-usable) and **5.0** (production cloud) lines, developed in parallel with 3.x. See [ROADMAP.md](./ROADMAP.md).
 
 ### Direction 2 — Multi-tenant: AI-generated apps reporting to their generating agent
 
