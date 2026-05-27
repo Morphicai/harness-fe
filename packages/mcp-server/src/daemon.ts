@@ -99,6 +99,13 @@ export interface DaemonOptions {
      * exposing an HTTP MCP endpoint).
      */
     mcpHttp?: boolean;
+    /**
+     * Name of the environment variable that gates experimental (in-testing)
+     * tools. Omit (the default) for fully-on, zero-config. Supply a name only
+     * when the host wants the tools restricted to machines where that var is
+     * set to a non-empty value.
+     */
+    experimentalEnvVar?: string;
 }
 
 export interface DaemonHandle {
@@ -164,6 +171,7 @@ export function createDaemon(opts: DaemonOptions = {}): DaemonHandle {
                     path: mcpPath,
                     stateful: opts.mcpStateful,
                     eventStore: opts.eventStore,
+                    experimentalEnvVar: opts.experimentalEnvVar,
                 });
             }
         },
