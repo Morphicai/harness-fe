@@ -403,7 +403,7 @@ export function installOverlay(client: OverlayClient): void {
             lockedEl = null;
             const text = buildElementCopyText(el);
             void copyText(text).then(() => {
-                showToast('✓ 组件信息已复制，可直接粘贴给 agent');
+                showToast('✓ Element info copied');
             });
             setState('idle');
             return;
@@ -503,19 +503,18 @@ export function installOverlay(client: OverlayClient): void {
     };
 
     /**
-     * Build a markdown block describing the clicked element for pasting into an
-     * agent prompt. Includes component name, source location, CSS selector, a
-     * truncated HTML snippet, and the current session context so the agent has
-     * enough info to locate and fix the element without further investigation.
+     * Build a compact element-info block for pasting into an agent prompt.
+     * Omits HTML (too verbose); includes source location, component name, css
+     * path, and session context — enough for the agent to locate and fix the
+     * element without any further investigation.
      */
     const buildElementCopyText = (el: Element): string => {
         const tag = el.tagName.toLowerCase();
         const comp = el.getAttribute('data-morphix-comp');
         const loc = el.getAttribute('data-morphix-loc');
         const css = buildCssPath(el);
-        const html = truncate(stripInternalAttrs(el.outerHTML), MAX_OUTER_HTML);
         const lines: string[] = [];
-        lines.push(`### 组件信息（供 agent 使用）`);
+        lines.push(`### Element context`);
         lines.push('');
         if (comp) lines.push(`- component: \`${comp}\``);
         if (loc) lines.push(`- source: \`${loc}\``);
@@ -523,12 +522,7 @@ export function installOverlay(client: OverlayClient): void {
         lines.push(`- css: \`${css}\``);
         lines.push(`- project: \`${client.projectId}\`${client.displayName ? ` (${client.displayName})` : ''}`);
         lines.push(`- session: \`${client.sessionId}\``);
-        lines.push(`- tab: \`${client.tabId}\``);
         lines.push(`- url: ${location.href}`);
-        lines.push('');
-        lines.push('```html');
-        lines.push(html);
-        lines.push('```');
         return lines.join('\n') + '\n';
     };
 
@@ -855,7 +849,7 @@ export function installOverlay(client: OverlayClient): void {
     infoCard.querySelector('[data-role=pick-element]')!.addEventListener('click', () => {
         pickerPurpose = 'copy';
         const label = pickerBar.querySelector<HTMLElement>('[data-role=picker-label]');
-        if (label) label.textContent = '🔍 点击元素以复制组件信息';
+        if (label) label.textContent = '🔍 Click element to copy info';
         setState('picker');
     });
 
@@ -2122,8 +2116,8 @@ function buildInfoCard(): HTMLDivElement {
         <div class="actions">
             <button class="primary" data-role="pick-element" type="button">
                 <span class="icon">🔍</span>
-                <span class="label">复制组件信息</span>
-                <span class="hint">选择元素 →</span>
+                <span class="label">Copy element info</span>
+                <span class="hint">pick element →</span>
             </button>
             <button class="secondary" data-role="open-dashboard" type="button" style="display:none">
                 <span class="icon">↗</span>
@@ -2161,9 +2155,9 @@ function buildPickerBar(): HTMLDivElement {
     const bar = document.createElement('div');
     bar.className = 'picker-bar';
     bar.innerHTML = `
-        <span class="label" data-role="picker-label">🔍 点击元素以复制组件信息</span>
-        <span class="hint">esc 取消</span>
-        <button data-role="cancel" type="button">取消</button>
+        <span class="label" data-role="picker-label">🔍 Click element to copy info</span>
+        <span class="hint">esc to cancel</span>
+        <button data-role="cancel" type="button">Cancel</button>
     `;
     return bar;
 }
