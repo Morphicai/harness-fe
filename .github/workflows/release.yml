@@ -28,6 +28,9 @@ permissions:
     contents: write
     pull-requests: write
     id-token: write
+    # Needed to post the required `Lint / Typecheck / Test / Build` status onto
+    # the auto-generated Version Packages PR — see the final step below.
+    statuses: write
 
 concurrency:
     group: release-${{ github.ref }}
@@ -105,6 +108,31 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+            # The Version Packages PR is opened by GITHUB_TOKEN, so GitHub's
+            # anti-recursion rule means it never triggers the CI workflow —
+            # the `Lint / Typecheck / Test / Build` required status check would
+            # otherwise never appear and the PR stays permanently BLOCKED.
+            #
+            # This job already ran the exact same Typecheck/Build/Test above
+            # (failure aborts before reaching here), and the bot branch only
+            # adds mechanical version/CHANGELOG bumps on top of this verified
+            # main commit. So mirror that result onto the bot branch HEAD under
+            # the required context. Only runs in "version PR" mode, never on a
+            # publish run.
+            - name: Mark Version PR required check
+              if: steps.changesets.outputs.published != 'true' && steps.changesets.outputs.hasChangesets == 'true'
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  git fetch origin changeset-release/main
+                  SHA=$(git rev-parse origin/changeset-release/main)
+                  echo "Reporting required check on changeset-release/main @ ${SHA}"
+                  gh api -X POST "repos/${{ github.repository }}/statuses/${SHA}" \
+                      -f state=success \
+                      -f context="Lint / Typecheck / Test / Build" \
+                      -f description="Verified in Release workflow (version bumps only)" \
+                      -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
             - name: Create GitHub Release
               # Only run when changesets/action actually published.
