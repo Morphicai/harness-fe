@@ -2,80 +2,106 @@
 
 Public, rough, and subject to change. File a GitHub issue if you want to push something up the list.
 
-The roadmap is organised around the three mission directions in [VISION.md](./VISION.md):
+There are **two axes** to this roadmap:
 
-1. **Product feedback loop** — end users → agent
-2. **Multi-tenant routing** — hosted apps → their generating agents
-3. **Foundation default** — every agent-coded app ships with Harness
+- **Direction (who reports to whom)** — the three nested rings in [VISION.md](./VISION.md): (1) product feedback loop, (2) multi-tenant routing, (3) foundation-default for agent-built apps.
+- **Maturity (how far it's deployed)** — the release lines below. This is the primary planning frame today.
 
-Each milestone below is anchored to one of those directions.
+## Release lines (maturity trajectory)
+
+| Line | Branch / npm tag | What it is | Bar |
+|---|---|---|---|
+| **3.x** | `main` / `latest` | **Personal dev tool** — today's product | Rock-solid in the host app's *dev environment*, zero prod footprint. Bug fixes + dev-experience polish. |
+| **4.0** | `next` / `@next` (prerelease) | **Team-usable (experimental)** | One shared daemon a team self-hosts; members don't collide and each only sees their own. Identity + isolation + routing. |
+| **5.0** | (after 4.0) | **Production-grade** | High availability + hosted **cloud service**: multi-instance/no-SPOF, shared persistence, remote MCP, observability, SLA. |
+
+3.x and 4.0 develop **in parallel** (see [docs/operations/release-flow.md](./docs/operations/release-flow.md) for the dual-line release setup). 4.0's identity/isolation work is the foundation 5.0's cloud service builds on.
 
 ---
 
-## Shipped (0.1.x – 1.0.x)
+## Shipped (0.1.x – 3.x foundation)
 
 The foundation that the mission rests on. All directions need this.
 
 - [x] Source-aware JSX transform (`data-morphix-loc` / `data-morphix-comp`)
 - [x] `@harness-fe/react-jsx` — `jsxImportSource` runtime, no bundler plugin needed
 - [x] MCP daemon — WebSocket bridge + HTTP-batch (Edge) + JSONL persistence
+- [x] HTTP Streamable MCP transport — one daemon serves all agents; remote-friendly (`--mcp-transport http`, stdio remains default)
+- [x] Embeddable daemon — `createDaemon({ … })` factory; CLI is a thin wrapper (one boot path)
+- [x] `Last-Event-ID` SSE reconnection — survives transient disconnects (pluggable `eventStore`)
+- [x] Auth on the daemon boundary — single check across HTTP MCP / WS / dashboard; `token` or host-supplied `authorize(req)`
 - [x] Runtime client — console / network / errors / rrweb + in-page "H" overlay + annotated tasks
+- [x] Overlay plugin API — `registerOverlayPlugin` custom action buttons + typed, redaction-aware context. See [docs/overlay-plugins.md](./docs/overlay-plugins.md)
 - [x] Vite / Webpack — React + Vue 3, all stable
 - [x] First-class Next.js (App + Pages Router, webpack + Turbopack, Node + Edge)
 - [x] `@harness-fe/node-runtime` — ALS + DI sessionId, dual transport
 - [x] `@harness-fe/next` — `<HarnessScript>` Server Component; unified sessionId across SSR + client
 - [x] `@harness-fe/log` — isomorphic structured logger
-- [x] Same-origin iframe identity inheritance (foundation for direction 2)
+- [x] Same-origin iframe identity inheritance (foundation for the team / multi-tenant line)
 - [x] Stable wire protocol `PROTOCOL_VERSION` (locked at 1.0)
-- [x] OIDC-trusted-publisher npm releases + `--provenance`
+- [x] OIDC-trusted-publisher npm releases + `--provenance`; dual-line (3.x `latest` / 4.0 `@next`) release flow
 - [x] Disk auto-purge + size limits
 - [x] `@harness-fe/skill` — agent playbook as standalone npm
+- [x] Experimental-tool gate — opt-in env-var gating for in-testing MCP tools
 
 ---
 
-## 1.1.x — Direction 1: make the feedback loop deployable
+## 3.x — Personal dev tool (`main`, ongoing)
 
-Today the daemon assumes a developer running it on `localhost`. To put Harness inside a real product, it must be embeddable, addressable, and authenticatable.
+Keep the single-developer experience unbreakable; ship dev-experience polish and bug fixes. Mostly **Direction 1**.
 
-> **Current phase (deliberate):** the items below describe the *long-term* productionising path. The work actually in flight is a tighter target: make harness-fe rock-solid in the **development environment** of host applications that consume it, with zero footprint in production builds. Productionising (embed in a host product, daemon-as-service) is queued behind that and is **not** the focus right now. The architectural prerequisites — embeddable daemon factory, resumable SSE — are still being completed because they're worth landing regardless of when they're consumed in production.
-
-- [x] **HTTP Streamable MCP transport** — drop the one-stdio-subprocess-per-agent model; one daemon serves all agents; remote-friendly; standard MCP transport. (`mcpHttp.ts` + `StreamableHTTPServerTransport`; opt-in via `--mcp-transport http`, stdio remains the default.)
-- [x] **Embeddable daemon** — `createDaemon({ port, store, authorize, token, eventStore, mcpHttp, … })` factory for in-process embedding. CLI is now a thin wrapper around it (one boot path). README's "Embedding into a host app" section covers the contract. Mounting onto a host-owned `http.Server` (middleware mode) is out of scope here and tracked separately.
-- [x] **`Last-Event-ID` SSE reconnection** — survives transient disconnects during long agent runs (in-memory `MemoryEventStore` default; pluggable via `eventStore` option on `startMcpHttpServer`)
-- [x] **Auth on the daemon boundary** — `auth.ts` enforces a single check across HTTP MCP, WS upgrade, and dashboard requests. Two modes: built-in `token` (Bearer header / cookie / `?token=` / WS subprotocol) or host-supplied `authorize(req) => boolean` for custom JWT / session integrations. Loopback is unprotected by default; non-loopback binds emit a banner warning when no token is set.
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)
 - [ ] **Multi-bundler reach** — Rspack + esbuild + Rollup adapters via unplugin
-- [ ] **Documentation site** (VitePress) — public docs with a clear problem statement, architecture, quickstarts, agent setup, framework guides, and roadmap pages
-- [x] **Overlay plugin API** — `registerOverlayPlugin` adds custom action buttons to the "H" overlay (runtime global or typed import; pre-boot queue too) without forking `@harness-fe/runtime`. Handlers get a typed, redaction-aware context (scene / logs / screenshot / picked element). MVP is action buttons; custom panels remain a future extension. See [docs/overlay-plugins.md](./docs/overlay-plugins.md).
-- [ ] **Official issue-tracker plugin example** — Jira first: create a linked external issue from a selected element, screenshot, source location, logs, network tail, and session metadata. _A documented Jira example + proxy contract ships in [docs/overlay-plugins.md](./docs/overlay-plugins.md); a published, batteries-included package is still pending._
+- [ ] **Documentation site** (VitePress) — public docs: problem statement, architecture, quickstarts, agent setup, framework guides, roadmap
+- [ ] **Official issue-tracker plugin example** — Jira first, building on the overlay plugin API. _A documented Jira example + proxy contract already ships in [docs/overlay-plugins.md](./docs/overlay-plugins.md); a published, batteries-included package is still pending._
+- [ ] Ongoing bug fixes + small enhancements
 
 ---
 
-## 1.2.x — Direction 2: route feedback to the right agent
+## 4.0 — Team-usable (`next`, experimental) · Direction 2
 
-When a host product renders AI-generated mini-apps, each mini-app has its own agent author. Feedback from inside a mini-app must reach the agent that built it — not the host's agent, not other tenants' agents.
+**Goal:** a team self-hosts **one** shared daemon and multiple members use it without colliding — no cross-driving the wrong tab, no seeing each other's projects/sessions. This is the **identity + isolation + routing** layer. Scope is a *trusted* team; hardening against untrusted multi-tenancy is part of 5.0.
 
-- [ ] **`project → agent` binding index** — the daemon records "who generated this project" and routes `tasks_pending` queries accordingly
-- [ ] **Multi-tenant isolation** — strict `projectId` scoping in MCP tool results; an agent only sees sessions for projects it owns
-- [ ] **Pluggable persistence backend** — `IStore` → SQLite / Postgres / S3; needed when multiple tenants share storage
-- [ ] **Remote MCP mode** — daemon hosted, browser tabs report via authenticated WS
-- [ ] **Project tree on the daemon** is already cycle-protected, but extend with explicit "host vs sub-app" tagging so the routing rules can express "the host agent sees the sub-app's reports too, but the sub-app's agent doesn't see the host's"
+Anchored to the gaps surfaced in the multi-tenant readiness review:
+
+- [ ] **Caller identity** — auth doesn't stop at allow/deny; it carries *who* (agent / user id) through to the tool layer
+- [ ] **Tenant isolation** — `project.list` / `session.list` / `tasks_pending` filter by what the caller owns; an agent only sees its own projects' data (today any caller sees every project on the machine)
+- [ ] **Command-target scoping** — `sendCommand`'s default "most-recent active tab" is scoped to the caller's own tabs, not globally (today it can drive another person's browser)
+- [ ] **MCP session isolation** — HTTP transport becomes per-session instead of one shared transport
+- [ ] **`project → agent` binding index** — the daemon records "who generated this project" and routes `tasks_pending` accordingly
+- [ ] **Host vs sub-app tagging** on the project tree so routing can express "host agent sees the sub-app's reports, but not vice-versa"
 
 ---
 
-## 2.0.x — Direction 3: Harness as default for agent-built apps
+## 5.0 — Production-grade: high-availability cloud service
 
-The endgame: every Harness-aware code-gen pipeline (`@morphixai/code` mini-apps; future scaffolds for whole web / native apps) emits projects that ship with the runtime by default. The developer never has to think about adding it.
+**Goal:** run Harness as a **hosted, highly-available cloud service** — not just self-hosted on one box. Builds directly on 4.0's identity/isolation.
 
-- [ ] **`@morphixai/code` template integration** — mini-app templates include `@harness-fe/log` + `<HarnessScript>` by default; the agent doesn't need to remember
-- [ ] **Scaffold CLI** — `npx @harness-fe/create-app` produces a project pre-wired with everything
+> ⚠️ This is a **deliberate reversal** of the previous "no cloud SaaS" stance below. Running a hosted service is now an explicit 5.0 goal. The dev tool stays open and self-hostable; the cloud service is an *additional* offering, not a replacement.
+
+- [ ] **High availability** — multi-instance, no single point of failure; horizontal scale behind a load balancer
+- [ ] **Pluggable persistence backend** — `IStore` → SQLite / Postgres / S3; required once instances share state
+- [ ] **Remote MCP mode** — daemon hosted; browser tabs and agents report over authenticated WS / HTTP
+- [ ] **Daemon-as-service** — managed deploy story, JWT / session auth integration, tenancy onboarding
+- [ ] **Strict multi-tenant security** — untrusted-tenant isolation guarantees + a security review
+- [ ] **Observability + limits** — metrics / tracing, rate limits, quotas, and an SLA target
+- [ ] Stable, versioned public API contract
+
+---
+
+## Ecosystem reach (parallel track, version-agnostic) · Direction 3
+
+Coverage work that lands as it matures, independent of the 3/4/5 maturity line. The endgame: every agent-coded app ships with the runtime by default.
+
+- [ ] **`@morphixai/code` template integration** — mini-app templates include `@harness-fe/log` + `<HarnessScript>` by default
+- [ ] **Scaffold CLI** — `npx @harness-fe/create-app` produces a pre-wired project
 - [ ] **Harness-first Skill v2** — `@harness-fe/skill` evolves from "how to use the tools" into "the contract every Harness-aware agent follows"
-- [ ] **React Native runtime client** — dev-only `@harness-fe/react-native` runtime for console / errors / network / screenshots / basic interaction; same `sessionId` and MCP semantics as web
-- [ ] **Expo support** — first-class Expo development workflow support, including Expo dev clients where native modules are present
-- [ ] **React Native Harness integration** — expose React Native Harness as a real-device test backend that agents can initialize, run, inspect, and use for regression verification
-- [ ] **React Native source-aware mapping** — Metro / Babel transform that maps RN elements, `testID`, accessibility metadata, component names, and source locations back to files
-- [ ] **Flutter runtime client** — dev-only Dart package / VM-service bridge for logs, errors, screenshots, widget or semantics tree queries, and basic interaction
-- [ ] **Multi-user collaborative sessions** — pair-debugging where two humans + the agent share one session timeline
+- [ ] **React Native runtime client** — dev-only `@harness-fe/react-native` for console / errors / network / screenshots / interaction; same `sessionId` + MCP semantics
+- [ ] **Expo support** — first-class Expo dev workflow, incl. dev clients with native modules
+- [ ] **React Native Harness integration** — real-device test backend agents can init / run / inspect for regression
+- [ ] **React Native source-aware mapping** — Metro / Babel transform mapping RN elements / `testID` / a11y / component names back to files
+- [ ] **Flutter runtime client** — dev-only Dart / VM-service bridge for logs, errors, screenshots, widget tree, interaction
+- [ ] **Multi-user collaborative sessions** — pair-debugging: two humans + the agent share one session timeline
 
 ---
 
@@ -88,8 +114,7 @@ The endgame: every Harness-aware code-gen pipeline (`@morphixai/code` mini-apps;
 
 ## Not on the roadmap
 
-- **Production analytics / RUM** — Harness is a **dev/agent-feedback** tool, not Sentry / Datadog. We will not add prod runtime hooks for ops monitoring.
-- **Cloud-hosted dashboard for end users** — out of scope. The daemon being embeddable (1.1.x) covers the "host app integrates it" case without us running a SaaS.
+- **Production analytics / RUM** — Harness is a **dev/agent-feedback** tool, not Sentry / Datadog. We will not add prod runtime hooks for ops monitoring. (The 5.0 cloud service hosts the *agent-feedback* daemon — it is not an end-user analytics product.)
 - **Telemetry phoning home from a user's machine** — the dev tool stays silent unless the user explicitly opts in.
 - **Closed protocol** — the wire format, the SDKs, and the daemon stay open. Third-party agents that aren't ours must be able to consume the data.
 - **WeChat Mini Program support for now** — valuable, but intentionally deferred until Web, React Native / Expo, and Flutter have solid runtime-adapter foundations.
