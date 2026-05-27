@@ -2,9 +2,9 @@ name: CI
 
 on:
     push:
-        branches: [main]
+        branches: [main, next]
     pull_request:
-        branches: [main]
+        branches: [main, next]
 
 permissions:
     contents: read
@@ -24,6 +24,19 @@ jobs:
             # See: https://blog.gitguardian.com/github-actions-security-best-practices/
             - name: Checkout
               uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+            - name: Guard — no Changesets prerelease marker on main
+              # `.changeset/pre.json` is the 4.0 `next` line's prerelease marker.
+              # If it ever lands on main, main's releases silently become
+              # prereleases. Allowed on `next`; forbidden on `main`. (base_ref =
+              # PR target branch; ref_name = pushed branch.)
+              if: github.base_ref == 'main' || (github.event_name == 'push' && github.ref_name == 'main')
+              run: |
+                  if [ -f .changeset/pre.json ]; then
+                      echo "::error::.changeset/pre.json must not exist on main — it is the 4.0 'next' prerelease marker. Remove it before merging to main."
+                      exit 1
+                  fi
+                  echo "ok: no .changeset/pre.json on main"
 
             - name: Setup pnpm
               uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0

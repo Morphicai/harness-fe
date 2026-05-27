@@ -12,6 +12,14 @@
 # Run from repo root. NPM_TOKEN must be exported in env.
 set -euo pipefail
 
+# npm dist-tag to publish under. Dual-line releases:
+#   main → "latest" (3.x stable)   ·   next → "next" (4.0 prerelease).
+# Defaults to "latest" for local/manual runs. CRITICAL: when this is NOT
+# "latest", we publish with `--tag <tag>` and NEVER move the `latest` tag — a
+# prerelease (e.g. 4.0.0-next.0) must never hijack what `npm install` resolves.
+DIST_TAG="${NPM_DIST_TAG:-latest}"
+echo "── publishing under dist-tag: ${DIST_TAG} ─────────────────"
+
 ROOT=$(pwd)
 TARBALL_DIR=$ROOT/tarballs
 rm -rf "$TARBALL_DIR"
@@ -82,12 +90,27 @@ publish_one() {
     fi
 
     local output rc
-    output=$($env_prefix npm publish "$tgz" --access public --provenance 2>&1)
+    # For `latest`, publish WITHOUT an explicit --tag — identical to the
+    # historical behavior, so the "lower than latest" recovery below still
+    # applies. For any other tag (the 4.0 `next` line), publish with --tag and
+    # never touch `latest`.
+    if [ "$DIST_TAG" = "latest" ]; then
+        output=$($env_prefix npm publish "$tgz" --access public --provenance 2>&1)
+    else
+        output=$($env_prefix npm publish "$tgz" --access public --provenance --tag="$DIST_TAG" 2>&1)
+    fi
     rc=$?
     echo "$output"
 
     if [ $rc -eq 0 ]; then
         return 0
+    fi
+
+    # The recovery below only concerns the `latest` tag. A non-latest publish
+    # (e.g. 4.0.0-next.x under `next`) never touches `latest`, so bail with the
+    # real error instead of running the latest-moving dance.
+    if [ "$DIST_TAG" != "latest" ]; then
+        return $rc
     fi
 
     # Detect "version lower than current latest" — npm 11+ message form.
