@@ -32,6 +32,11 @@ export interface McpHttpOptions {
      * disable resumability entirely.
      */
     eventStore?: EventStore | null;
+    /**
+     * Name of the environment variable that gates experimental tools.
+     * Forwarded to `createMcpServer`. Omit for fully-on (no gate).
+     */
+    experimentalEnvVar?: string;
 }
 
 export interface McpHttpHandle {
@@ -56,7 +61,7 @@ export async function startMcpHttpServer(
             ? undefined
             : opts.eventStore ?? new MemoryEventStore();
 
-    const server = createMcpServer(bridge);
+    const server = createMcpServer(bridge, { experimentalEnvVar: opts.experimentalEnvVar });
     const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: stateful ? () => randomUUID() : undefined,
         eventStore,
