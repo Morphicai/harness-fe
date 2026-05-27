@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Window } from 'happy-dom';
 import { installOverlay, buildCssPath, replayStrokes, finalizeAnnotation, type OverlayClient } from './overlay.js';
+import { registerOverlayPlugin, __resetOverlayPlugins, type OverlayPluginContext } from './pluginRegistry.js';
+import { getCaptureStore } from './capture.js';
 
 function setupDom(): { win: Window; doc: Document } {
     const win = new Window();
@@ -315,5 +317,125 @@ describe('buildCssPath', () => {
         const p3 = doc.querySelectorAll('p')[2];
         const path = buildCssPath(p3);
         expect(path).toMatch(/p\.x:nth-of-type\(3\)/);
+    });
+});
+
+describe('overlay plugins', () => {
+    afterEach(() => {
+        document.getElementById('__harness_fe_overlay__')?.remove();
+        __resetOverlayPlugins();
+        getCaptureStore().network.clear();
+        getCaptureStore().console.clear();
+        getCaptureStore().errors.clear();
+    });
+
+    const openCard = (root: ShadowRoot) =>
+        (root.querySelector('.fab') as HTMLButtonElement).click();
+
+    it('renders a button for a plugin registered before install', () => {
+        setupDom();
+        registerOverlayPlugin({ id: 'p1', label: 'Send', icon: '💬', onClick() {} });
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
+        const btn = root.querySelector('[data-plugin-id=p1]') as HTMLButtonElement;
+        expect(btn).toBeTruthy();
+        expect(btn.textContent).toBe('💬 Send');
+        const slot = root.querySelector('[data-role=plugin-actions]') as HTMLElement;
+        expect(slot.style.display).not.toBe('none');
+    });
+
+    it('renders a button for a plugin registered AFTER install (late registration)', () => {
+        setupDom();
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
+        expect(root.querySelector('[data-plugin-id=late]')).toBeNull();
+        registerOverlayPlugin({ id: 'late', label: 'Later', onClick() {} });
+        expect(root.querySelector('[data-plugin-id=late]')).toBeTruthy();
+    });
+
+    it('hides the plugin slot when no plugins are registered', () => {
+        setupDom();
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
+        const slot = root.querySelector('[data-role=plugin-actions]') as HTMLElement;
+        expect(slot.style.display).toBe('none');
+    });
+
+    it('invokes onClick with a context carrying ids / url / snapshotMarkdown', () => {
+        setupDom();
+        let ctx: OverlayPluginContext | undefined;
+        registerOverlayPlugin({ id: 'cap', label: 'Capture', onClick(c) { ctx = c; } });
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
+        openCard(root);
+        (root.querySelector('[data-plugin-id=cap]') as HTMLButtonElement).click();
+        expect(ctx).toBeTruthy();
+        expect(ctx!.projectId).toBe('demo');
+        expect(ctx!.sessionId).toBe('sess-12345-abcdef-9876');
+        expect(ctx!.tabId).toBe('tab-123456-abcdef');
+        expect(typeof ctx!.url).toBe('string');
+        expect(ctx!.snapshotMarkdown()).toContain('project: `demo`');
+    });
+
+    it('getLogs() redacts network bodies + auth headers by default, raw when opted out', () => {
+        setupDom();
+        getCaptureStore().network.push({
+            ts: Date.now(), method: 'POST', url: 'https://api.example.com/login',
+            status: 200,
+            requestHeaders: { authorization: 'Bearer secret', 'content-type': 'application/json' },
+            requestBody: { password: 'hunter2' },
+            responseBody: { token: 'abc' },
+        });
+        let ctx: OverlayPluginContext | undefined;
+        registerOverlayPlugin({ id: 'logs', label: 'Logs', onClick(c) { ctx = c; } });
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
+        openCard(root);
+        (root.querySelector('[data-plugin-id=logs]') as HTMLButtonElement).click();
+
+        const redacted = ctx!.getLogs({ network: 5 }).network[0];
+        expect(redacted.requestBody).toBeUndefined();
+        expect(redacted.responseBody).toBeUndefined();
+        expect(redacted.requestHeaders).toEqual({ 'content-type': 'application/json' });
+        expect(redacted.url).toBe('https://api.example.com/login');
+
+        const raw = ctx!.getLogs({ network: 5, redact: false }).network[0];
+        expect(raw.requestBody).toEqual({ password: 'hunter2' });
+        expect(raw.requestHeaders!.authorization).toBe('Bearer secret');
+    });
+
+    it('a requiresElement plugin click enters picker mode', () => {
+        setupDom();
+        registerOverlayPlugin({ id: 'pick', label: 'Pick', requiresElement: true, onClick() {} });
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
+        openCard(root);
+        (root.querySelector('[data-plugin-id=pick]') as HTMLButtonElement).click();
+        expect((root.querySelector('.picker-bar') as HTMLElement).style.display).toBe('flex');
+        expect((root.querySelector('.info-card') as HTMLElement).style.display).toBe('none');
+        expect((root.querySelector('.fab') as HTMLButtonElement).dataset.state).toBe('active');
+    });
+
+    it('toasts when a plugin onClick throws', async () => {
+        setupDom();
+        registerOverlayPlugin({ id: 'boom', label: 'Boom', onClick() { throw new Error('nope'); } });
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
+        openCard(root);
+        (root.querySelector('[data-plugin-id=boom]') as HTMLButtonElement).click();
+        await Promise.resolve();
+        const toast = root.querySelector('.hfe-toast') as HTMLElement;
+        expect(toast).toBeTruthy();
+        expect(toast.dataset.kind).toBe('error');
+        expect(toast.textContent).toContain('nope');
+    });
+
+    it('shows a GitHub promo link in the info card', () => {
+        setupDom();
+        installOverlay(makeFakeClient());
+        const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
+        const link = root.querySelector('[data-role=github]') as HTMLAnchorElement;
+        expect(link).toBeTruthy();
+        expect(link.getAttribute('href')).toBe('https://github.com/Morphicai/harness-fe');
     });
 });

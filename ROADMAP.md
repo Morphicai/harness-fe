@@ -46,8 +46,8 @@ Today the daemon assumes a developer running it on `localhost`. To put Harness i
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)
 - [ ] **Multi-bundler reach** — Rspack + esbuild + Rollup adapters via unplugin
 - [ ] **Documentation site** (VitePress) — public docs with a clear problem statement, architecture, quickstarts, agent setup, framework guides, and roadmap pages
-- [ ] **Overlay plugin API** — turn the built-in "H" overlay into an extensible surface so developers can add custom actions and panels without forking `@harness-fe/runtime`
-- [ ] **Official issue-tracker plugin example** — Jira first: create a linked external issue from a selected element, screenshot, source location, logs, network tail, and session metadata
+- [x] **Overlay plugin API** — `registerOverlayPlugin` adds custom action buttons to the "H" overlay (runtime global or typed import; pre-boot queue too) without forking `@harness-fe/runtime`. Handlers get a typed, redaction-aware context (scene / logs / screenshot / picked element). MVP is action buttons; custom panels remain a future extension. See [docs/overlay-plugins.md](./docs/overlay-plugins.md).
+- [ ] **Official issue-tracker plugin example** — Jira first: create a linked external issue from a selected element, screenshot, source location, logs, network tail, and session metadata. _A documented Jira example + proxy contract ships in [docs/overlay-plugins.md](./docs/overlay-plugins.md); a published, batteries-included package is still pending._
 
 ---
 
