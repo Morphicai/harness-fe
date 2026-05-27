@@ -14,9 +14,27 @@
  * or out. State machine: idle → info → (picker → question) → flash → idle.
  */
 
-import { EVENT_NAME, type TaskSubmitPayload, type TaskAttachment } from '@harness-fe/protocol';
+import {
+    EVENT_NAME,
+    type TaskSubmitPayload,
+    type TaskAttachment,
+    type NetworkEntry,
+} from '@harness-fe/protocol';
 import { snapdom } from '@zumer/snapdom';
 import { deriveDashboardUrl } from './dashboardUrl.js';
+import { getCaptureStore } from './capture.js';
+import { collectPageLoadSnapshot } from './snapshot.js';
+import {
+    getOverlayPlugins,
+    subscribeOverlayPlugins,
+    type OverlayPlugin,
+    type OverlayPluginContext,
+    type OverlayPluginLogs,
+    type OverlayPluginGetLogsOptions,
+} from './pluginRegistry.js';
+
+/** Repo URL surfaced in the overlay footer. */
+const GITHUB_URL = 'https://github.com/Morphicai/harness-fe';
 
 const HOST_ID = '__harness_fe_overlay__';
 const MAX_OUTER_HTML = 2048;
@@ -289,6 +307,8 @@ export function installOverlay(client: OverlayClient): void {
     let statusPollTimer: number | undefined;
     /** Flattened PNG from the annotate step; null if user skipped. */
     let pendingAttachment: TaskAttachment | null = null;
+    /** Set while the picker is collecting an element for a `requiresElement` plugin. */
+    let pluginAwaitingElement: OverlayPlugin | null = null;
 
     const setState = (next: State) => {
         state = next;
@@ -360,6 +380,17 @@ export function installOverlay(client: OverlayClient): void {
         if (!hoveredEl) return;
         lockedEl = hoveredEl;
         setHighlight(lockedEl);
+        // A plugin requested the element — hand it straight to its onClick and
+        // skip the report/question flow entirely.
+        if (pluginAwaitingElement) {
+            const plugin = pluginAwaitingElement;
+            pluginAwaitingElement = null;
+            const el = lockedEl;
+            lockedEl = null;
+            setState('idle');
+            void invokePlugin(plugin, el);
+            return;
+        }
         // Go straight to the question step. Screenshots are now opt-in via
         // the "Add screenshot" button inside the question panel — users
         // shouldn't have to draw on every report.
@@ -385,6 +416,7 @@ export function installOverlay(client: OverlayClient): void {
             } else if (state === 'picker' || state === 'question') {
                 lockedEl = null;
                 pendingAttachment = null;
+                pluginAwaitingElement = null;
                 setState('info');
             } else if (state === 'info') {
                 setState('idle');
@@ -468,6 +500,106 @@ export function installOverlay(client: OverlayClient): void {
         lines.push(`- daemon: ${client.getConnectionState()}`);
         return lines.join('\n') + '\n';
     };
+
+    // ─── Plugin support ──────────────────────────────────────────────────
+    const dashboardUrl = client.mcpUrl
+        ? deriveDashboardUrl({ mcpUrl: client.mcpUrl, sessionId: client.sessionId })
+        : undefined;
+
+    /** Brief transient toast anchored near the FAB. */
+    const showToast = (message: string, kind: 'ok' | 'error' = 'ok'): void => {
+        const el = document.createElement('div');
+        el.className = 'hfe-toast';
+        el.dataset.kind = kind;
+        el.textContent = message;
+        root.appendChild(el);
+        requestAnimationFrame(() => { el.dataset.show = '1'; });
+        setTimeout(() => {
+            el.dataset.show = '';
+            setTimeout(() => el.remove(), 250);
+        }, 2400);
+    };
+
+    const buildPluginContext = (selectedEl?: Element): OverlayPluginContext => {
+        const selectedElement = selectedEl
+            ? {
+                  el: selectedEl,
+                  selector: {
+                      comp: selectedEl.getAttribute('data-morphix-comp') ?? undefined,
+                      loc: selectedEl.getAttribute('data-morphix-loc') ?? undefined,
+                      css: buildCssPath(selectedEl),
+                  },
+                  outerHTML: truncate(stripInternalAttrs(selectedEl.outerHTML), MAX_OUTER_HTML),
+                  rect: (() => {
+                      const r = selectedEl.getBoundingClientRect();
+                      return { x: r.x, y: r.y, width: r.width, height: r.height };
+                  })(),
+              }
+            : undefined;
+        return {
+            projectId: client.projectId,
+            displayName: client.displayName,
+            buildId: client.buildId,
+            parentProjectId: client.parentProjectId,
+            sessionId: client.sessionId,
+            tabId: client.tabId,
+            visitorId: client.visitorId,
+            userId: client.userId,
+            url: location.href,
+            connectionState: client.getConnectionState(),
+            dashboardUrl,
+            selectedElement,
+            snapshotMarkdown: buildSnapshot,
+            snapshot: () => collectPageLoadSnapshot(client.sessionId),
+            getLogs: (opts) => collectLogs(opts),
+            captureScreenshot: (el) => captureElementPng(el ?? selectedEl ?? document.body),
+            query: client.query ? client.query.bind(client) : undefined,
+            copyToClipboard: (text) => copyText(text),
+            toast: showToast,
+        };
+    };
+
+    const invokePlugin = async (plugin: OverlayPlugin, selectedEl?: Element): Promise<void> => {
+        try {
+            await plugin.onClick(buildPluginContext(selectedEl));
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            showToast(`${plugin.label}: ${msg}`, 'error');
+        }
+    };
+
+    /** (Re)render the plugin button group in the info card. */
+    const renderPluginButtons = (): void => {
+        const slot = infoCard.querySelector<HTMLElement>('[data-role=plugin-actions]');
+        if (!slot) return;
+        const list = getOverlayPlugins();
+        slot.innerHTML = '';
+        slot.style.display = list.length ? '' : 'none';
+        for (const plugin of list) {
+            const btn = document.createElement('button');
+            btn.className = 'secondary';
+            btn.type = 'button';
+            btn.dataset.pluginId = plugin.id;
+            btn.textContent = `${plugin.icon ? plugin.icon + ' ' : ''}${plugin.label}`;
+            btn.addEventListener('click', () => {
+                if (plugin.requiresElement) {
+                    pluginAwaitingElement = plugin;
+                    setState('picker');
+                } else {
+                    setState('idle');
+                    void invokePlugin(plugin);
+                }
+            });
+            slot.appendChild(btn);
+        }
+    };
+
+    renderPluginButtons();
+    const unsubscribePlugins = subscribeOverlayPlugins(() => {
+        // Only the info card shows plugin buttons; re-render whenever the set changes.
+        renderPluginButtons();
+    });
+    void unsubscribePlugins; // overlay lives for the page lifetime; no teardown path
 
     // ─── Reports rendering ───────────────────────────────────────────────
     let editingTaskId: string | null = null;
@@ -690,9 +822,6 @@ export function installOverlay(client: OverlayClient): void {
     // the plugin / runtime config).
     {
         const dashboardBtn = infoCard.querySelector<HTMLButtonElement>('[data-role=open-dashboard]')!;
-        const dashboardUrl = client.mcpUrl
-            ? deriveDashboardUrl({ mcpUrl: client.mcpUrl, sessionId: client.sessionId })
-            : undefined;
         if (dashboardUrl) {
             dashboardBtn.style.display = '';
             dashboardBtn.title = `Open ${dashboardUrl} in a new tab`;
@@ -707,6 +836,18 @@ export function installOverlay(client: OverlayClient): void {
             });
         }
     }
+
+    // GitHub promo link — anchor navigates natively; this fallback covers
+    // sandboxed iframes / popup blockers by copying the URL instead.
+    infoCard.querySelector<HTMLAnchorElement>('[data-role=github]')!.addEventListener('click', (ev) => {
+        try {
+            const opened = window.open(GITHUB_URL, '_blank', 'noopener,noreferrer');
+            if (opened) ev.preventDefault();
+        } catch {
+            ev.preventDefault();
+            void copyText(GITHUB_URL, ev.currentTarget as HTMLElement);
+        }
+    });
 
     reportsCard.querySelector('[data-role=back]')!.addEventListener('click', () => setState('info'));
     reportsCard.querySelector('[data-role=close]')!.addEventListener('click', () => setState('idle'));
@@ -727,6 +868,7 @@ export function installOverlay(client: OverlayClient): void {
 
     pickerBar.querySelector('[data-role=cancel]')!.addEventListener('click', () => {
         lockedEl = null;
+        pluginAwaitingElement = null;
         setState('info');
     });
 
@@ -1148,6 +1290,65 @@ export async function finalizeAnnotation(): Promise<TaskAttachment | null> {
     return att;
 }
 
+// ─── Plugin helpers (screenshot / logs) ───────────────────────────────────
+
+/**
+ * Rasterize an element to a PNG TaskAttachment via snapdom. Returns null on
+ * failure (cross-origin, test env, …) so plugins can degrade gracefully.
+ * Exported for testing.
+ */
+export async function captureElementPng(el: Element): Promise<TaskAttachment | null> {
+    try {
+        const result = await snapdom(el as HTMLElement, { fast: true });
+        const canvas = await result.toCanvas();
+        const dataUrl = canvas.toDataURL('image/png', 0.85);
+        const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+        return {
+            id: `att_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+            kind: 'screenshot',
+            data: base64,
+            width: canvas.width || 1,
+            height: canvas.height || 1,
+        };
+    } catch {
+        return null;
+    }
+}
+
+const SENSITIVE_HEADER_RE = /^(authorization|cookie|set-cookie|proxy-authorization)$/i;
+
+/** Strip bodies + auth/cookie headers from a network entry. */
+function redactNetworkEntry(e: NetworkEntry): NetworkEntry {
+    const out: NetworkEntry = { ...e };
+    delete out.requestBody;
+    delete out.responseBody;
+    delete out.requestBodyTruncated;
+    delete out.responseBodyTruncated;
+    for (const key of ['requestHeaders', 'responseHeaders'] as const) {
+        const h = out[key];
+        if (h) {
+            const safe: Record<string, string> = {};
+            for (const [k, v] of Object.entries(h)) {
+                if (!SENSITIVE_HEADER_RE.test(k)) safe[k] = v;
+            }
+            out[key] = safe;
+        }
+    }
+    return out;
+}
+
+/** Read recent buffered logs for the plugin context. Redacts network by default. */
+export function collectLogs(opts: OverlayPluginGetLogsOptions = {}): OverlayPluginLogs {
+    const store = getCaptureStore();
+    const redact = opts.redact !== false;
+    const network = store.network.tail(opts.network ?? 0);
+    return {
+        console: store.console.tail(opts.console ?? 0),
+        errors: store.errors.tail(opts.errors ?? 0),
+        network: redact ? network.map(redactNetworkEntry) : network,
+    };
+}
+
 // ─── DOM builders ────────────────────────────────────────────────────────
 
 function buildStyle(): HTMLStyleElement {
@@ -1374,6 +1575,47 @@ function buildStyle(): HTMLStyleElement {
             color: #34d399;
             border-color: rgba(52, 211, 153, 0.3);
         }
+
+        .info-card .plugin-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .info-card .promo {
+            margin-top: 8px;
+            text-align: center;
+        }
+        .info-card .promo-link {
+            color: #a1a1aa;
+            font-size: 11px;
+            text-decoration: none;
+            opacity: 0.7;
+        }
+        .info-card .promo-link:hover { color: #f4f4f5; opacity: 1; }
+
+        .hfe-toast {
+            position: fixed;
+            bottom: 64px;
+            left: 50%;
+            transform: translate(-50%, 8px);
+            max-width: 320px;
+            padding: 8px 14px;
+            background: #111827;
+            color: #f4f4f5;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            font: 500 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 2147483647;
+            pointer-events: none;
+        }
+        .hfe-toast[data-show="1"] { opacity: 1; transform: translate(-50%, 0); }
+        .hfe-toast[data-kind="error"] { border-color: rgba(248, 113, 113, 0.4); color: #fca5a5; }
 
         .picker-bar {
             position: fixed;
@@ -1840,6 +2082,10 @@ function buildInfoCard(): HTMLDivElement {
             </button>
             <button class="secondary" data-role="view-reports" type="button">📁 My reports</button>
             <button class="secondary" data-role="copy-snapshot" type="button">📋 Copy snapshot</button>
+        </div>
+        <div class="plugin-actions" data-role="plugin-actions" style="display:none"></div>
+        <div class="promo">
+            <a class="promo-link" data-role="github" href="${GITHUB_URL}" target="_blank" rel="noopener noreferrer">⭐ Harness-FE on GitHub</a>
         </div>
     `;
     return card;
