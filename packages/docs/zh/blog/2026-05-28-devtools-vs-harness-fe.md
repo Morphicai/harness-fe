@@ -18,7 +18,6 @@ author: Harness-FE 团队
 第三次了。
 
 ```mermaid
-%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#0F294D', 'primaryTextColor': '#FFFFFF', 'lineColor': '#005EFF', 'background': '#FDFEFE' } } }%%
 flowchart LR
     A["14:32&nbsp;登录"] --> B["点几下&nbsp;dashboard"]
     B --> C["登录态&nbsp;失效"]
@@ -36,7 +35,6 @@ flowchart LR
 **第一招,Application 标签看 localStorage。**
 
 ```mermaid
-%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#005EFF', 'primaryTextColor': '#FFFFFF', 'lineColor': '#0F294D' } } }%%
 flowchart LR
     subgraph see["DevTools&nbsp;能告诉你"]
         A["auth_token&nbsp;=&nbsp;(empty)"]
@@ -144,7 +142,6 @@ Agent 调了一个工具:
 ```
 
 ```mermaid
-%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#005EFF', 'primaryTextColor': '#FFFFFF', 'lineColor': '#0F294D', 'actorBkg': '#005EFF', 'actorTextColor': '#FFFFFF' } } }%%
 sequenceDiagram
     autonumber
     actor Me as 我
@@ -195,7 +192,6 @@ Agent 给出诊断:
 我看了一眼时钟,刚才那 90 分钟,有点像做了一场梦。
 
 ```mermaid
-%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#0F294D', 'primaryTextColor': '#FFFFFF', 'lineColor': '#0F294D' } } }%%
 flowchart TB
     subgraph trad["DevTools 路线 ~ 120 分钟"]
         direction LR
@@ -265,7 +261,6 @@ Skill 文件会被丢到 `.claude/skills/harness-fe/`(或 cursor / kiro 对应�
 POST 打到了 `/api/setting`(单数),实际应该是 `/api/settings`。Refactor 时漏了一个 `s`。`initiator.stack` 直接指向 `useSettings.ts:23`。
 
 ```mermaid
-%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#005EFF', 'primaryTextColor': '#FFFFFF', 'lineColor': '#0F294D' } } }%%
 flowchart LR
     A["page_click<br/>SaveButton"] --> B["network_tail<br/>filter=/api/"]
     B --> C{"看到了什么?"}
