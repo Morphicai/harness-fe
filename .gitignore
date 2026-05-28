@@ -28,6 +28,10 @@ Thumbs.db
 .envrc
 .secrets/
 secrets/
+
+# Private / internal-only material (promo drafts, strategy notes, etc.)
+.private/
+
 *.local.json
 *.secret
 *.secret.*
