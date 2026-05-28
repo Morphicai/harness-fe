@@ -1,0 +1,58 @@
+/**
+ * Morphix design tokens applied to VitePress default theme.
+ * Brand source: morphix/openspec/specs/design-system/spec.md
+ */
+
+:root {
+    /* Brand palette */
+    --vp-c-brand-1: #005eff;
+    --vp-c-brand-2: #1a6eff;
+    --vp-c-brand-3: #3380ff;
+    --vp-c-brand-soft: rgba(0, 94, 255, 0.14);
+
+    /* Neutral / text — derived from --brand/deep #0F294D */
+    --vp-c-text-1: #0f294d;
+    --vp-c-text-2: rgba(15, 41, 77, 0.6);
+    --vp-c-text-3: rgba(15, 41, 77, 0.5);
+
+    /* Surfaces */
+    --vp-c-bg: #fdfefe;
+    --vp-c-bg-alt: #ffffff;
+    --vp-c-bg-soft: rgba(15, 41, 77, 0.03);
+    --vp-c-border: rgba(15, 41, 77, 0.08);
+    --vp-c-divider: rgba(15, 41, 77, 0.05);
+
+    /* Hero gradient — single brand accent, no rainbow */
+    --vp-home-hero-name-color: transparent;
+    --vp-home-hero-name-background: linear-gradient(120deg, #005eff 30%, #0f294d);
+    --vp-home-hero-image-background-image: linear-gradient(
+        135deg,
+        rgba(0, 94, 255, 0.14) 0%,
+        rgba(15, 41, 77, 0.08) 100%
+    );
+    --vp-home-hero-image-filter: blur(64px);
+
+    /* Functional colors */
+    --vp-c-tip-1: #005eff;
+    --vp-c-warning-1: #fbbc05;
+    --vp-c-danger-1: #ea4335;
+    --vp-c-success-1: #34a853;
+
+    /* Typography — align with Morphix font stack */
+    --vp-font-family-base: 'SF Pro Text', 'PingFang SC', -apple-system,
+        BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    --vp-font-family-mono: 'DM Mono', 'JetBrains Mono', 'Fira Code', ui-monospace,
+        SFMono-Regular, Menlo, monospace;
+}
+
+.dark {
+    --vp-c-text-1: #fdfefe;
+    --vp-c-text-2: rgba(253, 254, 254, 0.7);
+    --vp-c-text-3: rgba(253, 254, 254, 0.5);
+    --vp-c-bg: #0f294d;
+    --vp-c-bg-alt: #0a1f3d;
+    --vp-c-bg-soft: rgba(255, 255, 255, 0.04);
+    --vp-c-border: rgba(255, 255, 255, 0.1);
+    --vp-c-divider: rgba(255, 255, 255, 0.06);
+    --vp-home-hero-name-background: linear-gradient(120deg, #3380ff 30%, #ffffff);
+}

@@ -4,12 +4,12 @@
 
 ```mermaid
 graph LR
-    Agent["🤖 AI Agent"]
-    MCP["⚡ MCP Server"]
-    Plugin["🔧 Build Plugin"]
-    Runtime["🌐 Runtime Client"]
-    NRT["🖥️ Node Runtime"]
-    Store["💾 Persistence (IStore)"]
+    Agent["AI Agent"]
+    MCP["MCP Server"]
+    Plugin["Build Plugin"]
+    Runtime["Runtime Client"]
+    NRT["Node Runtime"]
+    Store["Persistence (IStore)"]
 
     Agent <-->|stdio MCP| MCP
     MCP <-->|WebSocket| Plugin

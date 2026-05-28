@@ -28,7 +28,6 @@ if (import.meta.env.DEV) {
   registerOverlayPlugin({
     id: 'send-to-slack',
     label: 'Send to Slack',
-    icon: '💬',
     async onClick(ctx: OverlayPluginContext) {
       await fetch('/api/harness/share', {
         method: 'POST',
@@ -114,10 +113,11 @@ raw entries — only when you control the destination:
 ctx.getLogs({ network: 20, redact: false }); // includes bodies + all headers
 ```
 
-> ⚠️ **Sensitive data.** `snapshot().storage` (localStorage / sessionStorage /
-> cookie) and `userId` are real user data. Don't blindly ship them to third
-> parties. Network bodies/headers are redacted by default for exactly this
-> reason.
+::: warning Sensitive data
+`snapshot().storage` (localStorage / sessionStorage / cookie) and `userId` are
+real user data. Don't blindly ship them to third parties. Network bodies/headers
+are redacted by default for exactly this reason.
+:::
 
 ## Example: create a Jira issue
 
@@ -132,7 +132,6 @@ import { registerOverlayPlugin } from '@harness-fe/runtime';
 registerOverlayPlugin({
   id: 'jira',
   label: 'Create Jira issue',
-  icon: '🪲',
   requiresElement: true,
   async onClick(ctx) {
     const shot = await ctx.captureScreenshot(ctx.selectedElement?.el);

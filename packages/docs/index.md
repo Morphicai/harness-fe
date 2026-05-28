@@ -17,27 +17,21 @@ hero:
       link: https://github.com/Morphicai/harness-fe
 
 features:
-  - icon: 🔍
-    title: Full observability
+  - title: Full observability
     details: Console, network, WebSocket, errors, and DOM recordings — streamed to your agent in real time, zero config.
 
-  - icon: 🤖
-    title: MCP-native
+  - title: MCP-native
     details: Works with Claude Code, Cursor, Kiro, Windsurf, and any MCP-aware client. One stdio server, 45+ tools.
 
-  - icon: 🎯
-    title: Source-aware
+  - title: Source-aware
     details: Every element carries its JSX source location. Your agent knows which file and line to edit — no guessing.
 
-  - icon: ⚡
-    title: Framework-agnostic
+  - title: Framework-agnostic
     details: Vite, Webpack, Rspack, Next.js, Vue, React — one unplugin core covers every major bundler.
 
-  - icon: 🔒
-    title: Dev-only footprint
+  - title: Dev-only footprint
     details: The runtime ships only in development builds. Zero production overhead, zero telemetry to third parties.
 
-  - icon: 📦
-    title: Zero-config start
+  - title: Zero-config start
     details: Add one plugin, run one daemon. No accounts, no cloud, no API keys required.
 ---
