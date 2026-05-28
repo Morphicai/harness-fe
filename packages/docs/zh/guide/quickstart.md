@@ -10,7 +10,27 @@
 
 ---
 
-## Vite + React / Vue(3 分钟)
+## 第 1 步:安装 Agent skill(推荐)
+
+**Agent skill** 是规范的接入路径。它把 Harness-FE 的全部使用方法——安装步骤、MCP 配置、工具目录、决策流程、安全约束——汇总在一个文件里,Agent 每次会话开始时都会读取。
+
+```bash
+npx @harness-fe/skill install
+```
+
+这会把 `.claude/skills/harness-fe/SKILL.md` 放进你的项目(其他 Agent:`install cursor` / `install kiro` / `install plain`)。然后告诉你的 Agent:
+
+> "在这个项目里接入 Harness-FE。"
+
+Agent 会读 skill、识别你的打包器、执行对应的安装命令、写入 MCP 配置。下面的步骤是手动路径——可以作为参考,也可以在你想自己动手时使用。
+
+::: tip 为什么 skill-first
+Skill 是唯一可信源。文档站更新时,只需要 bump 一次 `@harness-fe/skill`,所有 Agent 都拿到最新 playbook —— 不需要在队伍里手动同步拷贝粘贴的接入步骤。
+:::
+
+---
+
+## 第 2 步(手动路径):Vite + React / Vue(3 分钟)
 
 ```bash
 pnpm add -D @harness-fe/vite @harness-fe/runtime
@@ -107,13 +127,7 @@ daemon 通过 stdio MCP 暴露自身。在 Agent 中注册一次即可:
 }
 ```
 
-也可以把内置的 SKILL.md 投放到 Agent 中,让它学会工具集的预期用法:
-
-```bash
-npx @harness-fe/skill install
-```
-
-Agent 现在可以看到 `session_*`、`page_*`、`project_*`、`tasks_*` 等工具。
+如果你已经在第 1 步安装了 skill,这份配置已在 skill 里说明 —— Agent 会替你写入。Agent 现在可以看到 `session_*`、`page_*`、`project_*`、`tasks_*` 等工具。
 
 ---
 
