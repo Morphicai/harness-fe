@@ -1,4 +1,5 @@
 import { defineConfig, type DefaultTheme } from 'vitepress';
+import { withMermaid } from 'vitepress-plugin-mermaid';
 
 const sharedHead: [string, Record<string, string>][] = [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
@@ -149,7 +150,7 @@ const zhThemeConfig: DefaultTheme.Config = {
     langMenuLabel: '切换语言',
 };
 
-export default defineConfig({
+export default withMermaid(defineConfig({
     title: 'Harness-FE',
     description: 'Give AI agents eyes, ears, and hands in your frontend.',
     head: sharedHead,
@@ -211,4 +212,17 @@ export default defineConfig({
             dark: 'github-dark',
         },
     },
-});
+
+    mermaid: {
+        theme: 'base',
+        themeVariables: {
+            primaryColor: '#005EFF',
+            primaryTextColor: '#FFFFFF',
+            primaryBorderColor: '#0F294D',
+            lineColor: '#0F294D',
+            secondaryColor: '#E7EBF8',
+            tertiaryColor: '#FDFEFE',
+            fontFamily: "'SF Pro Text', 'PingFang SC', -apple-system, sans-serif",
+        },
+    },
+}));
