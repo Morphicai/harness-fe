@@ -135,8 +135,8 @@ const zhThemeConfig: DefaultTheme.Config = {
         text: '在 GitHub 上编辑此页',
     },
     footer: {
-        message: '基于 MIT 协议发布。',
-        copyright: 'Copyright © 2024-present Morphic AI',
+        message: '基于 MIT 协议开源。',
+        copyright: '版权所有 © 2024-至今 Morphic AI',
     },
     docFooter: {
         prev: '上一页',
