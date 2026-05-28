@@ -2,6 +2,21 @@
 
 **Harness-FE** gives AI agents real-time observability into a running frontend application — console logs, network requests, WebSocket frames, DOM recordings, and source-aware element selectors — via the [Model Context Protocol](https://modelcontextprotocol.io) (MCP).
 
+::: tip Skill-first onboarding (recommended)
+The fastest way to add Harness-FE to a project is to let your agent do it.
+Install the agent skill once:
+
+```bash
+npx @harness-fe/skill install
+```
+
+Then ask your agent: *"Set up Harness-FE in this project."* The skill contains
+the install steps, the MCP daemon config, the full tool catalog, and pointers
+back to this site for deeper questions — your agent has everything it needs.
+
+See [Quickstart](/guide/quickstart) for the manual path.
+:::
+
 ## The problem
 
 AI coding agents are great at reading and writing source code. They're blind to **runtime behavior**: what the console actually printed, which API call failed, what the user saw. The result is a feedback loop that requires a human to relay information the agent can't observe directly.
@@ -34,7 +49,7 @@ The agent sees `session_tail`, `page_click`, `project_where_is`, and 40+ more to
 - **Source awareness** — elements carry `data-morphix-loc` / `data-morphix-comp`, so the agent can call `project_where_is` to jump straight to the JSX source.
 - **No cloud** — the daemon runs locally. Your console logs and DOM recordings never leave your machine.
 - **Framework-agnostic** — one unplugin core supports Vite, Webpack, Rspack, Rollup, and esbuild.
-- **Agent playbook** — install `@harness-fe/skill` to drop a `SKILL.md` into your agent project, teaching it how to use every tool effectively.
+- **Agent playbook** — `@harness-fe/skill` is a single npm package that drops a `SKILL.md` into your agent project. The file teaches the agent how Harness-FE is set up, how every tool is used, and when to fetch this site for deeper context. **Install it first** — the rest of onboarding is conversational.
 
 ## Next steps
 

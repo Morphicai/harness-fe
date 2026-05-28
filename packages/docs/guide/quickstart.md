@@ -13,7 +13,35 @@ project's docs live in [`docs/`](/guide/introduction) and the [README](https://g
 
 ---
 
-## Vite + React / Vue (3 minutes)
+## Step 1: Install the agent skill (recommended)
+
+The **agent skill** is the canonical onboarding path. It teaches your agent how
+Harness-FE works — install steps, MCP config, tool catalog, decision flows,
+safety constraints — all in one file the agent reads at the start of every
+session.
+
+```bash
+npx @harness-fe/skill install
+```
+
+That drops `.claude/skills/harness-fe/SKILL.md` into your project (other agents:
+`install cursor` / `install kiro` / `install plain`). From here, ask your agent:
+
+> "Set up Harness-FE in this project."
+
+The agent reads the skill, detects your bundler, runs the right install
+commands, and writes the MCP config. The rest of this page is the manual path
+— useful as a reference, or when you want to do it yourself.
+
+::: tip Why skill-first
+The skill is a single source of truth. When the docs site updates, you bump
+`@harness-fe/skill` once and every agent gets the latest playbook — no need
+to keep copy-pasted instructions in sync across teammates.
+:::
+
+---
+
+## Step 2 (manual path): Vite + React / Vue (3 minutes)
 
 ```bash
 pnpm add -D @harness-fe/vite @harness-fe/runtime
@@ -112,14 +140,9 @@ The daemon advertises itself over stdio MCP. Register it once in your agent:
 }
 ```
 
-Alternatively, drop the bundled SKILL.md into your agent so it learns the
-toolset's intended usage:
-
-```bash
-npx @harness-fe/skill install
-```
-
-The agent now sees `session_*`, `page_*`, `project_*`, `tasks_*` and friends.
+If you installed the skill (Step 1), this config is already explained inside
+the skill — the agent will write it for you. The agent now sees `session_*`,
+`page_*`, `project_*`, `tasks_*` and friends.
 
 ---
 
