@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 600" font-family="'SF Pro Text','PingFang SC',-apple-system,sans-serif">
+    <defs>
+        <marker id="arr-l2r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#005EFF" />
+        </marker>
+        <marker id="arr-bi-end" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#0F294D" />
+        </marker>
+        <marker id="arr-bi-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M10,0 L0,5 L10,10 z" fill="#0F294D" />
+        </marker>
+    </defs>
+
+    <!-- Background -->
+    <rect width="1400" height="600" fill="#FDFEFE" />
+
+    <!-- Title -->
+    <text x="700" y="56" text-anchor="middle" font-size="22" font-weight="600" fill="#0F294D">Harness-FE 架构</text>
+    <text x="700" y="84" text-anchor="middle" font-size="14" fill="#0F294D" opacity="0.55">构建插件 + Runtime + MCP daemon ↔ Agent</text>
+
+    <!-- Box 1: App -->
+    <g>
+        <rect x="40" y="220" width="280" height="160" rx="16" fill="#FFFFFF" stroke="#0F294D" stroke-opacity="0.2" stroke-width="2" />
+        <text x="180" y="270" text-anchor="middle" font-size="14" fill="#0F294D" opacity="0.6">浏览器 / Electron renderer</text>
+        <text x="180" y="304" text-anchor="middle" font-size="22" font-weight="600" fill="#0F294D">你的前端应用</text>
+        <text x="180" y="340" text-anchor="middle" font-size="13" fill="#0F294D" opacity="0.5">Vite / Webpack / Next.js</text>
+    </g>
+
+    <!-- Arrow 1 -->
+    <line x1="332" y1="300" x2="396" y2="300" stroke="#005EFF" stroke-width="2.5" marker-end="url(#arr-l2r)" />
+    <text x="364" y="280" text-anchor="middle" font-size="11" fill="#005EFF">hook storage / network</text>
+    <text x="364" y="295" text-anchor="middle" font-size="11" fill="#005EFF">console / error / WS</text>
+
+    <!-- Box 2: Runtime -->
+    <g>
+        <rect x="408" y="220" width="280" height="160" rx="16" fill="#005EFF" />
+        <text x="548" y="270" text-anchor="middle" font-size="13" fill="#FFFFFF" opacity="0.7" font-family="'DM Mono',monospace">@harness-fe/runtime</text>
+        <text x="548" y="304" text-anchor="middle" font-size="22" font-weight="600" fill="#FFFFFF">In-page SDK</text>
+        <text x="548" y="340" text-anchor="middle" font-size="13" fill="#FFFFFF" opacity="0.7">捕获副作用 + initiator.stack</text>
+    </g>
+
+    <!-- Arrow 2 -->
+    <line x1="700" y1="300" x2="764" y2="300" stroke="#005EFF" stroke-width="2.5" marker-end="url(#arr-l2r)" />
+    <text x="732" y="280" text-anchor="middle" font-size="11" fill="#005EFF">WebSocket</text>
+    <text x="732" y="295" text-anchor="middle" font-size="11" fill="#005EFF">带 initiator.stack</text>
+
+    <!-- Box 3: Daemon -->
+    <g>
+        <rect x="776" y="220" width="280" height="160" rx="16" fill="#0F294D" />
+        <text x="916" y="270" text-anchor="middle" font-size="13" fill="#FFFFFF" opacity="0.7" font-family="'DM Mono',monospace">localhost:47729</text>
+        <text x="916" y="304" text-anchor="middle" font-size="22" font-weight="600" fill="#FFFFFF">MCP daemon</text>
+        <text x="916" y="340" text-anchor="middle" font-size="13" fill="#FFFFFF" opacity="0.7">本地长驻 + 跨 tab 持久化</text>
+    </g>
+
+    <!-- Arrow 3 (bidirectional) -->
+    <line x1="1068" y1="300" x2="1132" y2="300" stroke="#0F294D" stroke-width="2.5"
+          marker-start="url(#arr-bi-start)" marker-end="url(#arr-bi-end)" />
+    <text x="1100" y="285" text-anchor="middle" font-size="11" fill="#0F294D">stdio MCP</text>
+
+    <!-- Box 4: Agent -->
+    <g>
+        <rect x="1140" y="220" width="220" height="160" rx="16" fill="#FFFFFF" stroke="#0F294D" stroke-opacity="0.2" stroke-width="2" />
+        <text x="1250" y="270" text-anchor="middle" font-size="14" fill="#0F294D" opacity="0.6">Claude / Cursor / Kiro</text>
+        <text x="1250" y="304" text-anchor="middle" font-size="22" font-weight="600" fill="#0F294D">AI Agent</text>
+        <text x="1250" y="340" text-anchor="middle" font-size="13" fill="#0F294D" opacity="0.5">tools: storage_tail · ...</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <text x="700" y="500" text-anchor="middle" font-size="13" fill="#0F294D" opacity="0.55">
+        每个副作用都附带 JS 调用栈,Agent 拿到事件的同时就知道是谁触发的。
+    </text>
+</svg>

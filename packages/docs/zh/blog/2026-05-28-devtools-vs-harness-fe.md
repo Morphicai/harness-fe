@@ -1,344 +1,107 @@
 ---
-title: Chrome DevTools 不好用?不妨试试 Harness-FE
-description: 一个我自己反复撞了三次的"登录态莫名其妙没了"。打开 F12 之前,我先让 agent 替我看了一眼。
+title: Chrome DevTools 不好用？不妨试试 Harness-FE
+description: 一个真实的 dev 阶段调试痛点。Chrome DevTools MCP 解决了一部分，Harness-FE 想往前再走一步。
 date: 2026-05-28
 author: Harness-FE 团队
 ---
 
-# Chrome DevTools 不好用?不妨试试 Harness-FE
+# Chrome DevTools 不好用？不妨试试 Harness-FE
 
-周三下午,我正在调一个新的鉴权流程。本地点开 dashboard,刷新两次,屏幕中间冷不丁弹出来一句:
+![Harness-FE](/blog/images/2026-05-28-devtools-vs-harness/00-banner.png)
 
-> **"登录态已失效,请重新登录。"**
+## 背景
 
-我心里咯噔一下。
+你有没有遇到过这样的痛：
 
-重新登录,继续点。一分钟,弹窗又跳出来。
+1. 测试同学撞到 bug，等你接手的时候第一现场的日志已经不在了
+2. 多账号并行测试，要在多个浏览器实例 / Chrome profile 里登不同账号来回切
+3. 移动端测试，日志收集成本极高，要靠截图、录屏、相机拍
 
-第三次了。
+[Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) 出来其实有一段时间了。它是 Chrome 官方做的一组 MCP 工具，核心能力是 attach 到 Chrome、`page_evaluate` 在 tab 里跑代码、截图、控制 navigation——让 Agent 替开发者去操作一个浏览器 tab。
 
-```mermaid
-flowchart LR
-    A["14:32 登录"] --> B["点几下 dashboard"]
-    B --> C["登录态 失效"]
-    C --> D["重新登录"]
-    D --> E["1 分钟后"]
-    E --> F["又失效"]
-    F --> G["第三次了"]
-    style G fill:#EA4335,color:#FFFFFF
-```
+我做过一些尝试，但一直没有真的用起来。它的工作模型是“远程操作我此刻 attach 到的那一个 tab”，**所有信息都来自 agent 当下去看**；但我前面那几个场景，信息是过去的、是分散在不同实例里的、是不在我面前的那个浏览器里的。
 
-## F12,这是肌肉记忆吧?
+我理想中的状态是：测试同学提出 bug，Agent 自己就能知道第一现场是什么，甚至复原第一现场，然后结合代码立马定位问题、解决问题，最后自己再驱动浏览器验证一遍问题。
 
-熟悉的招式,一套一套来。
+![理想的反馈闭环](/blog/images/2026-05-28-devtools-vs-harness/01-feedback-loop.svg)
 
-**第一招,Application 标签看 localStorage。**
+## Harness 工程
 
-```mermaid
-flowchart LR
-    subgraph see["DevTools 能告诉你"]
-        A["auth_token = (empty)"]
-    end
-    subgraph need["你真正需要知道的"]
-        B1["谁删的?"]
-        B2["什么时候?"]
-        B3["从哪个文件?"]
-        B4["为什么删?"]
-    end
-    see -.- need
-    style see fill:#E7EBF8,color:#0F294D
-    style need fill:#FCE6E6,color:#0F294D
-```
+本质上我们要构建的是一个**能让 Agent 得到反馈的闭环**。当然也可以是人给反馈，但人在信息传递上往往是低效的——根据 Caltech 2024 年的研究 [《The unbearable slowness of being》](https://www.caltech.edu/about/news/thinking-slowly-the-paradoxical-slowness-of-human-behavior)，人处理信息的速度大概只有 **10 bits / 秒**。一段对话能传递的细节，远少于一份 session timeline；而且人在转述时还会无意识地过滤、加工。
 
-`auth_token` 是空的。
+所以构建一个开发闭环显得非常重要，**不仅仅是服务于业务**。当信息能自动回流给 Agent 时，人就能从“信息中转站”的角色里抽身，更多去关注架构、开发范式；让人与 Agent 高效的协作，可能会成为下一阶段前端开发的必须。
 
-——但这只告诉我**结果**,看不见**过程**。谁删的?什么时候删的?为什么删?
+## 为什么想到开发 Harness
 
-DevTools 给不了答案。
+我自己最近在构建 [Morphix](https://morphixai.com) 的时候，我的时间真的非常少。我也是一个很懒惰的人——让我去手动点点测试，不仅效率低，而且即便发现了 bug 我也很有可能没有收集到足够的信息。索性帮 Agent 搭建一个能自己取证的工具。
 
-**第二招,Sources 设断点。** 我先 git grep 一下:
+Morphix 本身是一个让用户自己生成 App 的平台。用户可以通过对应用的反馈，或者应用自动产生的反馈，让生成的 App 变得更好、更健壮。这背后的范式跟 Harness-FE 是同一套：**让信息自动回流，让 Agent 自动迭代**。
 
-```bash
-$ git grep -n 'removeItem\|localStorage\.clear\|Cookies\.remove' src/ | wc -l
-27
-```
+只有这样，我才可能利用有限的时间来做更多新的尝试。
 
-27 处。你感受一下。
+## 实现原理
 
-挨个打上 conditional breakpoint,然后刷新、登录、点点点……希望能蹲到一次。
+Harness-FE 由三层组成：
 
-一个小时过去了,什么都没触发。复现概率太低。
+![Harness-FE 架构图](/blog/images/2026-05-28-devtools-vs-harness/02-architecture.svg)
 
-**第三招,console.log 大法。** 直接 monkey-patch:
+**构建插件**:`@harness-fe/vite` / `@harness-fe/webpack` / `@harness-fe/next` 在打包阶段对源码插桩，给每个 JSX 元素加上 `data-morphix-loc="src/Form.tsx:42:8"`。Agent 看到一个元素就直接知道源码位置，不需要 grep，不需要 react-devtools。
 
-```ts
-const _orig = localStorage.removeItem.bind(localStorage);
-localStorage.removeItem = function (key) {
-    console.trace('removeItem called:', key);
-    _orig(key);
-};
-```
+**Runtime**:`@harness-fe/runtime` 是注入到浏览器的 in-page SDK，在 runtime 层 hook 所有副作用——console、network(fetch / XHR)、localStorage / sessionStorage / cookie 写入、WebSocket 帧、navigation、未捕获错误、rrweb DOM 录制。**每条事件都附带一份 JS 调用栈**(`initiator.stack`)，这意味着 Agent 拿到事件的同时拿到“谁触发的”。
 
-侵入式,改完代码——然后 Vite 热更新了一次,window 被重置,patch 没了。
+**MCP daemon**：本地长驻进程，默认监听 `localhost:47729`。所有数据保存在 daemon 里，跨 tab、跨 dev-server restart、跨 HMR 都不丢。Agent 通过 stdio MCP 连接，以工具调用的形式查询事件：`storage_tail` / `network_tail` / `session.timeline` / `visitor.timeline` / `project_where_is` / `session_recordings_around` 等四十多个工具，文档在 [/zh/reference/mcp-tools](/zh/reference/mcp-tools)。
 
-重新登录,再试。
+这套设计与 Chrome DevTools MCP 的根本差异在于：**信息是被动捕获并持久化的，而不是 agent 主动去 attach 当下那个 tab 才能看到**。
 
-到这里,我已经花了 90 分钟。连 bug 在哪都不知道。
-
-## 问题真的在 DevTools 吗?
-
-其实不在。
-
-DevTools 是给"开发者亲自盯着屏幕看"设计的工具。它的全部交互假设都建立在**有一个人坐在前面**:
-
-- Network 标签——你要自己点开看哪个请求
-- Sources 断点——你要自己想清楚在哪一行停下来
-- Console——你要自己 grep 一遍找证据
-- Application——你要自己知道哪个 key 重要
-
-可是说真的,我们大部分调试时间已经不是这样了。
-
-我们打开 Claude Code、Cursor,先扔一句"帮我看下这个 bug",然后让 agent 干活。
-
-但 agent 看不见我能看见的东西——它没有 F12,没有 Network 标签,没有 Application 视图。它只能读源代码,然后**猜**。
-
-## 那就给 agent 装上眼睛
-
-[Harness-FE](https://harness-fe.com) 的想法其实很简单:把 DevTools 暴露的所有信息——console、network、localStorage、cookie、navigation、错误堆栈、DOM 录制——全部**结构化、带 metadata、可以被 agent 直接调用**。
-
-而且关键是:**每一个事件都带 `initiator.stack`**——发起这个事件的 JS 调用栈。
-
-这是 DevTools 永远不会主动告诉你的。
-
-回到我刚才那个 bug。
-
-我打开 Claude Code,说了一句:
-
-> "我在 dashboard 反复被踢出登录,帮我查下 token 是被谁清掉的"
-
-Agent 调了一个工具:
+举个例子，Agent 查 `auth_token` 是被谁清的：
 
 ```
 > storage_tail({ op: 'remove', key: 'auth_token' })
 ```
 
-返回:
+返回的事件带着完整的 JS 调用栈，顶端的 user-code 帧直接指向哪个文件的哪一行清的——不需要复现，不需要断点。
 
-```json
-[
-  {
-    "ts": "2026-05-28 14:47:32.108",
-    "op": "remove",
-    "key": "auth_token",
-    "initiator": {
-      "stack": [
-        "src/lib/api/interceptor.ts:47:12  handle401Response",
-        "src/lib/api/interceptor.ts:23:8   axiosInstance.interceptors.response.use",
-        "node_modules/axios/lib/..."
-      ]
-    }
-  }
-]
-```
+## 如何使用
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Me as 我
-    participant Agent as Claude Code
-    participant Daemon as MCP Daemon
-    participant Runtime as Browser Runtime
-
-    Me->>Agent: 帮我查 token 被谁清掉的
-    Agent->>Daemon: storage_tail({ op: 'remove', key: 'auth_token' })
-    Daemon->>Runtime: 查事件 buffer
-    Runtime-->>Daemon: 1 条记录 + initiator.stack
-    Daemon-->>Agent: src/lib/api/interceptor.ts:47:12
-    Agent->>Daemon: project_source({ file, line })
-    Daemon-->>Agent: 第 47 行源码
-    Agent-->>Me: 根因 + fix 建议
-```
-
-Stack 顶端的 user-code 帧:`src/lib/api/interceptor.ts:47`。
-
-Agent 顺手又调了一个工具读源码:
-
-```
-> project_source({ file: 'src/lib/api/interceptor.ts', startLine: 40, endLine: 55 })
-```
-
-```ts
-axiosInstance.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            // ⚠️ 任何 401 都登出
-            localStorage.removeItem('auth_token');
-            window.location.assign('/login');
-        }
-        return Promise.reject(error);
-    }
-);
-```
-
-Agent 给出诊断:
-
-> 第 47 行无差别处理所有 401 响应。但 `/api/avatar/by-uid` 在用户没头像时也会返回 401(这是后端的 bug),导致 dashboard 渲染头像列表的时候,你被误登出。
->
-> 建议:把清 token 的逻辑收紧到 `/api/auth/*` 路径下,或者把 `/api/avatar/*` 移到不需要鉴权的路由。
-
-从问题到根因到方案——**90 秒**。
-
-我看了一眼时钟,刚才那 90 分钟,有点像做了一场梦。
-
-```mermaid
-flowchart TB
-    subgraph trad["DevTools 路线 ~ 120 分钟"]
-        direction LR
-        T1["Application 看空状态<br/>5 分钟"] --> T2["git grep + 设 27 个断点<br/>30 分钟"]
-        T2 --> T3["蹲守复现<br/>60 分钟"]
-        T3 --> T4["Monkey-patch<br/>15 分钟"]
-        T4 --> T5["HMR 重置,白干<br/>10 分钟"]
-    end
-    subgraph hf["Harness-FE 路线 ~ 90 秒"]
-        direction LR
-        H1["storage_tail"] --> H2["读 initiator.stack"]
-        H2 --> H3["project_source"]
-        H3 --> H4["Root cause + fix"]
-    end
-    style trad fill:#FCE6E6,color:#0F294D
-    style hf fill:#E7F0FF,color:#0F294D
-    style T5 fill:#EA4335,color:#FFFFFF
-    style H4 fill:#34A853,color:#FFFFFF
-```
-
-## 它为什么能知道这些?
-
-简单画一下机制:
-
-```mermaid
-flowchart LR
-    App["你的前端应用<br/>浏览器"]
-    Runtime["@harness-fe/runtime<br/>in-page SDK"]
-    Daemon["MCP daemon<br/>localhost:47729"]
-    Agent["AI Agent<br/>Claude / Cursor / Kiro"]
-
-    App -- "hook storage / network<br/>console / error / navigation" --> Runtime
-    Runtime -- "WebSocket 带 initiator.stack" --> Daemon
-    Agent <-- "stdio MCP" --> Daemon
-```
-
-四个关键差异:
-
-1. **运行时插桩**——打包阶段插桩一遍源码,JSX 元素都带 `data-morphix-loc="src/Form.tsx:42:8"`,agent 不用猜文件位置
-2. **事件 + stack**——每个浏览器副作用(storage 写、fetch、WebSocket 发送、navigation)都伴随抓取的 JS 调用栈
-3. **本地长驻 daemon**——数据不上云,跨 session、跨 tab 持续观察。HMR 不会重置,改完代码再点一次就能对比新旧 timeline
-4. **MCP 协议**——agent 直接当工具调用,Claude Code / Cursor / Kiro / Windsurf 都通用
-
-整套东西安装只要一行:
+一行命令把 skill 投递给 agent:
 
 ```bash
 npx @harness-fe/skill install
 ```
 
-Skill 文件会被丢到 `.claude/skills/harness-fe/`(或 cursor / kiro 对应目录),agent 下次会话就知道何时调用哪个工具。然后你只要扔一句话:
+skill 是一份 [`SKILL.md`](/zh/reference/mcp-tools)，会被放到 `.claude/skills/harness-fe/`(其他 agent 类似目录)。Agent 下次会话读这个文件就知道：
 
-> "在这个项目里接入 Harness-FE。"
+- 怎么在项目里装 runtime 和构建插件
+- 怎么写 MCP daemon 的 stdio 配置
+- 什么场景下调哪个工具
+- 不明确时去 [harness-fe.com](https://harness-fe.com) 查文档
 
-它会自己装 build 插件、写 MCP daemon 配置。剩下的就是聊天。
+然后对 agent 说一句“在这个项目里接入 Harness-FE”，剩下的 Vite / Webpack / Next.js / Electron 集成 agent 会自己完成。各种集成路径在[文档](/zh/integrations/vite)里都有。
 
-## 不止 storage
-
-我用同样的方式,这周还顺手解决了几个:
-
-**"refactor 完表单,保存按钮没反应"**
-
-```
-> page_click({ selector: { component: 'SaveButton' } })
-> network_tail({ filter: { url: '/api/' }, n: 5 })
-```
-
-POST 打到了 `/api/setting`(单数),实际应该是 `/api/settings`。Refactor 时漏了一个 `s`。`initiator.stack` 直接指向 `useSettings.ts:23`。
-
-```mermaid
-flowchart LR
-    A["page_click<br/>SaveButton"] --> B["network_tail"]
-    B --> C{"看到了什么?"}
-    C -- "POST /api/setting<br/>404" --> D["initiator.stack"]
-    D --> E["useSettings.ts:23"]
-    E --> F["少了一个 s"]
-    style F fill:#EA4335,color:#FFFFFF
-    style C fill:#FBBC05,color:#0F294D
-```
-
-**"我自己测了三次,行为都不一样"**
-
-```
-> session_tail({ types: ['storage', 'network', 'navigation'], since: '2m' })
-```
-
-两分钟内所有副作用按时间线排出来,跟我点击的步骤一对——哪一步是 race condition 触发的,一目了然。HMR 不会重置这些数据(它们在 daemon 进程里),改完代码再点一次,直接对比新旧 timeline。
-
-**"开发时开第二个 tab 调试,第一个 tab 突然登出"**
-
-```
-> visitor.timeline({ visitorId, types: ['ws', 'storage', 'navigation'], since: '5m' })
-```
-
-同浏览器跨 tab 因果链,一条命令:tab B 收到 ws 推送 `force_logout` → tab B 清 token → StorageEvent 同步到 tab A → tab A 的 AuthGuard 跳登录页。
-
-调多 tab 共享态(SSO / 协同 / 实时推送)极常见。DevTools 要开两个窗口手动对齐。这里一条命令。
-
-**"Next.js dev server 启动后 hydration mismatch,错误指着 `<html>` 元素"**
-
-```
-> session.timeline({ sessionId, types: ['server-err', 'error'] })
-```
-
-Server Component 的渲染错误和客户端 hydration 错误在同一条时间轴上,sessionId 一致。
-
-再也不用左屏看 dev server 终端、右屏看浏览器 console,猜哪两条 log 对得上。
-
-## DevTools 没死,只是不够用了
-
-我不是来宣布"Chrome DevTools 已死"的。
-
-任何需要你**亲自盯着屏幕**调试的场景——Sources 单步跟、Performance 录制、Memory snapshot——DevTools 还是最快的。Harness-FE 不替代,也不该替代。
-
-但今天我们一半以上的调试时间,实际上是**让 agent 替我们看一眼**。
-
-这一半时间里,DevTools 帮不上忙——它的所有信息都困在浏览器 UI 里,出不去。
-
-Harness-FE 就是把这一半时间填上的。
-
-::: tip 题外话:它不是 APM
-Harness-FE 的 runtime 只在 dev build 注入。生产构建里**完全不存在**——零运行时开销,零隐私顾虑。它不取代 Sentry / Datadog,也不打算取代。它就是你和 agent 一起调试**本地代码**的工具。
+::: tip 它不是 APM
+Harness-FE 的 runtime 只在 dev build 注入，生产构建里不存在。零运行时开销，零隐私顾虑。它不取代 Sentry / Datadog，定位是 dev 阶段你和 agent 一起调试本地代码的工具。
 :::
 
-## 试一下
+## 未来的规划
 
-```bash
-# 1. 装 skill
-npx @harness-fe/skill install
+完整路线图在 GitHub 公开维护：[ROADMAP.md](https://github.com/Morphicai/harness-fe/blob/main/ROADMAP.md) 配套愿景文档 [VISION.md](https://github.com/Morphicai/harness-fe/blob/main/VISION.md)。借用自动驾驶的分级思路，我们按 SDLC 阶段把成熟度分成三层：
 
-# 2. 让 agent 接入(它会自己装 vite/webpack 插件 + 配 MCP)
-# Claude Code / Cursor / Kiro 里说:
-"在这个项目里接入 Harness-FE"
+**L3 — 开发阶段（dev）**：单人开发者 + Agent 协作（当前主线，`main` 分支 / npm `latest` 标签）。本文涉及的全部能力都在这一层——开发者本人在 dev server 跑代码，Agent 取证 + 定位 + 修复，人 review 后 merge。短期还会补：多打包器覆盖（Rspack / esbuild / Rollup 通过 unplugin 共用一套适配）、流式 child-agent spawn、以及基于现有 [overlay plugin API](/zh/reference/overlay-plugins) 的 Jira / Linear 开箱接入。
 
-# 3. 跑起来
-npx @harness-fe/mcp-server &
-pnpm dev
-```
+**L4 — 测试阶段（test）**：团队共享 daemon，快速发现 / 快速解决（`next` 分支 / npm `@next` 预发，实验中）。让 QA、产品、开发同时连一台自托管的 daemon——QA 在测试环境撞到 bug 的那一刻，第一现场已经在 daemon 里，开发的 Agent 立刻可以 claim 任务、拉 timeline、定位源码、给修复建议。关键技术点是把调用方身份贯穿到 tool 层、`project.list` / `session.list` / `tasks_pending` 按归属过滤、`sendCommand` 限定在调用者自己的 tab 范围内，以及 MCP session 隔离 + project↔agent 绑定索引。这一层 ready 之后，"测试同学撞到 bug → Agent 取证"才能在团队规模下安全跑。
 
-打开 `http://localhost:47729/dashboard` 看一眼。绿色 "connected" 小点亮了就成。
+> 老实说，**L4 这条测试协作线目前还远未完成**——L3 个人开发者场景是稳的，L4 的身份/隔离层还在 `@next` 预发里慢慢推。但这是一个值得做、也已经开了头的方向。我把它公开写在路线图上，是希望吸引同样在思考"AI Agent 怎么真正接管前端调试和验证"的同道一起共建。Harness-FE 想做的不只是一个工具，而是 **Harness 前端开发范式**的一次尝试，这件事一个人或者一个小团队做不到。
 
-——
+**L5 — 生产阶段（prod）**：用户反馈直接打通到开发团队（L4 之后）。这是 Harness 范式真正落地的样子：**线上终端用户撞到问题，反馈和当时的 session timeline 自动回流到开发团队的 Agent**，Agent 拉源码、定位、提 PR、走 review——不需要人工转述、不需要复现、不需要客服-产品-开发三层翻译。技术底座是生产可用的云服务：多实例无 SPOF、可插拔存储后端（SQLite / Postgres / S3）、远程 MCP、严格多租户安全、SLA。开源 + 自托管的版本一直会在，云服务是额外的选项，不是替代。
+
+**生态覆盖**（独立于成熟度分级，持续推进）。端到端目标是：每一个 Agent 生成的前端项目，默认就带 runtime。`@morphixai/code` mini-app 模板默认接入 `@harness-fe/log` 和 `<HarnessScript>`、`npx @harness-fe/create-app` 一键 scaffold、`@harness-fe/react-native` 给 RN / Expo 提供同等能力（sessionId / MCP 语义一致）。
+
+更长期看，AI Agent 在前端开发里要真正发挥协作价值，工具链需要先把信息基建建好。Harness-FE 是这个方向上的一个具体尝试。代码、issue、PR 都在 GitHub 上欢迎参与：[github.com/Morphicai/harness-fe](https://github.com/Morphicai/harness-fe)。
+
+---
 
 - **文档**:[harness-fe.com](https://harness-fe.com)(English / 简体中文)
 - **GitHub**:[Morphicai/harness-fe](https://github.com/Morphicai/harness-fe)(MIT)
-- **完整工具目录**:[harness-fe.com/zh/reference/mcp-tools](https://harness-fe.com/zh/reference/mcp-tools)
-- **故障排查**:[harness-fe.com/zh/guide/troubleshooting](https://harness-fe.com/zh/guide/troubleshooting)
-
-——
-
-与其等着 bug 自己复现,不如让 agent 替你看一眼。
+- **3 分钟上手**:[/zh/guide/quickstart](/zh/guide/quickstart)
+- **架构详解**:[/zh/guide/architecture](/zh/guide/architecture)
+- **完整工具目录**:[/zh/reference/mcp-tools](/zh/reference/mcp-tools)
