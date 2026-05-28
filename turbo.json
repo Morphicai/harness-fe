@@ -24,6 +24,14 @@
       "dependsOn": ["^build"],
       "inputs": ["src/**", "tsconfig.json"],
       "outputs": []
+    },
+    "docs:dev": {
+      "persistent": true,
+      "cache": false
+    },
+    "docs:build": {
+      "inputs": ["**/*.md", "**/*.ts", ".vitepress/**"],
+      "outputs": [".vitepress/dist/**"]
     }
   }
 }
