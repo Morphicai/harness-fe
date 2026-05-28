@@ -2,21 +2,7 @@
 
 ## 分层
 
-```mermaid
-graph LR
-    Agent["AI Agent"]
-    MCP["MCP Server"]
-    Plugin["构建插件"]
-    Runtime["运行时客户端"]
-    NRT["Node Runtime"]
-    Store["持久化 (IStore)"]
-
-    Agent <-->|stdio MCP| MCP
-    MCP <-->|WebSocket| Plugin
-    MCP <-->|WebSocket| Runtime
-    MCP <-->|WS 或 HTTP-batch| NRT
-    MCP -->|读/写| Store
-```
+![Harness-FE 分层架构](/diagrams/architecture-layers.svg)
 
 | 层 | 包 | 职责 |
 |-------|---------|---------------|
