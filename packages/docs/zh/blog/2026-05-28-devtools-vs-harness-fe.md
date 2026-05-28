@@ -19,10 +19,10 @@ author: Harness-FE 团队
 
 ```mermaid
 flowchart LR
-    A["14:32&nbsp;登录"] --> B["点几下&nbsp;dashboard"]
-    B --> C["登录态&nbsp;失效"]
+    A["14:32 登录"] --> B["点几下 dashboard"]
+    B --> C["登录态 失效"]
     C --> D["重新登录"]
-    D --> E["1&nbsp;分钟后"]
+    D --> E["1 分钟后"]
     E --> F["又失效"]
     F --> G["第三次了"]
     style G fill:#EA4335,color:#FFFFFF
@@ -36,8 +36,8 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph see["DevTools&nbsp;能告诉你"]
-        A["auth_token&nbsp;=&nbsp;(empty)"]
+    subgraph see["DevTools 能告诉你"]
+        A["auth_token = (empty)"]
     end
     subgraph need["你真正需要知道的"]
         B1["谁删的?"]
@@ -145,9 +145,9 @@ Agent 调了一个工具:
 sequenceDiagram
     autonumber
     actor Me as 我
-    participant Agent as Claude&nbsp;Code
-    participant Daemon as MCP&nbsp;Daemon
-    participant Runtime as Browser&nbsp;Runtime
+    participant Agent as Claude Code
+    participant Daemon as MCP Daemon
+    participant Runtime as Browser Runtime
 
     Me->>Agent: 帮我查 token 被谁清掉的
     Agent->>Daemon: storage_tail({ op: 'remove', key: 'auth_token' })
@@ -195,16 +195,16 @@ Agent 给出诊断:
 flowchart TB
     subgraph trad["DevTools 路线 ~ 120 分钟"]
         direction LR
-        T1["Application&nbsp;看空状态<br/>5&nbsp;分钟"] --> T2["git&nbsp;grep&nbsp;+&nbsp;设&nbsp;27&nbsp;个断点<br/>30&nbsp;分钟"]
-        T2 --> T3["蹲守复现<br/>60&nbsp;分钟"]
-        T3 --> T4["Monkey-patch<br/>15&nbsp;分钟"]
-        T4 --> T5["HMR&nbsp;重置,白干<br/>10&nbsp;分钟"]
+        T1["Application 看空状态<br/>5 分钟"] --> T2["git grep + 设 27 个断点<br/>30 分钟"]
+        T2 --> T3["蹲守复现<br/>60 分钟"]
+        T3 --> T4["Monkey-patch<br/>15 分钟"]
+        T4 --> T5["HMR 重置,白干<br/>10 分钟"]
     end
     subgraph hf["Harness-FE 路线 ~ 90 秒"]
         direction LR
-        H1["storage_tail"] --> H2["读&nbsp;initiator.stack"]
+        H1["storage_tail"] --> H2["读 initiator.stack"]
         H2 --> H3["project_source"]
-        H3 --> H4["Root&nbsp;cause&nbsp;+&nbsp;fix"]
+        H3 --> H4["Root cause + fix"]
     end
     style trad fill:#FCE6E6,color:#0F294D
     style hf fill:#E7F0FF,color:#0F294D
@@ -217,15 +217,15 @@ flowchart TB
 简单画一下机制:
 
 ```mermaid
-graph LR
-    App["你的前端应用<br/>(浏览器)"]
+flowchart LR
+    App["你的前端应用<br/>浏览器"]
     Runtime["@harness-fe/runtime<br/>in-page SDK"]
     Daemon["MCP daemon<br/>localhost:47729"]
-    Agent["AI Agent<br/>(Claude / Cursor / Kiro)"]
+    Agent["AI Agent<br/>Claude / Cursor / Kiro"]
 
-    App -->|hook 所有 storage / network /<br/>console / error / navigation 调用| Runtime
-    Runtime -->|WebSocket,带 initiator.stack| Daemon
-    Agent <-->|stdio MCP| Daemon
+    App -- "hook storage / network<br/>console / error / navigation" --> Runtime
+    Runtime -- "WebSocket 带 initiator.stack" --> Daemon
+    Agent <-- "stdio MCP" --> Daemon
 ```
 
 四个关键差异:
@@ -262,11 +262,11 @@ POST 打到了 `/api/setting`(单数),实际应该是 `/api/settings`。Refactor
 
 ```mermaid
 flowchart LR
-    A["page_click<br/>SaveButton"] --> B["network_tail<br/>filter=/api/"]
+    A["page_click<br/>SaveButton"] --> B["network_tail"]
     B --> C{"看到了什么?"}
-    C -->|"POST /api/setting → 404"| D["initiator.stack"]
-    D --> E["useSettings.ts:23<br/>`${API}/setting`"]
-    E --> F["少了一个&nbsp;s"]
+    C -- "POST /api/setting<br/>404" --> D["initiator.stack"]
+    D --> E["useSettings.ts:23"]
+    E --> F["少了一个 s"]
     style F fill:#EA4335,color:#FFFFFF
     style C fill:#FBBC05,color:#0F294D
 ```
