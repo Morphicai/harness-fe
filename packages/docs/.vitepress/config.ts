@@ -10,6 +10,7 @@ const enThemeConfig: DefaultTheme.Config = {
         { text: 'Guide', link: '/guide/quickstart' },
         { text: 'Integrations', link: '/integrations/vite' },
         { text: 'Reference', link: '/reference/overlay-plugins' },
+        { text: 'Blog', link: '/blog/' },
         { text: 'Changelog', link: 'https://github.com/Morphicai/harness-fe/blob/main/CHANGELOG.md' },
     ],
     sidebar: {
@@ -76,6 +77,7 @@ const zhThemeConfig: DefaultTheme.Config = {
         { text: '指南', link: '/zh/guide/quickstart' },
         { text: '集成', link: '/zh/integrations/vite' },
         { text: '参考', link: '/zh/reference/overlay-plugins' },
+        { text: '博客', link: '/zh/blog/' },
         { text: '更新日志', link: 'https://github.com/Morphicai/harness-fe/blob/main/CHANGELOG.md' },
     ],
     sidebar: {
