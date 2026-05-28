@@ -230,4 +230,4 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 
 ## License
 
-[MIT](./LICENSE) © 2025 MorphixAI
+[MIT](./LICENSE) © 2026 MorphixAI
