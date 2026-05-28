@@ -3,10 +3,6 @@ title: Chrome DevTools 不好用?不妨试试 Harness-FE
 description: 一个我自己反复撞了三次的"登录态莫名其妙没了"。打开 F12 之前,我先让 agent 替我看了一眼。
 date: 2026-05-28
 author: Harness-FE 团队
-head:
-  - - meta
-    - property: og:image
-      content: /blog/images/2026-05-28-devtools-vs-harness/social-card.png
 ---
 
 # Chrome DevTools 不好用?不妨试试 Harness-FE
@@ -21,11 +17,17 @@ head:
 
 第三次了。
 
-![开发时反复撞到登录态丢失](https://placehold.co/1200x600/0F294D/FFFFFF/png?text=Image+01%0A%E6%B5%8F%E8%A7%88%E5%99%A8%E4%B8%AD+%22%E7%99%BB%E5%BD%95%E6%80%81%E5%B7%B2%E5%A4%B1%E6%95%88%22+%E5%BC%B9%E7%AA%97%0Alocalhost%3A5173+dashboard)
-
-<!-- 待替换:/blog/images/2026-05-28-devtools-vs-harness/01-user-report.png
-浏览器截图 + 弹窗 / Toast 风格,内容 "登录态已失效,请重新登录"。背景是
-开发中的 dashboard 页面,URL 栏可以看到 localhost:5173。建议尺寸 1200×600。 -->
+```mermaid
+%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#0F294D', 'primaryTextColor': '#FFFFFF', 'lineColor': '#005EFF', 'background': '#FDFEFE' } } }%%
+flowchart LR
+    A["14:32&nbsp;登录"] --> B["点几下&nbsp;dashboard"]
+    B --> C["登录态&nbsp;失效"]
+    C --> D["重新登录"]
+    D --> E["1&nbsp;分钟后"]
+    E --> F["又失效"]
+    F --> G["第三次了"]
+    style G fill:#EA4335,color:#FFFFFF
+```
 
 ## F12,这是肌肉记忆吧?
 
@@ -33,11 +35,22 @@ head:
 
 **第一招,Application 标签看 localStorage。**
 
-![DevTools Application 截图](https://placehold.co/1400x800/E7EBF8/0F294D/png?text=Image+02%0AChrome+DevTools+%E2%86%92+Application+%E2%86%92+Local+Storage%0Aauth_token+%E8%A1%8C%E6%98%AF%E7%A9%BA%E7%9A%84)
-
-<!-- 待替换:/blog/images/2026-05-28-devtools-vs-harness/02-devtools-application.png
-Chrome DevTools 的 Application → Local Storage 视图,显示 auth_token 那一行
-是空的。给个红框高亮 "(empty)" 状态。建议 1400×800。 -->
+```mermaid
+%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#005EFF', 'primaryTextColor': '#FFFFFF', 'lineColor': '#0F294D' } } }%%
+flowchart LR
+    subgraph see["DevTools&nbsp;能告诉你"]
+        A["auth_token&nbsp;=&nbsp;(empty)"]
+    end
+    subgraph need["你真正需要知道的"]
+        B1["谁删的?"]
+        B2["什么时候?"]
+        B3["从哪个文件?"]
+        B4["为什么删?"]
+    end
+    see -.- need
+    style see fill:#E7EBF8,color:#0F294D
+    style need fill:#FCE6E6,color:#0F294D
+```
 
 `auth_token` 是空的。
 
@@ -130,11 +143,24 @@ Agent 调了一个工具:
 ]
 ```
 
-![Claude Code 中 agent 调用 storage_tail](https://placehold.co/1600x900/0F294D/005EFF/png?text=Image+03%0AClaude+Code+%E7%BB%88%E7%AB%AF%0Aagent+%E8%B0%83%E7%94%A8+storage_tail%0A%E9%AB%98%E4%BA%AE+initiator.stack)
+```mermaid
+%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#005EFF', 'primaryTextColor': '#FFFFFF', 'lineColor': '#0F294D', 'actorBkg': '#005EFF', 'actorTextColor': '#FFFFFF' } } }%%
+sequenceDiagram
+    autonumber
+    actor Me as 我
+    participant Agent as Claude&nbsp;Code
+    participant Daemon as MCP&nbsp;Daemon
+    participant Runtime as Browser&nbsp;Runtime
 
-<!-- 待替换:/blog/images/2026-05-28-devtools-vs-harness/03-agent-storage-tail.png
-Claude Code 终端样式截图。左侧是 user prompt,右侧是 agent 的 tool call
-JSON 输出。高亮 initiator.stack 那几行。建议 1600×900,深色终端配色。 -->
+    Me->>Agent: 帮我查 token 被谁清掉的
+    Agent->>Daemon: storage_tail({ op: 'remove', key: 'auth_token' })
+    Daemon->>Runtime: 查事件 buffer
+    Runtime-->>Daemon: 1 条记录 + initiator.stack
+    Daemon-->>Agent: src/lib/api/interceptor.ts:47:12
+    Agent->>Daemon: project_source({ file, line })
+    Daemon-->>Agent: 第 47 行源码
+    Agent-->>Me: 根因 + fix 建议
+```
 
 Stack 顶端的 user-code 帧:`src/lib/api/interceptor.ts:47`。
 
@@ -168,13 +194,27 @@ Agent 给出诊断:
 
 我看了一眼时钟,刚才那 90 分钟,有点像做了一场梦。
 
-![DevTools vs Harness-FE 时间对比](https://placehold.co/1400x500/FDFEFE/005EFF/png?text=Image+04%0ADevTools%3A+~120+min+vs+Harness-FE%3A+90+sec%0A%E6%97%B6%E9%97%B4%E6%9D%A1%E5%AF%B9%E6%AF%94%E5%9B%BE)
-
-<!-- 待替换:/blog/images/2026-05-28-devtools-vs-harness/04-time-comparison.png
-两根横向时间条对比。第一根 "DevTools workflow" 长度约 120 分钟,分段为
-"Application 看状态 / Sources 打断点 / 复现等待 / Monkey-patch / 还是没找到"。
-第二根 "Harness-FE workflow" 长度约 90 秒,分段为 "storage_tail / read
-source / propose fix"。Morphix 品牌蓝 #005EFF 作为强调色。建议 1400×500。 -->
+```mermaid
+%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#0F294D', 'primaryTextColor': '#FFFFFF', 'lineColor': '#0F294D' } } }%%
+flowchart TB
+    subgraph trad["DevTools 路线 ~ 120 分钟"]
+        direction LR
+        T1["Application&nbsp;看空状态<br/>5&nbsp;分钟"] --> T2["git&nbsp;grep&nbsp;+&nbsp;设&nbsp;27&nbsp;个断点<br/>30&nbsp;分钟"]
+        T2 --> T3["蹲守复现<br/>60&nbsp;分钟"]
+        T3 --> T4["Monkey-patch<br/>15&nbsp;分钟"]
+        T4 --> T5["HMR&nbsp;重置,白干<br/>10&nbsp;分钟"]
+    end
+    subgraph hf["Harness-FE 路线 ~ 90 秒"]
+        direction LR
+        H1["storage_tail"] --> H2["读&nbsp;initiator.stack"]
+        H2 --> H3["project_source"]
+        H3 --> H4["Root&nbsp;cause&nbsp;+&nbsp;fix"]
+    end
+    style trad fill:#FCE6E6,color:#0F294D
+    style hf fill:#E7F0FF,color:#0F294D
+    style T5 fill:#EA4335,color:#FFFFFF
+    style H4 fill:#34A853,color:#FFFFFF
+```
 
 ## 它为什么能知道这些?
 
@@ -224,12 +264,17 @@ Skill 文件会被丢到 `.claude/skills/harness-fe/`(或 cursor / kiro 对应�
 
 POST 打到了 `/api/setting`(单数),实际应该是 `/api/settings`。Refactor 时漏了一个 `s`。`initiator.stack` 直接指向 `useSettings.ts:23`。
 
-![网络请求 + 源码定位](https://placehold.co/1600x800/0F294D/FFFFFF/png?text=Image+05%0A%E5%B7%A6%3A+network_tail+POST+%2Fapi%2Fsetting+404%0A%E5%8F%B3%3A+useSettings.ts%3A23+%E9%AB%98%E4%BA%AE+%22missing+s%22)
-
-<!-- 待替换:/blog/images/2026-05-28-devtools-vs-harness/05-network-source.png
-左半屏 Claude Code 的 network_tail 输出,显示一行 POST /api/setting 404。
-右半屏对应的源码 useSettings.ts:23 高亮 `${API}/setting` 那一行,标注
-"missing 's'"。建议 1600×800。 -->
+```mermaid
+%%{ init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#005EFF', 'primaryTextColor': '#FFFFFF', 'lineColor': '#0F294D' } } }%%
+flowchart LR
+    A["page_click<br/>SaveButton"] --> B["network_tail<br/>filter=/api/"]
+    B --> C{"看到了什么?"}
+    C -->|"POST /api/setting → 404"| D["initiator.stack"]
+    D --> E["useSettings.ts:23<br/>`${API}/setting`"]
+    E --> F["少了一个&nbsp;s"]
+    style F fill:#EA4335,color:#FFFFFF
+    style C fill:#FBBC05,color:#0F294D
+```
 
 **"我自己测了三次,行为都不一样"**
 
