@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 600" font-family="'SF Pro Text','PingFang SC',-apple-system,sans-serif">
+    <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#0F294D" />
+        </marker>
+        <marker id="arrowback" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#0F294D" opacity="0.55" />
+        </marker>
+    </defs>
+
+    <!-- Background -->
+    <rect width="1400" height="600" fill="#FDFEFE" />
+
+    <!-- Title -->
+    <text x="700" y="56" text-anchor="middle" font-size="22" font-weight="600" fill="#0F294D">理想的反馈闭环</text>
+    <text x="700" y="84" text-anchor="middle" font-size="14" fill="#0F294D" opacity="0.55">从撞到 bug → 第一现场留存 → Agent 修复验证 → 回流给 Agent 继续迭代</text>
+
+    <!-- Nodes (5 boxes evenly placed across y=260) -->
+    <!-- Box 1: 撞到 bug -->
+    <g>
+        <rect x="40" y="240" width="220" height="120" rx="14" fill="#FFFFFF" stroke="#0F294D" stroke-opacity="0.2" stroke-width="2" />
+        <text x="150" y="288" text-anchor="middle" font-size="16" fill="#0F294D" opacity="0.7">测试 / 用户</text>
+        <text x="150" y="316" text-anchor="middle" font-size="20" font-weight="600" fill="#0F294D">撞到 bug</text>
+    </g>
+
+    <!-- Arrow 1 -->
+    <line x1="270" y1="300" x2="318" y2="300" stroke="#0F294D" stroke-width="2" marker-end="url(#arrow)" />
+    <text x="294" y="288" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55">一句话描述</text>
+
+    <!-- Box 2: 第一现场 (brand) -->
+    <g>
+        <rect x="330" y="240" width="220" height="120" rx="14" fill="#005EFF" />
+        <text x="440" y="288" text-anchor="middle" font-size="16" fill="#FFFFFF" opacity="0.75">第一现场</text>
+        <text x="440" y="316" text-anchor="middle" font-size="20" font-weight="600" fill="#FFFFFF">自动留存</text>
+    </g>
+
+    <!-- Arrow 2 -->
+    <line x1="560" y1="300" x2="608" y2="300" stroke="#0F294D" stroke-width="2" marker-end="url(#arrow)" />
+    <text x="584" y="288" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55">session timeline</text>
+
+    <!-- Box 3: Agent 取证 (brand) -->
+    <g>
+        <rect x="620" y="240" width="220" height="120" rx="14" fill="#005EFF" />
+        <text x="730" y="288" text-anchor="middle" font-size="16" fill="#FFFFFF" opacity="0.75">Agent</text>
+        <text x="730" y="316" text-anchor="middle" font-size="20" font-weight="600" fill="#FFFFFF">取证 + 分析</text>
+    </g>
+
+    <!-- Arrow 3 -->
+    <line x1="850" y1="300" x2="898" y2="300" stroke="#0F294D" stroke-width="2" marker-end="url(#arrow)" />
+    <text x="874" y="288" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55">where_is + source</text>
+
+    <!-- Box 4: 源码定位 -->
+    <g>
+        <rect x="910" y="240" width="220" height="120" rx="14" fill="#FFFFFF" stroke="#0F294D" stroke-opacity="0.2" stroke-width="2" />
+        <text x="1020" y="288" text-anchor="middle" font-size="16" fill="#0F294D" opacity="0.7">源码 + Agent</text>
+        <text x="1020" y="316" text-anchor="middle" font-size="20" font-weight="600" fill="#0F294D">定位 + 修复</text>
+    </g>
+
+    <!-- Arrow 4 -->
+    <line x1="1140" y1="300" x2="1188" y2="300" stroke="#0F294D" stroke-width="2" marker-end="url(#arrow)" />
+    <text x="1164" y="288" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55">edit + reload</text>
+
+    <!-- Box 5: 验证 (success) -->
+    <g>
+        <rect x="1200" y="240" width="180" height="120" rx="14" fill="#34A853" />
+        <text x="1290" y="288" text-anchor="middle" font-size="16" fill="#FFFFFF" opacity="0.85">Agent</text>
+        <text x="1290" y="316" text-anchor="middle" font-size="18" font-weight="600" fill="#FFFFFF">驱动浏览器验证</text>
+    </g>
+
+    <!-- Curved feedback arrow from Box 5 back to Box 3 -->
+    <path d="M 1290 360 Q 1290 480, 1080 480 Q 730 480, 730 380"
+          fill="none" stroke="#0F294D" stroke-width="2" stroke-dasharray="6 6" stroke-opacity="0.55"
+          marker-end="url(#arrowback)" />
+    <text x="1010" y="510" text-anchor="middle" font-size="12" fill="#0F294D" opacity="0.6">新的 timeline 回流 — 形成闭环</text>
+</svg>

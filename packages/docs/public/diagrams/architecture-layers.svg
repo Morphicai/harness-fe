@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 600" font-family="'SF Pro Text','PingFang SC',-apple-system,sans-serif">
+    <defs>
+        <marker id="arr-bi-end" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#0F294D" />
+        </marker>
+        <marker id="arr-bi-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M10,0 L0,5 L10,10 z" fill="#0F294D" />
+        </marker>
+        <marker id="arr-oneway" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#005EFF" />
+        </marker>
+    </defs>
+
+    <!-- Background -->
+    <rect width="1400" height="600" fill="#FDFEFE" />
+
+    <!-- Title -->
+    <text x="700" y="50" text-anchor="middle" font-size="22" font-weight="600" fill="#0F294D">Harness-FE 架构层次</text>
+    <text x="700" y="76" text-anchor="middle" font-size="13" fill="#0F294D" opacity="0.55">MCP Server 是核心 hub,左侧对接 AI Agent,右侧对接 build / runtime / node runtime / 持久化</text>
+
+    <!-- Agent (far left) -->
+    <g>
+        <rect x="60" y="240" width="200" height="120" rx="14" fill="#FFFFFF" stroke="#0F294D" stroke-opacity="0.2" stroke-width="2" />
+        <text x="160" y="288" text-anchor="middle" font-size="14" fill="#0F294D" opacity="0.6">Claude / Cursor / Kiro</text>
+        <text x="160" y="316" text-anchor="middle" font-size="20" font-weight="600" fill="#0F294D">AI Agent</text>
+    </g>
+
+    <!-- MCP Server (center, larger hub) -->
+    <g>
+        <rect x="430" y="210" width="240" height="180" rx="16" fill="#0F294D" />
+        <text x="550" y="278" text-anchor="middle" font-size="14" fill="#FFFFFF" opacity="0.65" font-family="'DM Mono',monospace">@harness-fe/mcp-server</text>
+        <text x="550" y="312" text-anchor="middle" font-size="22" font-weight="600" fill="#FFFFFF">MCP Server</text>
+        <text x="550" y="344" text-anchor="middle" font-size="13" fill="#FFFFFF" opacity="0.65">本地长驻 · 跨 tab 持久化</text>
+    </g>
+
+    <!-- Agent ↔ MCP arrow -->
+    <line x1="272" y1="300" x2="418" y2="300" stroke="#0F294D" stroke-width="2.5"
+          marker-start="url(#arr-bi-start)" marker-end="url(#arr-bi-end)" />
+    <text x="345" y="290" text-anchor="middle" font-size="12" fill="#0F294D">stdio MCP</text>
+
+    <!-- Right column nodes -->
+    <!-- Build Plugin -->
+    <g>
+        <rect x="900" y="80" width="220" height="86" rx="12" fill="#FFFFFF" stroke="#0F294D" stroke-opacity="0.2" stroke-width="2" />
+        <text x="1010" y="114" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55" font-family="'DM Mono',monospace">@harness-fe/vite · webpack · next</text>
+        <text x="1010" y="138" text-anchor="middle" font-size="18" font-weight="600" fill="#0F294D">Build Plugin</text>
+        <text x="1010" y="155" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55">JSX 源码插桩</text>
+    </g>
+
+    <!-- Runtime Client -->
+    <g>
+        <rect x="900" y="190" width="220" height="86" rx="12" fill="#005EFF" />
+        <text x="1010" y="224" text-anchor="middle" font-size="11" fill="#FFFFFF" opacity="0.7" font-family="'DM Mono',monospace">@harness-fe/runtime</text>
+        <text x="1010" y="248" text-anchor="middle" font-size="18" font-weight="600" fill="#FFFFFF">Runtime Client</text>
+        <text x="1010" y="265" text-anchor="middle" font-size="11" fill="#FFFFFF" opacity="0.7">浏览器 in-page SDK</text>
+    </g>
+
+    <!-- Node Runtime -->
+    <g>
+        <rect x="900" y="300" width="220" height="86" rx="12" fill="#FFFFFF" stroke="#0F294D" stroke-opacity="0.2" stroke-width="2" />
+        <text x="1010" y="334" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55" font-family="'DM Mono',monospace">@harness-fe/node-runtime</text>
+        <text x="1010" y="358" text-anchor="middle" font-size="18" font-weight="600" fill="#0F294D">Node Runtime</text>
+        <text x="1010" y="375" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55">Next.js / 服务端</text>
+    </g>
+
+    <!-- Store -->
+    <g>
+        <rect x="900" y="410" width="220" height="86" rx="12" fill="#FFFFFF" stroke="#0F294D" stroke-opacity="0.2" stroke-width="2" />
+        <text x="1010" y="444" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55" font-family="'DM Mono',monospace">IStore (JSONL)</text>
+        <text x="1010" y="468" text-anchor="middle" font-size="18" font-weight="600" fill="#0F294D">Persistence</text>
+        <text x="1010" y="485" text-anchor="middle" font-size="11" fill="#0F294D" opacity="0.55">~/.harness/</text>
+    </g>
+
+    <!-- MCP → Plugin (bidirectional, WebSocket) -->
+    <line x1="672" y1="265" x2="898" y2="125" stroke="#0F294D" stroke-width="2"
+          marker-start="url(#arr-bi-start)" marker-end="url(#arr-bi-end)" />
+    <text x="780" y="180" text-anchor="middle" font-size="11" fill="#0F294D">WebSocket</text>
+
+    <!-- MCP → Runtime (bidirectional, WebSocket) -->
+    <line x1="672" y1="290" x2="898" y2="233" stroke="#0F294D" stroke-width="2"
+          marker-start="url(#arr-bi-start)" marker-end="url(#arr-bi-end)" />
+    <text x="780" y="252" text-anchor="middle" font-size="11" fill="#0F294D">WebSocket</text>
+
+    <!-- MCP → NRT (bidirectional, WS or HTTP-batch) -->
+    <line x1="672" y1="310" x2="898" y2="343" stroke="#0F294D" stroke-width="2"
+          marker-start="url(#arr-bi-start)" marker-end="url(#arr-bi-end)" />
+    <text x="780" y="338" text-anchor="middle" font-size="11" fill="#0F294D">WS / HTTP-batch</text>
+
+    <!-- MCP → Store (one-way, read/write) -->
+    <line x1="672" y1="335" x2="898" y2="453" stroke="#005EFF" stroke-width="2"
+          marker-end="url(#arr-oneway)" />
+    <text x="780" y="412" text-anchor="middle" font-size="11" fill="#005EFF">read / write</text>
+</svg>

@@ -10,4 +10,4 @@ description: Harness-FE 团队的工程随笔、调试案例、版本说明。
 ## 2026
 
 - [Chrome DevTools 不好用?不妨试试 Harness-FE](/zh/blog/2026-05-28-devtools-vs-harness-fe) —— 2026-05-28
-  > 一个真实的"用户随机被踢出登录" bug,讲讲为什么 AI 时代的前端调试已经变了。
+  > 测试同学撞到 bug 那一刻,第一现场早就没了。我做 Harness-FE,是想让 Agent 自己把第一现场捡回来。

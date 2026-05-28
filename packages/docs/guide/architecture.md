@@ -2,21 +2,7 @@
 
 ## Layers
 
-```mermaid
-graph LR
-    Agent["AI Agent"]
-    MCP["MCP Server"]
-    Plugin["Build Plugin"]
-    Runtime["Runtime Client"]
-    NRT["Node Runtime"]
-    Store["Persistence (IStore)"]
-
-    Agent <-->|stdio MCP| MCP
-    MCP <-->|WebSocket| Plugin
-    MCP <-->|WebSocket| Runtime
-    MCP <-->|WS or HTTP-batch| NRT
-    MCP -->|read/write| Store
-```
+![Harness-FE layered architecture](/diagrams/architecture-layers.svg)
 
 | Layer | Package | Responsibility |
 |-------|---------|---------------|
