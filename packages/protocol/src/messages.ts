@@ -556,6 +556,37 @@ export type TaskSubmitPayload = z.infer<typeof taskSubmitPayloadSchema>;
 
 export type TaskStatus = 'pending' | 'claimed' | 'resolved';
 
+/** How a task was resolved (4.0 · P7). */
+export type TaskResolutionType =
+    | 'code-fix'
+    | 'config'
+    | 'wontfix'
+    | 'duplicate'
+    | 'cannot-reproduce';
+
+/**
+ * Structured outcome of a resolved task (4.0 · P7 — the feedback-loop back-link).
+ *
+ * The daemon owns the *data link* between a reported problem and its fix; the
+ * agent/skill owns the orchestration that fills these in (edit → writeback →
+ * re-test). All fields optional: a plain `tasks.resolve(id, note)` stays valid.
+ */
+export interface TaskResolution {
+    /** Classification of the resolution. */
+    type?: TaskResolutionType;
+    /** Git commit SHA of the fix (agent writeback). */
+    commit?: string;
+    /** Pull-request URL for the fix, if one was opened. */
+    prUrl?: string;
+    /**
+     * Session id of the post-fix re-test that verified the fix — the back-link
+     * that closes the loop from the original problem session to its proof.
+     */
+    verificationSessionId?: string;
+    /** When the fix was verified (epoch ms). Defaulted on resolve when a verificationSessionId is given. */
+    verifiedAt?: number;
+}
+
 export interface Task {
     id: string;
     tabId: string;
@@ -589,6 +620,8 @@ export interface Task {
     claimedAt?: number;
     resolvedAt?: number;
     note?: string;
+    /** Structured resolution outcome (4.0 · P7). Set on resolve; absent until then. */
+    resolution?: TaskResolution;
     /** Attachment pointers (daemon side) or inline attachments (wire). */
     attachments?: TaskAttachment[];
 }

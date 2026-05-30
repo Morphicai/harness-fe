@@ -14,6 +14,7 @@ import {
     type McpReturnFrame,
     type TabInfo,
     type Task,
+    type TaskResolution,
     type TaskStatus,
     frameSchema,
 } from '@harness-fe/protocol';
@@ -123,8 +124,8 @@ export class RemoteBridge implements IBridge {
         return this.invoke('claimTask', { id }) as Promise<Task | undefined>;
     }
 
-    resolveTask(id: string, note?: string): Promise<Task | undefined> {
-        return this.invoke('resolveTask', { id, note }) as Promise<Task | undefined>;
+    resolveTask(id: string, note?: string, resolution?: TaskResolution): Promise<Task | undefined> {
+        return this.invoke('resolveTask', { id, note, resolution }) as Promise<Task | undefined>;
     }
 
     /**
