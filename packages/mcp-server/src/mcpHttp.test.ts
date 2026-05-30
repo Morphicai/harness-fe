@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
-import { Bridge } from './bridge.js';
+import { Bridge } from '@harness-fe/daemon';
 import { startMcpHttpServer } from './mcpHttp.js';
-import { MemoryEventStore } from './store/MemoryEventStore.js';
-import type { EventStore } from './store/types.js';
+import { MemoryEventStore } from '@harness-fe/daemon';
+import type { EventStore } from '@harness-fe/daemon';
 
 const cleanups: Array<() => Promise<void> | void> = [];
 

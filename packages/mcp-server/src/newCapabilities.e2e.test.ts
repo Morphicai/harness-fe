@@ -14,8 +14,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { Bridge } from './bridge.js';
-import { JsonlStore } from './store/index.js';
+import { Bridge } from '@harness-fe/daemon';
+import { JsonlStore } from '@harness-fe/daemon';
 import type {
     EventFrame,
     HelloAckFrame,
@@ -23,7 +23,7 @@ import type {
     StorageEntry,
     WsEntry,
 } from '@harness-fe/protocol';
-import { buildVisitorTimeline } from './visitorTimeline.js';
+import { buildVisitorTimeline } from '@harness-fe/daemon';
 
 interface TestEnv {
     bridge: Bridge;

@@ -15,7 +15,9 @@
       "@harness-fe/sandbox",
       "@harness-fe/vite",
       "@harness-fe/webpack",
-      "@harness-fe/unplugin"
+      "@harness-fe/unplugin",
+      "@harness-fe/daemon",
+      "@harness-fe/dev-cli"
     ]
   ],
   "access": "public",
