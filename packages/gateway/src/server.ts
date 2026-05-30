@@ -51,6 +51,14 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
     return Buffer.concat(chunks);
 }
 
+/** Pass MCP transport session headers through to the daemon (stateful sessions). */
+function passSessionHeaders(req: IncomingMessage, headers: Record<string, string>): void {
+    const sid = req.headers['mcp-session-id'];
+    if (typeof sid === 'string') headers['mcp-session-id'] = sid;
+    const lastEvent = req.headers['last-event-id'];
+    if (typeof lastEvent === 'string') headers['last-event-id'] = lastEvent;
+}
+
 /** Best-effort tool/method name from a JSON-RPC MCP body, for the audit log. */
 function toolName(body: Buffer): string {
     try {
@@ -106,7 +114,7 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
         }
         // Dynamic manifest: filter tools/list to what the caller may use.
         if (rpc?.method === 'tools/list') {
-            return forwardAndFilter(target, caller, body, res);
+            return forwardAndFilter(target, caller, req, body, res);
         }
         forward(target.endpoint, target.token, caller, req, body, res);
     }
@@ -124,10 +132,11 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
         }
     }
 
-    /** Forward a tools/list, buffer the JSON response, and drop out-of-scope tools. */
+    /** Forward a tools/list, buffer the response, and drop out-of-scope tools when it's JSON. */
     function forwardAndFilter(
         target: ServerRecord,
         caller: VerifiedCaller,
+        req: IncomingMessage,
         body: Buffer,
         res: ServerResponse,
     ): void {
@@ -139,10 +148,11 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
         }
         const headers: Record<string, string> = {
             'content-type': 'application/json',
-            accept: 'application/json', // force JSON (not SSE) so we can filter
+            accept: (req.headers.accept as string) ?? 'application/json, text/event-stream',
             [FORWARDED_CALLER_HEADER]: caller.tokenId,
         };
         if (target.token) headers.authorization = `Bearer ${target.token}`;
+        passSessionHeaders(req, headers);
         const proxy = httpRequest(
             {
                 protocol: base.protocol,
@@ -156,19 +166,22 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
                 const chunks: Buffer[] = [];
                 dres.on('data', (c) => chunks.push(c as Buffer));
                 dres.on('end', () => {
-                    let out = Buffer.concat(chunks);
-                    try {
-                        const parsed = JSON.parse(out.toString('utf8')) as { result?: { tools?: unknown } };
-                        if (parsed?.result) {
-                            parsed.result = filterManifest(parsed.result, caller.scopes);
-                            out = Buffer.from(JSON.stringify(parsed), 'utf8');
-                        }
-                    } catch {
-                        /* not JSON (SSE) — pass through unfiltered */
-                    }
+                    const buf = Buffer.concat(chunks);
                     res.statusCode = dres.statusCode ?? 502;
-                    res.setHeader('content-type', 'application/json');
-                    res.end(out);
+                    const sid = dres.headers['mcp-session-id'];
+                    if (typeof sid === 'string') res.setHeader('mcp-session-id', sid);
+                    try {
+                        const parsed = JSON.parse(buf.toString('utf8')) as { result?: { tools?: unknown } };
+                        if (parsed?.result) parsed.result = filterManifest(parsed.result, caller.scopes);
+                        res.setHeader('content-type', 'application/json');
+                        res.end(Buffer.from(JSON.stringify(parsed), 'utf8'));
+                    } catch {
+                        // Not JSON (e.g. SSE) — pass through unfiltered (manifest filtering
+                        // applies only to JSON tools/list responses).
+                        const ct = dres.headers['content-type'];
+                        if (typeof ct === 'string') res.setHeader('content-type', ct);
+                        res.end(buf);
+                    }
                 });
             },
         );
@@ -199,6 +212,7 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
         const ct = req.headers['content-type'];
         if (typeof ct === 'string') headers['content-type'] = ct;
         if (daemonToken) headers.authorization = `Bearer ${daemonToken}`;
+        passSessionHeaders(req, headers);
 
         const proxy = httpRequest(
             {

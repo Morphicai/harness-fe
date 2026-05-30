@@ -17,7 +17,8 @@
       "@harness-fe/webpack",
       "@harness-fe/unplugin",
       "@harness-fe/daemon",
-      "@harness-fe/dev-cli"
+      "@harness-fe/dev-cli",
+      "@harness-fe/gateway"
     ]
   ],
   "access": "public",
