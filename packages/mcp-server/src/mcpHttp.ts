@@ -61,7 +61,13 @@ export async function startMcpHttpServer(
             ? undefined
             : opts.eventStore ?? new MemoryEventStore();
 
-    const server = createMcpServer(bridge, { experimentalEnvVar: opts.experimentalEnvVar });
+    // Pass the daemon's auth so MCP tools can identify the per-call principal
+    // from request headers (4.0 · P4). stdio (startMcpStdioServer) omits this,
+    // so stdio calls resolve to the local principal.
+    const server = createMcpServer(bridge, {
+        experimentalEnvVar: opts.experimentalEnvVar,
+        auth: (bridge as Bridge).getAuthOptions(),
+    });
     const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: stateful ? () => randomUUID() : undefined,
         eventStore,
