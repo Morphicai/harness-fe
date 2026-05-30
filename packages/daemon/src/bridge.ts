@@ -49,6 +49,7 @@ import {
     type TabInfo,
     type Task,
     type TaskAttachment,
+    type TaskResolution,
     type TaskStatus,
     frameSchema,
 } from '@harness-fe/protocol';
@@ -84,7 +85,12 @@ export interface IBridge {
     listTabs(): Promise<TabInfo[]>;
     listTasks(filter?: { status?: TaskStatus | 'all'; limit?: number }): Promise<Task[]>;
     claimTask(id: string, principal?: Principal): Promise<Task | undefined>;
-    resolveTask(id: string, note?: string, principal?: Principal): Promise<Task | undefined>;
+    resolveTask(
+        id: string,
+        note?: string,
+        resolution?: TaskResolution,
+        principal?: Principal,
+    ): Promise<Task | undefined>;
     getMemoryStore(): IMemoryStore;
     /**
      * Base URL (e.g. http://127.0.0.1:47729) where the replay viewer is reachable.
@@ -800,12 +806,26 @@ export class Bridge implements IBridge {
         return this.readTaskAttachment(task.projectId, taskId, attachmentId);
     }
 
-    async resolveTask(id: string, note?: string, principal?: Principal): Promise<Task | undefined> {
+    async resolveTask(
+        id: string,
+        note?: string,
+        resolution?: TaskResolution,
+        principal?: Principal,
+    ): Promise<Task | undefined> {
         const task = this.tasks.get(id);
         if (!task) return undefined;
         task.status = 'resolved';
         task.resolvedAt = Date.now();
         if (note !== undefined) task.note = note;
+        if (resolution) {
+            // Default verifiedAt when a verification session is supplied without one —
+            // verification happened at resolve time (4.0 · P7).
+            const verifiedAt =
+                resolution.verificationSessionId !== undefined && resolution.verifiedAt === undefined
+                    ? Date.now()
+                    : resolution.verifiedAt;
+            task.resolution = { ...resolution, ...(verifiedAt !== undefined ? { verifiedAt } : {}) };
+        }
         if (!task.agentId) task.agentId = (principal ?? this.defaultPrincipal).id;
         this.persistTasks();
         // Persist status change to store
@@ -824,7 +844,13 @@ export class Bridge implements IBridge {
             t: eventType,
             tab: task.tabId,
             load: task.sessionId,
-            d: { id: task.id, status: task.status, question: task.question, note: task.note },
+            d: {
+                id: task.id,
+                status: task.status,
+                question: task.question,
+                note: task.note,
+                ...(task.resolution ? { resolution: task.resolution } : {}),
+            },
         });
     }
 
@@ -1689,8 +1715,8 @@ export class Bridge implements IBridge {
                 return this.claimTask(a.id);
             }
             case 'resolveTask': {
-                const a = args as { id: string; note?: string };
-                return this.resolveTask(a.id, a.note);
+                const a = args as { id: string; note?: string; resolution?: TaskResolution };
+                return this.resolveTask(a.id, a.note, a.resolution);
             }
             // ─── Store methods (proxied from follower) ─────────────────────
             case 'storeListProjects': {
