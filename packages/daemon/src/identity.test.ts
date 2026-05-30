@@ -85,6 +85,27 @@ describe('identity: identifyPrincipal (P4 — identify, not authorize)', () => {
     it('authorize mode → host', () => {
         expect(identifyPrincipal({ authorization: 'Bearer x' }, { authorize: () => true })).toBe(HOST_PRINCIPAL);
     });
+
+    it('trusted upstream: forwarded caller honoured when auth is enabled', () => {
+        const p = identifyPrincipal(
+            { authorization: 'Bearer gw', 'x-harness-caller': 'token:real' },
+            { token: 'gw' },
+        );
+        expect(p).toEqual({ id: 'token:real', kind: 'forwarded' });
+    });
+
+    it('forwarded caller wins over the connection token identity', () => {
+        const p = identifyPrincipal(
+            { authorization: 'Bearer gw', 'x-harness-caller': 'agent-7' },
+            { token: 'gw' },
+        );
+        expect(p.id).toBe('agent-7');
+        expect(p.kind).toBe('forwarded');
+    });
+
+    it('loopback (no auth) IGNORES forwarded caller — no spoofing', () => {
+        expect(identifyPrincipal({ 'x-harness-caller': 'token:evil' }, {})).toBe(LOCAL_PRINCIPAL);
+    });
 });
 
 describe('identity: canSee (P3 tenant visibility)', () => {
