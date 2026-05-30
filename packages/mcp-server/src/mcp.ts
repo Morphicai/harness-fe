@@ -818,15 +818,35 @@ function registerTools(server: McpServer, bridge: IBridge, auth?: AuthOptions): 
         COMMAND.TASKS_RESOLVE,
         {
             description:
-                'Mark a task as resolved with an optional note. Use after addressing the user request.',
+                'Mark a task as resolved with an optional note and structured resolution. ' +
+                'Use after addressing the user request. Pass `resolution` to close the ' +
+                'feedback loop: how it was fixed (type), the fix commit/PR, and the ' +
+                'verificationSessionId of the post-fix re-test that proved the fix.',
             inputSchema: {
                 taskId: z.string(),
                 note: z.string().optional(),
+                resolution: z
+                    .object({
+                        type: z
+                            .enum(['code-fix', 'config', 'wontfix', 'duplicate', 'cannot-reproduce'])
+                            .optional(),
+                        commit: z.string().optional().describe('Git commit SHA of the fix.'),
+                        prUrl: z.string().optional().describe('Pull-request URL for the fix.'),
+                        verificationSessionId: z
+                            .string()
+                            .optional()
+                            .describe('Session id of the post-fix re-test that verified the fix.'),
+                        verifiedAt: z
+                            .number()
+                            .optional()
+                            .describe('Epoch ms; defaulted when verificationSessionId is given.'),
+                    })
+                    .optional(),
             },
         },
-        async ({ taskId, note }, extra) => {
+        async ({ taskId, note, resolution }, extra) => {
             const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
-            const task = await bridge.resolveTask(taskId, note, principal);
+            const task = await bridge.resolveTask(taskId, note, resolution, principal);
             if (!task) {
                 throw new Error(`tasks.resolve: no task with id "${taskId}"`);
             }

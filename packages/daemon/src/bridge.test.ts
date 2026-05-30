@@ -434,7 +434,63 @@ describe('Bridge', () => {
             const resolved = await bridge.resolveTask(pending[0].id, 'fixed setCount closure');
             expect(resolved?.status).toBe('resolved');
             expect(resolved?.note).toBe('fixed setCount closure');
+            // Back-compat (P7): resolving without a resolution leaves it unset.
+            expect(resolved?.resolution).toBeUndefined();
             expect(await bridge.listTasks({ status: 'resolved' })).toHaveLength(1);
+        } finally {
+            await bridge.stop();
+        }
+    });
+
+    it('persists a structured resolution and defaults verifiedAt (4.0 · P7)', async () => {
+        const bridge = await spawnBridge();
+        try {
+            const port = getPort(bridge);
+            const { ws } = await fakeClientWithSession(port, { tabId: 't-1', projectId: 'demo' });
+            const payload: TaskSubmitPayload = {
+                question: 'save button does nothing',
+                url: 'http://localhost:5173/',
+                selector: { comp: 'SaveBtn', loc: 'src/Save.tsx:10:4' },
+                element: { tag: 'button', outerHTML: '<button>Save</button>' },
+            };
+            ws.send(
+                JSON.stringify({
+                    type: 'event',
+                    id: 'e1',
+                    tabId: 't-1',
+                    projectId: 'demo',
+                    name: EVENT_NAME.TASK_SUBMIT,
+                    ts: Date.now(),
+                    payload,
+                } satisfies EventFrame),
+            );
+            await new Promise((r) => setTimeout(r, 30));
+            const [task] = await bridge.listTasks({ status: 'pending' });
+            expect(task).toBeDefined();
+
+            const resolved = await bridge.resolveTask(task.id, 'fixed in PR', {
+                type: 'code-fix',
+                commit: 'abc1234',
+                prUrl: 'https://github.com/x/y/pull/1',
+                verificationSessionId: 'sess-verify',
+            });
+            expect(resolved?.resolution?.type).toBe('code-fix');
+            expect(resolved?.resolution?.commit).toBe('abc1234');
+            expect(resolved?.resolution?.prUrl).toBe('https://github.com/x/y/pull/1');
+            expect(resolved?.resolution?.verificationSessionId).toBe('sess-verify');
+            // verifiedAt is defaulted because a verification session was given without one.
+            expect(resolved?.resolution?.verifiedAt).toBeTypeOf('number');
+            expect(resolved?.note).toBe('fixed in PR');
+
+            // An explicit verifiedAt is preserved verbatim.
+            const reResolved = await bridge.resolveTask(task.id, undefined, {
+                type: 'wontfix',
+                verifiedAt: 123,
+            });
+            expect(reResolved?.resolution?.type).toBe('wontfix');
+            expect(reResolved?.resolution?.verifiedAt).toBe(123);
+            // note is left untouched when omitted.
+            expect(reResolved?.note).toBe('fixed in PR');
         } finally {
             await bridge.stop();
         }
