@@ -483,6 +483,8 @@ export class JsonlStore implements IStore {
             ...existing,
             ...meta,
             id: sessionId,
+            // Write-once: first principal to open the session owns it.
+            createdBy: existing?.createdBy ?? meta.createdBy,
         };
         // Reset participants — we'll rebuild via dedup loop below
         merged.participants = [];
@@ -650,6 +652,8 @@ export class JsonlStore implements IStore {
             id: projectId,
             createdAt: existing?.createdAt ?? Date.now(),
             lastActiveAt: Date.now(),
+            // Write-once: the first principal to create the project owns it.
+            createdBy: existing?.createdBy ?? patch.createdBy,
         };
         enforceExtensionBudget(merged, `project ${projectId}`);
         writeJson(metaPath, merged);

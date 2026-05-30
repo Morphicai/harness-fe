@@ -503,6 +503,14 @@ export interface Task {
     selector: TaskSelector;
     element: TaskElement;
     createdAt: number;
+    /**
+     * Caller-identity tag (4.0 · P1). `createdBy` = principal id of the
+     * connection that submitted the task (usually a browser `write` principal);
+     * `agentId` = principal id of the agent that claimed/resolved it. Both
+     * optional and informational in P1 — routing/filtering by them is P3.
+     */
+    createdBy?: string;
+    agentId?: string;
     /** Last edit timestamp from a tasks.update query. Unset on create. */
     updatedAt?: number;
     claimedAt?: number;

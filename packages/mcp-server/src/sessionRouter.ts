@@ -12,11 +12,14 @@ import type {
     PeerRole,
     TabInfo,
 } from '@harness-fe/protocol';
+import type { Principal } from './identity.js';
 
 export interface PeerSession {
     role: PeerRole;
     projectId: string;
     tabId?: string;
+    /** Caller identity behind this connection (4.0 · P1). Defaults to `local`. */
+    principal?: Principal;
     /** Runtime-client only: identifies the page load (sessionId) this connection belongs to. */
     sessionId?: string;
     /** Runtime-client only: stable per-browser visitor identifier. */
