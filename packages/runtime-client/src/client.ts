@@ -6,10 +6,15 @@
  */
 
 import {
+    ALWAYS_CONFIRM_COMMANDS,
     COMMAND,
     DEFAULT_WS_PORT,
     EVENT_NAME,
+    requiresConsent,
     type CommandFrame,
+    type ConsentDecision,
+    type ConsentMode,
+    type ConsentRequest,
     type EventFrame,
     type Frame,
     type HelloAckFrame,
@@ -143,6 +148,14 @@ export class RuntimeClient {
         }
     }
     private pageLoadSent = false;
+    // Browser consent (4.0 · P2). Mode comes from the daemon in hello.ack;
+    // default `off` so a daemon that never sends a policy (or loopback solo
+    // dev) keeps running control commands without prompting.
+    private consentMode: ConsentMode = 'off';
+    /** Set once the user grants blanket control for this pageload (mode=session). */
+    private consentSessionGranted = false;
+    /** Set by the overlay to collect the user's decision. Absent ⇒ fail-safe deny. */
+    private consentPrompter?: (req: ConsentRequest) => Promise<ConsentDecision>;
     private readonly ctx: CommandContext = { capture: getCaptureStore() };
     // Initialized in constructor (parameter property `opts` isn't readable at
     // class-field-initializer time — field initializers run before parameter
@@ -271,11 +284,22 @@ export class RuntimeClient {
         }
     }
 
+    /**
+     * Register the consent prompter (the overlay installs this). When the
+     * policy is on and a control command arrives, the client asks this for the
+     * user's decision. Without it, gated commands are denied (fail-safe).
+     */
+    setConsentPrompter(fn: (req: ConsentRequest) => Promise<ConsentDecision>): void {
+        this.consentPrompter = fn;
+    }
+
     private onHelloAck(frame: HelloAckFrame): void {
         if (frame.error) {
             // Bridge rejected this hello — do not send PAGE_LOAD.
             return;
         }
+        // Adopt the daemon's consent policy for this connection (4.0 · P2).
+        this.consentMode = frame.consent?.mode ?? 'off';
         // Force a fresh rrweb FullSnapshot on every ack — including reconnects
         // after daemon restart, network blips, or page-recovery from sleep.
         // Without this, the only baseline for the session is whatever rrweb
@@ -309,6 +333,22 @@ export class RuntimeClient {
             } satisfies ResponseFrame);
             return;
         }
+        // Browser-consent gate (4.0 · P2): control commands need the user's
+        // OK in the page before they run when the daemon enabled consent.
+        if (requiresConsent(frame.command, this.consentMode, this.consentSessionGranted)) {
+            const decision = await this.requestConsent(frame);
+            if (decision === 'deny') {
+                this.send({
+                    type: 'response',
+                    id: frame.id,
+                    ok: false,
+                    error: { code: 'CONSENT_DENIED', message: `user denied "${frame.command}"` },
+                } satisfies ResponseFrame);
+                return;
+            }
+            if (decision === 'session') this.consentSessionGranted = true;
+            // 'once' → run this one without granting the rest of the session.
+        }
         try {
             const result = await handler(frame.args ?? {}, this.ctx);
             this.send({
@@ -325,6 +365,26 @@ export class RuntimeClient {
                 ok: false,
                 error: { message },
             } satisfies ResponseFrame);
+        }
+    }
+
+    /**
+     * Ask the user (via the overlay-registered prompter) to approve a control
+     * command. Fail-safe: if no prompter is registered, or it throws, deny —
+     * a consent policy that can't ask must not silently allow.
+     */
+    private async requestConsent(frame: CommandFrame): Promise<ConsentDecision> {
+        if (!this.consentPrompter) return 'deny';
+        const req: ConsentRequest = {
+            command: frame.command,
+            args: frame.args,
+            tabId: this.tabId,
+            alwaysConfirm: ALWAYS_CONFIRM_COMMANDS.has(frame.command),
+        };
+        try {
+            return await this.consentPrompter(req);
+        } catch {
+            return 'deny';
         }
     }
 

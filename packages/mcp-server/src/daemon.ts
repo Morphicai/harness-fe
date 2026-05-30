@@ -25,6 +25,8 @@
 
 import type { IncomingMessage } from 'node:http';
 
+import type { ConsentPolicy } from '@harness-fe/protocol';
+
 import { Bridge } from './bridge.js';
 import { startMcpHttpServer } from './mcpHttp.js';
 import type { EventStore, IStore } from './store/types.js';
@@ -60,6 +62,12 @@ export interface DaemonOptions {
      * flows through here. Mutually exclusive with `authorize`.
      */
     token?: string;
+    /**
+     * Browser-consent policy for control commands (4.0 · P2). Omit to track the
+     * auth boundary automatically: `session` when auth is on (exposed daemon),
+     * `off` on loopback solo dev. Pass `{ mode }` to force a policy.
+     */
+    consent?: ConsentPolicy;
     /**
      * IStore implementation. Omit for the default JSONL store at `dataDir`.
      * Pass `null` to disable session/event persistence entirely.
@@ -150,6 +158,7 @@ export function createDaemon(opts: DaemonOptions = {}): DaemonHandle {
         dataDir: opts.dataDir,
         label: opts.label,
         auth,
+        consent: opts.consent,
     });
 
     let mcpHandle: Awaited<ReturnType<typeof startMcpHttpServer>> | undefined;

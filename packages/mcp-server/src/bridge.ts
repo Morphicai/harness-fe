@@ -18,6 +18,7 @@ import { networkInterfaces } from 'node:os';
 import {
     DEFAULT_LOGIN_PATH,
     handleLoginPost,
+    isAuthEnabled,
     isAuthorized,
     sendUnauthorized,
     type AuthOptions,
@@ -30,6 +31,7 @@ import {
     DEFAULT_WS_PORT,
     EVENT_NAME,
     PROTOCOL_VERSION,
+    type ConsentPolicy,
     isLoopbackHost,
     pageLoadPayloadSchema,
     rrwebChunkPayloadSchema,
@@ -141,6 +143,13 @@ export interface BridgeOptions {
      */
     auth?: AuthOptions;
     /**
+     * Browser-consent policy for control commands (4.0 · P2). When omitted it
+     * defaults to `session` while auth is enabled (non-loopback / exposed) and
+     * `off` on loopback — so solo dev keeps its zero-friction flow and any
+     * exposed daemon prompts the user before an agent drives the page.
+     */
+    consent?: ConsentPolicy;
+    /**
      * Override the host used when building outbound URLs (dashboard links,
      * replay viewer URLs). When omitted and `host` is `0.0.0.0` / `::`, the
      * first non-internal IPv4 address from the OS network interfaces is
@@ -222,8 +231,10 @@ export class Bridge implements IBridge {
     private pending = new Map<string, PendingCommand>();
     private eventListeners = new Set<EventListener>();
     private tasks = new Map<string, Task>();
-    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore' | 'autoPurge' | 'attachmentsDataDir' | 'auth' | 'publicHost' | 'dataDir' | 'label'>>;
+    private opts: Required<Omit<BridgeOptions, 'store' | 'taskStore' | 'memoryStore' | 'autoPurge' | 'attachmentsDataDir' | 'auth' | 'consent' | 'publicHost' | 'dataDir' | 'label'>>;
     private auth: AuthOptions;
+    /** Browser-consent policy pushed to runtime clients in hello.ack (4.0 · P2). */
+    private readonly consentPolicy: ConsentPolicy;
     private publicHostOverride: string | undefined;
     private readonly attachDataDir: string;
     private autoPurgeOpts: Required<NonNullable<BridgeOptions['autoPurge']>>;
@@ -283,6 +294,12 @@ export class Bridge implements IBridge {
             host: opts.host ?? '127.0.0.1',
         };
         this.auth = opts.auth ?? {};
+        // Consent defaults track the auth boundary: exposed (auth on) ⇒ prompt
+        // once per session; loopback solo (auth off) ⇒ no prompts. Explicit
+        // opts.consent always wins.
+        this.consentPolicy = opts.consent ?? {
+            mode: isAuthEnabled(this.auth) ? 'session' : 'off',
+        };
         this.publicHostOverride = opts.publicHost;
         // Default auto-purge ON. CI / tests pass `enabled: false` (or set
         // env HARNESS_FE_PURGE_DISABLED=1) to opt out.
@@ -1312,6 +1329,7 @@ export class Bridge implements IBridge {
                     id: frame.id,
                     tabId: session.tabId,
                     serverVersion: PROTOCOL_VERSION,
+                    consent: this.consentPolicy,
                 };
                 ws.send(JSON.stringify(ack));
                 // One concise line per accepted peer. Visibility for "is the
