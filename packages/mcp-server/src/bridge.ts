@@ -24,6 +24,7 @@ import {
     type AuthOptions,
 } from './auth.js';
 import { LOCAL_PRINCIPAL, resolvePrincipal, type Principal } from './identity.js';
+import { currentCaller } from './callerContext.js';
 import { join as joinPath } from 'node:path';
 import { homedir } from 'node:os';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -108,6 +109,12 @@ export interface SendCommandOptions {
     timeoutMs?: number;
     target?: 'runtime-client' | 'vite-plugin';
     projectId?: string;
+    /**
+     * Caller identity (4.0 · A — command-target scoping). When set, tab
+     * resolution is restricted to tabs the caller may drive. Omit (or `local`)
+     * to preserve global behaviour.
+     */
+    principal?: Principal;
 }
 
 const COMMAND_TIMEOUT_MS = 30_000;
@@ -969,10 +976,14 @@ export class Bridge implements IBridge {
         opts: SendCommandOptions = {},
     ): Promise<unknown> {
         const target = opts.target ?? 'runtime-client';
+        // Command-target scoping (4.0 · A): explicit opts.principal wins, else
+        // the ambient caller from the MCP transport (HTTP). undefined (stdio /
+        // loopback) ⇒ no scoping, original behaviour.
+        const principal = opts.principal ?? currentCaller();
         const session =
             target === 'vite-plugin'
                 ? this.router.findVitePlugin(opts.projectId)
-                : this.router.findTab(opts.tabId);
+                : this.router.findTab(opts.tabId, principal);
         if (!session) {
             throw new Error(
                 target === 'vite-plugin'

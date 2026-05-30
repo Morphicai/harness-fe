@@ -12,7 +12,7 @@ import type {
     PeerRole,
     TabInfo,
 } from '@harness-fe/protocol';
-import type { Principal } from './identity.js';
+import { canSee, type Principal } from './identity.js';
 
 export interface PeerSession {
     role: PeerRole;
@@ -76,17 +76,40 @@ export class SessionRouter {
         return candidates.sort((a, b) => b.lastActive - a.lastActive)[0];
     }
 
-    findTab(tabId?: string): PeerSession | undefined {
+    /**
+     * Resolve the target tab for a command (4.0 · A — command-target scoping).
+     *
+     * When `principal` is supplied, candidate tabs are restricted to ones the
+     * caller may drive (`canSee` against the tab's owning principal): `local`
+     * drives anything (zero behaviour change for solo dev), unowned tabs are
+     * drivable by all, otherwise only the tab's creator. Omitting `principal`
+     * preserves the original global behaviour.
+     */
+    findTab(tabId?: string, principal?: Principal): PeerSession | undefined {
         if (tabId) {
             for (const p of this.peers.values()) {
-                if (p.role === 'runtime-client' && p.tabId === tabId) return p;
+                if (p.role === 'runtime-client' && p.tabId === tabId) {
+                    // Explicit tabId still can't target someone else's tab.
+                    if (principal && !canSee(principal, p.principal?.id)) return undefined;
+                    return p;
+                }
             }
             return undefined;
         }
+        // No tabId: most-recent among the tabs the caller is allowed to drive.
+        const visible = [...this.peers.values()]
+            .filter(
+                (p): p is PeerSession & { tabId: string } =>
+                    p.role === 'runtime-client' &&
+                    !!p.tabId &&
+                    (!principal || canSee(principal, p.principal?.id)),
+            )
+            .sort((a, b) => b.lastActive - a.lastActive);
         if (this.mostRecentTabId) {
-            return this.findTab(this.mostRecentTabId);
+            const mr = visible.find((p) => p.tabId === this.mostRecentTabId);
+            if (mr) return mr;
         }
-        return this.findFallbackTab();
+        return visible[0];
     }
 
     private findFallbackTab(): PeerSession | undefined {

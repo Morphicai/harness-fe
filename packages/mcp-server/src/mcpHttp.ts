@@ -12,6 +12,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Bridge, IBridge } from './bridge.js';
 import { createMcpServer } from './mcp.js';
+import { identifyPrincipal } from './identity.js';
+import { runWithCaller } from './callerContext.js';
 import { MemoryEventStore } from './store/MemoryEventStore.js';
 import type { EventStore } from './store/types.js';
 
@@ -81,12 +83,16 @@ export async function startMcpHttpServer(
         );
     }
 
+    const auth = b.getAuthOptions();
     b.prependHttpHandler(async (req: IncomingMessage, res: ServerResponse) => {
         const url = req.url ?? '';
         const qi = url.indexOf('?');
         const reqPath = qi < 0 ? url : url.slice(0, qi);
         if (reqPath !== path) return false;
-        await transport.handleRequest(req, res);
+        // Establish the per-call caller for command-target scoping (4.0 · A):
+        // every sendCommand within this request reads it via currentCaller().
+        const principal = identifyPrincipal(req.headers, auth);
+        await runWithCaller(principal, () => transport.handleRequest(req, res));
         return true;
     });
 
