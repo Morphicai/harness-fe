@@ -14,7 +14,8 @@ import {
     type Server,
     type ServerResponse,
 } from 'node:http';
-import { GatewayStore, type VerifiedCaller } from './store.js';
+import { GatewayStore, type ServerRecord, type VerifiedCaller } from './store.js';
+import { allowsTool, filterManifest, requiredScope } from './scope.js';
 
 /** Header contract with the daemon (kept in sync with daemon's FORWARDED_CALLER_HEADER, P6·C1). */
 const FORWARDED_CALLER_HEADER = 'x-harness-caller';
@@ -87,7 +88,90 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
             ip: req.socket.remoteAddress ?? undefined,
         });
 
+        const rpc = parseRpc(body);
+        // Scope gate (RBAC): deny a tools/call the caller has no scope for.
+        if (rpc?.method === 'tools/call' && typeof rpc.tool === 'string' && !allowsTool(caller.scopes, rpc.tool)) {
+            return sendJson(res, 200, {
+                jsonrpc: '2.0',
+                id: rpc.id ?? null,
+                error: {
+                    code: -32001,
+                    message: `scope denied: "${rpc.tool}" requires "${requiredScope(rpc.tool)}" scope`,
+                },
+            });
+        }
+        // Dynamic manifest: filter tools/list to what the caller may use.
+        if (rpc?.method === 'tools/list') {
+            return forwardAndFilter(target, caller, body, res);
+        }
         forward(target.endpoint, target.token, caller, req, body, res);
+    }
+
+    function parseRpc(body: Buffer): { method?: string; tool?: string; id?: unknown } | null {
+        try {
+            const p = JSON.parse(body.toString('utf8')) as {
+                method?: string;
+                params?: { name?: string };
+                id?: unknown;
+            };
+            return { method: p.method, tool: p.params?.name, id: p.id };
+        } catch {
+            return null;
+        }
+    }
+
+    /** Forward a tools/list, buffer the JSON response, and drop out-of-scope tools. */
+    function forwardAndFilter(
+        target: ServerRecord,
+        caller: VerifiedCaller,
+        body: Buffer,
+        res: ServerResponse,
+    ): void {
+        let base: URL;
+        try {
+            base = new URL(target.endpoint);
+        } catch {
+            return sendJson(res, 502, { error: 'bad_server_endpoint' });
+        }
+        const headers: Record<string, string> = {
+            'content-type': 'application/json',
+            accept: 'application/json', // force JSON (not SSE) so we can filter
+            [FORWARDED_CALLER_HEADER]: caller.tokenId,
+        };
+        if (target.token) headers.authorization = `Bearer ${target.token}`;
+        const proxy = httpRequest(
+            {
+                protocol: base.protocol,
+                hostname: base.hostname,
+                port: base.port,
+                path,
+                method: 'POST',
+                headers,
+            },
+            (dres) => {
+                const chunks: Buffer[] = [];
+                dres.on('data', (c) => chunks.push(c as Buffer));
+                dres.on('end', () => {
+                    let out = Buffer.concat(chunks);
+                    try {
+                        const parsed = JSON.parse(out.toString('utf8')) as { result?: { tools?: unknown } };
+                        if (parsed?.result) {
+                            parsed.result = filterManifest(parsed.result, caller.scopes);
+                            out = Buffer.from(JSON.stringify(parsed), 'utf8');
+                        }
+                    } catch {
+                        /* not JSON (SSE) — pass through unfiltered */
+                    }
+                    res.statusCode = dres.statusCode ?? 502;
+                    res.setHeader('content-type', 'application/json');
+                    res.end(out);
+                });
+            },
+        );
+        proxy.on('error', () => {
+            if (!res.headersSent) sendJson(res, 502, { error: 'daemon_unreachable' });
+        });
+        proxy.end(body);
     }
 
     function forward(
