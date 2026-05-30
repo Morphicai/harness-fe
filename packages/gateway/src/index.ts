@@ -9,6 +9,7 @@
 export { createGateway } from './server.js';
 export type { GatewayOptions, GatewayHandle } from './server.js';
 export { requiredScope, allowsTool, filterManifest } from './scope.js';
+export { createAdminHandler } from './admin.js';
 export { GatewayStore } from './store.js';
 export type {
     Scope,
@@ -16,6 +17,7 @@ export type {
     TokenRecord,
     AuditEntry,
     VerifiedCaller,
+    AdminRecord,
 } from './store.js';
 export {
     generateToken,
