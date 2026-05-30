@@ -27,7 +27,12 @@
   "changesets": [
     "browser-consent-p2",
     "caller-identity-p1",
+    "command-target-scoping",
+    "daemon-trusted-upstream",
+    "gateway-publish",
     "mcp-per-call-principal-p4",
+    "package-split-p5",
+    "project-agent-binding",
     "tenant-isolation-p3"
   ]
 }

@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/daemon",
-    "version": "4.0.0-next.2",
+    "version": "4.0.0-next.3",
     "description": "Harness-FE daemon core: capability API + event store + browser control + WS bridge + identity/auth/consent. Shared by the MCP server, dev CLI, and gateway.",
     "type": "module",
     "license": "MIT",
