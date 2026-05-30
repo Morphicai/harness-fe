@@ -114,3 +114,24 @@ export function identifyPrincipal(headers: HeaderBag | undefined, opts: AuthOpti
     const token = bearerFromHeaders(headers);
     return token ? { id: tokenPrincipalId(token), kind: 'token' } : LOCAL_PRINCIPAL;
 }
+
+/**
+ * Tenant-isolation visibility check (4.0 · P3). Decides whether `principal`
+ * may see a record tagged with `createdBy`.
+ *
+ * - `local` (loopback / stdio solo / no-auth) → sees everything. This keeps
+ *   solo dev's behaviour completely unchanged.
+ * - unowned data (`createdBy` null/undefined — legacy rows from before P1, or
+ *   records the daemon never tagged) → visible to everyone (backward compat).
+ * - otherwise → visible only to the principal that created it.
+ *
+ * Note: in the current single-token / loopback reality the data creator
+ * (plugin / runtime client) and the querying agent share one principal, so
+ * this is exact. A full `project → agent` binding (creator ≠ consumer, once
+ * P6 splits write/read scopes) is deferred to P6.
+ */
+export function canSee(principal: Principal, createdBy: string | null | undefined): boolean {
+    if (principal.kind === 'local') return true;
+    if (createdBy == null) return true;
+    return createdBy === principal.id;
+}

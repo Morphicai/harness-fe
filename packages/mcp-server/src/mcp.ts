@@ -27,7 +27,7 @@ import {
 import type { IBridge } from './bridge.js';
 import type { Bridge } from './bridge.js';
 import type { AuthOptions } from './auth.js';
-import { identifyPrincipal } from './identity.js';
+import { canSee, identifyPrincipal } from './identity.js';
 import { RemoteBridge } from './remoteBridge.js';
 import type { IStore, IMemoryStore } from './store/index.js';
 import { buildVisitorTimeline } from './visitorTimeline.js';
@@ -102,7 +102,7 @@ export function createMcpServer(bridge: IBridge, options: McpServerOptions = {})
     const leaderStore = (bridge as Bridge).store;
     if (leaderStore != null) {
         const memoryStore = bridge.getMemoryStore();
-        registerStoreTools(server, leaderStore, memoryStore, bridge);
+        registerStoreTools(server, leaderStore, memoryStore, bridge, options.auth);
     } else if (bridge instanceof RemoteBridge) {
         registerRemoteStoreTools(server, bridge);
     }
@@ -750,8 +750,10 @@ function registerTools(server: McpServer, bridge: IBridge, auth?: AuthOptions): 
                 limit: z.number().int().positive().optional(),
             },
         },
-        async ({ status, limit }) => {
-            const tasks = await bridge.listTasks({ status: status ?? 'pending', limit });
+        async ({ status, limit }, extra) => {
+            const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
+            const tasks = (await bridge.listTasks({ status: status ?? 'pending', limit }))
+                .filter((t) => canSee(principal, t.createdBy));
             const summary = tasks.map((t) => ({
                 id: t.id,
                 status: t.status,
@@ -865,7 +867,7 @@ function registerExperimentalTools(server: McpServer, bridge: IBridge): void {
 
 // ─── Store tools (session history, timeline, memory) ──────────────────────────
 
-function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemoryStore, bridge: IBridge): void {
+function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemoryStore, bridge: IBridge, auth?: AuthOptions): void {
     server.registerTool(
         'session.list',
         {
@@ -875,8 +877,11 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
                 limit: z.number().int().positive().default(10).optional(),
             },
         },
-        async ({ projectId, limit }) => {
-            const sessions = store.listSessions({ projectId, limit: limit ?? 10 });
+        async ({ projectId, limit }, extra) => {
+            const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
+            const sessions = store
+                .listSessions({ projectId, limit: limit ?? 10 })
+                .filter((s) => canSee(principal, s.createdBy));
             return ok(sessions);
         },
     );
@@ -963,11 +968,14 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
             description: 'List all projects with their most recent session info.',
             inputSchema: {},
         },
-        async () => {
-            const projects = store.listProjects();
+        async (_args, extra) => {
+            const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
+            const projects = store.listProjects().filter((p) => canSee(principal, p.createdBy));
             const result = projects.map((p) => ({
                 ...p,
-                recentSessions: store.listSessions({ projectId: p.id, limit: 3 }),
+                recentSessions: store
+                    .listSessions({ projectId: p.id, limit: 3 })
+                    .filter((s) => canSee(principal, s.createdBy)),
             }));
             return ok(result);
         },
