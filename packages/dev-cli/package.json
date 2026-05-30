@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/dev-cli",
-    "version": "4.0.0-next.2",
+    "version": "4.0.0-next.3",
     "description": "Harness-FE solo dev launcher: one command starts the daemon (loopback) + stdio MCP and prints the agent config. Zero-config glue over @harness-fe/daemon + @harness-fe/mcp-server.",
     "type": "module",
     "license": "MIT",
