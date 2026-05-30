@@ -17,8 +17,8 @@ import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { Bridge } from './bridge.js';
-import { JsonlStore } from './store/index.js';
+import { Bridge } from '@harness-fe/daemon';
+import { JsonlStore } from '@harness-fe/daemon';
 import { createMcpServer, experimentalEnabled } from './mcp.js';
 import { createDaemon } from './daemon.js';
 

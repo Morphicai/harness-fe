@@ -24,10 +24,10 @@ import {
     isLoopbackHost,
     parseWsUrl,
 } from '@harness-fe/protocol';
-import { defaultDataDir, type IBridge } from './bridge.js';
-import { createDaemon, type DaemonHandle } from './daemon.js';
-import { RemoteBridge } from './remoteBridge.js';
-import { startMcpStdioServer } from './mcp.js';
+import { defaultDataDir, type IBridge } from '@harness-fe/daemon';
+import { createDaemon, type DaemonHandle } from '@harness-fe/mcp-server';
+import { RemoteBridge } from '@harness-fe/daemon';
+import { startMcpStdioServer } from '@harness-fe/mcp-server';
 
 type McpTransport = 'stdio' | 'http';
 

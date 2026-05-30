@@ -10,12 +10,12 @@
 import { randomUUID } from 'node:crypto';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { Bridge, IBridge } from './bridge.js';
+import type { Bridge, IBridge } from '@harness-fe/daemon';
 import { createMcpServer } from './mcp.js';
-import { identifyPrincipal } from './identity.js';
-import { runWithCaller } from './callerContext.js';
-import { MemoryEventStore } from './store/MemoryEventStore.js';
-import type { EventStore } from './store/types.js';
+import { identifyPrincipal } from '@harness-fe/daemon';
+import { runWithCaller } from '@harness-fe/daemon';
+import { MemoryEventStore } from '@harness-fe/daemon';
+import type { EventStore } from '@harness-fe/daemon';
 
 export interface McpHttpOptions {
     /** URL path the transport listens on. Default `/mcp`. */

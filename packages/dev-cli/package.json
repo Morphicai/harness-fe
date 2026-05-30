@@ -1,27 +1,25 @@
 {
-    "name": "@harness-fe/mcp-server",
+    "name": "@harness-fe/dev-cli",
     "version": "4.0.0-next.2",
-    "description": "Unified MCP daemon: stdio MCP for AI agents + WS bridge for Vite plugin and runtime client.",
+    "description": "Harness-FE solo dev launcher: one command starts the daemon (loopback) + stdio MCP and prints the agent config. Zero-config glue over @harness-fe/daemon + @harness-fe/mcp-server.",
     "type": "module",
     "license": "MIT",
     "repository": {
         "type": "git",
         "url": "https://github.com/Morphicai/harness-fe.git",
-        "directory": "packages/mcp-server"
+        "directory": "packages/dev-cli"
     },
     "homepage": "https://github.com/Morphicai/harness-fe#readme",
     "bugs": {
         "url": "https://github.com/Morphicai/harness-fe/issues"
     },
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
+    "main": "dist/cli.js",
     "bin": {
-        "harness-fe": "./dist/bin.js"
+        "harness-fe": "./dist/cli.js"
     },
     "exports": {
         ".": {
-            "types": "./dist/index.d.ts",
-            "default": "./dist/index.js"
+            "default": "./dist/cli.js"
         }
     },
     "files": [
@@ -32,9 +30,10 @@
     ],
     "scripts": {
         "build": "tsc",
-        "postbuild": "node -e \"require('fs').chmodSync('dist/bin.js', 0o755)\"",
+        "postbuild": "node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
         "dev": "tsc --watch --preserveWatchOutput",
         "watch": "tsc --watch --preserveWatchOutput",
+        "start": "tsx src/cli.ts",
         "typecheck": "tsc --noEmit",
         "test": "vitest run"
     },
@@ -42,15 +41,12 @@
         "node": ">=18"
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.26.0",
         "@harness-fe/daemon": "workspace:*",
-        "@harness-fe/protocol": "workspace:*",
-        "ws": "^8.18.0",
-        "zod": "^4.4.3"
+        "@harness-fe/mcp-server": "workspace:*",
+        "@harness-fe/protocol": "workspace:*"
     },
     "devDependencies": {
         "@types/ws": "^8.5.10",
-        "fast-check": "^3.22.0",
         "tsx": "^4.22.3",
         "typescript": "^5.6.0",
         "vitest": "^2.1.9"

@@ -1,6 +1,6 @@
-export { Bridge, defaultDataDir, type BridgeOptions } from './bridge.js';
+export { Bridge, defaultDataDir, type BridgeOptions } from '@harness-fe/daemon';
 export { createDaemon, type DaemonOptions, type DaemonHandle } from './daemon.js';
-export { SessionRouter, type PeerSession } from './sessionRouter.js';
+export { SessionRouter, type PeerSession } from '@harness-fe/daemon';
 export {
     startMcpStdioServer,
     createMcpServer,
@@ -15,7 +15,7 @@ export {
     MemoryEventStore,
     sanitizeId,
     type MemoryEventStoreOptions,
-} from './store/index.js';
+} from '@harness-fe/daemon';
 export type {
     IStore,
     ITaskStore,
@@ -28,4 +28,4 @@ export type {
     BuildMeta,
     SessionMeta,
     TabMeta,
-} from './store/index.js';
+} from '@harness-fe/daemon';

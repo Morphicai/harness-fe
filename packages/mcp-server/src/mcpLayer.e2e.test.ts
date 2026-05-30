@@ -16,8 +16,8 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { Bridge } from './bridge.js';
-import { JsonlStore } from './store/index.js';
+import { Bridge } from '@harness-fe/daemon';
+import { JsonlStore } from '@harness-fe/daemon';
 import { createMcpServer } from './mcp.js';
 import type {
     EventFrame,
