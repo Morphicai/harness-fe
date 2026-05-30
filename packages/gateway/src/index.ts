@@ -8,6 +8,7 @@
  */
 export { createGateway } from './server.js';
 export type { GatewayOptions, GatewayHandle } from './server.js';
+export { requiredScope, allowsTool, filterManifest } from './scope.js';
 export { GatewayStore } from './store.js';
 export type {
     Scope,
