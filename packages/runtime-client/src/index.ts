@@ -12,9 +12,7 @@ import {
     drainPluginQueue,
     type OverlayPlugin,
 } from './pluginRegistry.js';
-
-// Informational; keep in sync with package.json on release.
-const VERSION = '3.3.0';
+import { VERSION } from './version.js';
 
 const w = window as unknown as {
     __harness_fe_started__?: boolean;

@@ -14,7 +14,9 @@
  * handler runs, so we never need to check tokens here.
  */
 
+import { createRequire } from 'node:module';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { PROTOCOL_VERSION } from '@harness-fe/protocol';
 import type {
     IStore,
     ProjectMeta,
@@ -28,6 +30,20 @@ import { createReplayExport, type ReplayCreateResult } from './replayCreate.js';
 
 const TIMELINE_DEFAULT_TAIL = 100;
 const SESSIONS_PER_PROJECT = 10;
+
+/**
+ * Own package version, read once at module load — surfaced at `/api/meta` so
+ * the dashboard header can show exactly which daemon build is running (handy
+ * when juggling 3.x/4.0 side by side or verifying a fresh deploy).
+ */
+const DAEMON_VERSION = ((): string => {
+    try {
+        const require = createRequire(import.meta.url);
+        return (require('../package.json') as { version?: string }).version ?? 'unknown';
+    } catch {
+        return 'unknown';
+    }
+})();
 
 export interface ProjectListEntry {
     project: ProjectMeta;
@@ -62,6 +78,15 @@ export function createDashboardApiHandler(
         const path = url.pathname;
         if (!path.startsWith('/api/')) return false;
         const method = req.method ?? 'GET';
+
+        // GET /api/meta — daemon + protocol version (dashboard header badge).
+        if (method === 'GET' && path === '/api/meta') {
+            sendJson(res, 200, {
+                daemonVersion: DAEMON_VERSION,
+                protocolVersion: PROTOCOL_VERSION,
+            });
+            return true;
+        }
 
         // GET /api/projects
         if (method === 'GET' && path === '/api/projects') {

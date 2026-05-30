@@ -15,6 +15,9 @@
     },
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
+    "bin": {
+        "harness-gateway": "./dist/cli.js"
+    },
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
@@ -28,7 +31,7 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
         "dev": "tsc --watch --preserveWatchOutput",
         "typecheck": "tsc --noEmit",
         "test": "vitest run --passWithNoTests"

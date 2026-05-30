@@ -1,0 +1,12 @@
+{
+  "_comment": "TEAM mode: agents reach the shared central daemon (port 47900) ONLY through the governance gateway (port 47950). The gateway verifies this token, gates tool access by its scope (RBAC), routes to the daemon, injects the real caller, and audits every call. Copy this to .mcp.json and replace the token with one issued by `harness-gateway --issue-token` (scripts/demo-multiuser.sh prints + wires it for you). Compare with vue-demo's solo (stdio, no token) config.",
+  "mcpServers": {
+    "harness-team": {
+      "type": "http",
+      "url": "http://127.0.0.1:47950/mcp",
+      "headers": {
+        "Authorization": "Bearer REPLACE_WITH_GATEWAY_TOKEN"
+      }
+    }
+  }
+}
