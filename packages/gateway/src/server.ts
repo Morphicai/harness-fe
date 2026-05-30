@@ -16,6 +16,7 @@ import {
 } from 'node:http';
 import { GatewayStore, type ServerRecord, type VerifiedCaller } from './store.js';
 import { allowsTool, filterManifest, requiredScope } from './scope.js';
+import { createAdminHandler } from './admin.js';
 
 /** Header contract with the daemon (kept in sync with daemon's FORWARDED_CALLER_HEADER, P6·C1). */
 const FORWARDED_CALLER_HEADER = 'x-harness-caller';
@@ -62,6 +63,7 @@ function toolName(body: Buffer): string {
 
 export function createGateway(opts: GatewayOptions): GatewayHandle {
     const path = opts.mcpPath ?? '/mcp';
+    const adminHandler = createAdminHandler(opts.store);
     const server = createServer((req, res) => {
         handle(req, res).catch(() => {
             if (!res.headersSent) sendJson(res, 500, { error: 'gateway_error' });
@@ -69,6 +71,8 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
     });
 
     async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+        // Admin panel owns /admin/* ; the MCP proxy owns /mcp.
+        if (await adminHandler(req, res)) return;
         const reqPath = (req.url ?? '').split('?')[0];
         if (reqPath !== path) return sendJson(res, 404, { error: 'not_found' });
 

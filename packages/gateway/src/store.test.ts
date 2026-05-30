@@ -74,4 +74,17 @@ describe('GatewayStore (5.0 · P6 · C2)', () => {
         const reopened = new GatewayStore(dir);
         expect(reopened.verifyToken(raw)?.scopes).toEqual(['write']);
     });
+
+    it('admins: add / verify / hasAdmins / setAdminPassword', () => {
+        expect(store.hasAdmins()).toBe(false);
+        store.addAdmin('root', 'pw');
+        expect(store.hasAdmins()).toBe(true);
+        expect(store.verifyAdmin('root', 'pw')).toBe(true);
+        expect(store.verifyAdmin('root', 'wrong')).toBe(false);
+        expect(store.verifyAdmin('ghost', 'pw')).toBe(false);
+        expect(store.setAdminPassword('root', 'pw2')).toBe(true);
+        expect(store.verifyAdmin('root', 'pw2')).toBe(true);
+        expect(store.verifyAdmin('root', 'pw')).toBe(false);
+        expect(store.setAdminPassword('ghost', 'x')).toBe(false);
+    });
 });

@@ -10,7 +10,7 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { generateToken, parseToken, verifySecret } from './tokens.js';
+import { generateToken, hashSecret, parseToken, verifySecret } from './tokens.js';
 
 export type Scope = 'control' | 'read' | 'write';
 
@@ -72,16 +72,25 @@ function writeMap(path: string, data: unknown): void {
     writeFileSync(path, JSON.stringify(data, null, 2), 'utf8');
 }
 
+export interface AdminRecord {
+    username: string;
+    hash: string;
+    salt: string;
+    createdAt: number;
+}
+
 export class GatewayStore {
     private readonly serversPath: string;
     private readonly tokensPath: string;
     private readonly auditPath: string;
+    private readonly adminsPath: string;
 
     constructor(dataDir: string) {
         mkdirSync(dataDir, { recursive: true });
         this.serversPath = join(dataDir, 'servers.json');
         this.tokensPath = join(dataDir, 'tokens.json');
         this.auditPath = join(dataDir, 'audit.jsonl');
+        this.adminsPath = join(dataDir, 'admins.json');
     }
 
     // ── Servers ──────────────────────────────────────────────────────────
@@ -175,5 +184,31 @@ export class GatewayStore {
                 }
             })
             .filter((e): e is AuditEntry => e !== null);
+    }
+
+    // ── Admins (scrypt) ──────────────────────────────────────────────────
+    hasAdmins(): boolean {
+        return Object.keys(readMap<AdminRecord>(this.adminsPath)).length > 0;
+    }
+    addAdmin(username: string, password: string): AdminRecord {
+        const all = readMap<AdminRecord>(this.adminsPath);
+        const { hash, salt } = hashSecret(password);
+        const rec: AdminRecord = { username, hash, salt, createdAt: Date.now() };
+        all[username] = rec;
+        writeMap(this.adminsPath, all);
+        return rec;
+    }
+    verifyAdmin(username: string, password: string): boolean {
+        const rec = readMap<AdminRecord>(this.adminsPath)[username];
+        if (!rec) return false;
+        return verifySecret(password, { hash: rec.hash, salt: rec.salt });
+    }
+    setAdminPassword(username: string, password: string): boolean {
+        const all = readMap<AdminRecord>(this.adminsPath);
+        if (!all[username]) return false;
+        const { hash, salt } = hashSecret(password);
+        all[username] = { ...all[username], hash, salt };
+        writeMap(this.adminsPath, all);
+        return true;
     }
 }
