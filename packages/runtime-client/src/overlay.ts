@@ -24,6 +24,7 @@ import {
 } from '@harness-fe/protocol';
 import { snapdom } from '@zumer/snapdom';
 import { deriveDashboardUrl } from './dashboardUrl.js';
+import { VERSION } from './version.js';
 import { getCaptureStore } from './capture.js';
 import { collectPageLoadSnapshot } from './snapshot.js';
 import {
@@ -482,11 +483,13 @@ export function installOverlay(client: OverlayClient): void {
     // ─── Info card rendering ─────────────────────────────────────────────
     const renderInfo = () => {
         const proj = infoCard.querySelector<HTMLElement>('[data-role=project]')!;
+        const version = infoCard.querySelector<HTMLElement>('[data-role=version]')!;
         const build = infoCard.querySelector<HTMLElement>('[data-role=build]')!;
         const session = infoCard.querySelector<HTMLElement>('[data-role=session]')!;
         const tab = infoCard.querySelector<HTMLElement>('[data-role=tab]')!;
         const url = infoCard.querySelector<HTMLElement>('[data-role=url]')!;
         proj.textContent = client.displayName ?? client.projectId;
+        version.textContent = `v${VERSION}`;
         build.textContent = client.buildId ? abbr(client.buildId) : '—';
         build.title = client.buildId ?? 'No buildId — set HarnessScript buildId prop in prod';
         session.textContent = abbr(client.sessionId);
@@ -2113,6 +2116,7 @@ function buildInfoCard(): HTMLDivElement {
             <button class="close-btn" data-role="close" title="Close (Esc)" type="button">×</button>
         </div>
         <div class="rows">
+            <div class="row"><span class="key">version</span><span class="pill" data-role="version" title="harness runtime version"></span></div>
             <div class="row"><span class="key">build</span><span class="pill" data-role="build" title="Click to copy"></span></div>
             <div class="row"><span class="key">session</span><span class="pill" data-role="session" title="Click to copy"></span></div>
             <div class="row"><span class="key">tab</span><span class="pill" data-role="tab" title="Click to copy"></span></div>

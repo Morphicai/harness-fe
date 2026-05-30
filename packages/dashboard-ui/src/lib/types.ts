@@ -111,6 +111,11 @@ export interface ReplayCreateResult {
     endTs?: number;
 }
 
+export interface DaemonMeta {
+    daemonVersion: string;
+    protocolVersion: string;
+}
+
 export interface DashboardUpdateFrame {
     type: 'dashboard.update';
     id: string;

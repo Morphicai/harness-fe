@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useLiveBridge } from '../hooks/useLiveBridge';
+import { useApi } from '../hooks/useApi';
+import type { DaemonMeta } from '../lib/types';
 
 /**
  * Sticky glass header. Logo + breadcrumb on the left, live-status pill
@@ -29,6 +31,7 @@ export function Header({ crumb }: { crumb?: React.ReactNode }) {
                     </span>
                     <span className="text-ink-muted text-xs font-mono">dev console</span>
                 </Link>
+                <VersionBadge />
                 {crumb ? (
                     <>
                         <span className="text-ink-muted text-sm">/</span>
@@ -39,6 +42,19 @@ export function Header({ crumb }: { crumb?: React.ReactNode }) {
                 <LivePill flash={flash} />
             </div>
         </header>
+    );
+}
+
+function VersionBadge() {
+    const { data } = useApi<DaemonMeta>('/api/meta');
+    if (!data) return null;
+    return (
+        <span
+            className="text-ink-muted text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-raised border border-surface-border"
+            title={`harness daemon ${data.daemonVersion} · protocol ${data.protocolVersion}`}
+        >
+            v{data.daemonVersion}
+        </span>
     );
 }
 

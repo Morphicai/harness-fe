@@ -58,6 +58,8 @@ describe('installOverlay', () => {
         const card = root.querySelector('.info-card') as HTMLElement;
         expect(card.style.display).toBe('flex');
         expect(root.querySelector('[data-role=project]')!.textContent).toBe('Demo App');
+        // Runtime version surfaced in the card (real value from version.ts).
+        expect(root.querySelector('[data-role=version]')!.textContent).toMatch(/^v\d/);
         // Abbreviated to 8 chars
         expect(root.querySelector('[data-role=build]')!.textContent).toBe('build-12');
         expect(root.querySelector('[data-role=session]')!.textContent).toBe('sess-123');
