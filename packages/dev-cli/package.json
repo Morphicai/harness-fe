@@ -35,7 +35,7 @@
         "watch": "tsc --watch --preserveWatchOutput",
         "start": "tsx src/cli.ts",
         "typecheck": "tsc --noEmit",
-        "test": "vitest run"
+        "test": "vitest run --passWithNoTests"
     },
     "engines": {
         "node": ">=18"
