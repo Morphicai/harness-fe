@@ -6,6 +6,8 @@
  * C2 (this slice): data layer + tokens. Routing / RBAC / manifest / admin land
  * in C3–C5.
  */
+export { createGateway } from './server.js';
+export type { GatewayOptions, GatewayHandle } from './server.js';
 export { GatewayStore } from './store.js';
 export type {
     Scope,

@@ -17,9 +17,16 @@ export type Scope = 'control' | 'read' | 'write';
 export interface ServerRecord {
     id: string;
     name: string;
-    /** Daemon endpoint, e.g. ws://host:port or http://host:port. */
+    /** Daemon HTTP base, e.g. http://host:port (the gateway proxies its /mcp). */
     endpoint: string;
     env: string;
+    /**
+     * The daemon's own auth token. The gateway authenticates to the daemon with
+     * this and forwards the real caller via the `x-harness-caller` header — the
+     * daemon trusts a forwarded identity only on auth-enabled requests (P6·C1),
+     * so daemons behind a gateway MUST run with a token.
+     */
+    token?: string;
     createdAt: number;
 }
 
@@ -84,7 +91,7 @@ export class GatewayStore {
     getServer(id: string): ServerRecord | undefined {
         return readMap<ServerRecord>(this.serversPath)[id];
     }
-    addServer(input: { name: string; endpoint: string; env: string }): ServerRecord {
+    addServer(input: { name: string; endpoint: string; env: string; token?: string }): ServerRecord {
         const all = readMap<ServerRecord>(this.serversPath);
         const rec: ServerRecord = { id: randomUUID(), createdAt: Date.now(), ...input };
         all[rec.id] = rec;
