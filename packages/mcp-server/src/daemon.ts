@@ -27,10 +27,10 @@ import type { IncomingMessage } from 'node:http';
 
 import type { ConsentPolicy } from '@harness-fe/protocol';
 
-import { Bridge } from './bridge.js';
+import { Bridge } from '@harness-fe/daemon';
 import { startMcpHttpServer } from './mcpHttp.js';
-import type { EventStore, IStore } from './store/types.js';
-import type { ITaskStore, IMemoryStore } from './store/types.js';
+import type { EventStore, IStore } from '@harness-fe/daemon';
+import type { ITaskStore, IMemoryStore } from '@harness-fe/daemon';
 
 export interface DaemonOptions {
     /** TCP port to listen on. Default `DEFAULT_WS_PORT` (see protocol). */

@@ -24,16 +24,16 @@ import {
     typeArgsSchema,
     waitForArgsSchema,
 } from '@harness-fe/protocol';
-import type { IBridge } from './bridge.js';
-import type { Bridge } from './bridge.js';
-import type { AuthOptions } from './auth.js';
-import { canSee, canSeeProject, identifyPrincipal } from './identity.js';
-import { RemoteBridge } from './remoteBridge.js';
-import type { IStore, IMemoryStore } from './store/index.js';
-import { buildVisitorTimeline } from './visitorTimeline.js';
-import { createReplayExport } from './replayCreate.js';
-import { openBrowser } from './openBrowser.js';
-import { buildDashboardUrl } from './dashboardUrl.js';
+import type { IBridge } from '@harness-fe/daemon';
+import type { Bridge } from '@harness-fe/daemon';
+import type { AuthOptions } from '@harness-fe/daemon';
+import { canSee, canSeeProject, identifyPrincipal } from '@harness-fe/daemon';
+import { RemoteBridge } from '@harness-fe/daemon';
+import type { IStore, IMemoryStore } from '@harness-fe/daemon';
+import { buildVisitorTimeline } from '@harness-fe/daemon';
+import { createReplayExport } from '@harness-fe/daemon';
+import { openBrowser } from '@harness-fe/daemon';
+import { buildDashboardUrl } from '@harness-fe/daemon';
 
 const SERVER_NAME = 'harness-fe';
 

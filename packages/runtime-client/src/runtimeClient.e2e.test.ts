@@ -24,11 +24,11 @@ vi.mock('rrweb', () => ({
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Bridge } from '../../mcp-server/src/bridge.js';
-import { JsonlStore } from '../../mcp-server/src/store/index.js';
+import { Bridge } from '../../daemon/src/bridge.js';
+import { JsonlStore } from '../../daemon/src/store/index.js';
 import { RuntimeClient } from './client.js';
 import { getCaptureStore } from './capture.js';
-import type { StoreEvent } from '../../mcp-server/src/store/index.js';
+import type { StoreEvent } from '../../daemon/src/store/index.js';
 import type { NetworkEntry, StorageEntry, WsEntry } from '@harness-fe/protocol';
 
 interface Env {
