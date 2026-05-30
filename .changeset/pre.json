@@ -23,6 +23,7 @@
   },
   "changesets": [
     "browser-consent-p2",
-    "caller-identity-p1"
+    "caller-identity-p1",
+    "mcp-per-call-principal-p4"
   ]
 }
