@@ -1,5 +1,56 @@
 # @harness-fe/mcp-server
 
+## 4.0.0-next.0
+
+### Minor Changes
+
+- 9a3c5e1: Browser Consent (4.0 · P2) — control commands now require in-page user
+  approval before they run, once the daemon is exposed.
+
+  - The daemon pushes a consent policy in `hello.ack`: `off` on loopback solo
+    dev (zero-friction, unchanged) and `session` once auth is enabled
+    (exposed). Override via `createDaemon({ consent: { mode } })`.
+  - Control commands (`page.click/type/scroll/navigate/reload/set_html/
+set_style/evaluate/wait_for`) are gated; read-only commands (screenshot,
+    dom_query, _\_tail, project._) are not. `page.evaluate` always prompts.
+  - The runtime client gates `handleCommand`: in `session` mode the first
+    control command prompts and the rest of the pageload runs once granted;
+    `always` prompts every time; `off` never prompts. No prompter registered ⇒
+    fail-safe deny (a policy that can't ask must not silently allow).
+  - The in-page overlay shows a consent modal (command preview + Allow once /
+    Allow for session / Deny) and registers itself as the prompter.
+
+  Client-side gate by design: consent is the browser-side user's real-time
+  approval, closest to the user; it reuses the existing command→response round
+  trip (a denied command returns `ok:false` / `CONSENT_DENIED`), so the daemon's
+  `sendCommand` path is unchanged. Behaviour is unchanged on loopback (consent
+  off). New `hello.ack.consent` field is optional.
+
+- a3bd7ea: Caller identity (4.0 · P1) — the auth boundary now carries _who_, not just
+  allow/deny.
+
+  - New `identity` module: `Principal` type + `resolvePrincipal(req, auth)`
+    (loopback → `local`, token → hashed `token:…` id, custom-authorize → `host`),
+    layered on the existing auth primitives so the two never disagree on who is
+    allowed in.
+  - WS connections resolve a `Principal` at upgrade and carry it on
+    `PeerSession.principal`.
+  - Project / session metadata and `Task` gain optional `createdBy` (write-once)
+    and `Task.agentId`; the bridge tags project/session creation with the
+    connection's principal and stamps `agentId` on task claim/resolve.
+
+  Phase 1 only **establishes and tags** identity — reads are not yet filtered by
+  owner (that is P3 tenant isolation). Behaviour is unchanged: loopback solo dev
+  stays a single implicit `local` principal, tokens are still never
+  auto-generated, and all new fields are optional.
+
+### Patch Changes
+
+- Updated dependencies [9a3c5e1]
+- Updated dependencies [a3bd7ea]
+  - @harness-fe/protocol@4.0.0-next.0
+  - @harness-fe/dashboard-ui@0.2.0
+
 ## 3.4.0
 
 ### Minor Changes

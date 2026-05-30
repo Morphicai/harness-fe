@@ -21,5 +21,8 @@
     "@harness-fe/vite": "3.2.0",
     "@harness-fe/webpack": "3.2.0"
   },
-  "changesets": []
+  "changesets": [
+    "browser-consent-p2",
+    "caller-identity-p1"
+  ]
 }
