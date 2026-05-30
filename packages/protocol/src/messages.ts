@@ -103,6 +103,23 @@ export const helloFrameSchema = z.object({
 });
 export type HelloFrame = z.infer<typeof helloFrameSchema>;
 
+/**
+ * Browser-consent policy (4.0 · P2). The daemon decides this and pushes it to
+ * the runtime client in hello.ack:
+ *   - `off`     — control commands run without confirmation (loopback solo dev)
+ *   - `session` — the first control command prompts; once granted the rest of
+ *                 the pageload runs without re-prompting
+ *   - `always`  — every control command prompts
+ * `page.evaluate` (arbitrary code) always prompts regardless of mode.
+ */
+export const consentModeSchema = z.enum(['off', 'session', 'always']);
+export type ConsentMode = z.infer<typeof consentModeSchema>;
+
+export const consentPolicySchema = z.object({
+    mode: consentModeSchema,
+});
+export type ConsentPolicy = z.infer<typeof consentPolicySchema>;
+
 export const helloAckFrameSchema = z.object({
     type: z.literal('hello.ack'),
     id: z.string(),
@@ -111,6 +128,8 @@ export const helloAckFrameSchema = z.object({
     serverVersion: z.string(),
     /** Present when the server rejects the connection (e.g. no active session for runtime-client). */
     error: z.string().optional(),
+    /** Browser-consent policy for control commands (4.0 · P2). Absent ⇒ `off`. */
+    consent: consentPolicySchema.optional(),
 });
 export type HelloAckFrame = z.infer<typeof helloAckFrameSchema>;
 
@@ -355,6 +374,60 @@ export const COMMAND = {
 } as const;
 
 export type CommandName = typeof COMMAND[keyof typeof COMMAND];
+
+// ─── Browser consent (4.0 · P2) ─────────────────────────────────────────────
+
+/**
+ * Control commands — those with a side effect on the page (mutate DOM, type,
+ * navigate, reload, run code). These are gated behind browser consent when the
+ * policy is on. Read-only commands (screenshot, dom_query, *_tail, project.*,
+ * pick_element/select_region — user-driven) are NOT gated.
+ */
+export const CONTROL_COMMANDS: ReadonlySet<string> = new Set<string>([
+    COMMAND.PAGE_CLICK,
+    COMMAND.PAGE_TYPE,
+    COMMAND.PAGE_SCROLL,
+    COMMAND.PAGE_NAVIGATE,
+    COMMAND.PAGE_RELOAD,
+    COMMAND.PAGE_SET_HTML,
+    COMMAND.PAGE_SET_STYLE,
+    COMMAND.PAGE_EVALUATE,
+    COMMAND.PAGE_WAIT_FOR,
+]);
+
+/** Commands that always prompt, ignoring a session-level grant (arbitrary code). */
+export const ALWAYS_CONFIRM_COMMANDS: ReadonlySet<string> = new Set<string>([
+    COMMAND.PAGE_EVALUATE,
+]);
+
+export interface ConsentRequest {
+    command: string;
+    args: unknown;
+    tabId: string;
+    /** True when this command always prompts (e.g. page.evaluate). */
+    alwaysConfirm: boolean;
+}
+
+/** User's answer to a consent prompt. */
+export type ConsentDecision = 'once' | 'session' | 'deny';
+
+/**
+ * Decide whether a command must prompt for consent, given the policy and
+ * whether the session already granted blanket control. Pure — shared by the
+ * runtime client's gate and its tests.
+ */
+export function requiresConsent(
+    command: string,
+    mode: ConsentMode,
+    sessionGranted: boolean,
+): boolean {
+    if (mode === 'off') return false;
+    if (!CONTROL_COMMANDS.has(command)) return false;
+    if (ALWAYS_CONFIRM_COMMANDS.has(command)) return true;
+    if (mode === 'always') return true;
+    // mode === 'session'
+    return !sessionGranted;
+}
 
 // ─── Event names ────────────────────────────────────────────────────────────
 
