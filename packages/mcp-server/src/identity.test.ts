@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import {
     HOST_PRINCIPAL,
     LOCAL_PRINCIPAL,
+    canSee,
     identifyPrincipal,
     resolvePrincipal,
     tokenPrincipalId,
@@ -82,5 +83,27 @@ describe('identity: identifyPrincipal (P4 — identify, not authorize)', () => {
 
     it('authorize mode → host', () => {
         expect(identifyPrincipal({ authorization: 'Bearer x' }, { authorize: () => true })).toBe(HOST_PRINCIPAL);
+    });
+});
+
+describe('identity: canSee (P3 tenant visibility)', () => {
+    const tokenA = { id: 'token:aaa', kind: 'token' as const };
+    const tokenB = { id: 'token:bbb', kind: 'token' as const };
+
+    it('local sees everything (zero behaviour change for solo dev)', () => {
+        expect(canSee(LOCAL_PRINCIPAL, 'token:aaa')).toBe(true);
+        expect(canSee(LOCAL_PRINCIPAL, undefined)).toBe(true);
+        expect(canSee(LOCAL_PRINCIPAL, null)).toBe(true);
+    });
+
+    it('unowned data (no createdBy) is visible to everyone', () => {
+        expect(canSee(tokenA, undefined)).toBe(true);
+        expect(canSee(tokenA, null)).toBe(true);
+    });
+
+    it('named principal sees only its own owned data', () => {
+        expect(canSee(tokenA, 'token:aaa')).toBe(true);
+        expect(canSee(tokenA, 'token:bbb')).toBe(false);
+        expect(canSee(tokenB, 'token:aaa')).toBe(false);
     });
 });
