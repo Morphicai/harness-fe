@@ -58,3 +58,4 @@ playwright-report
 test-results
 .turbo
 dep-graph.html
+.vitepress
