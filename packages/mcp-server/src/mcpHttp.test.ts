@@ -99,6 +99,55 @@ describe('mcpHttp', () => {
         expect(withAuth.status).not.toBe(401);
     });
 
+    it('supports multiple concurrent clients (per-session transports)', async () => {
+        // Regression: the old single shared transport threw "Server already
+        // initialized" on the 2nd initialize, blocking multi-agent (gateway) use
+        // and any reconnect. Per-session transports must let each client init.
+        const bridge = await startBridge();
+        const handle = await startMcpHttpServer(bridge, { path: '/mcp' });
+        cleanups.push(() => handle.close());
+        const port = bridge.getBoundPort()!;
+
+        const headers = {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+        };
+        const initBody = (name: string) =>
+            JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'initialize',
+                params: {
+                    protocolVersion: '2025-06-18',
+                    capabilities: {},
+                    clientInfo: { name, version: '1' },
+                },
+                id: 1,
+            });
+
+        const r1 = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST', headers, body: initBody('c1') });
+        await r1.text();
+        const sid1 = r1.headers.get('mcp-session-id');
+        expect(r1.status).toBe(200);
+        expect(sid1).toBeTruthy();
+
+        const r2 = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST', headers, body: initBody('c2') });
+        await r2.text();
+        const sid2 = r2.headers.get('mcp-session-id');
+        expect(r2.status).toBe(200);
+        expect(sid2).toBeTruthy();
+        // Distinct sessions — the whole point of per-session transports.
+        expect(sid2).not.toBe(sid1);
+
+        // A request carrying an unknown session id is rejected (not silently
+        // attached to some shared transport).
+        const bad = await fetch(`http://127.0.0.1:${port}/mcp`, {
+            method: 'POST',
+            headers: { ...headers, 'mcp-session-id': 'does-not-exist' },
+            body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 2 }),
+        });
+        expect(bad.status).toBe(400);
+    });
+
     // SSE Last-Event-ID resumption — end-to-end wiring proof.
     //
     // What this asserts:
