@@ -170,15 +170,33 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
                     res.statusCode = dres.statusCode ?? 502;
                     const sid = dres.headers['mcp-session-id'];
                     if (typeof sid === 'string') res.setHeader('mcp-session-id', sid);
+                    const ct = dres.headers['content-type'];
+                    // MCP HTTP usually answers tools/list as an SSE frame, not plain
+                    // JSON — so we must filter the JSON-RPC payload inside each
+                    // `data:` line, not just the JSON branch (the old code passed
+                    // SSE through unfiltered, leaking control tools to read tokens).
+                    if (typeof ct === 'string' && ct.includes('text/event-stream')) {
+                        const out = buf.toString('utf8').replace(/^data:(.*)$/gm, (line, payload: string) => {
+                            const j = payload.trim();
+                            if (!j) return line;
+                            try {
+                                const parsed = JSON.parse(j) as { result?: { tools?: unknown } };
+                                if (parsed?.result) parsed.result = filterManifest(parsed.result, caller.scopes);
+                                return `data: ${JSON.stringify(parsed)}`;
+                            } catch {
+                                return line;
+                            }
+                        });
+                        res.setHeader('content-type', ct);
+                        res.end(out);
+                        return;
+                    }
                     try {
                         const parsed = JSON.parse(buf.toString('utf8')) as { result?: { tools?: unknown } };
                         if (parsed?.result) parsed.result = filterManifest(parsed.result, caller.scopes);
                         res.setHeader('content-type', 'application/json');
                         res.end(Buffer.from(JSON.stringify(parsed), 'utf8'));
                     } catch {
-                        // Not JSON (e.g. SSE) — pass through unfiltered (manifest filtering
-                        // applies only to JSON tools/list responses).
-                        const ct = dres.headers['content-type'];
                         if (typeof ct === 'string') res.setHeader('content-type', ct);
                         res.end(buf);
                     }
