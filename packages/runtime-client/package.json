@@ -28,9 +28,9 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch --preserveWatchOutput",
-        "watch": "tsc --watch --preserveWatchOutput",
+        "build": "node scripts/gen-version.mjs && tsc",
+        "dev": "node scripts/gen-version.mjs && tsc --watch --preserveWatchOutput",
+        "watch": "node scripts/gen-version.mjs && tsc --watch --preserveWatchOutput",
         "typecheck": "tsc --noEmit",
         "test": "vitest run"
     },

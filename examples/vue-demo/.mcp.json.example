@@ -1,0 +1,10 @@
+{
+  "_comment": "SOLO mode: zero-config, zero-friction. The agent spawns a local dev-cli over stdio that connects to a loopback daemon (default ws port 47729) with NO token and NO gateway — loopback dev is fully trusted (single principal, sees everything). This is the opposite end of the spectrum from react-demo's team config (HTTP through the gateway, scoped token, RBAC, audit). For a local source build, swap the command to: node <repo>/packages/dev-cli/dist/cli.js",
+  "mcpServers": {
+    "harness-solo": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@harness-fe/dev-cli"]
+    }
+  }
+}
