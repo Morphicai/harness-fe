@@ -82,8 +82,8 @@ export interface IBridge {
     ): Promise<unknown>;
     listTabs(): Promise<TabInfo[]>;
     listTasks(filter?: { status?: TaskStatus | 'all'; limit?: number }): Promise<Task[]>;
-    claimTask(id: string): Promise<Task | undefined>;
-    resolveTask(id: string, note?: string): Promise<Task | undefined>;
+    claimTask(id: string, principal?: Principal): Promise<Task | undefined>;
+    resolveTask(id: string, note?: string, principal?: Principal): Promise<Task | undefined>;
     getMemoryStore(): IMemoryStore;
     /**
      * Base URL (e.g. http://127.0.0.1:47729) where the replay viewer is reachable.
@@ -587,6 +587,11 @@ export class Bridge implements IBridge {
         return this.auth.token;
     }
 
+    /** Daemon auth options — used by the MCP layer to identify the per-call principal (4.0 · P4). */
+    getAuthOptions(): AuthOptions {
+        return this.auth;
+    }
+
     /**
      * Broadcast a `dashboard.update` frame to every subscribed dashboard SPA.
      *
@@ -767,14 +772,15 @@ export class Bridge implements IBridge {
         return filtered.slice(0, limit);
     }
 
-    async claimTask(id: string): Promise<Task | undefined> {
+    async claimTask(id: string, principal?: Principal): Promise<Task | undefined> {
         const task = this.tasks.get(id);
         if (!task) return undefined;
         task.status = 'claimed';
         task.claimedAt = Date.now();
-        // Tag which agent picked it up (4.0 · P1). Informational today; the
-        // basis for "route this task back to its owning agent" in P3.
-        task.agentId = this.defaultPrincipal.id;
+        // Tag which agent picked it up (4.0 · P1/P4). The per-call principal
+        // (HTTP MCP, resolved from request headers) wins; stdio / no-caller
+        // falls back to the daemon's local principal.
+        task.agentId = (principal ?? this.defaultPrincipal).id;
         this.persistTasks();
         // Persist status change to store
         this.persistTaskEvent(task, 'task:claim');
@@ -787,13 +793,13 @@ export class Bridge implements IBridge {
         return this.readTaskAttachment(task.projectId, taskId, attachmentId);
     }
 
-    async resolveTask(id: string, note?: string): Promise<Task | undefined> {
+    async resolveTask(id: string, note?: string, principal?: Principal): Promise<Task | undefined> {
         const task = this.tasks.get(id);
         if (!task) return undefined;
         task.status = 'resolved';
         task.resolvedAt = Date.now();
         if (note !== undefined) task.note = note;
-        if (!task.agentId) task.agentId = this.defaultPrincipal.id;
+        if (!task.agentId) task.agentId = (principal ?? this.defaultPrincipal).id;
         this.persistTasks();
         // Persist status change to store
         this.persistTaskEvent(task, 'task:resolve');

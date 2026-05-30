@@ -81,3 +81,36 @@ export function resolvePrincipal(req: IncomingMessage, opts: AuthOptions): Princ
     if (!verifyToken(token, opts.token!)) return null;
     return { id: tokenPrincipalId(token!), kind: 'token' };
 }
+
+type HeaderBag = Record<string, string | string[] | undefined>;
+
+function bearerFromHeaders(headers: HeaderBag): string | undefined {
+    const raw = headers['authorization'] ?? headers['Authorization'];
+    const v = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof v === 'string' && v.startsWith('Bearer ')) {
+        const t = v.slice(7).trim();
+        if (t) return t;
+    }
+    return undefined;
+}
+
+/**
+ * Identify (not authorize) the caller behind an MCP tool call (4.0 · P4).
+ *
+ * The HTTP MCP request has already cleared the bridge's auth wrapper by the
+ * time a tool runs, so this only needs to *name* the caller — never to
+ * re-check them. Pass the per-request headers from the MCP SDK's
+ * `extra.requestInfo`; stdio calls have no requestInfo and resolve to `local`
+ * (the daemon trusts its local stdio agent).
+ *
+ * - auth disabled, or no headers (stdio) → {@link LOCAL_PRINCIPAL}
+ * - custom authorize → {@link HOST_PRINCIPAL}
+ * - token mode → token principal from the Authorization header (LOCAL if absent)
+ */
+export function identifyPrincipal(headers: HeaderBag | undefined, opts: AuthOptions): Principal {
+    if (!isAuthEnabled(opts)) return LOCAL_PRINCIPAL;
+    if (opts.authorize) return HOST_PRINCIPAL;
+    if (!headers) return LOCAL_PRINCIPAL;
+    const token = bearerFromHeaders(headers);
+    return token ? { id: tokenPrincipalId(token), kind: 'token' } : LOCAL_PRINCIPAL;
+}

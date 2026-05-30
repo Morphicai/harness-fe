@@ -26,6 +26,8 @@ import {
 } from '@harness-fe/protocol';
 import type { IBridge } from './bridge.js';
 import type { Bridge } from './bridge.js';
+import type { AuthOptions } from './auth.js';
+import { identifyPrincipal } from './identity.js';
 import { RemoteBridge } from './remoteBridge.js';
 import type { IStore, IMemoryStore } from './store/index.js';
 import { buildVisitorTimeline } from './visitorTimeline.js';
@@ -45,6 +47,12 @@ export interface McpServerOptions {
      * var is set to a non-empty value at server-construction time.
      */
     experimentalEnvVar?: string;
+    /**
+     * Daemon auth options, used to identify the per-call principal from MCP
+     * request headers (4.0 · P4). Omit for stdio / no-auth — calls resolve to
+     * the local principal.
+     */
+    auth?: AuthOptions;
 }
 
 /**
@@ -81,7 +89,7 @@ export function createMcpServer(bridge: IBridge, options: McpServerOptions = {})
         version: PROTOCOL_VERSION,
     });
 
-    registerTools(server, bridge);
+    registerTools(server, bridge, options.auth);
 
     // Experimental tools are on by default. They only get gated when the host
     // supplies an env-var name to key off; see experimentalEnabled().
@@ -134,7 +142,7 @@ function err(message: string): {
 }
 
 
-function registerTools(server: McpServer, bridge: IBridge): void {
+function registerTools(server: McpServer, bridge: IBridge, auth?: AuthOptions): void {
     server.registerTool(
         COMMAND.PAGE_CLICK,
         {
@@ -769,8 +777,9 @@ function registerTools(server: McpServer, bridge: IBridge): void {
                 taskId: z.string(),
             },
         },
-        async ({ taskId }) => {
-            const task = await bridge.claimTask(taskId);
+        async ({ taskId }, extra) => {
+            const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
+            const task = await bridge.claimTask(taskId, principal);
             if (!task) {
                 throw new Error(`tasks.claim: no task with id "${taskId}"`);
             }
@@ -788,8 +797,9 @@ function registerTools(server: McpServer, bridge: IBridge): void {
                 note: z.string().optional(),
             },
         },
-        async ({ taskId, note }) => {
-            const task = await bridge.resolveTask(taskId, note);
+        async ({ taskId, note }, extra) => {
+            const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
+            const task = await bridge.resolveTask(taskId, note, principal);
             if (!task) {
                 throw new Error(`tasks.resolve: no task with id "${taskId}"`);
             }
