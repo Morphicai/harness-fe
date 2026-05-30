@@ -21,7 +21,17 @@ import type { IncomingMessage } from 'node:http';
 
 import { extractToken, isAuthEnabled, verifyToken, type AuthOptions } from './auth.js';
 
-export type PrincipalKind = 'local' | 'token' | 'host';
+export type PrincipalKind = 'local' | 'token' | 'host' | 'forwarded';
+
+/**
+ * Header a trusted upstream (the gateway) sets to forward the real caller's
+ * identity when proxying an MCP request to this daemon (5.0 · P6 · C1). The
+ * daemon trusts it only on auth-enabled requests — ones that already cleared
+ * the token/authorize gate, which only the gateway holds the credential for.
+ * On loopback (no auth) it is ignored, so an unauthenticated client can never
+ * spoof an identity.
+ */
+export const FORWARDED_CALLER_HEADER = 'x-harness-caller';
 
 export interface Principal {
     /** Stable id for this caller. Loopback / stdio solo dev → `local`. */
@@ -109,10 +119,26 @@ function bearerFromHeaders(headers: HeaderBag): string | undefined {
  */
 export function identifyPrincipal(headers: HeaderBag | undefined, opts: AuthOptions): Principal {
     if (!isAuthEnabled(opts)) return LOCAL_PRINCIPAL;
+    // Trusted upstream: a request that cleared auth (only the gateway holds a
+    // valid credential) may forward the real caller's identity. Honour it
+    // before falling back to the token/host identity of the connection itself.
+    if (headers) {
+        const forwarded = forwardedCaller(headers);
+        if (forwarded) return forwarded;
+    }
     if (opts.authorize) return HOST_PRINCIPAL;
     if (!headers) return LOCAL_PRINCIPAL;
     const token = bearerFromHeaders(headers);
     return token ? { id: tokenPrincipalId(token), kind: 'token' } : LOCAL_PRINCIPAL;
+}
+
+function forwardedCaller(headers: HeaderBag): Principal | undefined {
+    const raw = headers[FORWARDED_CALLER_HEADER] ?? headers['X-Harness-Caller'];
+    const id = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof id === 'string' && id.trim()) {
+        return { id: id.trim(), kind: 'forwarded' };
+    }
+    return undefined;
 }
 
 /**
