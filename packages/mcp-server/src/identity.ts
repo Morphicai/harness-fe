@@ -135,3 +135,23 @@ export function canSee(principal: Principal, createdBy: string | null | undefine
     if (createdBy == null) return true;
     return createdBy === principal.id;
 }
+
+/**
+ * Project-ownership visibility with host→sub-app routing (4.0 · A — binding +
+ * tagging). `ownerChain` is the project's own `createdBy` followed by its
+ * ancestors' (walked via `parentProjectId`, self → root).
+ *
+ * Visible when the caller owns the project itself **or any ancestor** — so a
+ * host agent sees its sub-apps' data, but a sub-app's owner does not see up
+ * the tree. `local` sees all; an unowned link (no `createdBy`) is visible
+ * (backward compat). This is the unit of tenant isolation: owning a project
+ * grants its whole data set (sessions/tasks), regardless of which runtime
+ * client created each row.
+ */
+export function canSeeProject(
+    principal: Principal,
+    ownerChain: ReadonlyArray<string | null | undefined>,
+): boolean {
+    if (principal.kind === 'local') return true;
+    return ownerChain.some((createdBy) => canSee(principal, createdBy));
+}

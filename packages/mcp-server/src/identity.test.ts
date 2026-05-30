@@ -4,6 +4,7 @@ import {
     HOST_PRINCIPAL,
     LOCAL_PRINCIPAL,
     canSee,
+    canSeeProject,
     identifyPrincipal,
     resolvePrincipal,
     tokenPrincipalId,
@@ -105,5 +106,41 @@ describe('identity: canSee (P3 tenant visibility)', () => {
         expect(canSee(tokenA, 'token:aaa')).toBe(true);
         expect(canSee(tokenA, 'token:bbb')).toBe(false);
         expect(canSee(tokenB, 'token:aaa')).toBe(false);
+    });
+});
+
+describe('identity: canSeeProject (P3/A — project ownership + host subtree)', () => {
+    const tokenA = { id: 'token:aaa', kind: 'token' as const };
+    const tokenB = { id: 'token:bbb', kind: 'token' as const };
+
+    it('local sees any project', () => {
+        expect(canSeeProject(LOCAL_PRINCIPAL, ['token:bbb'])).toBe(true);
+        expect(canSeeProject(LOCAL_PRINCIPAL, [])).toBe(true);
+    });
+
+    it('owner of the project itself sees it', () => {
+        expect(canSeeProject(tokenA, ['token:aaa'])).toBe(true);
+    });
+
+    it('host owner sees a sub-app (owns an ancestor in the chain)', () => {
+        // sub-app createdBy=tokenB, parent(host) createdBy=tokenA
+        expect(canSeeProject(tokenA, ['token:bbb', 'token:aaa'])).toBe(true);
+    });
+
+    it('sub-app owner does NOT see up the tree (only owns the leaf)', () => {
+        // host createdBy=tokenA, but caller tokenB only owns the leaf — chain from a host project
+        expect(canSeeProject(tokenB, ['token:aaa'])).toBe(false);
+    });
+
+    it('no ownership anywhere in the chain → not visible', () => {
+        expect(canSeeProject(tokenA, ['token:bbb', 'token:ccc'])).toBe(false);
+    });
+
+    it('unowned link in the chain → visible (backward compat)', () => {
+        expect(canSeeProject(tokenA, [undefined])).toBe(true);
+    });
+
+    it('empty chain (unknown project) → not visible to named principal', () => {
+        expect(canSeeProject(tokenA, [])).toBe(false);
     });
 });

@@ -27,7 +27,7 @@ import {
 import type { IBridge } from './bridge.js';
 import type { Bridge } from './bridge.js';
 import type { AuthOptions } from './auth.js';
-import { canSee, identifyPrincipal } from './identity.js';
+import { canSee, canSeeProject, identifyPrincipal } from './identity.js';
 import { RemoteBridge } from './remoteBridge.js';
 import type { IStore, IMemoryStore } from './store/index.js';
 import { buildVisitorTimeline } from './visitorTimeline.js';
@@ -141,6 +141,25 @@ function err(message: string): {
     };
 }
 
+/**
+ * Owner chain of a project for tenant isolation (4.0 · A — binding/tagging):
+ * the project's own `createdBy` followed by its ancestors' (walked via
+ * `parentProjectId`, self → root, cycle-safe). Feed to `canSeeProject` so a
+ * host agent sees its sub-apps' data. Empty when the project is unknown.
+ */
+function ownerChainOf(projectId: string, store: IStore): Array<string | undefined> {
+    const chain: Array<string | undefined> = [];
+    const seen = new Set<string>();
+    let id: string | undefined = projectId;
+    while (id && !seen.has(id)) {
+        seen.add(id);
+        const p = store.getProject(id);
+        if (!p) break;
+        chain.push(p.createdBy);
+        id = p.parentProjectId;
+    }
+    return chain;
+}
 
 function registerTools(server: McpServer, bridge: IBridge, auth?: AuthOptions): void {
     server.registerTool(
@@ -752,8 +771,14 @@ function registerTools(server: McpServer, bridge: IBridge, auth?: AuthOptions): 
         },
         async ({ status, limit }, extra) => {
             const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
-            const tasks = (await bridge.listTasks({ status: status ?? 'pending', limit }))
-                .filter((t) => canSee(principal, t.createdBy));
+            // Tenant isolation by project ownership (4.0 · A): a task is visible
+            // when the caller owns its project (or a host ancestor). Falls back
+            // to the submitter tag when no store is configured (in-memory mode).
+            const store = (bridge as Bridge).store;
+            const all = await bridge.listTasks({ status: status ?? 'pending', limit });
+            const tasks = store
+                ? all.filter((t) => canSeeProject(principal, ownerChainOf(t.projectId, store)))
+                : all.filter((t) => canSee(principal, t.createdBy));
             const summary = tasks.map((t) => ({
                 id: t.id,
                 status: t.status,
@@ -879,10 +904,9 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
         },
         async ({ projectId, limit }, extra) => {
             const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
-            const sessions = store
-                .listSessions({ projectId, limit: limit ?? 10 })
-                .filter((s) => canSee(principal, s.createdBy));
-            return ok(sessions);
+            // Owning a project (or a host ancestor) grants its whole session set.
+            if (!canSeeProject(principal, ownerChainOf(projectId, store))) return ok([]);
+            return ok(store.listSessions({ projectId, limit: limit ?? 10 }));
         },
     );
 
@@ -970,12 +994,12 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
         },
         async (_args, extra) => {
             const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
-            const projects = store.listProjects().filter((p) => canSee(principal, p.createdBy));
+            const projects = store
+                .listProjects()
+                .filter((p) => canSeeProject(principal, ownerChainOf(p.id, store)));
             const result = projects.map((p) => ({
                 ...p,
-                recentSessions: store
-                    .listSessions({ projectId: p.id, limit: 3 })
-                    .filter((s) => canSee(principal, s.createdBy)),
+                recentSessions: store.listSessions({ projectId: p.id, limit: 3 }),
             }));
             return ok(result);
         },
