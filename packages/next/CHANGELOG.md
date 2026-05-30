@@ -1,5 +1,13 @@
 # @harness-fe/next
 
+## 4.0.0-next.0
+
+### Patch Changes
+
+- Updated dependencies [9a3c5e1]
+  - @harness-fe/runtime@4.0.0-next.0
+  - @harness-fe/node-runtime@4.0.0-next.0
+
 ## 3.2.0
 
 ### Minor Changes
