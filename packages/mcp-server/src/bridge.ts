@@ -22,6 +22,7 @@ import {
     sendUnauthorized,
     type AuthOptions,
 } from './auth.js';
+import { LOCAL_PRINCIPAL, resolvePrincipal, type Principal } from './identity.js';
 import { join as joinPath } from 'node:path';
 import { homedir } from 'node:os';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -233,6 +234,15 @@ export class Bridge implements IBridge {
      * or sessionId (for runtime-client connections).
      */
     private connToStoreId = new Map<string, string>();
+    /** Caller identity per connection (4.0 · P1). Resolved at WS upgrade. */
+    private connToPrincipal = new Map<string, Principal>();
+    /**
+     * Identity attributed to MCP-driven writes (task claim/resolve). The MCP
+     * tool layer is a daemon-wide singleton today with no per-call caller
+     * context, so stdio/HTTP agents collapse to one principal. P4 (per-session
+     * MCP transport) replaces this with the real per-call principal.
+     */
+    private readonly defaultPrincipal: Principal = LOCAL_PRINCIPAL;
     /** Connections that already logged a "no store session" warning. */
     private warnedNoSession = new Set<string>();
     /**
@@ -440,7 +450,7 @@ export class Bridge implements IBridge {
             });
 
             const wss = new WebSocketServer({ noServer: true });
-            wss.on('connection', (ws) => this.onConnection(ws));
+            wss.on('connection', (ws, req: IncomingMessage) => this.onConnection(ws, req));
 
             httpServer.on('upgrade', (req, socket, head) => {
                 if (!isAuthorized(req, this.auth)) {
@@ -745,6 +755,9 @@ export class Bridge implements IBridge {
         if (!task) return undefined;
         task.status = 'claimed';
         task.claimedAt = Date.now();
+        // Tag which agent picked it up (4.0 · P1). Informational today; the
+        // basis for "route this task back to its owning agent" in P3.
+        task.agentId = this.defaultPrincipal.id;
         this.persistTasks();
         // Persist status change to store
         this.persistTaskEvent(task, 'task:claim');
@@ -763,6 +776,7 @@ export class Bridge implements IBridge {
         task.status = 'resolved';
         task.resolvedAt = Date.now();
         if (note !== undefined) task.note = note;
+        if (!task.agentId) task.agentId = this.defaultPrincipal.id;
         this.persistTasks();
         // Persist status change to store
         this.persistTaskEvent(task, 'task:resolve');
@@ -1036,9 +1050,16 @@ export class Bridge implements IBridge {
         return false;
     }
 
-    private onConnection(ws: WebSocket): void {
+    private onConnection(ws: WebSocket, req?: IncomingMessage): void {
         const connectionId = randomUUID();
         this.sockets.set(connectionId, ws);
+        // Resolve caller identity once at connection time (4.0 · P1). The
+        // upgrade handler already enforced isAuthorized, so resolvePrincipal
+        // won't reject here; fall back to LOCAL for the loopback / no-req path.
+        this.connToPrincipal.set(
+            connectionId,
+            (req && resolvePrincipal(req, this.auth)) || LOCAL_PRINCIPAL,
+        );
 
         ws.on('message', (raw) => {
             let parsed: unknown;
@@ -1096,6 +1117,7 @@ export class Bridge implements IBridge {
                 }
             }
             this.router.unregister(connectionId);
+            this.connToPrincipal.delete(connectionId);
         });
 
         ws.on('error', () => {
@@ -1145,6 +1167,7 @@ export class Bridge implements IBridge {
                 // absent. The runtime-client branch below opens its own store
                 // session if one does not already exist for this project.
 
+                const principal = this.connToPrincipal.get(connectionId) ?? LOCAL_PRINCIPAL;
                 const session = this.router.register({
                     role: frame.role,
                     projectId: frame.projectId,
@@ -1154,6 +1177,7 @@ export class Bridge implements IBridge {
                     userId: frame.userId,
                     connectionId,
                     page: frame.page,
+                    principal,
                 });
                 // Persist to store
                 if (this.store) {
@@ -1167,6 +1191,7 @@ export class Bridge implements IBridge {
                             this.store.upsertProject(frame.projectId, {
                                 parentProjectId: frame.parentProjectId,
                                 displayName: frame.displayName,
+                                createdBy: principal.id,
                             });
                         } catch (err) {
                             // Cycle detection or other validation failure —
@@ -1244,6 +1269,7 @@ export class Bridge implements IBridge {
                             referrer: undefined,
                             userAgent: frame.page?.userAgent,
                             participants,
+                            createdBy: principal.id,
                         });
                         this.connToStoreId.set(connectionId, sessionId);
                         this.notifyDashboard({
