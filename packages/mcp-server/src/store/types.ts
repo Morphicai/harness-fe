@@ -104,6 +104,12 @@ export interface ProjectMeta {
     parentProjectId?: string;
     displayName?: string;
     tags?: string[];
+    /**
+     * Caller-identity tag (4.0 · P1): principal id that first created this
+     * project. Write-once (locked on creation like `createdAt`); informational
+     * in P1, the basis for `project → agent` routing/isolation in P3.
+     */
+    createdBy?: string;
     metadata?: Record<string, unknown>;
 }
 
@@ -173,6 +179,11 @@ export interface SessionMeta {
         storageKeys?: { local?: number; session?: number; cookie?: number };
         storageTruncated?: boolean;
     };
+    /**
+     * Caller-identity tag (4.0 · P1): principal id of the connection that
+     * opened this session. Write-once. Informational in P1.
+     */
+    createdBy?: string;
     metadata?: Record<string, unknown>;
 }
 
