@@ -1,5 +1,26 @@
 # @harness-fe/mcp-server
 
+## 4.0.0-next.1
+
+### Minor Changes
+
+- 71bcc3e: Per-call caller identity for MCP tools (4.0 · P4) — the MCP layer now
+  identifies _which_ caller made each tool call instead of collapsing every
+  agent to one principal.
+
+  Rather than rebuild the HTTP transport per-session, this uses the MCP SDK's
+  per-request `extra.requestInfo` (the originating HTTP request's headers),
+  which every tool handler already receives. A new `identifyPrincipal(headers,
+auth)` _identifies_ (never re-authorizes — the request already cleared the
+  bridge auth wrapper) the caller: token mode reads the `Authorization` header
+  into a `token:` principal; stdio (no requestInfo) and loopback resolve to
+  `local`; custom-authorize resolves to `host`.
+
+  `tasks.claim` / `tasks.resolve` now stamp `Task.agentId` with this per-call
+  principal (falling back to the daemon's local principal for stdio). This
+  unblocks P3 tenant filtering, which needs a real per-call principal at the
+  MCP layer to be meaningful. Behaviour is unchanged for solo/stdio dev.
+
 ## 4.0.0-next.0
 
 ### Minor Changes
@@ -12,7 +33,7 @@
     (exposed). Override via `createDaemon({ consent: { mode } })`.
   - Control commands (`page.click/type/scroll/navigate/reload/set_html/
 set_style/evaluate/wait_for`) are gated; read-only commands (screenshot,
-    dom_query, _\_tail, project._) are not. `page.evaluate` always prompts.
+    dom*query, *\_tail, project.\_) are not. `page.evaluate` always prompts.
   - The runtime client gates `handleCommand`: in `session` mode the first
     control command prompts and the rest of the pageload runs once granted;
     `always` prompts every time; `off` never prompts. No prompter registered ⇒
