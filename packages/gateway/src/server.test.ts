@@ -29,10 +29,24 @@ describe('gateway HTTP proxy (5.0 · P6 · C3)', () => {
             const chunks: Buffer[] = [];
             req.on('data', (c) => chunks.push(c as Buffer));
             req.on('end', () => {
-                received.push({ method: req.method, headers: req.headers, body: Buffer.concat(chunks).toString('utf8') });
+                const bodyStr = Buffer.concat(chunks).toString('utf8');
+                received.push({ method: req.method, headers: req.headers, body: bodyStr });
+                let payload: unknown = { jsonrpc: '2.0', result: { ok: true }, id: 1 };
+                try {
+                    const b = JSON.parse(bodyStr) as { method?: string; id?: unknown };
+                    if (b.method === 'tools/list') {
+                        payload = {
+                            jsonrpc: '2.0',
+                            id: b.id,
+                            result: { tools: [{ name: 'page.click' }, { name: 'console.tail' }, { name: 'page.evaluate' }] },
+                        };
+                    }
+                } catch {
+                    /* keep default */
+                }
                 res.statusCode = 200;
                 res.setHeader('content-type', 'application/json');
-                res.end(JSON.stringify({ jsonrpc: '2.0', result: { ok: true }, id: 1 }));
+                res.end(JSON.stringify(payload));
             });
         });
         daemonPort = await new Promise<number>((r) =>
@@ -92,5 +106,41 @@ describe('gateway HTTP proxy (5.0 · P6 · C3)', () => {
     it('non-/mcp path → 404', async () => {
         const res = await fetch(`http://127.0.0.1:${gwPort}/nope`);
         expect(res.status).toBe(404);
+    });
+
+    // ── C4: scope gate + dynamic manifest ──────────────────────────────
+    it('scope gate: read-only token is denied a control tool, not forwarded', async () => {
+        const srv = store.addServer({ name: 'dev', endpoint: `http://127.0.0.1:${daemonPort}`, env: 'dev', token: 'd' });
+        const { raw } = store.createToken({ name: 'a', serverId: srv.id, scopes: ['read'] });
+        const r = await gwPost(raw, { jsonrpc: '2.0', method: 'tools/call', params: { name: 'page.click' }, id: 1 });
+        expect(r.status).toBe(200);
+        expect(r.json).toMatchObject({ error: { code: -32001 } });
+        expect(received).toHaveLength(0);
+    });
+
+    it('control+read token may call a control tool (forwarded)', async () => {
+        const srv = store.addServer({ name: 'dev', endpoint: `http://127.0.0.1:${daemonPort}`, env: 'dev', token: 'd' });
+        const { raw } = store.createToken({ name: 'a', serverId: srv.id, scopes: ['read', 'control'] });
+        const r = await gwPost(raw, { jsonrpc: '2.0', method: 'tools/call', params: { name: 'page.click' }, id: 1 });
+        expect(r.status).toBe(200);
+        expect(received).toHaveLength(1);
+    });
+
+    it('dynamic manifest: read-only token does not see control tools in tools/list', async () => {
+        const srv = store.addServer({ name: 'dev', endpoint: `http://127.0.0.1:${daemonPort}`, env: 'dev', token: 'd' });
+        const { raw } = store.createToken({ name: 'a', serverId: srv.id, scopes: ['read'] });
+        const r = await gwPost(raw, { jsonrpc: '2.0', method: 'tools/list', id: 1 });
+        expect(r.json.result.tools.map((t: { name: string }) => t.name)).toEqual(['console.tail']);
+    });
+
+    it('dynamic manifest: control+read token sees all tools', async () => {
+        const srv = store.addServer({ name: 'dev', endpoint: `http://127.0.0.1:${daemonPort}`, env: 'dev', token: 'd' });
+        const { raw } = store.createToken({ name: 'a', serverId: srv.id, scopes: ['read', 'control'] });
+        const r = await gwPost(raw, { jsonrpc: '2.0', method: 'tools/list', id: 1 });
+        expect(r.json.result.tools.map((t: { name: string }) => t.name)).toEqual([
+            'page.click',
+            'console.tail',
+            'page.evaluate',
+        ]);
     });
 });
