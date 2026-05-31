@@ -58,7 +58,7 @@ A host product renders AI-generated mini-apps inside iframes / module-federation
 
 **What we have:** `parentProjectId` + same-origin iframe identity inheritance — one `sessionId` spans parent + child frames, child events tagged with their own `projectId`. The timeline already preserves "which app produced this event".
 
-**What's missing:** an explicit **`project → agent` binding index** + a routing mechanism, and isolation guarantees so agents only see feedback from their own apps. This sits on top of the host's user / project model.
+**Shipped in 4.0 (`4.0.0-next.4`):** explicit **`project → agent` binding** (scoped tokens carry project grants, injected daemon-side) + routing through the **gateway** + per-project isolation (`canSee`) so an agent only sees feedback from the projects it's bound to — even though the runtime that *created* the data and the agent that *reads* it are different principals. **What's left for 5.0:** the hosted, multi-instance cloud step on top of the host's user / project model.
 
 ### Direction 3 — Foundation for the agent-development stack
 
@@ -106,7 +106,7 @@ The previous roadmap was a tech-debt list (more bundler adapters, more transport
 The work that actually moves us forward toward the mission falls into three buckets:
 
 1. **Make direction 1 deployable** (1.1.x focus) — daemon embeddable in a product; HTTP MCP for clean integration; auth and persistence boundaries for multi-user dev environments.
-2. **Make direction 2 routable** (1.2.x focus) — project-to-agent binding; per-tenant isolation; feedback fan-in across many mini-apps.
+2. **Make direction 2 routable** — ✅ *shipped in 4.0* — project→agent binding, per-tenant isolation (`canSee`), and gateway routing all landed; feedback fan-in across many mini-apps now works through one shared daemon. Remaining: the hosted cloud step (5.0).
 3. **Make direction 3 the default** (2.0.x focus) — Harness-baked code-gen templates; scaffold tooling; "every new agent-built app starts with Harness" becomes the path of least resistance.
 4. **Generalize the runtime adapter model** — Web first, then React Native / Expo, then Flutter. WeChat Mini Program support is explicitly deferred.
 5. **Make the overlay extensible** — the built-in overlay is the default experience, but developers must be able to add their own panels and actions, such as creating a Jira issue linked to a Harness task.

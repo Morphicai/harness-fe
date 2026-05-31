@@ -5,18 +5,23 @@
 ```mermaid
 graph LR
     Agent["🤖 AI Agent"]
-    MCP["⚡ MCP Server"]
+    GW["🛂 gateway<br/>(team, optional)"]
+    MCP["⚡ mcp-server<br/>(MCP protocol)"]
+    Daemon["⚙️ daemon<br/>(core: bridge + store + identity)"]
     Plugin["🔧 Build Plugin"]
     Runtime["🌐 Runtime Client"]
     NRT["🖥️ Node Runtime"]
-    Store["💾 Persistence (IStore)"]
 
-    Agent <-->|stdio MCP| MCP
-    MCP <-->|WebSocket| Plugin
-    MCP <-->|WebSocket| Runtime
-    MCP <-->|WS or HTTP-batch| NRT
-    MCP -->|read/write| Store
+    Agent -->|"stdio — solo"| MCP
+    Agent -->|"HTTP-MCP + token — team"| GW
+    GW -->|"route + inject caller"| MCP
+    MCP --> Daemon
+    Daemon <-->|WebSocket| Plugin
+    Daemon <-->|WebSocket| Runtime
+    Daemon <-->|WS / HTTP-batch| NRT
 ```
+
+> **4.0 split:** the old single "MCP Server" is now three packages — `@harness-fe/daemon` (core capabilities + data + browser connection), `@harness-fe/mcp-server` (the MCP protocol layer over it), and `@harness-fe/dev-cli` (the solo launcher). `@harness-fe/gateway` is a new, optional governance layer for team use.
 
 | Layer | Package | Responsibility |
 |-------|---------|---------------|
@@ -25,13 +30,16 @@ graph LR
 | Node Runtime | `@harness-fe/node-runtime` | Server-side capture (`uncaughtException`, `unhandledRejection`, `console.*`, Route Handler traces); ALS + provider-based `sessionId` resolution; dual transport (WS / HTTP-batch for Edge) |
 | Framework Adapter | `@harness-fe/next` | Bridges Next.js into the runtime: `<HarnessScript>` Server Component seeds the same `sessionId` into SSR HTML and the client; `setSessionIdProvider` DI plugs Next's `cache()`-backed getter into node-runtime |
 | User API | `@harness-fe/log` | Isomorphic structured logger; same `log.info(...)` in Server Components, Route Handlers, and Client Components; delegates `sessionId` resolution to the runtimes |
-| MCP Server | `@harness-fe/mcp-server` | Global daemon; bridges agent ↔ peers; owns persistence (`IStore`) + project tree |
+| **Daemon (core)** | `@harness-fe/daemon` | The always-on layer: WS bridge ↔ peers, event store (`IStore`) + project tree, recording/replay, dashboard, **caller identity + per-project tenant isolation** (`canSee` / project→agent binding), Browser Consent gate |
+| **MCP protocol** | `@harness-fe/mcp-server` | Exposes the daemon's capabilities as MCP tools over stdio + HTTP (Streamable, per-session); `createDaemon` factory |
+| **Solo launcher** | `@harness-fe/dev-cli` | `harness-fe` CLI — boots daemon + MCP (stdio/HTTP); leader/follower so multiple agent windows share one daemon |
+| **Gateway (team)** | `@harness-fe/gateway` | Optional front door for shared/team use: token + scope RBAC + project→agent binding + audit + admin; routes to a daemon, injecting the verified caller. Solo dev skips it |
 | Unplugin Core | `@harness-fe/unplugin` | Shared transform + WebSocket lifecycle for every bundler; resolves `buildId` |
 | Protocol | `@harness-fe/protocol` | Wire frames + Zod schemas + URL helpers |
 | JSX Runtime | `@harness-fe/react-jsx` | `jsxImportSource` adapter that tags every React element with `data-morphix-loc` / `data-morphix-comp` — works in any React 17+ toolchain without a bundler plugin |
 | Agent Playbook | `@harness-fe/skill` | Standalone npm — drops a `SKILL.md` into agent projects teaching them how to use the Harness MCP toolset |
 
-The MCP server is a **global daemon** — not tied to any single project. Multiple projects share one process.
+The **daemon** is a global process — not tied to any single project; multiple projects share one. In **solo** dev the agent reaches it directly (loopback, stdio via `dev-cli`, fully trusted). In **team** mode the optional **gateway** turns the trust boundary into *who*: it verifies a scoped token, enforces RBAC + **project→agent binding**, and injects the verified caller so the daemon shows each agent only the projects it's bound to. See [docs/gateway-team-mode.md](./docs/gateway-team-mode.md).
 
 ---
 
