@@ -168,11 +168,12 @@ function EmptyState() {
             <div className="mx-auto h-12 w-12 rounded-xl gradient-accent opacity-60" />
             <h2 className="mt-4 text-lg font-medium">Waiting for a project to connect</h2>
             <p className="mt-2 text-sm text-ink-secondary max-w-md mx-auto">
-                Start your dev server with{' '}
+                Start your dev server and open a page — it should appear here within
+                seconds. Team setups also configure the runtime{' '}
                 <code className="font-mono px-1.5 py-0.5 rounded bg-surface-base border border-surface-border text-ink-primary">
-                    HARNESS_FE_TOKEN
-                </code>{' '}
-                set, open a page, and it should appear here within seconds.
+                    token
+                </code>
+                .
             </p>
             <Link
                 to="https://github.com/Morphicai/harness-fe#readme"

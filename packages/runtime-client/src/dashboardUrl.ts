@@ -1,13 +1,12 @@
 /**
  * Convert the runtime's `mcpUrl` (the gateway WebSocket URL the plugin gave us)
- * into the console URL the same gateway serves.
+ * into the console URL the same gateway serves: `<http>://<host>:<port>/console`,
+ * deep-linking to `/console/sessions/:id` when a sessionId is given.
  *
- * The gateway binds one HTTP+WS port; the console lives at
- * `<http-scheme>://<host>:<port>/console`. The token, if any, is carried in the
- * query string so the browser is pre-authenticated on first hit.
- *
- * Optionally deep-links into a session's detail page when `sessionId` is
- * provided (`/console/sessions/:id`).
+ * This is a **pure shortcut** — it carries NO token. Opening it is plain
+ * navigation; the console authorizes the viewer on its own (admin sign-in or a
+ * pasted read token). The runtime's token is write-only and must never be used
+ * as a console auth grant, so it's deliberately omitted.
  */
 export interface DashboardUrlInput {
     mcpUrl: string;
@@ -26,8 +25,5 @@ export function deriveDashboardUrl(input: DashboardUrlInput): string | undefined
     const path = input.sessionId
         ? `/console/sessions/${encodeURIComponent(input.sessionId)}`
         : '/console';
-    const token = url.searchParams.get('token');
-    const search = token ? `?token=${encodeURIComponent(token)}` : '';
-    // Build manually so we don't leak any extra query/hash from the WS URL.
-    return `${httpScheme}//${url.host}${path}${search}`;
+    return `${httpScheme}//${url.host}${path}`;
 }

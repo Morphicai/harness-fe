@@ -10,21 +10,24 @@
 # use `/console` (+ `/admin`).
 #
 #       react-demo ─────────WS──┐
-#       webpack-demo ───────WS──┤
-#       webpack5-vue3-demo ─WS──┼─> gateway :47950  /ws  (write token)
-#       iframe parent+child WS──┤            /mcp  (agentA read+control · agentB read)
-#       vue-demo ───────────WS──┘            /console + /admin
+#       webpack-demo ───────WS──┼─> team gateway :47950  /ws (write token) · /mcp · /console + /admin
+#       webpack5-vue3-demo ─WS──┤            (agentA read+control · agentB read)
+#       iframe parent+child WS──┘
 #
-# Each app reports as a DISTINCT project; one multi-project agent token lets the
-# agent see/control them all. The solo (zero-config stdio) path is shown by the
-# `harness-solo` entry in .mcp.json — an agent spawns `harness`, which serves its
-# own loopback /ws + stdio MCP.
+#       vue-demo ───────────WS──┬─> solo gateway :47951  (Open, AUTO-SPAWNED + shared)
+#       harness-solo (mcp) ─────┘            /ws + /mcp + /console
+#
+# The 4 team apps report as DISTINCT projects; one multi-project agent token lets
+# the agent see/control them all. vue-demo is the SOLO example: its dev server (or
+# the `harness-solo` mcp launcher — whoever starts first) AUTO-SPAWNS one shared
+# Open gateway on :47951; the other end reuses it. No manual solo start.
 #
 # All dev servers are driven by ONE `turbo run` (unified live logs, single
-# Ctrl-C). This script only stands up the gateway + tokens; turbo owns the apps.
+# Ctrl-C). This script stands up the TEAM gateway + tokens; turbo owns the apps;
+# the SOLO gateway (:47951) is auto-spawned by vue-demo / the mcp launcher.
 #
-# Ports: gateway 47950 · apps 47810 vue · 47811 react · 47812 webpack ·
-#        47813 webpack5-vue3 · 47814 iframe-parent · 47815 iframe-child.
+# Ports: team gateway 47950 · solo gateway 47951 · apps 47810 vue · 47811 react ·
+#        47812 webpack · 47813 webpack5-vue3 · 47814 iframe-parent · 47815 iframe-child.
 #
 # Ctrl-C tears everything down.
 set -euo pipefail
@@ -41,10 +44,19 @@ TOKENS_ENV="${GW_DIR}/agent-tokens.env" # cached raw tokens (git-ignored)
 CLI="${ROOT}/packages/cli/dist/cli.js"
 LOG_DIR=/tmp/harness-demo
 GW_LOG="${LOG_DIR}/gateway.log"
+# The SOLO gateway (Open — no token/RBAC/audit; one trusted `local` principal)
+# hosts the single zero-config example app (vue-demo). It is NOT started here —
+# whoever comes up first AUTO-SPAWNS it: vue-demo's dev server (via the build
+# plugin) or the `harness-solo` mcp launcher. Both pin the same port + data dirs
+# below so they reuse ONE shared gateway. Separate core/port from the team gateway.
+SOLO_PORT=47951
+SOLO_CORE_DIR="${ROOT}/.demo-solo-core"        # solo (Open) core sessions (git-ignored)
+SOLO_GW_DIR="${ROOT}/.demo-solo-gateway"       # solo (Open) gateway store (git-ignored)
 
-# Every app, by reported projectId. The agent tokens are scoped to this set; each
-# app's plugin config pins the matching projectId.
-PROJECTS="react-demo+webpack-demo+webpack5-vue3-demo+iframe-parent+iframe-child+vue-demo"
+# The GOVERNED projects, by reported projectId. The agent tokens are scoped to this
+# set; each app's plugin config pins the matching projectId. vue-demo is NOT here —
+# it's the solo example and connects to the Open gateway (no token, no scope).
+PROJECTS="react-demo+webpack-demo+webpack5-vue3-demo+iframe-parent+iframe-child"
 
 if [[ ! -f "$CLI" ]]; then
     echo "✗ Built CLI not found ($CLI). Run \`pnpm build\` first (or use \`pnpm demo\`)." >&2
@@ -60,17 +72,43 @@ kill_tree() {
 }
 cleanup() {
     echo ""
-    echo "[demo] shutting down (turbo + gateway)…"
+    echo "[demo] shutting down (turbo + gateways)…"
     for pid in "${PIDS[@]:-}"; do
         [[ -n "$pid" ]] && kill_tree "$pid"
     done
+    # The solo gateway is auto-spawned detached (not in PIDS) — free its port too.
+    local solo; solo="$(lsof -nP -tiTCP:"$SOLO_PORT" -sTCP:LISTEN 2>/dev/null || true)"
+    [[ -n "$solo" ]] && kill $solo 2>/dev/null || true
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-# Preflight: the gateway port + every app port must be free.
-for spec in "gateway:${GW_PORT}" \
-            "vue-demo:47810" "react-demo:47811" "webpack-demo:47812" \
+# Preflight. A gateway port (team + solo) may legitimately be held by a stale
+# harness gateway from a previous run that didn't shut down cleanly — that's a
+# *service*, not a conflict, so reclaim it (kill + wait) instead of bailing. A
+# non-harness process on the port, or any app-port clash, IS a real conflict.
+reclaim_gateway_port() {
+    local port="$1" name="$2" holder
+    holder="$(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    [[ -z "$holder" ]] && return 0
+    if curl -sf --max-time 1 "http://127.0.0.1:${port}/console/api/meta" >/dev/null 2>&1; then
+        echo "[demo] ${name} :${port} held by a stale harness gateway (PID ${holder}) — reclaiming."
+        kill $holder 2>/dev/null || true
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            lsof -nP -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || return 0
+            sleep 0.3
+        done
+        echo "✗ ${name} :${port} still held after kill (PID ${holder})." >&2; exit 1
+    fi
+    echo "✗ port ${port} (${name}) is in use by a non-harness process (PID ${holder})." >&2
+    echo "  Free it with:  kill ${holder}" >&2
+    exit 1
+}
+reclaim_gateway_port "$GW_PORT" "team gateway"
+reclaim_gateway_port "$SOLO_PORT" "solo gateway"
+
+# App ports must be free — a clash there is a real conflict (another dev server).
+for spec in "vue-demo:47810" "react-demo:47811" "webpack-demo:47812" \
             "webpack5-vue3-demo:47813" "iframe parent:47814" "iframe child:47815"; do
     name="${spec%%:*}"; port="${spec##*:}"
     holder="$(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
@@ -126,8 +164,14 @@ if [[ "$FRESH" -eq 1 ]]; then
     printf 'RUNTIME_TOKEN=%s\nAGENT_A=%s\nAGENT_B=%s\n' "$RUNTIME_TOKEN" "$AGENT_A" "$AGENT_B" > "$TOKENS_ENV"
 fi
 
+# ── 1b. The SOLO gateway is NOT started here — it's auto-spawned on demand by
+# whoever comes up first (vue-demo's dev server via the build plugin, or the
+# `harness-solo` mcp launcher). Clear its data dirs so each run starts clean.
+rm -rf "$SOLO_CORE_DIR" "$SOLO_GW_DIR"
+
 # ── 2. Wire the root .mcp.json: one agent, both ends of the spectrum.
-#   harness-solo → `harness` over stdio (Open, zero-config, its own loopback /ws)
+#   harness-solo → `harness mcp`: reuses (or auto-spawns) the shared solo gateway
+#                  on :47951 and proxies stdio MCP to its /mcp (sees vue-demo).
 #   harness-team → gateway /mcp (RBAC, multi-project), agentA = read+control
 cat > "${ROOT}/.mcp.json" <<JSON
 {
@@ -135,7 +179,7 @@ cat > "${ROOT}/.mcp.json" <<JSON
     "harness-solo": {
       "type": "stdio",
       "command": "node",
-      "args": ["${CLI}"]
+      "args": ["${CLI}", "mcp", "--port", "${SOLO_PORT}", "--core-data-dir", "${SOLO_CORE_DIR}", "--data-dir", "${SOLO_GW_DIR}"]
     },
     "harness-team": {
       "type": "http",
@@ -164,16 +208,22 @@ cat <<EOF
                    (fixed across runs — cached in ${TOKENS_ENV};
                     all scoped to: ${PROJECTS//+/, })
 
-  APPS  (each a distinct project; runtimes connect to the gateway /ws)
-    vue-demo            http://localhost:47810
-    react-demo          http://localhost:47811
-    webpack-demo        http://localhost:47812
-    webpack5-vue3-demo  http://localhost:47813
+  SOLO GATEWAY (Open — auto-spawned + shared; hosts the one zero-config app)
+    (started on demand by vue-demo's dev server OR the harness-solo mcp launcher)
+    ws  (runtime)  ws://127.0.0.1:${SOLO_PORT}/ws
+    mcp (agent)    http://127.0.0.1:${SOLO_PORT}/mcp
+    console        http://127.0.0.1:${SOLO_PORT}/console   (vue-demo; live once it or the agent starts)
+
+  APPS
+    vue-demo            http://localhost:47810   → SOLO gateway :${SOLO_PORT} (auto-spawned)
+    react-demo          http://localhost:47811   → team gateway :${GW_PORT}
+    webpack-demo        http://localhost:47812   → team gateway :${GW_PORT}
+    webpack5-vue3-demo  http://localhost:47813   → team gateway :${GW_PORT}
     iframe parent       http://localhost:47814   (child 47815 proxied under /child)
 
   AGENT CONFIG  → ${ROOT}/.mcp.json
-    harness-solo (stdio → a fresh \`harness\`, Open/zero-config)
-    harness-team (http  → gateway, all projects, agentA)
+    harness-solo (stdio → \`harness mcp\`: reuses/auto-spawns the shared :${SOLO_PORT} solo gateway)
+    harness-team (http  → team gateway :${GW_PORT}, all projects, agentA)
 
   AUDIT ${GW_DIR}/audit.jsonl
   GATEWAY LOG  ${GW_LOG}
@@ -184,10 +234,14 @@ cat <<EOF
 
 EOF
 
-# turbo drives all dev servers as persistent tasks. The apps read the runtime
-# WRITE token from HARNESS_TEAM_TOKEN and connect to the gateway /ws (their
-# configs pin the 47950 target + their projectId).
+# turbo drives all dev servers as persistent tasks. The four governed apps read the
+# runtime WRITE token from HARNESS_TEAM_TOKEN and connect to the team gateway /ws.
+# vue-demo (solo, no token) auto-spawns the shared :47951 gateway via the build
+# plugin; HARNESS_CORE_DATA_DIR / HARNESS_GATEWAY_DATA_DIR point that spawned
+# gateway at the demo's isolated dirs (not the user's global ~/.harness-fe).
 export HARNESS_TEAM_TOKEN="$RUNTIME_TOKEN"
+export HARNESS_CORE_DATA_DIR="$SOLO_CORE_DIR"
+export HARNESS_GATEWAY_DATA_DIR="$SOLO_GW_DIR"
 cd "$ROOT"
 turbo run dev dev:parent dev:child --filter='./examples/*' --ui=stream &
 PIDS+=("$!")

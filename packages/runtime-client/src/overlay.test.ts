@@ -225,7 +225,8 @@ describe('installOverlay', () => {
         const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
         expect(btn.style.display).toBe('');
         expect(btn.title).toContain('http://127.0.0.1:47729/console/sessions/');
-        expect(btn.title).toContain('token=demo');
+        // The overlay link is a pure shortcut — it must NOT carry the runtime token.
+        expect(btn.title).not.toContain('token=');
     });
 
     it('hides the "Open dashboard" button when mcpUrl is missing', () => {
@@ -252,7 +253,7 @@ describe('installOverlay', () => {
         const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
         btn.click();
         expect(calls).toHaveLength(1);
-        expect(calls[0].url).toBe('https://harness.lan:8443/console/sessions/sess-12345-abcdef-9876?token=t');
+        expect(calls[0].url).toBe('https://harness.lan:8443/console/sessions/sess-12345-abcdef-9876');
         expect(calls[0].target).toBe('_blank');
         expect(calls[0].features).toMatch(/noopener/);
     });

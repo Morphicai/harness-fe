@@ -30,6 +30,7 @@ import {
     type VueTransformOptions,
 } from './vue-transform.js';
 import { resolveProjectId } from './resolveProjectId.js';
+import { resolveSoloTarget } from './soloTarget.js';
 import { createMcpClient } from './internal/mcp-client.js';
 import { installNodeLogCapture } from './internal/log-capture.js';
 import { appendTokenQuery, createBuildIdentity } from './internal/buildIdentity.js';
@@ -104,6 +105,7 @@ export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (o
         return mcpClient;
     }
 
+
     // Expose for advanced usage (e.g. tests or downstream plugins inspecting state).
     const ctx = {
         get projectId() { return projectId; },
@@ -176,9 +178,21 @@ export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (o
                 projectId = await resolveProjectId(projectRoot, options.projectId);
             },
 
-            configureServer(server: any) {
+            async configureServer(server: any) {
                 if (options.disabled) return;
                 const client = ensureMcpClient();
+                // Solo: make sure a shared local gateway is up before connecting.
+                // Best-effort — if @harness-fe/cli isn't installed or the gateway
+                // is slow, the client still retries on its own.
+                const solo = resolveSoloTarget(baseMcpUrl, Boolean(token));
+                if (solo) {
+                    try {
+                        const { ensureSharedGateway } = await import('@harness-fe/cli/sharedGateway');
+                        await ensureSharedGateway({ host: solo.host, port: solo.port });
+                    } catch {
+                        /* keep going; client.connect() retries */
+                    }
+                }
                 client.connect();
                 logCaptureCleanup = installNodeLogCapture((name, payload) => client.emitEvent(name, payload));
                 server.httpServer?.once('close', () => {

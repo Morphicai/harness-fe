@@ -2,18 +2,17 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { harnessFE } from '@harness-fe/vite';
 
-// In the bundled `pnpm demo`, every app (vue-demo included) reports into the one
-// governed gateway as a distinct project: the runtime connects to the gateway's
-// /ws with the write-scope token (HARNESS_TEAM_TOKEN, injected by scripts/demo.sh).
-// The zero-config SOLO path — `harness` over stdio with its own loopback /ws — is
-// shown separately by the `harness-solo` entry in .mcp.json; for that mode you'd
-// drop the mcpUrl/token below and let the runtime default to the loopback gateway.
+// In the bundled `pnpm demo`, vue-demo is the SOLO example: its runtime connects to
+// a standalone `harness` (Open policy — no token, no RBAC, no audit; a single
+// trusted `local` principal) that scripts/demo.sh runs on :47951. The other four
+// apps report into the governed gateway (:47950) with a scoped write token. This is
+// the zero-config end of the spectrum; the governed end is the react/webpack/iframe apps.
 export default defineConfig({
     plugins: [
         harnessFE({
             projectId: 'vue-demo',
-            mcpUrl: 'ws://127.0.0.1:47950/ws',
-            token: process.env.HARNESS_TEAM_TOKEN,
+            // Solo gateway (Open) — no token needed. scripts/demo.sh runs it on 47951.
+            mcpUrl: 'ws://127.0.0.1:47951/ws',
         }),
         vue(),
     ],
