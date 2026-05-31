@@ -85,18 +85,29 @@ done
 # First run: start fresh, issue the three tokens (runtime[write], agentA, agentB),
 # cache the raw strings (the gateway keeps only a scrypt hash — unrecoverable
 # afterwards). Later runs: reuse the store + cached tokens, DON'T re-issue.
+#
+# The cache is trusted ONLY if it carries all three tokens. A partial/stale cache
+# (e.g. one written before `runtime` existed) forces a clean re-issue — otherwise
+# a missing token would surface much later as an `unbound variable` in the summary.
+RUNTIME_TOKEN=""; AGENT_A=""; AGENT_B=""
 if [[ -f "$TOKENS_ENV" ]]; then
+    # shellcheck disable=SC1090
+    source "$TOKENS_ENV"                        # → RUNTIME_TOKEN, AGENT_A, AGENT_B
+fi
+if [[ -n "$RUNTIME_TOKEN" && -n "$AGENT_A" && -n "$AGENT_B" ]]; then
     node "$CLI" --governed --port "$GW_PORT" --data-dir "$GW_DIR" --core-data-dir "$CORE_DIR" \
         --console-dir "$CONSOLE_DIR" --admin-user "$ADMIN_USER" --admin-pass "$ADMIN_PASS" \
         > "$GW_LOG" 2>&1 &
+    FRESH=0
 else
-    rm -rf "$GW_DIR" "$CORE_DIR"   # consistent fresh issue
+    rm -rf "$GW_DIR" "$CORE_DIR"   # absent/partial cache → consistent fresh issue
     node "$CLI" --governed --port "$GW_PORT" --data-dir "$GW_DIR" --core-data-dir "$CORE_DIR" \
         --console-dir "$CONSOLE_DIR" --admin-user "$ADMIN_USER" --admin-pass "$ADMIN_PASS" \
         --issue-token "name=runtime,scopes=write,projects=${PROJECTS}" \
         --issue-token "name=agentA,scopes=read+control,projects=${PROJECTS}" \
         --issue-token "name=agentB,scopes=read,projects=${PROJECTS}" \
         > "$GW_LOG" 2>&1 &
+    FRESH=1
 fi
 GW_PID=$!
 PIDS+=("$GW_PID")
@@ -105,13 +116,13 @@ if ! kill -0 "$GW_PID" 2>/dev/null; then
     echo "✗ gateway failed to start. Log:" >&2; cat "$GW_LOG" >&2; exit 1
 fi
 
-if [[ -f "$TOKENS_ENV" ]]; then
-    # shellcheck disable=SC1090
-    source "$TOKENS_ENV"                        # → RUNTIME_TOKEN, AGENT_A, AGENT_B
-else
+if [[ "$FRESH" -eq 1 ]]; then
     RUNTIME_TOKEN="$(grep 'token "runtime"' "$GW_LOG" | awk '{print $NF}')"
     AGENT_A="$(grep 'token "agentA"' "$GW_LOG" | awk '{print $NF}')"
     AGENT_B="$(grep 'token "agentB"' "$GW_LOG" | awk '{print $NF}')"
+    if [[ -z "$RUNTIME_TOKEN" || -z "$AGENT_A" || -z "$AGENT_B" ]]; then
+        echo "✗ failed to capture issued tokens from gateway log. Log:" >&2; cat "$GW_LOG" >&2; exit 1
+    fi
     printf 'RUNTIME_TOKEN=%s\nAGENT_A=%s\nAGENT_B=%s\n' "$RUNTIME_TOKEN" "$AGENT_A" "$AGENT_B" > "$TOKENS_ENV"
 fi
 
