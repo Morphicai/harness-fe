@@ -137,6 +137,19 @@ publish_one() {
     return $rc
 }
 
+# Nothing got packed ⇒ every non-private package is already on the registry
+# (a docs-only / script-only commit, or a re-run after a successful publish).
+# That's success, not failure — exit before the publish loop expands an empty
+# glob into the literal "*.tgz" and dies with ENOENT (exit 254).
+shopt -s nullglob
+_tgzs=("$TARBALL_DIR"/*.tgz)
+shopt -u nullglob
+if [ ${#_tgzs[@]} -eq 0 ]; then
+    echo ""
+    echo "── nothing to publish: ${#ALREADY[@]} package(s) already up to date ──"
+    exit 0
+fi
+
 # Pass A — OIDC (no token).
 echo ""
 echo "── pass A: OIDC publish ───────────────────────────────────"
