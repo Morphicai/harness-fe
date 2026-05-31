@@ -20,7 +20,7 @@ import { harnessFE } from '@harness-fe/vite';
 // token, overridable via HARNESS_TEAM_TOKEN. Disable injection with
 // HARNESS_FE_RUNTIME=0.
 const CENTRAL_DAEMON_URL = 'ws://127.0.0.1:47950/ws';
-const CENTRAL_DAEMON_TOKEN = process.env.HARNESS_TEAM_TOKEN ?? 'team-secret-demo';
+const CENTRAL_DAEMON_TOKEN = process.env.HARNESS_TEAM_TOKEN;
 const enableHarness = process.env.HARNESS_FE_RUNTIME !== '0';
 
 export default defineConfig({

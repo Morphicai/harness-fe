@@ -26,13 +26,13 @@ describe('deriveDashboardUrl', () => {
         ).toBe('http://127.0.0.1:47729/console?token=a%20b%26c');
     });
 
-    it('deep-links to /console/session/:id when sessionId is provided', () => {
+    it('deep-links to /console/sessions/:id when sessionId is provided', () => {
         expect(
             deriveDashboardUrl({
                 mcpUrl: 'ws://127.0.0.1:47729/ws?token=abc',
                 sessionId: 'sess-1',
             }),
-        ).toBe('http://127.0.0.1:47729/console/session/sess-1?token=abc');
+        ).toBe('http://127.0.0.1:47729/console/sessions/sess-1?token=abc');
     });
 
     it('URL-encodes the session id', () => {
@@ -41,7 +41,7 @@ describe('deriveDashboardUrl', () => {
                 mcpUrl: 'ws://127.0.0.1:47729/ws',
                 sessionId: 'a/b c',
             }),
-        ).toBe('http://127.0.0.1:47729/console/session/a%2Fb%20c');
+        ).toBe('http://127.0.0.1:47729/console/sessions/a%2Fb%20c');
     });
 
     it('strips other query/hash from the WS URL — only token is forwarded', () => {

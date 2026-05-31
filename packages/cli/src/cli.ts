@@ -192,7 +192,7 @@ async function main(): Promise<void> {
         process.stderr.write(lines.join('\n') + '\n[harness] MCP: stdio\n');
         await startMcpStdioServer(coreClient.capabilities, {
             experimentalEnvVar: cfg.experimentalEnvVar,
-            consoleUrl: (sessionId) => `${base}/console${sessionId ? `/session/${encodeURIComponent(sessionId)}` : ''}`,
+            consoleUrl: (sessionId) => `${base}/console${sessionId ? `/sessions/${encodeURIComponent(sessionId)}` : ''}`,
         });
     } else {
         lines.push(`[harness] mcp:     ${base}/mcp`);

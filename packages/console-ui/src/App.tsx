@@ -1,57 +1,35 @@
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { useApi } from './lib/api';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { Header } from './components/Header';
 import { ProjectList } from './routes/ProjectList';
-import { SessionView } from './routes/SessionView';
+import { SessionDetail } from './routes/SessionDetail';
 import { Governance } from './routes/Governance';
 
-interface Meta {
-    protocolVersion: string;
-    mode: 'open' | 'governed';
-}
-
-function Nav() {
-    const { pathname } = useLocation();
-    const { data } = useApi<Meta>('/console/api/meta');
-    const tab = (to: string, label: string, active: boolean) => (
-        <Link
-            to={to}
-            className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                active ? 'bg-surface-raised text-ink-primary' : 'text-ink-secondary hover:text-ink-primary'
-            }`}
-        >
-            {label}
-        </Link>
-    );
-    return (
-        <header className="glass sticky top-0 z-10 flex items-center gap-2 border-b border-surface-border px-4 py-2">
-            <span className="mr-2 font-mono text-sm font-semibold text-accent-indigo">harness</span>
-            {tab('/', 'Data', pathname === '/' || pathname.startsWith('/session'))}
-            {tab('/admin', 'Governance', pathname.startsWith('/admin'))}
-            <span className="ml-auto flex items-center gap-2 text-xs text-ink-muted">
-                {data && (
-                    <>
-                        <span className={`rounded px-1.5 py-0.5 ${data.mode === 'open' ? 'bg-accent-emerald/15 text-accent-emerald' : 'bg-accent-amber/15 text-accent-amber'}`}>
-                            {data.mode}
-                        </span>
-                        <span className="font-mono">v{data.protocolVersion}</span>
-                    </>
-                )}
-            </span>
-        </header>
-    );
-}
-
+/**
+ * Console SPA shell (mounted at the `/console` basename, see main.tsx).
+ *
+ * Two faces, switched from the Header nav:
+ *  - **Data** — projects → session detail (logs / timeline / rrweb replay).
+ *    These routes render their own <Header/> (recovered from the dashboard).
+ *  - **Governance** — tokens / servers / audit (the new gateway capability),
+ *    wrapped here in the shared Header for a consistent shell.
+ */
 export function App() {
     return (
-        <div className="min-h-screen">
-            <Nav />
-            <main className="mx-auto max-w-5xl px-4 py-6">
-                <Routes>
-                    <Route path="/" element={<ProjectList />} />
-                    <Route path="/session/:id" element={<SessionView />} />
-                    <Route path="/admin" element={<Governance />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
+        <Routes>
+            <Route path="/" element={<ProjectList />} />
+            <Route path="/sessions/:id" element={<SessionDetail />} />
+            <Route path="/admin" element={<GovernancePage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+    );
+}
+
+function GovernancePage() {
+    return (
+        <div className="min-h-screen flex flex-col">
+            <Header />
+            <main className="flex-1 px-6 py-8 max-w-6xl mx-auto w-full">
+                <Governance />
             </main>
         </div>
     );
