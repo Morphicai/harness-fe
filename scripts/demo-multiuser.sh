@@ -57,8 +57,8 @@ rm -rf "$GW_DIR"
 node "$GATEWAY_CLI" --port "$GW_PORT" --data-dir "$GW_DIR" \
     --admin-user admin --admin-pass demopass \
     --add-server "name=team,endpoint=http://127.0.0.1:${DAEMON_PORT},token=${TEAM_TOKEN}" \
-    --issue-token "name=agentA,server=team,scopes=read+control" \
-    --issue-token "name=agentB,server=team,scopes=read" \
+    --issue-token "name=agentA,server=team,scopes=read+control,projects=react-demo" \
+    --issue-token "name=agentB,server=team,scopes=read,projects=react-demo" \
     > "$GW_LOG" 2>&1 &
 GW_PID=$!
 sleep 1.5

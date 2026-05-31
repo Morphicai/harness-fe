@@ -5,6 +5,7 @@ import {
     LOCAL_PRINCIPAL,
     canSee,
     canSeeProject,
+    projectGrant,
     identifyPrincipal,
     resolvePrincipal,
     tokenPrincipalId,
@@ -134,34 +135,62 @@ describe('identity: canSeeProject (P3/A — project ownership + host subtree)', 
     const tokenA = { id: 'token:aaa', kind: 'token' as const };
     const tokenB = { id: 'token:bbb', kind: 'token' as const };
 
+    // These exercise the creator-based FALLBACK (principals carry no project
+    // grants, so projectGrant returns null and ownership decides). The projectId
+    // arg is irrelevant on this path; use a fixed 'p'.
     it('local sees any project', () => {
-        expect(canSeeProject(LOCAL_PRINCIPAL, ['token:bbb'])).toBe(true);
-        expect(canSeeProject(LOCAL_PRINCIPAL, [])).toBe(true);
+        expect(canSeeProject(LOCAL_PRINCIPAL, 'p', ['token:bbb'])).toBe(true);
+        expect(canSeeProject(LOCAL_PRINCIPAL, 'p', [])).toBe(true);
     });
 
     it('owner of the project itself sees it', () => {
-        expect(canSeeProject(tokenA, ['token:aaa'])).toBe(true);
+        expect(canSeeProject(tokenA, 'p', ['token:aaa'])).toBe(true);
     });
 
     it('host owner sees a sub-app (owns an ancestor in the chain)', () => {
-        // sub-app createdBy=tokenB, parent(host) createdBy=tokenA
-        expect(canSeeProject(tokenA, ['token:bbb', 'token:aaa'])).toBe(true);
+        expect(canSeeProject(tokenA, 'p', ['token:bbb', 'token:aaa'])).toBe(true);
     });
 
     it('sub-app owner does NOT see up the tree (only owns the leaf)', () => {
-        // host createdBy=tokenA, but caller tokenB only owns the leaf — chain from a host project
-        expect(canSeeProject(tokenB, ['token:aaa'])).toBe(false);
+        expect(canSeeProject(tokenB, 'p', ['token:aaa'])).toBe(false);
     });
 
     it('no ownership anywhere in the chain → not visible', () => {
-        expect(canSeeProject(tokenA, ['token:bbb', 'token:ccc'])).toBe(false);
+        expect(canSeeProject(tokenA, 'p', ['token:bbb', 'token:ccc'])).toBe(false);
     });
 
     it('unowned link in the chain → visible (backward compat)', () => {
-        expect(canSeeProject(tokenA, [undefined])).toBe(true);
+        expect(canSeeProject(tokenA, 'p', [undefined])).toBe(true);
     });
 
     it('empty chain (unknown project) → not visible to named principal', () => {
-        expect(canSeeProject(tokenA, [])).toBe(false);
+        expect(canSeeProject(tokenA, 'p', [])).toBe(false);
+    });
+});
+
+describe('identity: project→agent binding (5.0 — explicit grants)', () => {
+    const bound = { id: 'forwarded:agentA', kind: 'forwarded' as const, projects: ['react-demo', 'vue-demo'] };
+    const wildcard = { id: 'forwarded:admin', kind: 'forwarded' as const, projects: ['*'] };
+    const unbound = { id: 'token:aaa', kind: 'token' as const }; // no grants → fallback
+
+    it('granted project is visible regardless of who created the data (creator≠consumer)', () => {
+        // createdBy is a runtime principal the agent never matches — still visible.
+        expect(canSeeProject(bound, 'react-demo', ['token:runtime-xyz'])).toBe(true);
+    });
+
+    it('ungranted project is NOT visible even when other grants are present', () => {
+        expect(canSeeProject(bound, 'other-app', ['token:runtime-xyz'])).toBe(false);
+    });
+
+    it('wildcard grant sees any project', () => {
+        expect(canSeeProject(wildcard, 'anything', ['token:whoever'])).toBe(true);
+    });
+
+    it('projectGrant: membership / wildcard / unbound(null) / local(true)', () => {
+        expect(projectGrant(bound, 'react-demo')).toBe(true);
+        expect(projectGrant(bound, 'nope')).toBe(false);
+        expect(projectGrant(wildcard, 'whatever')).toBe(true);
+        expect(projectGrant(unbound, 'x')).toBe(null);
+        expect(projectGrant(LOCAL_PRINCIPAL, 'x')).toBe(true);
     });
 });

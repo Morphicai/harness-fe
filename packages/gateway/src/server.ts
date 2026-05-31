@@ -20,6 +20,17 @@ import { createAdminHandler } from './admin.js';
 
 /** Header contract with the daemon (kept in sync with daemon's FORWARDED_CALLER_HEADER, P6·C1). */
 const FORWARDED_CALLER_HEADER = 'x-harness-caller';
+/**
+ * Companion header: the projects this caller's token is authorized for
+ * (5.0 · project→agent binding). Comma-separated ids, or `*` for all. A token
+ * with no explicit project list defaults to `*` (the whole server it's bound to).
+ */
+const FORWARDED_PROJECTS_HEADER = 'x-harness-projects';
+
+/** Header value for a caller's project grants — defaults to `*` (all). */
+function projectsHeaderValue(caller: VerifiedCaller): string {
+    return (caller.projects && caller.projects.length ? caller.projects : ['*']).join(',');
+}
 
 export interface GatewayOptions {
     store: GatewayStore;
@@ -150,6 +161,7 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
             'content-type': 'application/json',
             accept: (req.headers.accept as string) ?? 'application/json, text/event-stream',
             [FORWARDED_CALLER_HEADER]: caller.tokenId,
+            [FORWARDED_PROJECTS_HEADER]: projectsHeaderValue(caller),
         };
         if (target.token) headers.authorization = `Bearer ${target.token}`;
         passSessionHeaders(req, headers);
@@ -226,6 +238,7 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
         const headers: Record<string, string> = {
             accept: (req.headers.accept as string) ?? 'application/json, text/event-stream',
             [FORWARDED_CALLER_HEADER]: caller.tokenId,
+            [FORWARDED_PROJECTS_HEADER]: projectsHeaderValue(caller),
         };
         const ct = req.headers['content-type'];
         if (typeof ct === 'string') headers['content-type'] = ct;
