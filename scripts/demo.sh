@@ -83,9 +83,32 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-# Preflight: the gateway port + every app port must be free.
-for spec in "gateway:${GW_PORT}" "solo-gateway:${SOLO_PORT}" \
-            "vue-demo:47810" "react-demo:47811" "webpack-demo:47812" \
+# Preflight. A gateway port (team + solo) may legitimately be held by a stale
+# harness gateway from a previous run that didn't shut down cleanly — that's a
+# *service*, not a conflict, so reclaim it (kill + wait) instead of bailing. A
+# non-harness process on the port, or any app-port clash, IS a real conflict.
+reclaim_gateway_port() {
+    local port="$1" name="$2" holder
+    holder="$(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    [[ -z "$holder" ]] && return 0
+    if curl -sf --max-time 1 "http://127.0.0.1:${port}/console/api/meta" >/dev/null 2>&1; then
+        echo "[demo] ${name} :${port} held by a stale harness gateway (PID ${holder}) — reclaiming."
+        kill $holder 2>/dev/null || true
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            lsof -nP -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || return 0
+            sleep 0.3
+        done
+        echo "✗ ${name} :${port} still held after kill (PID ${holder})." >&2; exit 1
+    fi
+    echo "✗ port ${port} (${name}) is in use by a non-harness process (PID ${holder})." >&2
+    echo "  Free it with:  kill ${holder}" >&2
+    exit 1
+}
+reclaim_gateway_port "$GW_PORT" "team gateway"
+reclaim_gateway_port "$SOLO_PORT" "solo gateway"
+
+# App ports must be free — a clash there is a real conflict (another dev server).
+for spec in "vue-demo:47810" "react-demo:47811" "webpack-demo:47812" \
             "webpack5-vue3-demo:47813" "iframe parent:47814" "iframe child:47815"; do
     name="${spec%%:*}"; port="${spec##*:}"
     holder="$(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
