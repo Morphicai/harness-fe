@@ -27,10 +27,19 @@ module.exports = {
         // sees the original .vue source (vue-loader splits SFCs into virtual
         // submodules, but the unplugin loader hooks the root .vue request
         // before that split). Order matters: register harnessFE last.
-        harnessFE(),
+        //
+        // TEAM / shared-service mode: connect straight to the ONE shared central
+        // daemon (fixed port 47900) as a distinct project. Connection is baked in
+        // (not env) so `turbo run dev` launches every demo uniformly. See DEMO.md.
+        harnessFE({
+            projectId: 'webpack5-vue3-demo',
+            mcpUrl: 'ws://127.0.0.1:47900',
+            token: process.env.HARNESS_TEAM_TOKEN ?? 'team-secret-demo',
+        }),
     ],
     devServer: {
-        port: 3002,
+        // Harness-FE demo port band (478xx). 47813 = webpack5-vue3-demo (team).
+        port: 47813,
         hot: true,
     },
 };
