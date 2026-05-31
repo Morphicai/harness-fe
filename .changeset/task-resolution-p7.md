@@ -1,7 +1,7 @@
 ---
 '@harness-fe/protocol': minor
-'@harness-fe/daemon': minor
-'@harness-fe/mcp-server': minor
+'@harness-fe/core': minor
+'@harness-fe/gateway': minor
 '@harness-fe/skill': minor
 ---
 

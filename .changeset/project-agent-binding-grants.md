@@ -1,6 +1,5 @@
 ---
-'@harness-fe/daemon': minor
-'@harness-fe/mcp-server': minor
+'@harness-fe/core': minor
 '@harness-fe/gateway': minor
 ---
 

@@ -1,5 +1,5 @@
 ---
-'@harness-fe/mcp-server': minor
+'@harness-fe/gateway': minor
 ---
 
 Command-target scoping (4.0 · A) — an agent's commands only drive tabs it may

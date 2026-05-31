@@ -1,6 +1,6 @@
 ---
 '@harness-fe/protocol': minor
-'@harness-fe/mcp-server': minor
+'@harness-fe/gateway': minor
 ---
 
 Caller identity (4.0 · P1) — the auth boundary now carries *who*, not just
