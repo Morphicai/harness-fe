@@ -20,7 +20,7 @@ export default defineConfig({
         harnessFE({
             projectId: 'iframe-parent',
             displayName: 'Parent Shell',
-            mcpUrl: 'ws://127.0.0.1:47900',
+            mcpUrl: 'ws://127.0.0.1:47950/ws',
             token: process.env.HARNESS_TEAM_TOKEN ?? 'team-secret-demo',
         }),
     ],

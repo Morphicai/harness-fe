@@ -34,7 +34,7 @@ module.exports = {
         // leaking the team target into the solo app. See examples/DEMO.md.
         harnessFE({
             projectId: 'webpack-demo',
-            mcpUrl: 'ws://127.0.0.1:47900',
+            mcpUrl: 'ws://127.0.0.1:47950/ws',
             token: process.env.HARNESS_TEAM_TOKEN ?? 'team-secret-demo',
         }),
     ],

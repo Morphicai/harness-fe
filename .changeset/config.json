@@ -6,7 +6,6 @@
   "linked": [
     [
       "@harness-fe/protocol",
-      "@harness-fe/mcp-server",
       "@harness-fe/runtime",
       "@harness-fe/node-runtime",
       "@harness-fe/next",
@@ -16,8 +15,9 @@
       "@harness-fe/vite",
       "@harness-fe/webpack",
       "@harness-fe/unplugin",
-      "@harness-fe/daemon",
-      "@harness-fe/dev-cli",
+      "@harness-fe/core",
+      "@harness-fe/console-ui",
+      "@harness-fe/cli",
       "@harness-fe/gateway"
     ]
   ],
