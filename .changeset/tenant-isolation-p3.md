@@ -1,5 +1,5 @@
 ---
-'@harness-fe/mcp-server': minor
+'@harness-fe/gateway': minor
 ---
 
 Tenant read-isolation for MCP list tools (4.0 · P3) — agents now only see the

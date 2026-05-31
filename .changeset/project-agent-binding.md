@@ -1,5 +1,5 @@
 ---
-'@harness-fe/mcp-server': minor
+'@harness-fe/gateway': minor
 ---
 
 Project→agent binding + host/sub-app tagging (4.0 · A) — tenant isolation now

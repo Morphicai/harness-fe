@@ -1,21 +1,21 @@
 ---
-'@harness-fe/daemon': minor
-'@harness-fe/mcp-server': minor
-'@harness-fe/dev-cli': minor
+'@harness-fe/core': minor
+'@harness-fe/gateway': minor
+'@harness-fe/cli': minor
 ---
 
-Package split (5.0 · P5) — the monolithic `@harness-fe/mcp-server` is split
+Package split (5.0 · P5) — the monolithic `@harness-fe/gateway` is split
 into three packages along the architecture's layering, with **zero behaviour
 change** and **no user-facing breakage**.
 
-- **`@harness-fe/daemon`** (new) — the daemon core: capability API, event
+- **`@harness-fe/core`** (new) — the daemon core: capability API, event
   store, browser control, WS bridge, identity/auth/consent/scoping. Everything
   that touches data or the browser connection.
-- **`@harness-fe/mcp-server`** — now a thin MCP protocol layer
+- **`@harness-fe/gateway`** — now a thin MCP protocol layer
   (`createMcpServer` + stdio/HTTP transports + `createDaemon`), depending on
-  `@harness-fe/daemon`. Re-exports daemon's public API so existing imports keep
+  `@harness-fe/core`. Re-exports daemon's public API so existing imports keep
   working; keeps a `harness-fe` bin shim that forwards to dev-cli.
-- **`@harness-fe/dev-cli`** (new) — the solo-dev launcher (`harness-fe` bin):
+- **`@harness-fe/cli`** (new) — the solo-dev launcher (`harness-fe` bin):
   arg parsing, leader/follower, banner, open-browser. Glue over daemon +
   mcp-server.
 

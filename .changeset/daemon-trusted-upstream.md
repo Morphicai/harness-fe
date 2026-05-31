@@ -1,5 +1,5 @@
 ---
-'@harness-fe/daemon': minor
+'@harness-fe/core': minor
 ---
 
 Trusted-upstream caller identity (5.0 · P6 · C1) — the daemon can now honour a

@@ -12,6 +12,6 @@ Rebuild ④ — introduce `@harness-fe/cli`, the single launcher (`harness`).
   audit), `/ws` (write tokens), `/console` + `/admin`. Bootstraps an admin and
   issues tokens from flags.
 
-Replaces `@harness-fe/dev-cli` (retired in the final step). Multi-window solo
+Replaces `@harness-fe/cli` (retired in the final step). Multi-window solo
 (several IDE windows sharing one core via leader/follower) needs the remote
 CoreClient and is intentionally deferred — run one solo instance per machine.
