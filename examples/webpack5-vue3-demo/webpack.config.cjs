@@ -34,7 +34,7 @@ module.exports = {
         harnessFE({
             projectId: 'webpack5-vue3-demo',
             mcpUrl: 'ws://127.0.0.1:47950/ws',
-            token: process.env.HARNESS_TEAM_TOKEN ?? 'team-secret-demo',
+            token: process.env.HARNESS_TEAM_TOKEN,
         }),
     ],
     devServer: {

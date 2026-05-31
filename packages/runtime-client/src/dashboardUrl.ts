@@ -7,7 +7,7 @@
  * query string so the browser is pre-authenticated on first hit.
  *
  * Optionally deep-links into a session's detail page when `sessionId` is
- * provided (`/console/session/:id`).
+ * provided (`/console/sessions/:id`).
  */
 export interface DashboardUrlInput {
     mcpUrl: string;
@@ -24,7 +24,7 @@ export function deriveDashboardUrl(input: DashboardUrlInput): string | undefined
     }
     const httpScheme = url.protocol === 'wss:' ? 'https:' : 'http:';
     const path = input.sessionId
-        ? `/console/session/${encodeURIComponent(input.sessionId)}`
+        ? `/console/sessions/${encodeURIComponent(input.sessionId)}`
         : '/console';
     const token = url.searchParams.get('token');
     const search = token ? `?token=${encodeURIComponent(token)}` : '';

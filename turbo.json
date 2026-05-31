@@ -1,5 +1,12 @@
 {
   "ui": "tui",
+  "globalPassThroughEnv": [
+    "HARNESS_TEAM_TOKEN",
+    "HARNESS_FE_URL",
+    "HARNESS_FE_TOKEN",
+    "HARNESS_FE_RUNTIME",
+    "HARNESS_FE_DRY_RUN"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
