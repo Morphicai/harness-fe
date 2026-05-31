@@ -29,6 +29,7 @@ import {
     createBuildIdentity,
     installNodeLogCapture,
     appendTokenQuery,
+    resolveSoloTarget,
     type ComponentLocation,
     type HarnessFEOptions,
     type McpClient,
@@ -59,6 +60,7 @@ export class HarnessFEWebpackPlugin {
     private projectRoot: string = process.cwd();
     private projectId: string;
     private readonly mcpUrl: string;
+    private readonly baseMcpUrl: string;
     private readonly token: string | undefined;
     private mcpClient?: McpClient;
     private logCleanup?: () => void;
@@ -74,6 +76,7 @@ export class HarnessFEWebpackPlugin {
             options.mcpUrl ??
             process.env.HARNESS_FE_URL ??
             `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+        this.baseMcpUrl = baseUrl;
         this.token = options.token ?? process.env.HARNESS_FE_TOKEN;
         this.mcpUrl = appendTokenQuery(baseUrl, this.token);
         this.identity = createBuildIdentity({
@@ -174,8 +177,17 @@ export class HarnessFEWebpackPlugin {
         compiler.hooks.afterEnvironment.tap('harness-fe', () => {
             const client = createMcpClient(ctx);
             this.mcpClient = client;
-            client.connect();
             this.logCleanup = installNodeLogCapture((name, payload) => client.emitEvent(name, payload));
+            // Solo (loopback + no token): ensure a shared local gateway is up, then
+            // connect. afterEnvironment is sync, so fire-and-forget and connect once
+            // the gateway answers (best-effort — if @harness-fe/cli isn't installed
+            // we just connect and let the client retry). Team never auto-spawns.
+            const solo = resolveSoloTarget(this.baseMcpUrl, Boolean(this.token));
+            if (solo) {
+                void this.ensureSharedGateway(solo).finally(() => client.connect());
+            } else {
+                client.connect();
+            }
         });
 
         compiler.hooks.shutdown?.tap('harness-fe', () => {
@@ -184,6 +196,15 @@ export class HarnessFEWebpackPlugin {
             this.mcpClient?.disconnect();
             this.mcpClient = undefined;
         });
+    }
+
+    private async ensureSharedGateway(target: { host: string; port: number }): Promise<void> {
+        try {
+            const { ensureSharedGateway } = await import('@harness-fe/cli/sharedGateway');
+            await ensureSharedGateway({ host: target.host, port: target.port });
+        } catch {
+            /* @harness-fe/cli not installed, or gateway slow — client.connect() retries */
+        }
     }
 
     private installComponentMapAggregator(compiler: any): void {

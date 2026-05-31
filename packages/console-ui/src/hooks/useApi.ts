@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getToken } from '../lib/token';
 
 export interface ApiState<T> {
@@ -17,11 +17,12 @@ export function useApi<T>(path: string | null): ApiState<T> {
     const [data, setData] = useState<T | undefined>(undefined);
     const [error, setError] = useState<string | undefined>(undefined);
     const [loading, setLoading] = useState<boolean>(path != null);
-    const tick = useRef(0);
+    // State (not a ref) so refetch() actually re-renders → the effect re-runs.
+    // (Bumping a ref never re-renders, so the old code never re-fetched — e.g.
+    // whoami after sign-in only updated on a hard reload.)
+    const [reloadTick, setReloadTick] = useState(0);
 
-    const refetch = useCallback(() => {
-        tick.current += 1;
-    }, []);
+    const refetch = useCallback(() => setReloadTick((t) => t + 1), []);
 
     useEffect(() => {
         if (path == null) {
@@ -30,13 +31,12 @@ export function useApi<T>(path: string | null): ApiState<T> {
             setLoading(false);
             return;
         }
-        const myTick = ++tick.current;
         let aborted = false;
         setLoading(true);
         setError(undefined);
         fetch(path, { headers: authHeaders() })
             .then(async (resp) => {
-                if (aborted || tick.current !== myTick) return;
+                if (aborted) return;
                 if (!resp.ok) {
                     const body = await resp.text();
                     let msg = `${resp.status} ${resp.statusText}`;
@@ -49,19 +49,21 @@ export function useApi<T>(path: string | null): ApiState<T> {
                     return;
                 }
                 const json = (await resp.json()) as T;
-                if (aborted || tick.current !== myTick) return;
+                if (aborted) return;
                 setData(json);
                 setLoading(false);
             })
             .catch((err: Error) => {
-                if (aborted || tick.current !== myTick) return;
+                if (aborted) return;
                 setError(err.message);
                 setLoading(false);
             });
         return () => {
+            // A newer run (path or reloadTick changed) supersedes this one:
+            // ignore its in-flight response.
             aborted = true;
         };
-    }, [path, tick.current]);
+    }, [path, reloadTick]);
 
     return { data, error, loading, refetch };
 }

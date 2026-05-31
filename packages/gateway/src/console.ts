@@ -152,6 +152,23 @@ export function createConsoleHandler(
             return true;
         }
 
+        // whoami — never 401s; tells the SPA whether to show the sign-in screen
+        // and who the viewer is. Open ⇒ always authenticated (local sees all).
+        if (path === '/console/api/whoami') {
+            const isAdmin = !!opts.isAdmin?.(req);
+            const principal = resolvePrincipal(req);
+            const canRead = !!principal && principalCan(principal, 'read');
+            const authenticated = opts.mode === 'open' || isAdmin || canRead;
+            sendJson(res, 200, {
+                mode: opts.mode,
+                authenticated,
+                kind: isAdmin ? 'admin' : (principal?.kind ?? null),
+                projects: isAdmin || principal?.kind === 'local' ? '*' : (principal?.projects ?? null),
+                canRead: authenticated,
+            });
+            return true;
+        }
+
         const store = opts.store;
         if (!store) {
             sendJson(res, 503, { error: 'store_disabled' });

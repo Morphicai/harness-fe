@@ -30,10 +30,10 @@ describe('gateway admin panel', () => {
 
     const url = (p: string) => `http://127.0.0.1:${port}${p}`;
 
-    it('serves the login page', async () => {
-        const r = await fetch(url('/admin/login'));
-        expect(r.status).toBe(200);
-        expect(await r.text()).toContain('gateway');
+    it('legacy GET /admin/login redirects to the console (unified sign-in)', async () => {
+        const r = await fetch(url('/admin/login'), { redirect: 'manual' });
+        expect(r.status).toBe(303);
+        expect(r.headers.get('location')).toBe('/console');
     });
 
     it('API requires auth (401 without session cookie)', async () => {
@@ -41,10 +41,10 @@ describe('gateway admin panel', () => {
         expect(r.status).toBe(401);
     });
 
-    it('unauthenticated /admin redirects to login', async () => {
+    it('legacy GET /admin redirects to the console', async () => {
         const r = await fetch(url('/admin'), { redirect: 'manual' });
         expect(r.status).toBe(303);
-        expect(r.headers.get('location')).toBe('/admin/login');
+        expect(r.headers.get('location')).toBe('/console');
     });
 
     it('bad credentials → 401', async () => {

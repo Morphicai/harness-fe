@@ -1,24 +1,46 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useApi } from './hooks/useApi';
 import { Header } from './components/Header';
 import { ProjectList } from './routes/ProjectList';
 import { SessionDetail } from './routes/SessionDetail';
 import { Governance } from './routes/Governance';
+import { SignIn } from './routes/SignIn';
+
+interface Whoami {
+    mode: 'open' | 'governed';
+    authenticated: boolean;
+    kind?: string | null;
+    projects?: string[] | '*' | null;
+}
 
 /**
  * Console SPA shell (mounted at the `/console` basename, see main.tsx).
  *
- * Two faces, switched from the Header nav:
- *  - **Data** — projects → session detail (logs / timeline / rrweb replay).
- *    These routes render their own <Header/> (recovered from the dashboard).
- *  - **Governance** — tokens / servers / audit (the new gateway capability),
- *    wrapped here in the shared Header for a consistent shell.
+ * Auth gate: `whoami` decides whether the viewer can see data. Open (solo) and
+ * any authenticated viewer (admin session or a pasted read token) get the app;
+ * a Governed viewer with no credential gets the sign-in screen — so an empty
+ * `/` never shows a raw 401. The overlay's deep-link lands here too and inherits
+ * whatever the viewer is signed in as (it carries no token of its own).
  */
 export function App() {
+    const { data: who, loading, refetch } = useApi<Whoami>('/console/api/whoami');
+
+    if (loading && !who) {
+        return <div className="min-h-screen flex items-center justify-center text-sm text-ink-muted">Loading…</div>;
+    }
+    if (who && !who.authenticated) {
+        return <SignIn onDone={refetch} />;
+    }
+
+    // Governance is admin-only (cookie-auth /admin/api/*). A token/open viewer
+    // who deep-links to /admin is sent back to the data view instead of a second
+    // sign-in form.
+    const isAdmin = who?.kind === 'admin';
     return (
         <Routes>
             <Route path="/" element={<ProjectList />} />
             <Route path="/sessions/:id" element={<SessionDetail />} />
-            <Route path="/admin" element={<GovernancePage />} />
+            <Route path="/admin" element={isAdmin ? <GovernancePage /> : <Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     );

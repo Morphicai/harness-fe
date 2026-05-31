@@ -1,80 +1,11 @@
 /**
- * Tiny fetch helpers for the console.
+ * Governance fetch helpers (cookie-session auth).
  *
- * Data API lives under `/console/api/*` (capability-backed, read-only operator
- * view). Governance API lives under `/admin/api/*` (cookie-session auth — the
- * operator signs in via POST /admin/login). Both are same-origin, so cookies
- * flow automatically.
+ * The data face (projects / sessions) reads through `hooks/useApi` (Bearer
+ * token, with same-origin cookies along for the ride). These two helpers cover
+ * the admin-only governance calls under `/admin/api/*`, which authenticate via
+ * the admin session cookie set by POST /admin/login.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-
-export interface ApiState<T> {
-    data: T | undefined;
-    error: string | undefined;
-    loading: boolean;
-    refetch: () => void;
-}
-
-async function parseError(resp: Response): Promise<string> {
-    const body = await resp.text();
-    try {
-        const j = JSON.parse(body) as { error?: string };
-        if (j.error) return j.error;
-    } catch {
-        /* fall through */
-    }
-    return `${resp.status} ${resp.statusText}`;
-}
-
-export function useApi<T>(path: string | null): ApiState<T> {
-    const [data, setData] = useState<T | undefined>(undefined);
-    const [error, setError] = useState<string | undefined>(undefined);
-    const [loading, setLoading] = useState<boolean>(path != null);
-    const tick = useRef(0);
-    const [, force] = useState(0);
-
-    const refetch = useCallback(() => {
-        tick.current += 1;
-        force((n) => n + 1);
-    }, []);
-
-    useEffect(() => {
-        if (path == null) {
-            setData(undefined);
-            setError(undefined);
-            setLoading(false);
-            return;
-        }
-        const myTick = ++tick.current;
-        let aborted = false;
-        setLoading(true);
-        setError(undefined);
-        fetch(path, { credentials: 'same-origin' })
-            .then(async (resp) => {
-                if (aborted || tick.current !== myTick) return;
-                if (!resp.ok) {
-                    setError(await parseError(resp));
-                    setLoading(false);
-                    return;
-                }
-                const json = (await resp.json()) as T;
-                if (aborted || tick.current !== myTick) return;
-                setData(json);
-                setLoading(false);
-            })
-            .catch((err: Error) => {
-                if (aborted || tick.current !== myTick) return;
-                setError(err.message);
-                setLoading(false);
-            });
-        return () => {
-            aborted = true;
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [path, tick.current]);
-
-    return { data, error, loading, refetch };
-}
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     const resp = await fetch(path, {

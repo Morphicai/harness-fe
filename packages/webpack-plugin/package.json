@@ -40,6 +40,9 @@
         "@harness-fe/protocol": "workspace:*",
         "@harness-fe/unplugin": "workspace:*"
     },
+    "optionalDependencies": {
+        "@harness-fe/cli": "workspace:*"
+    },
     "peerDependencies": {
         "webpack": "^5.0.0"
     },

@@ -2,7 +2,18 @@ import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useLiveBridge } from '../hooks/useLiveBridge';
 import { useApi } from '../hooks/useApi';
+import { clearToken } from '../lib/token';
 import type { DaemonMeta } from '../lib/types';
+
+async function signOut(): Promise<void> {
+    clearToken();
+    try {
+        await fetch('/admin/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch {
+        /* ignore */
+    }
+    window.location.assign('/console');
+}
 
 /**
  * Sticky glass header. Logo + breadcrumb on the left, live-status pill
@@ -12,6 +23,11 @@ import type { DaemonMeta } from '../lib/types';
  */
 export function Header({ crumb }: { crumb?: React.ReactNode }) {
     const [flash, setFlash] = useState(false);
+    // Only an admin session can use the governance face (/admin/api/* is
+    // cookie-auth). Hide the tab from token/open viewers so they don't land on a
+    // second sign-in form.
+    const { data: who } = useApi<{ kind?: string | null }>('/console/api/whoami');
+    const isAdmin = who?.kind === 'admin';
     useLiveBridge(() => {
         setFlash(true);
     });
@@ -32,7 +48,7 @@ export function Header({ crumb }: { crumb?: React.ReactNode }) {
                     <span className="text-ink-muted text-xs font-mono">dev console</span>
                 </Link>
                 <VersionBadge />
-                <Nav />
+                <Nav isAdmin={isAdmin} />
                 {crumb ? (
                     <>
                         <span className="text-ink-muted text-sm">/</span>
@@ -40,13 +56,20 @@ export function Header({ crumb }: { crumb?: React.ReactNode }) {
                     </>
                 ) : null}
                 <div className="flex-1" />
+                <button
+                    onClick={() => void signOut()}
+                    className="text-ink-muted hover:text-ink-primary text-xs px-2 py-1 rounded-md"
+                    title="Clear the console token / admin session"
+                >
+                    Sign out
+                </button>
                 <LivePill flash={flash} />
             </div>
         </header>
     );
 }
 
-function Nav() {
+function Nav({ isAdmin }: { isAdmin: boolean }) {
     const { pathname } = useLocation();
     const onAdmin = pathname.startsWith('/admin');
     const tab = (to: string, label: string, active: boolean) => (
@@ -63,7 +86,7 @@ function Nav() {
     return (
         <nav className="ml-2 flex items-center gap-1">
             {tab('/', 'Data', !onAdmin)}
-            {tab('/admin', 'Governance', onAdmin)}
+            {isAdmin ? tab('/admin', 'Governance', onAdmin) : null}
         </nav>
     );
 }
