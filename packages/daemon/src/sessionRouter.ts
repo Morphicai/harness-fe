@@ -12,7 +12,7 @@ import type {
     PeerRole,
     TabInfo,
 } from '@harness-fe/protocol';
-import { canSee, type Principal } from './identity.js';
+import { canSee, projectGrant, type Principal } from './identity.js';
 
 export interface PeerSession {
     role: PeerRole;
@@ -80,17 +80,22 @@ export class SessionRouter {
      * Resolve the target tab for a command (4.0 · A — command-target scoping).
      *
      * When `principal` is supplied, candidate tabs are restricted to ones the
-     * caller may drive (`canSee` against the tab's owning principal): `local`
-     * drives anything (zero behaviour change for solo dev), unowned tabs are
-     * drivable by all, otherwise only the tab's creator. Omitting `principal`
-     * preserves the original global behaviour.
+     * caller may drive: `local` drives anything (zero behaviour change for solo
+     * dev); an agent whose gateway-injected grants cover the tab's project drives
+     * it (5.0 · project→agent binding); with no grant info, the tab's own creator
+     * (single-token fallback). Omitting `principal` preserves global behaviour.
      */
     findTab(tabId?: string, principal?: Principal): PeerSession | undefined {
+        const canDrive = (p: PeerSession): boolean => {
+            if (!principal) return true;
+            const grant = projectGrant(principal, p.projectId);
+            return grant !== null ? grant : canSee(principal, p.principal?.id);
+        };
         if (tabId) {
             for (const p of this.peers.values()) {
                 if (p.role === 'runtime-client' && p.tabId === tabId) {
-                    // Explicit tabId still can't target someone else's tab.
-                    if (principal && !canSee(principal, p.principal?.id)) return undefined;
+                    // Explicit tabId still can't target a tab the caller can't drive.
+                    if (!canDrive(p)) return undefined;
                     return p;
                 }
             }
@@ -100,9 +105,7 @@ export class SessionRouter {
         const visible = [...this.peers.values()]
             .filter(
                 (p): p is PeerSession & { tabId: string } =>
-                    p.role === 'runtime-client' &&
-                    !!p.tabId &&
-                    (!principal || canSee(principal, p.principal?.id)),
+                    p.role === 'runtime-client' && !!p.tabId && canDrive(p),
             )
             .sort((a, b) => b.lastActive - a.lastActive);
         if (this.mostRecentTabId) {

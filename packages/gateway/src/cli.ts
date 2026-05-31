@@ -31,6 +31,8 @@ interface TokenSpec {
     name: string;
     server: string;
     scopes: Scope[];
+    /** Authorized projects (5.0 · project→agent binding). undefined = all. */
+    projects?: string[];
 }
 
 interface CliConfig {
@@ -67,7 +69,8 @@ Options:
   --add-server <spec>    Register an upstream daemon. Idempotent by name. Repeatable.
                          spec: name=team,endpoint=http://127.0.0.1:47900,token=DAEMON_SECRET
   --issue-token <spec>   Issue a gateway token and print it once. Repeatable.
-                         spec: name=agentA,server=team,scopes=read+control
+                         spec: name=agentA,server=team,scopes=read+control[,projects=react-demo+vue-demo]
+                         projects omitted (or '*') = all projects on the server.
   -h, --help             Show this help.
 
 Environment:
@@ -100,7 +103,14 @@ function parseTokenSpec(raw: string): TokenSpec {
     for (const s of scopes) {
         if (!VALID_SCOPES.includes(s)) fail(`--issue-token: invalid scope "${s}" (control|read|write)`);
     }
-    return { name, server, scopes };
+    // projects=a+b limits the token to those projects; omit (or '*') = all.
+    const projects = fields.projects
+        ? fields.projects
+              .split('+')
+              .map((s) => s.trim())
+              .filter(Boolean)
+        : undefined;
+    return { name, server, scopes, projects };
 }
 
 /** Parse "k=v,k2=v2" into an object. Values may contain '=' (e.g. token). */
@@ -214,8 +224,14 @@ async function main(): Promise<void> {
     for (const spec of cfg.issueTokens) {
         const server = store.listServers().find((s) => s.name === spec.server);
         if (!server) fail(`--issue-token: no server named "${spec.server}" (add it with --add-server first)`);
-        const { raw } = store.createToken({ name: spec.name, serverId: server.id, scopes: spec.scopes });
-        lines.push(`[gateway] token "${spec.name}" [${spec.scopes.join(',')}] → ${server.name}:  ${raw}`);
+        const { raw } = store.createToken({
+            name: spec.name,
+            serverId: server.id,
+            scopes: spec.scopes,
+            projects: spec.projects,
+        });
+        const proj = spec.projects?.length ? spec.projects.join('+') : '*';
+        lines.push(`[gateway] token "${spec.name}" [${spec.scopes.join(',')}] projects=${proj} → ${server.name}:  ${raw}`);
     }
 
     const gw = createGateway({ store, mcpPath: cfg.mcpPath });

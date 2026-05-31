@@ -33,6 +33,14 @@ export type PrincipalKind = 'local' | 'token' | 'host' | 'forwarded';
  */
 export const FORWARDED_CALLER_HEADER = 'x-harness-caller';
 
+/**
+ * Companion to {@link FORWARDED_CALLER_HEADER}: the gateway forwards the set of
+ * projects this caller's token is authorized for (5.0 · project→agent binding).
+ * Comma-separated project ids, or `*` for all. Same trust rule as the caller
+ * header — honoured only on auth-enabled requests, ignored on loopback.
+ */
+export const FORWARDED_PROJECTS_HEADER = 'x-harness-projects';
+
 export interface Principal {
     /** Stable id for this caller. Loopback / stdio solo dev → `local`. */
     id: string;
@@ -40,6 +48,14 @@ export interface Principal {
     kind: PrincipalKind;
     /** Optional human-readable label (for dashboards / audit). */
     displayName?: string;
+    /**
+     * Projects this caller is explicitly authorized for (5.0 · project→agent
+     * binding), injected by a trusted upstream (the gateway). `['*']` = all.
+     * `undefined` = no explicit grant — visibility falls back to creator-based
+     * ownership (solo / single-token, where creator === consumer). This is what
+     * lets an agent see a project's data without having created it.
+     */
+    projects?: readonly string[];
 }
 
 /**
@@ -136,9 +152,19 @@ function forwardedCaller(headers: HeaderBag): Principal | undefined {
     const raw = headers[FORWARDED_CALLER_HEADER] ?? headers['X-Harness-Caller'];
     const id = Array.isArray(raw) ? raw[0] : raw;
     if (typeof id === 'string' && id.trim()) {
-        return { id: id.trim(), kind: 'forwarded' };
+        return { id: id.trim(), kind: 'forwarded', projects: forwardedProjects(headers) };
     }
     return undefined;
+}
+
+function forwardedProjects(headers: HeaderBag): readonly string[] | undefined {
+    const raw = headers[FORWARDED_PROJECTS_HEADER] ?? headers['X-Harness-Projects'];
+    const v = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof v !== 'string' || !v.trim()) return undefined;
+    return v
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
 }
 
 /**
@@ -176,8 +202,27 @@ export function canSee(principal: Principal, createdBy: string | null | undefine
  */
 export function canSeeProject(
     principal: Principal,
+    projectId: string,
     ownerChain: ReadonlyArray<string | null | undefined>,
 ): boolean {
-    if (principal.kind === 'local') return true;
+    // Explicit project→agent binding (gateway-injected grants) takes precedence:
+    // a bound agent sees the project's whole data set regardless of who created
+    // each row (creator ≠ consumer). Only when there is NO grant info do we fall
+    // back to creator-based ownership (solo / single-token, where they coincide).
+    const grant = projectGrant(principal, projectId);
+    if (grant !== null) return grant;
     return ownerChain.some((createdBy) => canSee(principal, createdBy));
+}
+
+/**
+ * Project-level authorization for a principal (5.0 · project→agent binding).
+ * - `local` → always (loopback/solo trusts everything)
+ * - explicit grants present → membership test (`*` = all)
+ * - no grants (`undefined`) → `null`, meaning "no binding info; decide by
+ *   creator-based ownership instead" (backward compatible).
+ */
+export function projectGrant(principal: Principal, projectId: string): boolean | null {
+    if (principal.kind === 'local') return true;
+    if (!principal.projects) return null;
+    return principal.projects.includes('*') || principal.projects.includes(projectId);
 }

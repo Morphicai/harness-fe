@@ -38,6 +38,13 @@ export interface TokenRecord {
     /** Which server (env) this token is bound to. */
     serverId: string;
     scopes: Scope[];
+    /**
+     * Projects this token is authorized for (5.0 · project→agent binding).
+     * `['*']` (or undefined) = all projects on the server; a list scopes the
+     * agent to those projects. The gateway forwards this to the daemon, which
+     * grants project data accordingly (regardless of who created each row).
+     */
+    projects?: string[];
     createdAt: number;
     expiresAt?: number;
     revokedAt?: number;
@@ -58,6 +65,8 @@ export interface VerifiedCaller {
     name: string;
     serverId: string;
     scopes: Scope[];
+    /** Authorized projects (5.0 · project→agent binding). undefined = all. */
+    projects?: string[];
 }
 
 function readMap<T>(path: string): Record<string, T> {
@@ -117,7 +126,13 @@ export class GatewayStore {
 
     // ── Tokens ───────────────────────────────────────────────────────────
     /** Create a token. Returns the record + the raw token string (shown once). */
-    createToken(input: { name: string; serverId: string; scopes: Scope[]; expiresAt?: number }): {
+    createToken(input: {
+        name: string;
+        serverId: string;
+        scopes: Scope[];
+        projects?: string[];
+        expiresAt?: number;
+    }): {
         token: TokenRecord;
         raw: string;
     } {
@@ -129,6 +144,7 @@ export class GatewayStore {
             name: input.name,
             serverId: input.serverId,
             scopes: input.scopes,
+            projects: input.projects,
             createdAt: Date.now(),
             expiresAt: input.expiresAt,
         };
@@ -159,7 +175,7 @@ export class GatewayStore {
         if (!rec || rec.revokedAt) return null;
         if (rec.expiresAt && Date.now() > rec.expiresAt) return null;
         if (!verifySecret(parsed.secret, { hash: rec.hash, salt: rec.salt })) return null;
-        return { tokenId: rec.id, name: rec.name, serverId: rec.serverId, scopes: rec.scopes };
+        return { tokenId: rec.id, name: rec.name, serverId: rec.serverId, scopes: rec.scopes, projects: rec.projects };
     }
 
     // ── Audit (append-only) ──────────────────────────────────────────────
