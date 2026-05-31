@@ -32,11 +32,15 @@ export function App() {
         return <SignIn onDone={refetch} />;
     }
 
+    // Governance is admin-only (cookie-auth /admin/api/*). A token/open viewer
+    // who deep-links to /admin is sent back to the data view instead of a second
+    // sign-in form.
+    const isAdmin = who?.kind === 'admin';
     return (
         <Routes>
             <Route path="/" element={<ProjectList />} />
             <Route path="/sessions/:id" element={<SessionDetail />} />
-            <Route path="/admin" element={<GovernancePage />} />
+            <Route path="/admin" element={isAdmin ? <GovernancePage /> : <Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     );

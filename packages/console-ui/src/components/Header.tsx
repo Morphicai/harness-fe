@@ -23,6 +23,11 @@ async function signOut(): Promise<void> {
  */
 export function Header({ crumb }: { crumb?: React.ReactNode }) {
     const [flash, setFlash] = useState(false);
+    // Only an admin session can use the governance face (/admin/api/* is
+    // cookie-auth). Hide the tab from token/open viewers so they don't land on a
+    // second sign-in form.
+    const { data: who } = useApi<{ kind?: string | null }>('/console/api/whoami');
+    const isAdmin = who?.kind === 'admin';
     useLiveBridge(() => {
         setFlash(true);
     });
@@ -43,7 +48,7 @@ export function Header({ crumb }: { crumb?: React.ReactNode }) {
                     <span className="text-ink-muted text-xs font-mono">dev console</span>
                 </Link>
                 <VersionBadge />
-                <Nav />
+                <Nav isAdmin={isAdmin} />
                 {crumb ? (
                     <>
                         <span className="text-ink-muted text-sm">/</span>
@@ -64,7 +69,7 @@ export function Header({ crumb }: { crumb?: React.ReactNode }) {
     );
 }
 
-function Nav() {
+function Nav({ isAdmin }: { isAdmin: boolean }) {
     const { pathname } = useLocation();
     const onAdmin = pathname.startsWith('/admin');
     const tab = (to: string, label: string, active: boolean) => (
@@ -81,7 +86,7 @@ function Nav() {
     return (
         <nav className="ml-2 flex items-center gap-1">
             {tab('/', 'Data', !onAdmin)}
-            {tab('/admin', 'Governance', onAdmin)}
+            {isAdmin ? tab('/admin', 'Governance', onAdmin) : null}
         </nav>
     );
 }
