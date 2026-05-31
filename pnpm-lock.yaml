@@ -240,6 +240,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@harness-fe/console-ui':
+        specifier: workspace:*
+        version: link:../console-ui
       '@harness-fe/core':
         specifier: workspace:*
         version: link:../core
@@ -523,6 +526,10 @@ importers:
       ws:
         specifier: ^8.18.0
         version: 8.20.1
+    optionalDependencies:
+      '@harness-fe/cli':
+        specifier: workspace:*
+        version: link:../cli
     devDependencies:
       '@types/babel__traverse':
         specifier: ^7.28.0

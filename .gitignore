@@ -55,6 +55,7 @@ secrets/
 .demo-gateway/
 .demo-core/
 .demo-solo-core/
+.demo-solo-gateway/
 
 # Test artifacts
 coverage

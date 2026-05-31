@@ -19,6 +19,7 @@ export {
 
 export { createMcpServer, startMcpStdioServer, experimentalEnabled } from './mcp.js';
 export type { McpServerOptions } from './mcp.js';
+export { startMcpStdioProxy } from './mcpProxy.js';
 export { createMcpHttpHandler } from './mcpHttp.js';
 export type { McpHttpOptions, McpHttpHandler } from './mcpHttp.js';
 export { attachRuntimeWs } from './runtimeWs.js';

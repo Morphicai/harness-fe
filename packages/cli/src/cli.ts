@@ -9,6 +9,13 @@
  *     **stdio** for the agent that spawned this process (Claude Code / Cursor).
  *     No tokens, no audit. This is what an `mcp.json` points `command` at.
  *
+ * Serve (shared, headless):
+ *   harness serve
+ *   → Open policy, same as solo BUT no stdio — a long-lived HTTP gateway
+ *     (/ws + /console + /mcp) meant to be auto-spawned (detached) and SHARED by
+ *     many projects + the human's console + agents. This is what the build
+ *     plugin and the mcp launcher start when no gateway is already running.
+ *
  * Team (--governed):
  *   harness --governed --admin-user admin --admin-pass secret \
  *     --issue-token name=runtime,scopes=write \
@@ -21,12 +28,14 @@
  * single solo instance per machine for now.
  */
 
+import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { DEFAULT_WS_PORT } from '@harness-fe/protocol';
 import { createCoreClient } from '@harness-fe/core';
-import { startMcpStdioServer } from '@harness-fe/gateway';
+import { startMcpStdioServer, startMcpStdioProxy } from '@harness-fe/gateway';
 import { createGateway, GatewayStore, Policy, type Scope } from '@harness-fe/gateway';
+import { ensureSharedGateway } from './sharedGateway.js';
 
 interface TokenSpec {
     name: string;
@@ -36,6 +45,8 @@ interface TokenSpec {
 
 interface CliConfig {
     governed: boolean;
+    serve: boolean;
+    mcpProxy: boolean;
     host: string;
     port: number;
     coreDataDir: string;
@@ -55,12 +66,29 @@ function defaultCoreDataDir(): string {
 function defaultGatewayDataDir(): string {
     return join(homedir(), '.harness-fe', 'gateway');
 }
+/**
+ * Locate the bundled console-ui dist so a zero-config `harness` / `harness serve`
+ * serves the REAL console (not the placeholder). Mirrors how the gateway finds
+ * rrweb-player (gateway/replayViewer.ts). Returns undefined if console-ui isn't
+ * installed (e.g. trimmed install) — gateway then falls back to the placeholder.
+ */
+function defaultConsoleDir(): string | undefined {
+    try {
+        const require = createRequire(import.meta.url);
+        return join(dirname(require.resolve('@harness-fe/console-ui/package.json')), 'dist');
+    } catch {
+        return undefined;
+    }
+}
 
 function printHelpAndExit(): never {
     process.stderr.write(`harness — gateway + in-process core
 
 Usage:
   harness                       Solo: stdio MCP + loopback /ws + /console (zero config).
+  harness serve                 Shared headless gateway: /ws + /console + /mcp, no stdio.
+  harness mcp                   stdio MCP that reuses (or spawns) the shared gateway and
+                                proxies to its /mcp. Point an mcp.json "command" here.
   harness --governed [opts]     Team: tokens + RBAC + audit over HTTP.
 
 Options:
@@ -104,19 +132,30 @@ function parseTokenSpec(raw: string): TokenSpec {
 }
 
 function parseArgs(argv: string[]): CliConfig {
-    const args = argv.slice(2);
+    let args = argv.slice(2);
     const cfg: CliConfig = {
         governed: false,
+        serve: false,
+        mcpProxy: false,
         host: process.env.HARNESS_HOST ?? '127.0.0.1',
         port: Number(process.env.HARNESS_PORT) || DEFAULT_WS_PORT,
         coreDataDir: process.env.HARNESS_CORE_DATA_DIR ?? defaultCoreDataDir(),
         gatewayDataDir: process.env.HARNESS_GATEWAY_DATA_DIR ?? defaultGatewayDataDir(),
-        consoleDir: process.env.HARNESS_CONSOLE_DIR,
+        consoleDir: process.env.HARNESS_CONSOLE_DIR ?? defaultConsoleDir(),
         experimentalEnvVar: undefined,
         adminUser: undefined,
         adminPass: undefined,
         issueTokens: [],
     };
+    // Leading subcommand. `serve` = headless shared gateway; `mcp` = stdio proxy
+    // to the shared gateway. Neither combines with the other or with --governed.
+    if (args[0] === 'serve') {
+        cfg.serve = true;
+        args = args.slice(1);
+    } else if (args[0] === 'mcp') {
+        cfg.mcpProxy = true;
+        args = args.slice(1);
+    }
     for (let i = 0; i < args.length; i++) {
         const a = args[i];
         const next = () => {
@@ -142,12 +181,28 @@ function parseArgs(argv: string[]): CliConfig {
             default: fail(`unknown argument ${a}`);
         }
     }
+    if (cfg.serve && cfg.governed) fail('`serve` is Open-only; drop --governed');
+    if (cfg.mcpProxy && (cfg.governed || cfg.serve)) fail('`mcp` cannot combine with serve / --governed');
     return cfg;
 }
 
 async function main(): Promise<void> {
     const cfg = parseArgs(process.argv);
     const lines: string[] = [];
+
+    // `harness mcp` — don't host a core; reuse (or spawn) the shared gateway and
+    // proxy the agent's stdio MCP to its /mcp. This is what `.mcp.json` points at.
+    if (cfg.mcpProxy) {
+        const { baseUrl, reused } = await ensureSharedGateway({
+            host: cfg.host,
+            port: cfg.port,
+            coreDataDir: cfg.coreDataDir,
+            gatewayDataDir: cfg.gatewayDataDir,
+        });
+        process.stderr.write(`[harness] mcp: ${reused ? 'reusing' : 'spawned'} shared gateway → ${baseUrl}/mcp\n`);
+        await startMcpStdioProxy(`${baseUrl}/mcp`);
+        return;
+    }
 
     const coreClient = createCoreClient({ dataDir: cfg.coreDataDir });
     await coreClient.start();
@@ -181,14 +236,18 @@ async function main(): Promise<void> {
     const boundPort = await gw.listen(cfg.port, cfg.host);
     const base = `http://${cfg.host}:${boundPort}`;
 
-    lines.push(`[harness] ${cfg.governed ? 'GOVERNED (team)' : 'OPEN (solo)'} — ${base}`);
+    const label = cfg.governed ? 'GOVERNED (team)' : cfg.serve ? 'OPEN (serve)' : 'OPEN (solo)';
+    lines.push(`[harness] ${label} — ${base}`);
     lines.push(`[harness] ws:      ${base.replace('http', 'ws')}/ws`);
     lines.push(`[harness] console: ${base}/console`);
     if (store) lines.push(`[harness] admin:   ${base}/admin`);
 
-    if (!cfg.governed) {
-        // Solo: the agent that spawned us talks MCP over stdio. Print the banner
-        // to stderr (stdout is the MCP transport) BEFORE connecting stdio.
+    // stdio MCP is only for the zero-config solo path (the agent spawns us and
+    // talks over our stdin/stdout). `serve` and `--governed` are headless HTTP
+    // gateways — the process stays alive because the listener holds the loop.
+    const useStdio = !cfg.governed && !cfg.serve;
+    if (useStdio) {
+        // Print the banner to stderr (stdout is the MCP transport) BEFORE connecting.
         process.stderr.write(lines.join('\n') + '\n[harness] MCP: stdio\n');
         await startMcpStdioServer(coreClient.capabilities, {
             experimentalEnvVar: cfg.experimentalEnvVar,

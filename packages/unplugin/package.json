@@ -61,6 +61,9 @@
         "unplugin": "^2.3.2",
         "ws": "^8.18.0"
     },
+    "optionalDependencies": {
+        "@harness-fe/cli": "workspace:*"
+    },
     "devDependencies": {
         "@types/babel__traverse": "^7.28.0",
         "@types/ws": "^8.5.10",

@@ -1,33 +1,36 @@
-# Harness-FE demo — one gateway, many projects
+# Harness-FE demo — team gateway + an auto-spawned solo gateway
 
 `pnpm demo` boots the whole demo on one machine, on the latest local build
 (`workspace:*` packages + the `dist` that `pnpm build` produces). All dev servers
 run under a single `turbo run`, so you get unified per-app live logs and one
 Ctrl-C stops the lot.
 
-The rebuilt architecture has **one front door**: a gateway with an in-process
-core. Every app's in-page runtime connects to the gateway's `/ws`; agents reach
-it through `/mcp`; humans use `/console` (and `/admin`).
+Two ends of one spectrum. The **team** apps report into a governed gateway
+(token + RBAC + audit). **vue-demo** is the **solo** example: a zero-config Open
+gateway that is **auto-spawned and shared** — nobody starts it by hand. Both
+kinds expose the same faces: `/ws` (runtime), `/mcp` (agents), `/console` (humans).
 
 ```
+ react-demo ─────────WS┐
+ webpack-demo ───────WS┼─> team gateway :47950  /ws (write token) · /mcp · /console + /admin
+ webpack5-vue3-demo ─WS┤            (agentA read+control · agentB read)
+ iframe parent+child WS┘
+
  vue-demo ───────────WS┐
- react-demo ─────────WS┤
- webpack-demo ───────WS┼─> gateway :47950   /ws       (runtime, write token)
- webpack5-vue3-demo ─WS┤            /mcp      (agentA read+control · agentB read)
- iframe parent+child WS┘            /console + /admin  (operator)
+ harness-solo (mcp) ───┴─> solo gateway :47951  (Open, AUTO-SPAWNED + shared; /ws + /mcp + /console)
 ```
 
 Ports live in a dedicated **`478xx` band**, off the common `5173`/`3000`/`8080`
 defaults:
 
-| App | Dev port | Project reported |
-|---|---|---|
-| `vue-demo` | `47810` | `vue-demo` |
-| `react-demo` | `47811` | `react-demo` |
-| `webpack-demo` | `47812` | `webpack-demo` |
-| `webpack5-vue3-demo` | `47813` | `webpack5-vue3-demo` |
-| `iframe-demo` parent | `47814` | `iframe-parent` |
-| `iframe-demo` child | `47815` (proxied) | `iframe-child` |
+| App | Dev port | Project reported | Gateway |
+|---|---|---|---|
+| `vue-demo` | `47810` | `vue-demo` | **solo `:47951`** (auto-spawned) |
+| `react-demo` | `47811` | `react-demo` | team `:47950` |
+| `webpack-demo` | `47812` | `webpack-demo` | team `:47950` |
+| `webpack5-vue3-demo` | `47813` | `webpack5-vue3-demo` | team `:47950` |
+| `iframe-demo` parent | `47814` | `iframe-parent` | team `:47950` |
+| `iframe-demo` child | `47815` (proxied) | `iframe-child` | team `:47950` |
 
 ```bash
 pnpm demo                                 # build + boot everything (scripts/demo.sh)
@@ -35,18 +38,22 @@ pnpm demo                                 # build + boot everything (scripts/dem
 
 `scripts/demo.sh` starts **one** `harness --governed` gateway on `:47950` (core
 in-process), issues the demo tokens, then hands the apps to
-`turbo run dev dev:parent dev:child --filter='./examples/*'`. Each app's plugin
-config pins the gateway `/ws` target + its `projectId`; the runtime **write
-token** is injected via `HARNESS_TEAM_TOKEN` (exported by `demo.sh`).
+`turbo run dev dev:parent dev:child --filter='./examples/*'`. It does **not** start
+the solo gateway — vue-demo's dev server auto-spawns it on `:47951` via the build
+plugin (and `harness-solo` would too). Each app's plugin config pins its `/ws`
+target + `projectId`; the team apps' **write token** is injected via
+`HARNESS_TEAM_TOKEN` (exported by `demo.sh`). The solo gateway's data is kept in
+the demo's isolated `.demo-solo-core/` via `HARNESS_CORE_DATA_DIR`.
 
 The root `.mcp.json` is wired with **both** ends of the spectrum so one agent sees
 each:
 
-- `harness-solo` — stdio → a fresh `harness` (Open policy, zero-config, its own
-  loopback `/ws`).
-- `harness-team` — http → the gateway `/mcp`, **all projects** (agentA token).
+- `harness-solo` — stdio → `harness mcp`: reuses (or auto-spawns) the shared solo
+  gateway on `:47951` and proxies the agent's stdio MCP to its `/mcp`. Sees vue-demo.
+- `harness-team` — http → the team gateway `/mcp`, **all team projects** (agentA token).
 
-Ctrl-C tears everything down. Gateway log is in `/tmp/harness-demo/gateway.log`.
+Ctrl-C tears everything down, incl. the auto-spawned solo gateway. Gateway log is
+in `/tmp/harness-demo/gateway.log`.
 
 ---
 
@@ -83,14 +90,29 @@ per-project binding, tenant isolation, and audit.
 
 ---
 
-## Solo (zero-config) — `harness` over stdio
+## Solo (zero-config) — one auto-spawned, shared gateway
 
-The opposite end of the spectrum, shown by the `harness-solo` entry in
-`.mcp.json`: an agent spawns `harness` (no flags). That one process runs an
-in-process core, a loopback gateway (`/ws` + `/console`), and an MCP server over
-**stdio** — no tokens, no RBAC, no audit, fully trusted (single `local`
-principal). Point an app's runtime at that loopback `/ws` (the default target)
-and it just works.
+The opposite end of the spectrum, demonstrated by **vue-demo**. There is **no
+manual gateway start**: whoever comes up first auto-spawns one shared Open gateway
+on `:47951`, and the other end reuses it.
+
+- vue-demo's **dev server** (build plugin, `configureServer`) detects a loopback
+  target with no token → ensures the shared gateway is up, then connects its `/ws`.
+- the **agent** (`harness-solo` = `harness mcp`) does the same, then proxies its
+  stdio MCP to the gateway's `/mcp`.
+
+The gateway is started by whichever runs first and **survives** the other quitting
+(it's spawned detached). Open policy: no tokens, no RBAC, no audit, single trusted
+`local` principal. Data is shared — the agent sees vue-demo's sessions because both
+hit the same gateway + core dir.
+
+### What to verify
+
+- Open http://127.0.0.1:47951/console once vue-demo (or the agent) is up — it's the
+  **real** console UI (cli locates `@harness-fe/console-ui`'s dist), not a placeholder.
+- Kill vue-demo's dev server → the solo gateway (and its console) **stay alive**.
+- Start the agent first (no dev server) → `harness mcp` spawns the gateway itself;
+  later starting vue-demo reuses it.
 
 ---
 
@@ -99,4 +121,5 @@ and it just works.
 > tokens are issued **once** on the first run and cached in
 > `.demo-gateway/agent-tokens.env`, then reused — the gateway stores only a scrypt
 > hash, so they can't be re-printed later. To rotate, delete `.demo-gateway/` +
-> `.demo-core/` and re-run. The gateway data dirs are git-ignored.
+> `.demo-core/` and re-run. The solo gateway's data lives in `.demo-solo-core/`
+> (cleared on each run). All these dirs are git-ignored.
