@@ -1,5 +1,13 @@
 # @harness-fe/vite
 
+## 4.0.0-next.5
+
+### Patch Changes
+
+- Updated dependencies [2fa80f1]
+- Updated dependencies [c7736ab]
+  - @harness-fe/unplugin@4.0.0-next.5
+
 ## 4.0.0-next.4
 
 ### Patch Changes

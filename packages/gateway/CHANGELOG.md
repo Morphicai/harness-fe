@@ -1,5 +1,96 @@
 # @harness-fe/gateway
 
+## 4.0.0-next.5
+
+### Minor Changes
+
+- c03d01c: Console: revive the rich dashboard UI on the new gateway.
+
+  The console data face was a thin MVP; bring back the proven dashboard experience
+  (project list, session detail with logs / timeline / rrweb replay, live-status
+  header) on top of the gateway's in-process core:
+
+  - **gateway `/console/api/*`** now serves the full data contract the dashboard
+    expects — `meta`, `projects` ({project, recentSessions}), `sessions`,
+    `sessions/:id` ({session, summary, chunks, timeline, exports}), and
+    `POST sessions/:id/replay` (via `createReplayExport`). Reads go straight to the
+    in-process store (the authenticated operator sees everything).
+  - **console-ui** recovers the dashboard's `ProjectList` / `SessionDetail` /
+    `Header` / hooks / styling and repoints them at `/console/api/*` and the
+    gateway `/ws` (live `dashboard.update` feed). The governance face
+    (tokens / servers / audit) stays as a second tab in the shared header.
+
+  Deep links use `/console/sessions/:id` (the runtime overlay's "open dashboard"
+  button + `deriveDashboardUrl` aligned). Known limitation: the live WS feed needs
+  a write-scope socket, so under the Governed policy the operator console falls
+  back to manual refresh (Solo gets live updates).
+
+- 20c0a85: Console data API: scope by the caller's identity, and add a system-acceptance e2e.
+
+  - **Scoped `/console/api/*`** — the data face now resolves a principal and filters
+    by it: an **agent token** sees only the projects it's bound to (read scope
+    required; write-only → 403), an **admin session** sees everything, solo (Open)
+    sees all, and a Governed request with no credential is rejected (401). Sessions
+    outside a token's projects return 404 (no existence leak). The admin session
+    cookie is now `Path=/` so it also authenticates the console data API;
+    `createAdminHandler` returns `{ handle, isAuthed }`.
+  - **`system.e2e.test.ts`** — one governed gateway + in-process core exercised
+    through real clients across every surface, so a green run means the product
+    wires up without a manual demo: MCP (agentA drives, agentB read-only denied,
+    no-token 401, audited), `/ws` upload (a write-token runtime's event lands in
+    the store), `/console` (token-scoped vs admin-all vs 401), and `/admin` API
+    gating.
+
+- 68e4785: Console: a real sign-in, a clean empty state, and an overlay shortcut that isn't an auth grant.
+
+  - **Sign-in entry** — the console now has a unified sign-in: an **agent read token**
+    (pasted, kept in sessionStorage, sent as Bearer → scoped to the token's projects)
+    or an **admin** session (sees all). Under Open (solo) no sign-in is needed.
+    New `GET /console/api/whoami` reports `{ mode, authenticated, kind, projects }`
+    (never 401s) so the SPA gates on it.
+  - **No more weird empty `/`** — a Governed viewer with no credential gets the
+    sign-in screen instead of a raw 401; authenticated/Open viewers get the data.
+  - **Overlay = pure shortcut** — `deriveDashboardUrl` no longer appends the
+    runtime token; the "open dashboard" button is plain navigation to
+    `/console/sessions/:id`. The viewer authorizes in the console itself (the
+    runtime's write token could never read anyway). The console credential is read
+    from sessionStorage, never the URL.
+
+- 2fa80f1: Rebuild ② — the gateway becomes the only front door, embedding `@harness-fe/core`
+  in-process instead of forwarding to a remote daemon.
+
+  - `/mcp` — hosts the MCP server directly against the core capability API (no
+    HTTP forwarding). The session's `Principal` is resolved through the Policy and
+    baked in, so `tools/list` is the scoped manifest (a read-only token never even
+    sees `page.*`) and every call re-checks scope in core. Calls are audited.
+  - `/ws` — terminates the runtime WebSocket, resolves a write-scope principal,
+    adapts the socket to core's `PeerSocket`, and hands it to `acceptPeer`.
+  - `/events` — HTTP-batch ingest → `core.handleHttpBatch`.
+  - `/console` — replay viewer + a capability-backed JSON data API + an SPA mount
+    (the React console-ui lands in step ③). `/admin` governance panel kept.
+  - **Policy**: `Open` (loopback solo — no tokens, no audit) | `Governed` (team
+    tokens → scoped principal + project grants + audit). A `write` token is just a
+    scoped gateway token, so a leaked browser token can never read or drive.
+  - Auth + principal resolution now live in the gateway (`principal.ts` /
+    `policy.ts`); core only consumes a resolved `Principal`.
+
+  The old forwarding `createGateway({ store })` shape is replaced by
+  `createGateway({ coreClient, policy, store })`. The old daemon / mcp-server /
+  dev-cli packages are untouched and still work until the later steps retire them.
+
+- c7736ab: Shared auto-spawn gateway + unified console sign-in.
+
+  - **cli**: `harness serve` (headless shared gateway) and `harness mcp` (stdio↔http proxy) subcommands; default-locate `@harness-fe/console-ui` dist so `/console` serves the real UI with no `--console-dir`.
+  - **ensureSharedGateway**: a dev server (vite/unplugin and native webpack) or the mcp launcher — whoever starts first — auto-spawns one shared Open gateway; the other end reuses it. Team (explicit token) never spawns.
+  - **gateway**: `startMcpStdioProxy`; removed the server-rendered `/admin` + `/admin/login` HTML pages — sign-in unified at `/console`.
+  - **console-ui**: sign-in takes effect without a hard reload; governance tab admin-only.
+  - **demo**: `demo.sh` reclaims a stale harness gateway instead of refusing to start.
+
+### Patch Changes
+
+- Updated dependencies [2fa80f1]
+  - @harness-fe/core@4.0.0-next.5
+
 ## 4.0.0-next.4
 
 ### Minor Changes
