@@ -21,7 +21,7 @@
         "dev": "turbo dev --filter=./packages/* --filter=harness-fe-react-demo",
         "start:mcp": "pnpm --filter @harness-fe/mcp-server start",
         "restart:mcp": "bash scripts/restart-mcp.sh",
-        "demo": "pnpm build && pnpm --filter harness-fe-react-demo dev",
+        "demo": "pnpm build && bash scripts/demo.sh",
         "dev:self-debug": "bash scripts/dev-self-debug.sh",
         "e2e": "pnpm --filter harness-fe-react-demo e2e",
         "graph": "turbo run build --graph",

@@ -11,7 +11,10 @@ import { harnessFE } from '@harness-fe/vite';
 export default defineConfig({
     plugins: [harnessFE({ projectId: 'vue-demo' }), vue()],
     server: {
-        // solo vue-demo owns 5174; team react-demo uses 5173. Distinct ports.
-        port: 5174,
+        // Harness-FE demo port band (478xx, deliberately off the beaten path so
+        // it never clashes with the usual 5173/3000/8080 dev servers). 47810 =
+        // vue-demo (solo). strictPort so the advertised URL never drifts.
+        port: 47810,
+        strictPort: true,
     },
 });

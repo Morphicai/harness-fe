@@ -11,6 +11,16 @@
       "persistent": true,
       "cache": false
     },
+    "dev:parent": {
+      "dependsOn": ["^build"],
+      "persistent": true,
+      "cache": false
+    },
+    "dev:child": {
+      "dependsOn": ["^build"],
+      "persistent": true,
+      "cache": false
+    },
     "watch": {
       "dependsOn": ["^build"],
       "persistent": true,
