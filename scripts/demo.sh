@@ -41,10 +41,17 @@ TOKENS_ENV="${GW_DIR}/agent-tokens.env" # cached raw tokens (git-ignored)
 CLI="${ROOT}/packages/cli/dist/cli.js"
 LOG_DIR=/tmp/harness-demo
 GW_LOG="${LOG_DIR}/gateway.log"
+# The SOLO gateway: an Open-policy `harness` (no token / RBAC / audit; one trusted
+# `local` principal) that hosts the single zero-config example app (vue-demo).
+# Separate core + port from the team gateway.
+SOLO_PORT=47951
+SOLO_CORE_DIR="${ROOT}/.demo-solo-core"  # solo (Open) core sessions (git-ignored)
+SOLO_LOG="${LOG_DIR}/solo.log"
 
-# Every app, by reported projectId. The agent tokens are scoped to this set; each
-# app's plugin config pins the matching projectId.
-PROJECTS="react-demo+webpack-demo+webpack5-vue3-demo+iframe-parent+iframe-child+vue-demo"
+# The GOVERNED projects, by reported projectId. The agent tokens are scoped to this
+# set; each app's plugin config pins the matching projectId. vue-demo is NOT here —
+# it's the solo example and connects to the Open gateway (no token, no scope).
+PROJECTS="react-demo+webpack-demo+webpack5-vue3-demo+iframe-parent+iframe-child"
 
 if [[ ! -f "$CLI" ]]; then
     echo "✗ Built CLI not found ($CLI). Run \`pnpm build\` first (or use \`pnpm demo\`)." >&2
@@ -69,7 +76,7 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM
 
 # Preflight: the gateway port + every app port must be free.
-for spec in "gateway:${GW_PORT}" \
+for spec in "gateway:${GW_PORT}" "solo-gateway:${SOLO_PORT}" \
             "vue-demo:47810" "react-demo:47811" "webpack-demo:47812" \
             "webpack5-vue3-demo:47813" "iframe parent:47814" "iframe child:47815"; do
     name="${spec%%:*}"; port="${spec##*:}"
@@ -126,6 +133,19 @@ if [[ "$FRESH" -eq 1 ]]; then
     printf 'RUNTIME_TOKEN=%s\nAGENT_A=%s\nAGENT_B=%s\n' "$RUNTIME_TOKEN" "$AGENT_A" "$AGENT_B" > "$TOKENS_ENV"
 fi
 
+# ── 1b. The SOLO gateway — Open policy (no token, no RBAC, no audit; one trusted
+# `local` principal). vue-demo connects HERE instead of the governed gateway,
+# demonstrating the zero-config end of the spectrum. Serves the same console SPA.
+rm -rf "$SOLO_CORE_DIR"
+node "$CLI" --port "$SOLO_PORT" --core-data-dir "$SOLO_CORE_DIR" --console-dir "$CONSOLE_DIR" \
+    > "$SOLO_LOG" 2>&1 &
+SOLO_PID=$!
+PIDS+=("$SOLO_PID")
+sleep 1
+if ! kill -0 "$SOLO_PID" 2>/dev/null; then
+    echo "✗ solo gateway failed to start. Log:" >&2; cat "$SOLO_LOG" >&2; exit 1
+fi
+
 # ── 2. Wire the root .mcp.json: one agent, both ends of the spectrum.
 #   harness-solo → `harness` over stdio (Open, zero-config, its own loopback /ws)
 #   harness-team → gateway /mcp (RBAC, multi-project), agentA = read+control
@@ -164,11 +184,15 @@ cat <<EOF
                    (fixed across runs — cached in ${TOKENS_ENV};
                     all scoped to: ${PROJECTS//+/, })
 
-  APPS  (each a distinct project; runtimes connect to the gateway /ws)
-    vue-demo            http://localhost:47810
-    react-demo          http://localhost:47811
-    webpack-demo        http://localhost:47812
-    webpack5-vue3-demo  http://localhost:47813
+  SOLO GATEWAY (Open — no token/RBAC/audit; hosts the one zero-config app)
+    ws  (runtime)  ws://127.0.0.1:${SOLO_PORT}/ws
+    console        http://127.0.0.1:${SOLO_PORT}/console   (vue-demo only)
+
+  APPS
+    vue-demo            http://localhost:47810   → SOLO gateway :${SOLO_PORT}
+    react-demo          http://localhost:47811   → team gateway :${GW_PORT}
+    webpack-demo        http://localhost:47812   → team gateway :${GW_PORT}
+    webpack5-vue3-demo  http://localhost:47813   → team gateway :${GW_PORT}
     iframe parent       http://localhost:47814   (child 47815 proxied under /child)
 
   AGENT CONFIG  → ${ROOT}/.mcp.json
@@ -177,6 +201,7 @@ cat <<EOF
 
   AUDIT ${GW_DIR}/audit.jsonl
   GATEWAY LOG  ${GW_LOG}
+  SOLO LOG     ${SOLO_LOG}
 
   Below are turbo's live, per-app compile logs — wait for each app's "ready"
   line, then open the URLs (several browser windows each = distinct visitors).
@@ -184,9 +209,10 @@ cat <<EOF
 
 EOF
 
-# turbo drives all dev servers as persistent tasks. The apps read the runtime
-# WRITE token from HARNESS_TEAM_TOKEN and connect to the gateway /ws (their
-# configs pin the 47950 target + their projectId).
+# turbo drives all dev servers as persistent tasks. The four governed apps read the
+# runtime WRITE token from HARNESS_TEAM_TOKEN and connect to the team gateway /ws;
+# vue-demo ignores the token and connects to the solo gateway /ws (its config pins
+# 47951). Each app's config pins its /ws target + projectId.
 export HARNESS_TEAM_TOKEN="$RUNTIME_TOKEN"
 cd "$ROOT"
 turbo run dev dev:parent dev:child --filter='./examples/*' --ui=stream &

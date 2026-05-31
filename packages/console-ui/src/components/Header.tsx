@@ -2,7 +2,18 @@ import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useLiveBridge } from '../hooks/useLiveBridge';
 import { useApi } from '../hooks/useApi';
+import { clearToken } from '../lib/token';
 import type { DaemonMeta } from '../lib/types';
+
+async function signOut(): Promise<void> {
+    clearToken();
+    try {
+        await fetch('/admin/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch {
+        /* ignore */
+    }
+    window.location.assign('/console');
+}
 
 /**
  * Sticky glass header. Logo + breadcrumb on the left, live-status pill
@@ -40,6 +51,13 @@ export function Header({ crumb }: { crumb?: React.ReactNode }) {
                     </>
                 ) : null}
                 <div className="flex-1" />
+                <button
+                    onClick={() => void signOut()}
+                    className="text-ink-muted hover:text-ink-primary text-xs px-2 py-1 rounded-md"
+                    title="Clear the console token / admin session"
+                >
+                    Sign out
+                </button>
                 <LivePill flash={flash} />
             </div>
         </header>

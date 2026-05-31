@@ -193,6 +193,22 @@ describe('system e2e — all access surfaces against one governed gateway', () =
         expect(r.status).toBe(403);
     });
 
+    it('console: whoami reports the auth gate (unauth / token-scoped / admin-all / write-only)', async () => {
+        const anon = await getJson(base, '/console/api/whoami');
+        expect(anon.body).toMatchObject({ mode: 'governed', authenticated: false });
+
+        const a = await getJson(base, '/console/api/whoami', { authorization: `Bearer ${agentA}` });
+        expect(a.body).toMatchObject({ authenticated: true, kind: 'token' });
+        expect(a.body.projects).toEqual(['app-a']);
+
+        const rt = await getJson(base, '/console/api/whoami', { authorization: `Bearer ${runtimeTok}` });
+        expect(rt.body.authenticated).toBe(false); // write-only can't read → not a console viewer
+
+        const cookie = await adminLogin(base);
+        const admin = await getJson(base, '/console/api/whoami', { cookie });
+        expect(admin.body).toMatchObject({ authenticated: true, kind: 'admin', projects: '*' });
+    });
+
     // ── /admin (治理) ───────────────────────────────────────────────────────────
     it('admin: API requires the admin session', async () => {
         expect((await getJson(base, '/admin/api/tokens')).status).toBe(401);

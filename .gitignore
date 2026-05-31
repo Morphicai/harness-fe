@@ -54,6 +54,7 @@ secrets/
 # Demo gateway store (issued tokens / admin hashes — never commit) + core data
 .demo-gateway/
 .demo-core/
+.demo-solo-core/
 
 # Test artifacts
 coverage
