@@ -463,6 +463,12 @@ importers:
         specifier: 2.0.0-alpha.4
         version: 2.0.0-alpha.4
     devDependencies:
+      '@harness-fe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@harness-fe/gateway':
+        specifier: workspace:*
+        version: link:../gateway
       happy-dom:
         specifier: ^20.9.0
         version: 20.9.0
@@ -6695,17 +6701,17 @@ snapshots:
 
   '@webpack-cli/configtest@2.1.1(webpack-cli@5.1.4)(webpack@5.107.0)':
     dependencies:
-      webpack: 5.107.0(postcss@8.5.14)(webpack-cli@5.1.4)
+      webpack: 5.107.0(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(webpack-dev-server@5.2.4)(webpack@5.107.0)
 
   '@webpack-cli/info@2.0.2(webpack-cli@5.1.4)(webpack@5.107.0)':
     dependencies:
-      webpack: 5.107.0(postcss@8.5.14)(webpack-cli@5.1.4)
+      webpack: 5.107.0(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(webpack-dev-server@5.2.4)(webpack@5.107.0)
 
   '@webpack-cli/serve@2.0.5(webpack-cli@5.1.4)(webpack-dev-server@5.2.4)(webpack@5.107.0)':
     dependencies:
-      webpack: 5.107.0(postcss@8.5.14)(webpack-cli@5.1.4)
+      webpack: 5.107.0(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(webpack-dev-server@5.2.4)(webpack@5.107.0)
     optionalDependencies:
       webpack-dev-server: 5.2.4(tslib@2.8.1)(webpack-cli@5.1.4)(webpack@5.107.0)
@@ -7587,7 +7593,7 @@ snapshots:
       pretty-error: 4.0.0
       tapable: 2.3.3
     optionalDependencies:
-      webpack: 5.107.0(postcss@8.5.14)(webpack-cli@5.1.4)
+      webpack: 5.107.0(webpack-cli@5.1.4)
 
   htmlparser2@6.1.0:
     dependencies:
@@ -8986,7 +8992,7 @@ snapshots:
       import-local: 3.2.0
       interpret: 3.1.1
       rechoir: 0.8.0
-      webpack: 5.107.0(postcss@8.5.14)(webpack-cli@5.1.4)
+      webpack: 5.107.0(webpack-cli@5.1.4)
       webpack-merge: 5.10.0
     optionalDependencies:
       webpack-dev-server: 5.2.4(tslib@2.8.1)(webpack-cli@5.1.4)(webpack@5.107.0)
@@ -9000,7 +9006,7 @@ snapshots:
       range-parser: 1.2.1
       schema-utils: 4.3.3
     optionalDependencies:
-      webpack: 5.107.0(postcss@8.5.14)(webpack-cli@5.1.4)
+      webpack: 5.107.0(webpack-cli@5.1.4)
     transitivePeerDependencies:
       - tslib
 
@@ -9035,7 +9041,7 @@ snapshots:
       webpack-dev-middleware: 7.4.5(tslib@2.8.1)(webpack@5.107.0)
       ws: 8.20.1
     optionalDependencies:
-      webpack: 5.107.0(postcss@8.5.14)(webpack-cli@5.1.4)
+      webpack: 5.107.0(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(webpack-dev-server@5.2.4)(webpack@5.107.0)
     transitivePeerDependencies:
       - bufferutil
