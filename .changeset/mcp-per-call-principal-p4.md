@@ -1,5 +1,5 @@
 ---
-'@harness-fe/mcp-server': minor
+'@harness-fe/gateway': minor
 ---
 
 Per-call caller identity for MCP tools (4.0 · P4) — the MCP layer now

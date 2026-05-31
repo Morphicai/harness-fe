@@ -1,6 +1,6 @@
 ---
-'@harness-fe/daemon': minor
-'@harness-fe/dashboard-ui': minor
+'@harness-fe/core': minor
+'@harness-fe/console-ui': minor
 '@harness-fe/runtime': minor
 ---
 

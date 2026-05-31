@@ -1,5 +1,4 @@
 ---
-'@harness-fe/mcp-server': patch
 '@harness-fe/gateway': patch
 ---
 

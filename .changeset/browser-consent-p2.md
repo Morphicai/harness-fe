@@ -1,6 +1,6 @@
 ---
 '@harness-fe/protocol': minor
-'@harness-fe/mcp-server': minor
+'@harness-fe/gateway': minor
 '@harness-fe/runtime': minor
 ---
 
