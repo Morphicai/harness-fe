@@ -17,7 +17,7 @@ export {
     OPEN_PRINCIPAL,
 } from './principal.js';
 
-export { createMcpServer, experimentalEnabled } from './mcp.js';
+export { createMcpServer, startMcpStdioServer, experimentalEnabled } from './mcp.js';
 export type { McpServerOptions } from './mcp.js';
 export { createMcpHttpHandler } from './mcpHttp.js';
 export type { McpHttpOptions, McpHttpHandler } from './mcpHttp.js';

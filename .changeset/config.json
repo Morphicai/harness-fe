@@ -18,6 +18,7 @@
       "@harness-fe/unplugin",
       "@harness-fe/core",
       "@harness-fe/console-ui",
+      "@harness-fe/cli",
       "@harness-fe/daemon",
       "@harness-fe/dev-cli",
       "@harness-fe/gateway"

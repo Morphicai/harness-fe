@@ -10,6 +10,7 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import {
     COMMAND,
@@ -43,6 +44,20 @@ export interface McpServerOptions {
     consoleUrl?: (sessionId?: string) => string | undefined;
     /** Open a URL in the user's browser (host machine only). Omit → never launches. */
     openBrowser?: (url: string) => { opened: boolean; reason?: string };
+}
+
+/**
+ * Boot an MCP server over **stdio** against the in-process core — the solo
+ * (zero-config) path. The agent that spawns the CLI talks MCP over stdin/stdout;
+ * it is the trusted local operator, so the principal is unrestricted.
+ */
+export async function startMcpStdioServer(
+    caps: CoreCapabilities,
+    options: McpServerOptions = {},
+): Promise<McpServer> {
+    const server = createMcpServer(caps, { id: 'local', kind: 'local', displayName: 'local' }, options);
+    await server.connect(new StdioServerTransport());
+    return server;
 }
 
 export function experimentalEnabled(envVar?: string): boolean {
