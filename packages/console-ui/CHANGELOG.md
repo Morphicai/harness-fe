@@ -1,5 +1,17 @@
 # @harness-fe/console-ui
 
+## 4.0.0-next.6
+
+### Patch Changes
+
+- 46775be: Align the linked package group onto a single 4.0.0-next line.
+
+  The gateway/console work only touched some packages, so changesets left the linked
+  group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
+  prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
+  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
+
 ## 4.0.0-next.5
 
 ### Minor Changes
