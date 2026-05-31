@@ -224,7 +224,7 @@ describe('installOverlay', () => {
         const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
         expect(btn.style.display).toBe('');
-        expect(btn.title).toContain('http://127.0.0.1:47729/console/session/');
+        expect(btn.title).toContain('http://127.0.0.1:47729/console/sessions/');
         expect(btn.title).toContain('token=demo');
     });
 
@@ -252,7 +252,7 @@ describe('installOverlay', () => {
         const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
         btn.click();
         expect(calls).toHaveLength(1);
-        expect(calls[0].url).toBe('https://harness.lan:8443/console/session/sess-12345-abcdef-9876?token=t');
+        expect(calls[0].url).toBe('https://harness.lan:8443/console/sessions/sess-12345-abcdef-9876?token=t');
         expect(calls[0].target).toBe('_blank');
         expect(calls[0].features).toMatch(/noopener/);
     });

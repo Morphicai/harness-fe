@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createCoreClient, type CoreClient } from '@harness-fe/core';
+import { InProcessCoreClient } from '@harness-fe/core';
 import { createGateway, type GatewayHandle } from './server.js';
 import { Policy } from './policy.js';
 
 describe('gateway /console', () => {
-    let core: CoreClient;
+    let core: InProcessCoreClient;
     let gw: GatewayHandle;
     let base: string;
     let dir: string;
@@ -22,7 +22,7 @@ describe('gateway /console', () => {
 
     async function boot(consoleDir?: string): Promise<void> {
         coreDir = mkdtempSync(join(tmpdir(), 'hfe-console-core-'));
-        core = createCoreClient({ dataDir: coreDir, taskStore: null, autoPurge: { enabled: false } });
+        core = new InProcessCoreClient({ dataDir: coreDir, taskStore: null, autoPurge: { enabled: false } });
         await core.start();
         gw = createGateway({ coreClient: core, policy: new Policy({ mode: 'open' }), consoleDir });
         base = `http://127.0.0.1:${await gw.listen(0)}`;
@@ -34,7 +34,37 @@ describe('gateway /console', () => {
         expect(meta.mode).toBe('open');
         expect(typeof meta.protocolVersion).toBe('string');
         const projects = await (await fetch(`${base}/console/api/projects`)).json();
-        expect(Array.isArray(projects)).toBe(true);
+        expect(Array.isArray(projects.projects)).toBe(true);
+    });
+
+    it('serves session detail ({session, summary, timeline}) for a stored session', async () => {
+        await boot();
+        const store = core.bridge.store!;
+        store.upsertProject('demo', { displayName: 'Demo', createdBy: 'local' });
+        store.upsertSession('sess-1', {
+            tabId: 'tab-1',
+            startedAt: Date.now(),
+            url: 'http://localhost/app',
+            participants: [{ projectId: 'demo', joinedAt: Date.now() }],
+        });
+        store.appendEvent('sess-1', { ts: Date.now(), t: 'console', tab: 'tab-1', d: { level: 'log', args: ['hi'] } });
+        await store.flush();
+
+        // listed under its project
+        const projects = await (await fetch(`${base}/console/api/projects`)).json();
+        expect(projects.projects.some((e: any) => e.project.id === 'demo')).toBe(true);
+
+        // detail carries session + summary + timeline (with our event)
+        const detail = await (await fetch(`${base}/console/api/sessions/sess-1`)).json();
+        expect(detail.session?.id).toBe('sess-1');
+        expect(detail.summary).toBeTruthy();
+        expect(Array.isArray(detail.timeline)).toBe(true);
+        expect(detail.timeline.some((e: any) => e.t === 'console')).toBe(true);
+        expect(Array.isArray(detail.exports)).toBe(true);
+
+        // unknown session → 404
+        const missing = await fetch(`${base}/console/api/sessions/nope`);
+        expect(missing.status).toBe(404);
     });
 
     it('serves a placeholder SPA when no consoleDir is configured', async () => {
@@ -51,7 +81,7 @@ describe('gateway /console', () => {
         const idx = await fetch(`${base}/console`);
         expect(await idx.text()).toContain('id="root"');
         // Unknown sub-path falls back to index.html (SPA client routing).
-        const deep = await fetch(`${base}/console/session/abc`);
+        const deep = await fetch(`${base}/console/sessions/abc`);
         expect(await deep.text()).toContain('id="root"');
     });
 });
