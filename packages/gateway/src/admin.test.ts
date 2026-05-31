@@ -2,12 +2,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createCoreClient, type CoreClient } from '@harness-fe/core';
 import { GatewayStore } from './store.js';
 import { createGateway, type GatewayHandle } from './server.js';
+import { Policy } from './policy.js';
 
-describe('gateway admin panel (5.0 · P6 · C5)', () => {
+describe('gateway admin panel', () => {
     let dir: string;
     let store: GatewayStore;
+    let core: CoreClient;
     let gw: GatewayHandle;
     let port: number;
 
@@ -15,11 +18,13 @@ describe('gateway admin panel (5.0 · P6 · C5)', () => {
         dir = mkdtempSync(join(tmpdir(), 'hfe-gw-admin-'));
         store = new GatewayStore(dir);
         store.addAdmin('root', 'pw');
-        gw = createGateway({ store });
+        core = createCoreClient({ store: null, taskStore: null, autoPurge: { enabled: false } });
+        gw = createGateway({ coreClient: core, policy: new Policy({ mode: 'governed', store }), store });
         port = await gw.listen(0);
     });
     afterEach(async () => {
         await gw.close();
+        await core.stop();
         try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
     });
 
