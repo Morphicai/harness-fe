@@ -1,15 +1,13 @@
 /**
- * Convert the runtime's `mcpUrl` (a WebSocket URL the plugin gave us) into
- * the dashboard URL the same daemon serves.
+ * Convert the runtime's `mcpUrl` (the gateway WebSocket URL the plugin gave us)
+ * into the console URL the same gateway serves.
  *
- * The daemon binds one HTTP+WS port; the dashboard lives at
- * `<http-scheme>://<host>:<port>/dashboard/`. The token, if any, is
- * carried in the query string so the browser is pre-authenticated on
- * first hit (after which mcp-server hands it off to a cookie — see
- * `packages/mcp-server/src/dashboardSpa.ts`).
+ * The gateway binds one HTTP+WS port; the console lives at
+ * `<http-scheme>://<host>:<port>/console`. The token, if any, is carried in the
+ * query string so the browser is pre-authenticated on first hit.
  *
  * Optionally deep-links into a session's detail page when `sessionId` is
- * provided.
+ * provided (`/console/session/:id`).
  */
 export interface DashboardUrlInput {
     mcpUrl: string;
@@ -26,11 +24,10 @@ export function deriveDashboardUrl(input: DashboardUrlInput): string | undefined
     }
     const httpScheme = url.protocol === 'wss:' ? 'https:' : 'http:';
     const path = input.sessionId
-        ? `/dashboard/sessions/${encodeURIComponent(input.sessionId)}`
-        : '/dashboard/';
+        ? `/console/session/${encodeURIComponent(input.sessionId)}`
+        : '/console';
     const token = url.searchParams.get('token');
     const search = token ? `?token=${encodeURIComponent(token)}` : '';
-    // Build manually so we don't leak any extra query/hash from the WS URL
-    // (rare, but be defensive — the agent only ever sees what we hand it).
+    // Build manually so we don't leak any extra query/hash from the WS URL.
     return `${httpScheme}//${url.host}${path}${search}`;
 }

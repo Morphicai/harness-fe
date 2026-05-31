@@ -74,7 +74,7 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
         mcp: {
             experimentalEnvVar: opts.experimentalEnvVar,
             consoleUrl: (sessionId?: string) =>
-                baseUrl ? `${baseUrl}/console${sessionId ? `?session=${encodeURIComponent(sessionId)}` : ''}` : undefined,
+                baseUrl ? `${baseUrl}/console${sessionId ? `/session/${encodeURIComponent(sessionId)}` : ''}` : undefined,
         },
         onAudit:
             opts.policy.audit && opts.store

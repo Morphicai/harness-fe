@@ -190,7 +190,7 @@ export class RuntimeClient {
 
 
     start(): void {
-        const daemonUrl = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+        const daemonUrl = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`;
         this.ctx.capture.install(
             (name, payload) => this.sendEvent(name, payload),
             { daemonUrl },
@@ -206,7 +206,7 @@ export class RuntimeClient {
     }
 
     private connect(): void {
-        const url = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+        const url = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`;
         try {
             this.ws = new WebSocket(url);
         } catch (err) {
