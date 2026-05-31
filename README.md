@@ -102,7 +102,17 @@ npm install -D @harness-fe/vite @harness-fe/runtime
 yarn add -D @harness-fe/vite @harness-fe/runtime
 ```
 
-### Quick start — Vite + React (5 steps)
+### Which path are you on?
+
+| You are… | Use | Auth | Setup |
+|---|---|---|---|
+| **Solo dev** — one app, local | `@harness-fe/dev-cli` over stdio | none (loopback trusted) | Quick start below + `npx @harness-fe/skill install` |
+| **A team** — many apps sharing one daemon | the **gateway** (token + RBAC + project→agent binding) | scoped token per agent | [Team / gateway mode](./docs/gateway-team-mode.md) |
+| **Embedding** the daemon in your own product | `createDaemon()` | your call | [ARCHITECTURE.md](./ARCHITECTURE.md) |
+
+Whichever path: **install the skill first** (`npx @harness-fe/skill install`) so your agent knows how to use harness-fe without you spelling out each tool. See [docs/agent-setup.md](./docs/agent-setup.md).
+
+### Quick start — Vite + React (6 steps)
 
 1. **Install packages**:
    ```bash
@@ -117,14 +127,29 @@ yarn add -D @harness-fe/vite @harness-fe/runtime
    export default defineConfig({ plugins: [react(), harnessFE()] });
    ```
 
-3. **Start the MCP server** — `npx @harness-fe/mcp-server`
-   - Local-only by default. For phone / second-machine debugging:
-     `npx @harness-fe/mcp-server --host 0.0.0.0 --token auto`
-     ([details](docs/lan-mode.md))
-   - Hosting it for a team on a shared dev VM?
-     `morphixai/harness-fe:latest` ([Docker guide](docs/docker.md))
-4. **Start your dev server** — `pnpm dev`
-5. **Connect your AI agent** — register the MCP server in your AI tool (Claude Code, Cursor, Kiro). The agent now sees and drives your running app.
+3. **Install the agent skill** *(recommended — do this first)* — teach your agent how to drive harness-fe so you don't have to hand-hold it:
+   ```bash
+   npx @harness-fe/skill install      # auto-detects Claude Code / Cursor / Kiro
+   ```
+   The skill drops a curated playbook (mental model + tool catalog + decision flows) into your IDE. Your agent then knows *which* tool to reach for from a plain-English bug report — **you describe the problem, it drives the app.**
+
+4. **Wire the MCP server** — add harness-fe to your agent's `.mcp.json` (solo / local — the agent spawns the daemon itself over stdio, no token, trusted on loopback):
+   ```jsonc
+   {
+     "mcpServers": {
+       "harness-fe": {
+         "type": "stdio",
+         "command": "npx",
+         "args": ["-y", "@harness-fe/dev-cli"]
+       }
+     }
+   }
+   ```
+   Sharing one daemon across a team? Use the HTTP **gateway** entry instead — see **[Team / gateway mode](./docs/gateway-team-mode.md)**. Phone / second-machine debugging: [docs/lan-mode.md](docs/lan-mode.md). Shared dev VM: [Docker guide](docs/docker.md).
+
+5. **Start your dev server** — `pnpm dev`.
+
+6. **Describe a problem to your agent** — *"the increment button does nothing"* — and it uses the skill + tools to inspect console/network, locate the source (`file:line`), fix, and verify. The agent that built it never leaves.
 
 > **Adopting in legacy Vue projects?** See [docs/vue2-compat.md](docs/vue2-compat.md)
 > — the plugin will never break your build, but you may want to dry-run
@@ -207,7 +232,10 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 | Package | Description |
 |---------|-------------|
 | [`@harness-fe/protocol`](./packages/protocol) | Shared types, Zod schemas, message + wire definitions |
-| [`@harness-fe/mcp-server`](./packages/mcp-server) | MCP daemon — WS bridge + HTTP `POST /events` for Edge + dashboard + replay viewer |
+| [`@harness-fe/daemon`](./packages/daemon) | **Core daemon** — WS bridge, event store, recording/replay, dashboard, caller identity + per-project tenant isolation |
+| [`@harness-fe/mcp-server`](./packages/mcp-server) | MCP protocol layer over the daemon — stdio + HTTP (Streamable, per-session) transport; `POST /events` for Edge |
+| [`@harness-fe/dev-cli`](./packages/dev-cli) | Solo launcher — `harness-fe` CLI (leader/follower, so multiple agent windows share one daemon) |
+| [`@harness-fe/gateway`](./packages/gateway) | **Governance gateway** (team mode) — token + scope RBAC + project→agent binding + audit + admin panel; `harness-gateway` CLI |
 | [`@harness-fe/sandbox`](./packages/sandbox) | Standalone browser sandbox + interceptor lib (`fetch` / `xhr` / `ws` / `storage` / `navigation` / `globals` / `indexeddb` / `console` / `errors`). Used by `@harness-fe/runtime`; also consumable directly |
 | [`@harness-fe/runtime`](./packages/runtime-client) | Browser SDK — capture(via `@harness-fe/sandbox`), rrweb, overlay, "Report a problem", "My reports" |
 | [`@harness-fe/node-runtime`](./packages/node-runtime) | Node SDK — Server Component / Route Handler / uncaught error capture. Dual transport: WS in Node runtime, HTTP-batch in Edge runtime |
@@ -217,11 +245,13 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 | [`@harness-fe/vite`](./packages/vite-plugin) | Vite plugin |
 | [`@harness-fe/webpack`](./packages/webpack-plugin) | Webpack plugin |
 | [`@harness-fe/unplugin`](./packages/unplugin) | Core unplugin (shared by all bundler plugins) |
-| [`@harness-fe/skill`](./packages/agent-skill) | Curated agent playbook — install into Claude Code / Cursor / Kiro to teach the agent how to use harness-fe |
+| [`@harness-fe/skill`](./packages/agent-skill) | ⭐ **Start here** — curated agent playbook; `npx @harness-fe/skill install` into Claude Code / Cursor / Kiro so the agent knows how to use harness-fe without you spelling out each tool |
 
 ## Documentation
 
 - [**VISION.md**](./VISION.md) — Why this project exists; the three deployment directions that drive the roadmap
+- [**docs/agent-setup.md**](./docs/agent-setup.md) — ⭐ Connect your agent: install the skill first, then wire `.mcp.json` (solo or team)
+- [**docs/gateway-team-mode.md**](./docs/gateway-team-mode.md) — Share one daemon across a team: gateway, scope RBAC, project→agent binding, audit
 - [**ARCHITECTURE.md**](./ARCHITECTURE.md) — Package responsibilities, data flow diagrams, sessionId resolution chain, and protocol reference
 - [**docs/architecture/sandbox.md**](./docs/architecture/sandbox.md) — The `@harness-fe/sandbox` lib (browser API patching + interceptor middleware) — design + safety contract + 9-channel matrix
 - [**ROADMAP.md**](./ROADMAP.md) — Milestones, organised by mission direction
