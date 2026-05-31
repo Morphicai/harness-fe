@@ -8,6 +8,10 @@
 
 The MCP server exposes tools over **stdio MCP** to AI agents and runs a **WebSocket bridge** for the Vite/Webpack plugin and the browser runtime client. One daemon can serve multiple projects simultaneously.
 
+> **4.0 layering:** this package is the MCP protocol layer over [`@harness-fe/daemon`](https://github.com/Morphicai/harness-fe/tree/main/packages/daemon). For the solo launcher use [`@harness-fe/dev-cli`](https://github.com/Morphicai/harness-fe/tree/main/packages/dev-cli) (`npx @harness-fe/dev-cli`); to share one daemon across a team, put the [`@harness-fe/gateway`](https://github.com/Morphicai/harness-fe/tree/main/packages/gateway) in front — see [team mode](https://github.com/Morphicai/harness-fe/blob/main/docs/gateway-team-mode.md).
+>
+> **First time?** Install the [skill](https://github.com/Morphicai/harness-fe/tree/main/packages/agent-skill) (`npx @harness-fe/skill install`) so your agent knows how to use these tools — see [agent-setup.md](https://github.com/Morphicai/harness-fe/blob/main/docs/agent-setup.md).
+
 ## Install
 
 ```bash

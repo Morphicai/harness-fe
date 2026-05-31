@@ -4,6 +4,12 @@
 
 This package is just data — a curated `SKILL.md` plus a tiny installer. It tells the agent **when** to invoke harness-fe tools, **how** to chain them for common debugging flows, and **what** the safety boundaries are.
 
+## Why install it
+
+Without the skill, your agent sees a flat list of MCP tools and has to *guess* the workflow. With it, a plain-English report — *"the submit button does nothing"* — maps to a known flow: read console/network → find the component source (`file:line`) → fix → re-drive → verify.
+
+**You describe the problem; the agent drives.** Lower cognitive load for you, fewer wrong turns for it. Install this *before* wiring the MCP server — it's the recommended first step ([docs/agent-setup.md](https://github.com/Morphicai/harness-fe/blob/main/docs/agent-setup.md)).
+
 ## Install
 
 ```bash
@@ -58,15 +64,17 @@ import { harnessFE } from '@harness-fe/vite';
 export default defineConfig({ plugins: [react(), harnessFE()] });
 ```
 
-Then in `.mcp.json` (or your agent's MCP config):
+Then wire the MCP server in `.mcp.json`. Solo / local (stdio, no token — the agent spawns the daemon itself):
 
-```json
+```jsonc
 {
     "mcpServers": {
-        "harness-fe": { "command": "npx", "args": ["-y", "@harness-fe/mcp-server"] }
+        "harness-fe": { "type": "stdio", "command": "npx", "args": ["-y", "@harness-fe/dev-cli"] }
     }
 }
 ```
+
+Sharing one daemon across a team? Point at the HTTP **gateway** instead — see [gateway-team-mode.md](https://github.com/Morphicai/harness-fe/blob/main/docs/gateway-team-mode.md). (`@harness-fe/mcp-server` still works as the stdio command for back-compat, but `@harness-fe/dev-cli` is the current launcher.)
 
 ## License
 
