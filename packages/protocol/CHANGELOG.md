@@ -1,5 +1,32 @@
 # @harness-fe/protocol
 
+## 4.0.0-next.4
+
+### Minor Changes
+
+- 25a6106: Task resolution back-link (4.0 · P7) — close the feedback loop from a reported
+  problem to its fix and the re-test that proved it.
+
+  - `Task` gains an optional `resolution` object: `{ type, commit, prUrl,
+verificationSessionId, verifiedAt }` (`TaskResolution` / `TaskResolutionType`
+    exported from protocol). `type` is one of `code-fix` / `config` / `wontfix` /
+    `duplicate` / `cannot-reproduce`.
+  - `tasks.resolve` accepts a `resolution` arg (after `note`). The daemon defaults
+    `verifiedAt` to now when a `verificationSessionId` is supplied without one, and
+    records the resolution in the persisted task event. Plain
+    `tasks.resolve(id, note)` stays valid — fully backward compatible.
+  - `bridge.resolveTask(id, note?, resolution?, principal?)` and the RemoteBridge
+    RPC carry the resolution through leader/follower.
+  - `@harness-fe/skill` Flow 5 is extended into the full loop: fix → re-drive the
+    reported flow (replay to recall the steps, reproduce with `page_*`) → verify
+    clean (`errors_tail` / `session_tail`) → `tasks.resolve` with the structured
+    resolution.
+
+  Scope: the daemon owns the data link (report → fix → verification session);
+  the L1–L4 automation and git writeback remain agent/skill responsibilities,
+  driven through harness tools + host git. Additive + optional throughout — no
+  behaviour change for existing callers.
+
 ## 4.0.0-next.0
 
 ### Minor Changes
@@ -12,7 +39,7 @@
     (exposed). Override via `createDaemon({ consent: { mode } })`.
   - Control commands (`page.click/type/scroll/navigate/reload/set_html/
 set_style/evaluate/wait_for`) are gated; read-only commands (screenshot,
-    dom_query, _\_tail, project._) are not. `page.evaluate` always prompts.
+    dom*query, *\_tail, project.\_) are not. `page.evaluate` always prompts.
   - The runtime client gates `handleCommand`: in `session` mode the first
     control command prompts and the rest of the pageload runs once granted;
     `always` prompts every time; `off` never prompts. No prompter registered ⇒
