@@ -119,8 +119,20 @@ refresh();
 </script>`);
 }
 
-/** Returns a handler that processes `/admin/*`; resolves to true when it handled the request. */
-export function createAdminHandler(store: GatewayStore): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
+export interface AdminHandler {
+    /** Process `/admin/*`; resolves true when it handled the request. */
+    handle(req: IncomingMessage, res: ServerResponse): Promise<boolean>;
+    /** True when the request carries a valid admin session cookie. */
+    isAuthed(req: IncomingMessage): boolean;
+}
+
+/**
+ * Returns the `/admin/*` governance handler + an `isAuthed` predicate. The admin
+ * session cookie is `Path=/` so it also authenticates the operator on the
+ * `/console` data API (the console data face treats an admin session as
+ * "see everything").
+ */
+export function createAdminHandler(store: GatewayStore): AdminHandler {
     const sessions = new Set<string>();
 
     function authed(req: IncomingMessage): boolean {
@@ -128,7 +140,7 @@ export function createAdminHandler(store: GatewayStore): (req: IncomingMessage, 
         return !!sid && sessions.has(sid);
     }
 
-    return async (req, res) => {
+    const handle = async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
         const path = (req.url ?? '').split('?')[0];
         if (path !== '/admin' && !path.startsWith('/admin/')) return false;
 
@@ -147,7 +159,7 @@ export function createAdminHandler(store: GatewayStore): (req: IncomingMessage, 
             const sid = randomBytes(24).toString('base64url');
             sessions.add(sid);
             res.statusCode = 303;
-            res.setHeader('set-cookie', `${COOKIE}=${sid}; Path=/admin; HttpOnly; SameSite=Lax`);
+            res.setHeader('set-cookie', `${COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Lax`);
             res.setHeader('location', '/admin');
             res.end();
             return true;
@@ -156,7 +168,7 @@ export function createAdminHandler(store: GatewayStore): (req: IncomingMessage, 
             const sid = parseCookies(req)[COOKIE];
             if (sid) sessions.delete(sid);
             res.statusCode = 303;
-            res.setHeader('set-cookie', `${COOKIE}=; Path=/admin; Max-Age=0`);
+            res.setHeader('set-cookie', `${COOKIE}=; Path=/; Max-Age=0`);
             res.setHeader('location', '/admin/login');
             res.end();
             return true;
@@ -214,4 +226,6 @@ export function createAdminHandler(store: GatewayStore): (req: IncomingMessage, 
         json(res, 404, { error: 'not_found' });
         return true;
     };
+
+    return { handle, isAuthed: authed };
 }

@@ -82,17 +82,20 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
                 : undefined,
     });
 
+    // The admin panel manages governance entities; only meaningful in governed
+    // mode (it gates on admin credentials in the store). Its `isAuthed` predicate
+    // lets the console data face treat an admin session as "see everything".
+    const adminHandler = opts.store ? createAdminHandler(opts.store) : null;
+
     const consoleHandler = createConsoleHandler({
         coreClient: opts.coreClient,
         store: coreStore(opts.coreClient),
+        policy: opts.policy,
+        isAdmin: adminHandler ? (req) => adminHandler.isAuthed(req) : undefined,
         getBaseUrl: () => baseUrl,
         consoleDir: opts.consoleDir,
         mode: opts.policy.mode,
     });
-
-    // The admin panel manages governance entities; only meaningful in governed
-    // mode (it gates on admin credentials in the store).
-    const adminHandler = opts.store ? createAdminHandler(opts.store) : null;
 
     const server = createServer((req, res) => {
         handle(req, res).catch(() => {
@@ -116,7 +119,7 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
             return;
         }
         if (adminHandler && (path === '/admin' || path.startsWith('/admin/'))) {
-            if (await adminHandler(req, res)) return;
+            if (await adminHandler.handle(req, res)) return;
         }
         if (await consoleHandler(req, res)) return;
 
