@@ -22,9 +22,17 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createReplayExport, type CoreClient, type IStore } from '@harness-fe/core';
+import {
+    canSeeProject,
+    createReplayExport,
+    principalCan,
+    type CoreClient,
+    type IStore,
+    type Principal,
+} from '@harness-fe/core';
 import { PROTOCOL_VERSION } from '@harness-fe/protocol';
 import { createReplayHandler } from './replayViewer.js';
+import type { Policy } from './policy.js';
 
 const TIMELINE_DEFAULT_TAIL = 100;
 const SESSIONS_PER_PROJECT = 10;
@@ -33,12 +41,34 @@ export interface ConsoleOptions {
     coreClient: CoreClient;
     /** Store for the data API + replay viewer (in-process core's store). */
     store: IStore | null;
+    /** Policy — resolves an agent token to a scoped principal for the data API. */
+    policy: Policy;
+    /** True when the request carries a valid admin session (→ sees everything). */
+    isAdmin?: (req: IncomingMessage) => boolean;
     /** Outbound base URL (for replay viewer links). */
     getBaseUrl?: () => string | undefined;
     /** Directory holding the built console-ui SPA (index.html + assets). */
     consoleDir?: string;
     /** Reported gateway policy mode (for the meta endpoint). */
     mode: 'open' | 'governed';
+}
+
+/**
+ * Owner chain of a project (its `createdBy` + ancestors via parentProjectId,
+ * cycle-safe) for tenant-visibility checks. Mirrors the capability layer.
+ */
+function ownerChainOf(projectId: string, store: IStore): Array<string | undefined> {
+    const chain: Array<string | undefined> = [];
+    const seen = new Set<string>();
+    let id: string | undefined = projectId;
+    while (id && !seen.has(id)) {
+        seen.add(id);
+        const p = store.getProject(id);
+        if (!p) break;
+        chain.push(p.createdBy);
+        id = p.parentProjectId;
+    }
+    return chain;
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -104,7 +134,19 @@ export function createConsoleHandler(
         return false;
     };
 
+    /**
+     * Resolve who is viewing the console data:
+     *  - a valid admin session → the unrestricted local principal (sees all),
+     *  - else the Policy's agent resolution: Open → local; Governed + a valid
+     *    token → that token's scoped principal; Governed + nothing → null (deny).
+     */
+    function resolvePrincipal(req: IncomingMessage): Principal | null {
+        if (opts.isAdmin?.(req)) return { id: 'local', kind: 'local', displayName: 'admin' };
+        return opts.policy.resolveAgent(req)?.principal ?? null;
+    }
+
     async function handleApi(path: string, url: URL, req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+        // Version/mode is public so the shell can render before sign-in.
         if (path === '/console/api/meta') {
             sendJson(res, 200, { daemonVersion: PROTOCOL_VERSION, protocolVersion: PROTOCOL_VERSION, mode: opts.mode });
             return true;
@@ -115,25 +157,49 @@ export function createConsoleHandler(
             sendJson(res, 503, { error: 'store_disabled' });
             return true;
         }
+
+        // Authenticate + scope: an agent token sees only the projects it's bound
+        // to (read scope); an admin session sees everything; solo (Open) sees all.
+        const principal = resolvePrincipal(req);
+        if (!principal) {
+            sendJson(res, 401, { error: 'unauthorized' });
+            return true;
+        }
+        if (!principalCan(principal, 'read')) {
+            sendJson(res, 403, { error: 'forbidden: read scope required' });
+            return true;
+        }
+        const canSee = (projectId: string): boolean =>
+            !!projectId && canSeeProject(principal, projectId, ownerChainOf(projectId, store));
+
         const method = req.method ?? 'GET';
 
         if (method === 'GET' && path === '/console/api/projects') {
-            const projects = store.listProjects();
-            const entries = projects.map((project) => ({
-                project,
-                recentSessions: store.listSessions({ projectId: project.id, limit: SESSIONS_PER_PROJECT }),
-            }));
+            const entries = store
+                .listProjects()
+                .filter((project) => canSee(project.id))
+                .map((project) => ({
+                    project,
+                    recentSessions: store.listSessions({ projectId: project.id, limit: SESSIONS_PER_PROJECT }),
+                }));
             sendJson(res, 200, { projects: entries });
             return true;
         }
 
         if (method === 'GET' && path === '/console/api/sessions') {
-            const sessions = store.listSessions({
-                projectId: url.searchParams.get('projectId') ?? undefined,
-                tabId: url.searchParams.get('tabId') ?? undefined,
-                buildId: url.searchParams.get('buildId') ?? undefined,
-                limit: parseIntOr(url.searchParams.get('limit'), 50),
-            });
+            const projectId = url.searchParams.get('projectId') ?? undefined;
+            if (projectId && !canSee(projectId)) {
+                sendJson(res, 200, { sessions: [] });
+                return true;
+            }
+            const sessions = store
+                .listSessions({
+                    projectId,
+                    tabId: url.searchParams.get('tabId') ?? undefined,
+                    buildId: url.searchParams.get('buildId') ?? undefined,
+                    limit: parseIntOr(url.searchParams.get('limit'), 50),
+                })
+                .filter((s) => canSee(s.participants[0]?.projectId ?? ''));
             sendJson(res, 200, { sessions });
             return true;
         }
@@ -143,6 +209,13 @@ export function createConsoleHandler(
         if (m) {
             const sessionId = decodeURIComponent(m[1]);
             const isReplay = !!m[2];
+
+            // Gate by the session's project — a 404 either way (don't leak existence).
+            const owning = store.getSession(sessionId);
+            if (!owning || !canSee(owning.participants[0]?.projectId ?? '')) {
+                sendJson(res, 404, { error: 'session not found', sessionId });
+                return true;
+            }
 
             if (isReplay && method === 'POST') {
                 let body: Record<string, unknown>;
@@ -166,11 +239,7 @@ export function createConsoleHandler(
             }
 
             if (method === 'GET') {
-                const session = store.getSession(sessionId);
-                if (!session) {
-                    sendJson(res, 404, { error: 'session not found', sessionId });
-                    return true;
-                }
+                const session = owning;
                 const summary = store.summary(sessionId);
                 const chunks = store.listRecordings(sessionId);
                 const timeline = store.tail(sessionId, {
