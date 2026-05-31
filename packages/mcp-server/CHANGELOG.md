@@ -1,5 +1,91 @@
 # @harness-fe/mcp-server
 
+## 4.0.0-next.4
+
+### Minor Changes
+
+- 59d8248: Project→agent binding — make the team (multi-user) path actually usable.
+
+  Before this, a gateway token bound only to a _server_ (daemon), and the daemon
+  isolated data by _who created each row_ (`createdBy`). In a team setup the
+  runtime that creates a session and the agent that reads it are different
+  principals, so `canSeeProject` filtered everything out: an agent through the
+  gateway saw **zero** sessions and couldn't drive any tab (`creator ≠ consumer`).
+
+  Now authorization is by **project membership**, injected end to end:
+
+  - **gateway** — a token carries `projects` (`['*']` = all, or a specific list).
+    `harness-gateway --issue-token name=…,server=…,scopes=…,projects=react-demo`.
+    The proxy forwards the grants to the daemon via a new `x-harness-projects`
+    header (companion to `x-harness-caller`); no list ⇒ `*`.
+  - **daemon** — `Principal` gains `projects`; `identifyPrincipal` reads the
+    forwarded grants. New `projectGrant(principal, projectId)` (local → all,
+    explicit grants → membership, none → `null` = fall back to creator-based).
+    `canSeeProject(principal, projectId, ownerChain)` and `findTab` (command-target
+    scoping) honour grants first, then fall back to `createdBy` — so **solo /
+    single-token behaviour is unchanged** while a bound agent sees a project's
+    whole data set and can drive its tabs regardless of who created the data.
+
+  Verified live through the gateway with a `projects=react-demo` token: the agent
+  now lists react-demo sessions (was empty), is denied an un-granted project
+  (`some-other-app` → empty), and `page.click` reaches the tab and triggers the
+  browser consent gate (was unreachable). New unit tests cover `projectGrant` and
+  the grant/fallback paths in `canSeeProject`.
+
+- 25a6106: Task resolution back-link (4.0 · P7) — close the feedback loop from a reported
+  problem to its fix and the re-test that proved it.
+
+  - `Task` gains an optional `resolution` object: `{ type, commit, prUrl,
+verificationSessionId, verifiedAt }` (`TaskResolution` / `TaskResolutionType`
+    exported from protocol). `type` is one of `code-fix` / `config` / `wontfix` /
+    `duplicate` / `cannot-reproduce`.
+  - `tasks.resolve` accepts a `resolution` arg (after `note`). The daemon defaults
+    `verifiedAt` to now when a `verificationSessionId` is supplied without one, and
+    records the resolution in the persisted task event. Plain
+    `tasks.resolve(id, note)` stays valid — fully backward compatible.
+  - `bridge.resolveTask(id, note?, resolution?, principal?)` and the RemoteBridge
+    RPC carry the resolution through leader/follower.
+  - `@harness-fe/skill` Flow 5 is extended into the full loop: fix → re-drive the
+    reported flow (replay to recall the steps, reproduce with `page_*`) → verify
+    clean (`errors_tail` / `session_tail`) → `tasks.resolve` with the structured
+    resolution.
+
+  Scope: the daemon owns the data link (report → fix → verification session);
+  the L1–L4 automation and git writeback remain agent/skill responsibilities,
+  driven through harness tools + host git. Additive + optional throughout — no
+  behaviour change for existing callers.
+
+### Patch Changes
+
+- 95d9b56: Fix two governance bugs that blocked the multi-agent (team) path, found while
+  verifying the gateway end to end.
+
+  - **mcp-server: MCP HTTP is now per-session.** It used a single shared
+    transport+server created once at mount, so the _second_ `initialize` (a second
+    agent through the gateway, or any reconnect) hit `-32600 "Server already
+initialized"` and locked out everyone but the first client. Now each
+    `mcp-session-id` gets its own transport+server (the spec's stateful model),
+    created on initialize and torn down on close; unknown session ids are rejected
+    with 400. Multiple agents can now share one daemon concurrently.
+  - **gateway: dynamic manifest filtering now works over SSE.** `tools/list`
+    replies come back as `text/event-stream`, and the proxy only filtered plain
+    JSON — so a `read`-only token still saw every `control` tool (`page.click`,
+    `page.type`, …). The proxy now rewrites the JSON-RPC payload inside each
+    SSE `data:` line. Verified live: a `read` token's manifest drops from 11
+    `page.*` tools to 2 (the read-only `page.dom_query` / `page.screenshot`),
+    while `read,control` keeps all 11.
+
+  Both are bug fixes — no API change. Covered by a new per-session regression test
+  (two concurrent initializes get distinct session ids) plus the existing
+  filterManifest unit tests; manifest-over-SSE was confirmed with a live two-token
+  client run through the gateway.
+
+- Updated dependencies [59d8248]
+- Updated dependencies [25a6106]
+- Updated dependencies [dbaf5ad]
+  - @harness-fe/daemon@4.0.0-next.4
+  - @harness-fe/protocol@4.0.0-next.4
+
 ## 4.0.0-next.3
 
 ### Minor Changes

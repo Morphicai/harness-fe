@@ -1,5 +1,17 @@
 # @harness-fe/dev-cli
 
+## 4.0.0-next.4
+
+### Patch Changes
+
+- Updated dependencies [95d9b56]
+- Updated dependencies [59d8248]
+- Updated dependencies [25a6106]
+- Updated dependencies [dbaf5ad]
+  - @harness-fe/mcp-server@4.0.0-next.4
+  - @harness-fe/daemon@4.0.0-next.4
+  - @harness-fe/protocol@4.0.0-next.4
+
 ## 4.0.0-next.3
 
 ### Minor Changes
