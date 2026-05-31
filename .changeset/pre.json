@@ -24,6 +24,7 @@
     "@harness-fe/core": "4.0.0-next.4"
   },
   "changesets": [
+    "align-linked-versions",
     "browser-consent-p2",
     "caller-identity-p1",
     "cli-rebuild-step4",

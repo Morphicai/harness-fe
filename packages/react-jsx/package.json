@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/react-jsx",
-    "version": "3.2.0",
+    "version": "4.0.0-next.6",
     "description": "Drop-in JSX runtime that adds data-morphix-loc to every rendered element in dev mode. Set tsconfig.jsxImportSource = '@harness-fe/react-jsx' and the Harness-FE agent can map any DOM node back to file:line:col with zero bundler config.",
     "type": "module",
     "license": "MIT",
