@@ -10,7 +10,8 @@
 
 import { setTimeout as sleep } from 'node:timers/promises';
 import { WebSocket } from 'ws';
-import { Bridge } from '@harness-fe/mcp-server';
+import { createCoreClient } from '@harness-fe/core';
+import { createGateway, Policy } from '@harness-fe/gateway';
 import {
     COMMAND,
     PROTOCOL_VERSION,
@@ -20,14 +21,17 @@ import {
 } from '@harness-fe/protocol';
 
 async function run() {
-    const bridge = new Bridge({ port: 0, host: '127.0.0.1' });
-    await bridge.start();
-    // @ts-expect-error access internal wss for the assigned port
-    const port = bridge.wss.address().port as number;
-    console.log(`[e2e] bridge listening on 127.0.0.1:${port}`);
+    // New architecture: an in-process core behind the gateway front door. The
+    // runtime connects to the gateway's /ws; we drive via core.bridge.
+    const core = createCoreClient({ autoPurge: { enabled: false } });
+    await core.start();
+    const gw = createGateway({ coreClient: core, policy: new Policy({ mode: 'open' }) });
+    const port = await gw.listen(0, '127.0.0.1');
+    const bridge = core.bridge;
+    console.log(`[e2e] gateway listening on 127.0.0.1:${port}`);
 
     // Simulate a runtime-client (what the real browser will be doing).
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
     await new Promise<void>((resolve, reject) => {
         ws.once('open', () => resolve());
         ws.once('error', reject);
@@ -101,7 +105,8 @@ async function run() {
     console.log('[e2e] event fan-out ok');
 
     ws.close();
-    await bridge.stop();
+    await gw.close();
+    await core.stop();
     console.log('[e2e] ALL PASS ✓');
 }
 

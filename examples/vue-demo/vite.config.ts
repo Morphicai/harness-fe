@@ -2,14 +2,21 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { harnessFE } from '@harness-fe/vite';
 
-// ── SOLO mode ───────────────────────────────────────────────────────────────
-// vue-demo is the zero-config counterpart to react-demo's team setup. No mcpUrl,
-// no token: the runtime connects to a loopback daemon on the default port
-// (47729), fully trusted (single principal). The agent talks to it over stdio
-// (see .mcp.json.example) — no gateway, no RBAC, no audit. This is the friction-
-// free local-dev path; react-demo shows the governed multi-user path.
+// In the bundled `pnpm demo`, every app (vue-demo included) reports into the one
+// governed gateway as a distinct project: the runtime connects to the gateway's
+// /ws with the write-scope token (HARNESS_TEAM_TOKEN, injected by scripts/demo.sh).
+// The zero-config SOLO path — `harness` over stdio with its own loopback /ws — is
+// shown separately by the `harness-solo` entry in .mcp.json; for that mode you'd
+// drop the mcpUrl/token below and let the runtime default to the loopback gateway.
 export default defineConfig({
-    plugins: [harnessFE({ projectId: 'vue-demo' }), vue()],
+    plugins: [
+        harnessFE({
+            projectId: 'vue-demo',
+            mcpUrl: 'ws://127.0.0.1:47950/ws',
+            token: process.env.HARNESS_TEAM_TOKEN,
+        }),
+        vue(),
+    ],
     server: {
         // Harness-FE demo port band (478xx, deliberately off the beaten path so
         // it never clashes with the usual 5173/3000/8080 dev servers). 47810 =

@@ -20,7 +20,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createServer } from 'vite';
-import { Bridge } from '@harness-fe/mcp-server';
+import { InProcessCoreClient } from '@harness-fe/core';
+import { createGateway, Policy, type GatewayHandle } from '@harness-fe/gateway';
 import { harnessFE } from '@harness-fe/vite';
 import { COMMAND } from '@harness-fe/protocol';
 
@@ -43,7 +44,8 @@ function assert(cond: unknown, label: string): asserts cond {
 
 let browser: Browser | undefined;
 let page: Page | undefined;
-let bridge: Bridge | undefined;
+let core: InProcessCoreClient | undefined;
+let gw: GatewayHandle | undefined;
 let vite: Awaited<ReturnType<typeof createServer>> | undefined;
 
 async function cleanup() {
@@ -63,18 +65,20 @@ async function cleanup() {
         /* ignore */
     }
     try {
-        await bridge?.stop();
+        await gw?.close();
+        await core?.stop();
     } catch {
         /* ignore */
     }
 }
 
 async function run() {
-    bridge = new Bridge({ port: 0, host: '127.0.0.1' });
-    await bridge.start();
-    // @ts-expect-error access internal wss for port
-    const wsPort = bridge.wss.address().port as number;
-    console.log(`[closed-loop] bridge on ws://127.0.0.1:${wsPort}`);
+    core = new InProcessCoreClient({ autoPurge: { enabled: false } });
+    await core.start();
+    gw = createGateway({ coreClient: core, policy: new Policy({ mode: 'open' }) });
+    const wsPort = await gw.listen(0, '127.0.0.1');
+    const bridge = core.bridge;
+    console.log(`[closed-loop] gateway on ws://127.0.0.1:${wsPort}/ws`);
 
     vite = await createServer({
         root: projectRoot,
@@ -82,7 +86,7 @@ async function run() {
         plugins: [
             harnessFE({
                 projectId: 'react-demo',
-                mcpUrl: `ws://127.0.0.1:${wsPort}`,
+                mcpUrl: `ws://127.0.0.1:${wsPort}/ws`,
             }),
             (await import('@vitejs/plugin-react')).default(),
         ],

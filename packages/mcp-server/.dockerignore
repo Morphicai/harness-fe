@@ -1,4 +1,0 @@
-# The Dockerfile installs the published package from npm — nothing from
-# the source tree is copied in. Keep the build context tiny.
-*
-!Dockerfile

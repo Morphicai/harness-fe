@@ -6,7 +6,6 @@
   "linked": [
     [
       "@harness-fe/protocol",
-      "@harness-fe/mcp-server",
       "@harness-fe/runtime",
       "@harness-fe/node-runtime",
       "@harness-fe/next",
@@ -19,8 +18,6 @@
       "@harness-fe/core",
       "@harness-fe/console-ui",
       "@harness-fe/cli",
-      "@harness-fe/daemon",
-      "@harness-fe/dev-cli",
       "@harness-fe/gateway"
     ]
   ],
