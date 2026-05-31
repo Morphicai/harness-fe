@@ -777,7 +777,7 @@ function registerTools(server: McpServer, bridge: IBridge, auth?: AuthOptions): 
             const store = (bridge as Bridge).store;
             const all = await bridge.listTasks({ status: status ?? 'pending', limit });
             const tasks = store
-                ? all.filter((t) => canSeeProject(principal, ownerChainOf(t.projectId, store)))
+                ? all.filter((t) => canSeeProject(principal, t.projectId, ownerChainOf(t.projectId, store)))
                 : all.filter((t) => canSee(principal, t.createdBy));
             const summary = tasks.map((t) => ({
                 id: t.id,
@@ -925,7 +925,7 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
         async ({ projectId, limit }, extra) => {
             const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
             // Owning a project (or a host ancestor) grants its whole session set.
-            if (!canSeeProject(principal, ownerChainOf(projectId, store))) return ok([]);
+            if (!canSeeProject(principal, projectId, ownerChainOf(projectId, store))) return ok([]);
             return ok(store.listSessions({ projectId, limit: limit ?? 10 }));
         },
     );
@@ -1016,7 +1016,7 @@ function registerStoreTools(server: McpServer, store: IStore, memoryStore: IMemo
             const principal = identifyPrincipal(extra.requestInfo?.headers, auth ?? {});
             const projects = store
                 .listProjects()
-                .filter((p) => canSeeProject(principal, ownerChainOf(p.id, store)));
+                .filter((p) => canSeeProject(principal, p.id, ownerChainOf(p.id, store)));
             const result = projects.map((p) => ({
                 ...p,
                 recentSessions: store.listSessions({ projectId: p.id, limit: 3 }),
