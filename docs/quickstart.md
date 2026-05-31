@@ -33,7 +33,7 @@ export default defineConfig({
 Start the daemon, then your app:
 
 ```bash
-npx @harness-fe/mcp-server   # daemon on :47729
+npx @harness-fe/dev-cli      # daemon on :47729  (or let your agent spawn it — see "Connect an AI agent")
 pnpm dev                     # your app
 ```
 
@@ -75,7 +75,7 @@ export default function RootLayout({ children }) {
 ```
 
 ```bash
-npx @harness-fe/mcp-server
+npx @harness-fe/dev-cli
 pnpm dev
 ```
 
@@ -97,29 +97,23 @@ Each package's README on npm has a copy-paste config block.
 
 ## Connect an AI agent
 
-The daemon advertises itself over stdio MCP. Register it once in your agent:
+**Install the skill first** — it teaches the agent *how* to use harness-fe, so you describe the problem and it drives:
 
-**Claude Code / Cursor / Kiro** (`~/.config/...` or in-app settings):
+```bash
+npx @harness-fe/skill install      # auto-detects Claude Code / Cursor / Kiro
+```
+
+Then register the MCP server (`.mcp.json` or in-app settings). Solo / local — stdio, the agent spawns the daemon itself (no token):
 
 ```jsonc
 {
   "mcpServers": {
-    "harness-fe": {
-      "command": "npx",
-      "args": ["@harness-fe/mcp-server", "--stdio"]
-    }
+    "harness-fe": { "type": "stdio", "command": "npx", "args": ["-y", "@harness-fe/dev-cli"] }
   }
 }
 ```
 
-Alternatively, drop the bundled SKILL.md into your agent so it learns the
-toolset's intended usage:
-
-```bash
-npx @harness-fe/skill install
-```
-
-The agent now sees `session_*`, `page_*`, `project_*`, `tasks_*` and friends.
+The agent now sees `session_*`, `page_*`, `project_*`, `tasks_*` and friends. Sharing one daemon across a team? Use the HTTP **gateway** instead — see [gateway-team-mode.md](./gateway-team-mode.md). Full setup: [agent-setup.md](./agent-setup.md).
 
 ---
 

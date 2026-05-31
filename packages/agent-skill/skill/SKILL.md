@@ -46,6 +46,40 @@ Key invariants you can rely on:
 - The runtime auto-disables in production builds — anything you see here is
   dev-time only.
 
+## Solo vs Team mode
+
+How you reach the daemon changes what you can see and do — read this before
+concluding "nothing is there" or "the tool is broken".
+
+**Solo (default — loopback, zero config):** the agent spawns `@harness-fe/dev-cli`
+over stdio; the daemon is fully trusted. You see **every** project / session /
+task, `page.*` runs immediately (no approval), and the whole tool catalog is
+available.
+
+**Team (via the gateway):** the agent connects over HTTP-MCP to
+`@harness-fe/gateway` with a scoped token; one daemon is shared by many apps, so
+access is governed:
+
+| Behaviour | Solo | Team (gateway) |
+|---|---|---|
+| Visible projects / sessions / tasks | all | only the **projects your token is bound to** — others return empty `[]` (isolation, not a bug) |
+| `page.*` (click/type/navigate/…) | runs immediately | needs **Browser Consent** — the user approves in-page first; a denial returns `ok:false` / `CONSENT_DENIED` |
+| Available tools (`tools/list`) | full catalog | **scope-filtered** — a `read`-only token never sees `page.*`; calling one is denied (`-32001 scope denied`) |
+| Transport | stdio (direct) | HTTP-MCP via the gateway (routed + audited) |
+
+**In team mode, adjust your behaviour:**
+
+- An empty `project.list` / `session.list` / `tasks.pending` most likely means
+  your token isn't bound to that project — **not** that the app is broken. Say
+  you may lack access rather than asserting nothing exists.
+- Before a `page.*` action, expect a consent prompt to the user. If it's denied,
+  report it and don't blindly retry.
+- If an expected tool is missing, your token's scope doesn't include it
+  (`read` vs `read+control`). `write` is for the browser runtime only — never an agent.
+
+In **solo** mode none of these gates apply — proceed directly. (Tool notes below
+flag the team-mode differences with **[team]**.)
+
 ## Tool catalog
 
 ### Identity & topology
@@ -60,6 +94,8 @@ Key invariants you can rely on:
 | `session.list(projectId)` / `session.summary(id)` | Per-session counts |
 
 ### Page interaction (drive the browser)
+
+> **[team]** Everything here is `control` scope: hidden from a `read`-only token's `tools/list`, and each call triggers a **Browser Consent** prompt the user must approve before it runs (a denial returns `ok:false` / `CONSENT_DENIED`). In solo mode they run directly.
 
 | Tool | Use case |
 |---|---|
@@ -118,6 +154,8 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 | `project_module_graph` | Component dependency graph |
 
 ### Annotation tasks (human → agent handoff)
+
+> **[team]** `tasks_pending` only returns tasks for the projects your token is bound to — an empty list may mean "not my project", not "no tasks".
 
 | Tool | Use case |
 |---|---|

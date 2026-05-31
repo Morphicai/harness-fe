@@ -12,7 +12,7 @@ There are **two axes** to this roadmap:
 | Line | Branch / npm tag | What it is | Bar |
 |---|---|---|---|
 | **3.x** | `main` / `latest` | **Personal dev tool** — today's product | Rock-solid in the host app's *dev environment*, zero prod footprint. Bug fixes + dev-experience polish. |
-| **4.0** | `next` / `@next` (prerelease) | **Team-usable (experimental)** | One shared daemon a team self-hosts; members don't collide and each only sees their own. Identity + isolation + routing. |
+| **4.0** | `next` / `@next` (prerelease) | **Team-usable (experimental — shipped `4.0.0-next.4`)** | One shared daemon a team self-hosts; members don't collide and each only sees their own. Identity + isolation + routing + gateway. |
 | **5.0** | (after 4.0) | **Production-grade** | High availability + hosted **cloud service**: multi-instance/no-SPOF, shared persistence, remote MCP, observability, SLA. |
 
 3.x and 4.0 develop **in parallel** (see [docs/operations/release-flow.md](./docs/operations/release-flow.md) for the dual-line release setup). 4.0's identity/isolation work is the foundation 5.0's cloud service builds on.
@@ -58,18 +58,24 @@ Keep the single-developer experience unbreakable; ship dev-experience polish and
 
 ---
 
-## 4.0 — Team-usable (`next`, experimental) · Direction 2
+## 4.0 — Team-usable (`next`, experimental — shipped as `4.0.0-next.4`) · Direction 2
 
 **Goal:** a team self-hosts **one** shared daemon and multiple members use it without colliding — no cross-driving the wrong tab, no seeing each other's projects/sessions. This is the **identity + isolation + routing** layer. Scope is a *trusted* team; hardening against untrusted multi-tenancy is part of 5.0.
 
-Anchored to the gaps surfaced in the multi-tenant readiness review:
+Anchored to the gaps surfaced in the multi-tenant readiness review — **all shipped in `4.0.0-next.4`:**
 
-- [ ] **Caller identity** — auth doesn't stop at allow/deny; it carries *who* (agent / user id) through to the tool layer
-- [ ] **Tenant isolation** — `project.list` / `session.list` / `tasks_pending` filter by what the caller owns; an agent only sees its own projects' data (today any caller sees every project on the machine)
-- [ ] **Command-target scoping** — `sendCommand`'s default "most-recent active tab" is scoped to the caller's own tabs, not globally (today it can drive another person's browser)
-- [ ] **MCP session isolation** — HTTP transport becomes per-session instead of one shared transport
-- [ ] **`project → agent` binding index** — the daemon records "who generated this project" and routes `tasks_pending` accordingly
-- [ ] **Host vs sub-app tagging** on the project tree so routing can express "host agent sees the sub-app's reports, but not vice-versa"
+- [x] **Caller identity** — auth carries *who* (a `Principal`) through to the tool layer
+- [x] **Tenant isolation** — `project.list` / `session.list` / `tasks_pending` filter by `canSee`; an agent only sees data it's authorized for (was: every caller saw every project)
+- [x] **Command-target scoping** — `sendCommand` / `findTab` scoped to the caller's own tabs, not globally
+- [x] **MCP session isolation** — HTTP transport is now **per-session** (one transport + server per `mcp-session-id`; multiple agents concurrent)
+- [x] **`project → agent` binding** — tokens carry project grants; a bound agent sees the project's whole data set regardless of *who created each row* (creator ≠ consumer solved) — the piece that makes team mode actually usable
+- [x] **Host vs sub-app tagging** — `parentProjectId` owner chain; a host agent sees its sub-apps' data, not vice-versa
+- [x] **Browser Consent (P2)** — control commands (`page.*`) require in-page user approval once the daemon is exposed
+- [x] **Package split (P5)** — `@harness-fe/daemon` (core) / `mcp-server` (MCP protocol) / `dev-cli` (solo launcher)
+- [x] **Governance gateway (P6)** — `@harness-fe/gateway`: token lifecycle + scope RBAC + dynamic manifest + project→agent binding + append-only audit + admin panel; `harness-gateway` CLI
+- [x] **Agent feedback loop (P7)** — structured `tasks.resolve` resolution (`type` / `commit` / `prUrl` / `verificationSessionId`) back-linking a report → its fix → the re-test that proved it
+
+Remaining toward **stable 4.0**: graduate `@next` → `latest` (`changeset pre exit`) once the team path settles in real use.
 
 ---
 
