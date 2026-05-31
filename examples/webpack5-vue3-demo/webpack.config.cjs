@@ -33,7 +33,7 @@ module.exports = {
         // (not env) so `turbo run dev` launches every demo uniformly. See DEMO.md.
         harnessFE({
             projectId: 'webpack5-vue3-demo',
-            mcpUrl: 'ws://127.0.0.1:47900',
+            mcpUrl: 'ws://127.0.0.1:47950/ws',
             token: process.env.HARNESS_TEAM_TOKEN ?? 'team-secret-demo',
         }),
     ],

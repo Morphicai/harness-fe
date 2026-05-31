@@ -22,20 +22,22 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { chromium, type Frame } from 'playwright';
-import { Bridge } from '@harness-fe/mcp-server';
-import { JsonlStore } from '@harness-fe/mcp-server';
+import { InProcessCoreClient, JsonlStore } from '@harness-fe/core';
+import { createGateway, Policy, type GatewayHandle } from '@harness-fe/gateway';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
 let parentVite: ChildProcessWithoutNullStreams | undefined;
 let childVite: ChildProcessWithoutNullStreams | undefined;
-let bridge: Bridge | undefined;
+let core: InProcessCoreClient | undefined;
+let gw: GatewayHandle | undefined;
 let dataDir: string | undefined;
 
 async function shutdown(code: number): Promise<never> {
     try {
-        await bridge?.stop();
+        await gw?.close();
+        await core?.stop();
     } catch {
         /* ignore */
     }
@@ -67,7 +69,7 @@ function spawnVite(configRel: string): ChildProcessWithoutNullStreams {
 
 let _bridgePort = 0;
 function bridgeUrl(): string {
-    return `ws://127.0.0.1:${_bridgePort}`;
+    return `ws://127.0.0.1:${_bridgePort}/ws`;
 }
 
 async function waitForLog(
@@ -131,10 +133,11 @@ async function main(): Promise<void> {
     // ── 1. Spin up an in-process bridge with a temp dataDir ─────────────
     dataDir = mkdtempSync(resolve(tmpdir(), 'iframe-demo-'));
     const store = new JsonlStore(dataDir);
-    bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null });
-    await bridge.start();
-    _bridgePort = bridge.getBoundPort()!;
-    console.log(`--- bridge on ws://127.0.0.1:${_bridgePort} ---`);
+    core = new InProcessCoreClient({ store, taskStore: null, autoPurge: { enabled: false } });
+    await core.start();
+    gw = createGateway({ coreClient: core, policy: new Policy({ mode: 'open' }) });
+    _bridgePort = await gw.listen(0, '127.0.0.1');
+    console.log(`--- gateway on ws://127.0.0.1:${_bridgePort}/ws ---`);
 
     // ── 2. Spin up child vite first (parent proxies to it) ──────────────
     console.log('--- starting child vite on :5181 ---');

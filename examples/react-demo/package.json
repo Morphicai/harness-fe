@@ -18,7 +18,8 @@
         "react-router-dom": "^6.28.0"
     },
     "devDependencies": {
-        "@harness-fe/mcp-server": "workspace:*",
+        "@harness-fe/core": "workspace:*",
+        "@harness-fe/gateway": "workspace:*",
         "@harness-fe/protocol": "workspace:*",
         "@harness-fe/runtime": "workspace:*",
         "@harness-fe/vite": "workspace:*",

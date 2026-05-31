@@ -33,9 +33,12 @@ importers:
         specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
     devDependencies:
-      '@harness-fe/mcp-server':
+      '@harness-fe/core':
         specifier: workspace:*
-        version: link:../../packages/mcp-server
+        version: link:../../packages/core
+      '@harness-fe/gateway':
+        specifier: workspace:*
+        version: link:../../packages/gateway
       '@harness-fe/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime-client
@@ -82,9 +85,12 @@ importers:
         specifier: ^6.28.0
         version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
-      '@harness-fe/mcp-server':
+      '@harness-fe/core':
         specifier: workspace:*
-        version: link:../../packages/mcp-server
+        version: link:../../packages/core
+      '@harness-fe/gateway':
+        specifier: workspace:*
+        version: link:../../packages/gateway
       '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -232,44 +238,29 @@ importers:
 
   packages/agent-skill: {}
 
-  packages/daemon:
+  packages/cli:
     dependencies:
-      '@harness-fe/dashboard-ui':
+      '@harness-fe/core':
         specifier: workspace:*
-        version: link:../dashboard-ui
+        version: link:../core
+      '@harness-fe/gateway':
+        specifier: workspace:*
+        version: link:../gateway
       '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.26.0
-        version: 1.29.0(zod@4.4.3)
-      rrweb-player:
-        specifier: 1.0.0-alpha.4
-        version: 1.0.0-alpha.4
-      ws:
-        specifier: ^8.18.0
-        version: 8.20.1
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
     devDependencies:
-      '@types/ws':
-        specifier: ^8.5.10
-        version: 8.18.1
-      fast-check:
-        specifier: ^3.22.0
-        version: 3.23.2
-      tsx:
-        specifier: ^4.22.3
-        version: 4.22.3
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@25.9.1)(happy-dom@20.9.0)(terser@5.47.1)
+        version: 2.1.9(@types/node@22.19.19)(happy-dom@20.9.0)(terser@5.47.1)
 
-  packages/dashboard-ui:
+  packages/console-ui:
     dependencies:
       react:
         specifier: ^18.3.0
@@ -281,9 +272,6 @@ importers:
         specifier: ^6.28.0
         version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
-      '@harness-fe/vite':
-        specifier: workspace:*
-        version: link:../vite-plugin
       '@types/react':
         specifier: ^18.3.0
         version: 18.3.28
@@ -312,21 +300,21 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@25.9.1)(happy-dom@20.9.0)(terser@5.47.1)
 
-  packages/dev-cli:
+  packages/core:
     dependencies:
-      '@harness-fe/daemon':
-        specifier: workspace:*
-        version: link:../daemon
-      '@harness-fe/mcp-server':
-        specifier: workspace:*
-        version: link:../mcp-server
       '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
-      '@types/ws':
-        specifier: ^8.5.10
-        version: 8.18.1
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      fast-check:
+        specifier: ^3.22.0
+        version: 3.23.2
       tsx:
         specifier: ^4.22.3
         version: 4.22.3
@@ -335,20 +323,32 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@25.9.1)(happy-dom@20.9.0)(terser@5.47.1)
+        version: 2.1.9(@types/node@22.19.19)(happy-dom@20.9.0)(terser@5.47.1)
 
   packages/gateway:
     dependencies:
+      '@harness-fe/core':
+        specifier: workspace:*
+        version: link:../core
       '@harness-fe/protocol':
         specifier: workspace:*
         version: link:../protocol
-    devDependencies:
-      '@harness-fe/mcp-server':
-        specifier: workspace:*
-        version: link:../mcp-server
       '@modelcontextprotocol/sdk':
         specifier: ^1.26.0
         version: 1.29.0(zod@4.4.3)
+      rrweb-player:
+        specifier: 1.0.0-alpha.4
+        version: 1.0.0-alpha.4
+      ws:
+        specifier: ^8.18.0
+        version: 8.20.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.5.10
+        version: 8.18.1
       tsx:
         specifier: ^4.22.3
         version: 4.22.3
@@ -373,40 +373,6 @@ importers:
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.19.19)(happy-dom@20.9.0)(terser@5.47.1)
-
-  packages/mcp-server:
-    dependencies:
-      '@harness-fe/daemon':
-        specifier: workspace:*
-        version: link:../daemon
-      '@harness-fe/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.26.0
-        version: 1.29.0(zod@4.4.3)
-      ws:
-        specifier: ^8.18.0
-        version: 8.20.1
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@types/ws':
-        specifier: ^8.5.10
-        version: 8.18.1
-      fast-check:
-        specifier: ^3.22.0
-        version: 3.23.2
-      tsx:
-        specifier: ^4.22.3
-        version: 4.22.3
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@25.9.1)(happy-dom@20.9.0)(terser@5.47.1)
 
   packages/next:
     devDependencies:
@@ -497,6 +463,12 @@ importers:
         specifier: 2.0.0-alpha.4
         version: 2.0.0-alpha.4
     devDependencies:
+      '@harness-fe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@harness-fe/gateway':
+        specifier: workspace:*
+        version: link:../gateway
       happy-dom:
         specifier: ^20.9.0
         version: 20.9.0

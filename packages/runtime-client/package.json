@@ -41,6 +41,8 @@
         "rrweb": "2.0.0-alpha.4"
     },
     "devDependencies": {
+        "@harness-fe/core": "workspace:*",
+        "@harness-fe/gateway": "workspace:*",
         "happy-dom": "^20.9.0",
         "typescript": "^5.6.0",
         "vitest": "^2.1.9"

@@ -48,7 +48,7 @@ export type { HarnessFEOptions };
 export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (options = {}) => {
     let projectId = options.projectId ?? 'unknown-project';
     const baseMcpUrl =
-        options.mcpUrl ?? process.env.HARNESS_FE_URL ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+        options.mcpUrl ?? process.env.HARNESS_FE_URL ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`;
     const token = options.token ?? process.env.HARNESS_FE_TOKEN;
     const mcpUrl = appendTokenQuery(baseMcpUrl, token);
     let projectRoot = process.cwd();

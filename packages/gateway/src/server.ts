@@ -1,53 +1,44 @@
 /**
- * Gateway HTTP proxy (5.0 · P6 · C3) — the front door for team/public use.
+ * Gateway HTTP front door — the only thing browsers, agents, and operators
+ * talk to. It embeds an in-process core (via {@link CoreClient}) and exposes:
  *
- * Agent → gateway (gateway token) → verify → route by `serverId` → forward the
- * MCP request to the target daemon, authenticating with the daemon's own token
- * and injecting the real caller via `x-harness-caller` (the daemon trusts a
- * forwarded identity only on auth-enabled requests, P6·C1). Every call is
- * audited. RBAC (scope gating) + dynamic manifest land in C4; admin in C5.
+ *   /mcp       agent MCP (RBAC + scoped manifest + audit) → core capabilities
+ *   /ws        runtime WebSocket (write scope) → core.acceptPeer (upgrade)
+ *   /events    HTTP-batch ingest (node/Edge runtime) → core.handleHttpBatch
+ *   /replay/*  rrweb replay viewer
+ *   /console*  back-office SPA + data API
+ *   /admin/*   governance panel (servers / tokens / audit) — governed mode
+ *
+ * The {@link Policy} (Open | Governed) decides how each caller's identity is
+ * resolved; core enforces scope + visibility from the Principal it's handed.
  */
-import {
-    createServer,
-    request as httpRequest,
-    type IncomingMessage,
-    type Server,
-    type ServerResponse,
-} from 'node:http';
-import { GatewayStore, type ServerRecord, type VerifiedCaller } from './store.js';
-import { allowsTool, filterManifest, requiredScope } from './scope.js';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { InProcessCoreClient, type CoreClient, type IStore } from '@harness-fe/core';
+import { createMcpHttpHandler } from './mcpHttp.js';
+import { attachRuntimeWs } from './runtimeWs.js';
+import { createConsoleHandler } from './console.js';
 import { createAdminHandler } from './admin.js';
-
-/** Header contract with the daemon (kept in sync with daemon's FORWARDED_CALLER_HEADER, P6·C1). */
-const FORWARDED_CALLER_HEADER = 'x-harness-caller';
-/**
- * Companion header: the projects this caller's token is authorized for
- * (5.0 · project→agent binding). Comma-separated ids, or `*` for all. A token
- * with no explicit project list defaults to `*` (the whole server it's bound to).
- */
-const FORWARDED_PROJECTS_HEADER = 'x-harness-projects';
-
-/** Header value for a caller's project grants — defaults to `*` (all). */
-function projectsHeaderValue(caller: VerifiedCaller): string {
-    return (caller.projects && caller.projects.length ? caller.projects : ['*']).join(',');
-}
+import type { Policy } from './policy.js';
+import type { GatewayStore } from './store.js';
+import type { McpServerOptions } from './mcp.js';
 
 export interface GatewayOptions {
-    store: GatewayStore;
-    /** Path the MCP endpoint is served on. Default `/mcp`. */
+    coreClient: CoreClient;
+    policy: Policy;
+    /** Governance store (servers / tokens / audit). Required for the admin panel. */
+    store?: GatewayStore;
+    /** MCP endpoint path. Default `/mcp`. */
     mcpPath?: string;
+    /** Built console-ui dist directory (served at `/console`). */
+    consoleDir?: string;
+    /** Experimental-tool gate env var name. Omit → on. */
+    experimentalEnvVar?: string;
 }
 
 export interface GatewayHandle {
     server: Server;
     listen(port: number, host?: string): Promise<number>;
     close(): Promise<void>;
-}
-
-function bearer(req: IncomingMessage): string | undefined {
-    const a = req.headers.authorization;
-    if (typeof a === 'string' && a.startsWith('Bearer ')) return a.slice(7).trim() || undefined;
-    return undefined;
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -58,31 +49,50 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 
 async function readBody(req: IncomingMessage): Promise<Buffer> {
     const chunks: Buffer[] = [];
-    for await (const c of req) chunks.push(c as Buffer);
+    let total = 0;
+    const MAX = 8 * 1024 * 1024;
+    for await (const c of req) {
+        total += (c as Buffer).length;
+        if (total > MAX) throw new Error('body too large');
+        chunks.push(c as Buffer);
+    }
     return Buffer.concat(chunks);
 }
 
-/** Pass MCP transport session headers through to the daemon (stateful sessions). */
-function passSessionHeaders(req: IncomingMessage, headers: Record<string, string>): void {
-    const sid = req.headers['mcp-session-id'];
-    if (typeof sid === 'string') headers['mcp-session-id'] = sid;
-    const lastEvent = req.headers['last-event-id'];
-    if (typeof lastEvent === 'string') headers['last-event-id'] = lastEvent;
-}
-
-/** Best-effort tool/method name from a JSON-RPC MCP body, for the audit log. */
-function toolName(body: Buffer): string {
-    try {
-        const p = JSON.parse(body.toString('utf8')) as { method?: string; params?: { name?: string } };
-        return p?.params?.name ?? p?.method ?? 'mcp';
-    } catch {
-        return 'mcp';
-    }
+/** Best-effort store of the in-process core (for replay viewer + console data). */
+function coreStore(coreClient: CoreClient): IStore | null {
+    return coreClient instanceof InProcessCoreClient ? coreClient.bridge.store : null;
 }
 
 export function createGateway(opts: GatewayOptions): GatewayHandle {
-    const path = opts.mcpPath ?? '/mcp';
-    const adminHandler = createAdminHandler(opts.store);
+    const mcpPath = opts.mcpPath ?? '/mcp';
+    let baseUrl: string | undefined;
+
+    const mcpHttp = createMcpHttpHandler({
+        coreClient: opts.coreClient,
+        policy: opts.policy,
+        mcp: {
+            experimentalEnvVar: opts.experimentalEnvVar,
+            consoleUrl: (sessionId?: string) =>
+                baseUrl ? `${baseUrl}/console${sessionId ? `/session/${encodeURIComponent(sessionId)}` : ''}` : undefined,
+        },
+        onAudit:
+            opts.policy.audit && opts.store
+                ? (e) => opts.store!.appendAudit({ ts: Date.now(), tokenId: e.tokenId, tool: e.tool, ip: e.ip })
+                : undefined,
+    });
+
+    const consoleHandler = createConsoleHandler({
+        coreClient: opts.coreClient,
+        store: coreStore(opts.coreClient),
+        consoleDir: opts.consoleDir,
+        mode: opts.policy.mode,
+    });
+
+    // The admin panel manages governance entities; only meaningful in governed
+    // mode (it gates on admin credentials in the store).
+    const adminHandler = opts.store ? createAdminHandler(opts.store) : null;
+
     const server = createServer((req, res) => {
         handle(req, res).catch(() => {
             if (!res.headersSent) sendJson(res, 500, { error: 'gateway_error' });
@@ -90,184 +100,48 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
     });
 
     async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-        // Admin panel owns /admin/* ; the MCP proxy owns /mcp.
-        if (await adminHandler(req, res)) return;
-        const reqPath = (req.url ?? '').split('?')[0];
-        if (reqPath !== path) return sendJson(res, 404, { error: 'not_found' });
+        const path = (req.url ?? '').split('?')[0];
 
-        const raw = bearer(req);
-        const caller = raw ? opts.store.verifyToken(raw) : null;
-        if (!caller) return sendJson(res, 401, { error: 'unauthorized' });
-
-        const target = opts.store.getServer(caller.serverId);
-        if (!target) return sendJson(res, 502, { error: 'no_server', serverId: caller.serverId });
-
-        const body = req.method === 'GET' || req.method === 'HEAD' ? Buffer.alloc(0) : await readBody(req);
-        opts.store.appendAudit({
-            ts: Date.now(),
-            tokenId: caller.tokenId,
-            tool: toolName(body),
-            serverId: caller.serverId,
-            ip: req.socket.remoteAddress ?? undefined,
-        });
-
-        const rpc = parseRpc(body);
-        // Scope gate (RBAC): deny a tools/call the caller has no scope for.
-        if (rpc?.method === 'tools/call' && typeof rpc.tool === 'string' && !allowsTool(caller.scopes, rpc.tool)) {
-            return sendJson(res, 200, {
-                jsonrpc: '2.0',
-                id: rpc.id ?? null,
-                error: {
-                    code: -32001,
-                    message: `scope denied: "${rpc.tool}" requires "${requiredScope(rpc.tool)}" scope`,
-                },
-            });
+        if (path === mcpPath) {
+            await mcpHttp.handle(req, res);
+            return;
         }
-        // Dynamic manifest: filter tools/list to what the caller may use.
-        if (rpc?.method === 'tools/list') {
-            return forwardAndFilter(target, caller, req, body, res);
+        if (path === '/events' && req.method === 'POST') {
+            await handleEvents(req, res);
+            return;
         }
-        forward(target.endpoint, target.token, caller, req, body, res);
+        if (path === '/events/ping') {
+            sendJson(res, 200, { ok: true, protocolVersion: undefined });
+            return;
+        }
+        if (adminHandler && (path === '/admin' || path.startsWith('/admin/'))) {
+            if (await adminHandler(req, res)) return;
+        }
+        if (await consoleHandler(req, res)) return;
+
+        sendJson(res, 404, { error: 'not_found' });
     }
 
-    function parseRpc(body: Buffer): { method?: string; tool?: string; id?: unknown } | null {
+    async function handleEvents(req: IncomingMessage, res: ServerResponse): Promise<void> {
+        // The runtime/node-runtime may carry a write token; Open accepts anyone.
+        const resolved = opts.policy.resolveRuntime(req);
+        if (!resolved) return sendJson(res, 401, { error: 'unauthorized' });
+        let body: { hello?: unknown; events?: unknown };
         try {
-            const p = JSON.parse(body.toString('utf8')) as {
-                method?: string;
-                params?: { name?: string };
-                id?: unknown;
-            };
-            return { method: p.method, tool: p.params?.name, id: p.id };
+            body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
         } catch {
-            return null;
+            return sendJson(res, 400, { error: 'bad_json' });
         }
+        const hello = body.hello as Parameters<CoreClient['handleHttpBatch']>[0] | undefined;
+        const events = (Array.isArray(body.events) ? body.events : []) as Parameters<CoreClient['handleHttpBatch']>[1];
+        if (!hello || typeof (hello as { projectId?: unknown }).projectId !== 'string') {
+            return sendJson(res, 400, { error: 'hello.projectId required' });
+        }
+        opts.coreClient.handleHttpBatch(hello, events);
+        sendJson(res, 200, { ok: true, accepted: events.length });
     }
 
-    /** Forward a tools/list, buffer the response, and drop out-of-scope tools when it's JSON. */
-    function forwardAndFilter(
-        target: ServerRecord,
-        caller: VerifiedCaller,
-        req: IncomingMessage,
-        body: Buffer,
-        res: ServerResponse,
-    ): void {
-        let base: URL;
-        try {
-            base = new URL(target.endpoint);
-        } catch {
-            return sendJson(res, 502, { error: 'bad_server_endpoint' });
-        }
-        const headers: Record<string, string> = {
-            'content-type': 'application/json',
-            accept: (req.headers.accept as string) ?? 'application/json, text/event-stream',
-            [FORWARDED_CALLER_HEADER]: caller.tokenId,
-            [FORWARDED_PROJECTS_HEADER]: projectsHeaderValue(caller),
-        };
-        if (target.token) headers.authorization = `Bearer ${target.token}`;
-        passSessionHeaders(req, headers);
-        const proxy = httpRequest(
-            {
-                protocol: base.protocol,
-                hostname: base.hostname,
-                port: base.port,
-                path,
-                method: 'POST',
-                headers,
-            },
-            (dres) => {
-                const chunks: Buffer[] = [];
-                dres.on('data', (c) => chunks.push(c as Buffer));
-                dres.on('end', () => {
-                    const buf = Buffer.concat(chunks);
-                    res.statusCode = dres.statusCode ?? 502;
-                    const sid = dres.headers['mcp-session-id'];
-                    if (typeof sid === 'string') res.setHeader('mcp-session-id', sid);
-                    const ct = dres.headers['content-type'];
-                    // MCP HTTP usually answers tools/list as an SSE frame, not plain
-                    // JSON — so we must filter the JSON-RPC payload inside each
-                    // `data:` line, not just the JSON branch (the old code passed
-                    // SSE through unfiltered, leaking control tools to read tokens).
-                    if (typeof ct === 'string' && ct.includes('text/event-stream')) {
-                        const out = buf.toString('utf8').replace(/^data:(.*)$/gm, (line, payload: string) => {
-                            const j = payload.trim();
-                            if (!j) return line;
-                            try {
-                                const parsed = JSON.parse(j) as { result?: { tools?: unknown } };
-                                if (parsed?.result) parsed.result = filterManifest(parsed.result, caller.scopes);
-                                return `data: ${JSON.stringify(parsed)}`;
-                            } catch {
-                                return line;
-                            }
-                        });
-                        res.setHeader('content-type', ct);
-                        res.end(out);
-                        return;
-                    }
-                    try {
-                        const parsed = JSON.parse(buf.toString('utf8')) as { result?: { tools?: unknown } };
-                        if (parsed?.result) parsed.result = filterManifest(parsed.result, caller.scopes);
-                        res.setHeader('content-type', 'application/json');
-                        res.end(Buffer.from(JSON.stringify(parsed), 'utf8'));
-                    } catch {
-                        if (typeof ct === 'string') res.setHeader('content-type', ct);
-                        res.end(buf);
-                    }
-                });
-            },
-        );
-        proxy.on('error', () => {
-            if (!res.headersSent) sendJson(res, 502, { error: 'daemon_unreachable' });
-        });
-        proxy.end(body);
-    }
-
-    function forward(
-        endpoint: string,
-        daemonToken: string | undefined,
-        caller: VerifiedCaller,
-        req: IncomingMessage,
-        body: Buffer,
-        res: ServerResponse,
-    ): void {
-        let base: URL;
-        try {
-            base = new URL(endpoint);
-        } catch {
-            return sendJson(res, 502, { error: 'bad_server_endpoint' });
-        }
-        const headers: Record<string, string> = {
-            accept: (req.headers.accept as string) ?? 'application/json, text/event-stream',
-            [FORWARDED_CALLER_HEADER]: caller.tokenId,
-            [FORWARDED_PROJECTS_HEADER]: projectsHeaderValue(caller),
-        };
-        const ct = req.headers['content-type'];
-        if (typeof ct === 'string') headers['content-type'] = ct;
-        if (daemonToken) headers.authorization = `Bearer ${daemonToken}`;
-        passSessionHeaders(req, headers);
-
-        const proxy = httpRequest(
-            {
-                protocol: base.protocol,
-                hostname: base.hostname,
-                port: base.port,
-                path,
-                method: req.method ?? 'POST',
-                headers,
-            },
-            (dres) => {
-                res.statusCode = dres.statusCode ?? 502;
-                for (const [k, v] of Object.entries(dres.headers)) {
-                    if (v !== undefined) res.setHeader(k, v as string | string[]);
-                }
-                dres.pipe(res);
-            },
-        );
-        proxy.on('error', () => {
-            if (!res.headersSent) sendJson(res, 502, { error: 'daemon_unreachable' });
-        });
-        if (body.length) proxy.write(body);
-        proxy.end();
-    }
+    const runtimeWs = attachRuntimeWs(server, { coreClient: opts.coreClient, policy: opts.policy });
 
     return {
         server,
@@ -275,9 +149,18 @@ export function createGateway(opts: GatewayOptions): GatewayHandle {
             new Promise<number>((resolve) => {
                 server.listen(port, host, () => {
                     const addr = server.address();
-                    resolve(typeof addr === 'object' && addr ? addr.port : port);
+                    const boundPort = typeof addr === 'object' && addr ? addr.port : port;
+                    baseUrl = `http://${host}:${boundPort}`;
+                    resolve(boundPort);
                 });
             }),
-        close: () => new Promise<void>((r) => server.close(() => r())),
+        close: () =>
+            new Promise<void>((resolve) => {
+                runtimeWs.close();
+                void mcpHttp.close();
+                server.close(() => resolve());
+            }),
     };
 }
+
+export type { McpServerOptions };
