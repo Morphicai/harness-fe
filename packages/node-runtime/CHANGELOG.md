@@ -1,5 +1,12 @@
 # @harness-fe/node-runtime
 
+## 4.0.0-next.4
+
+### Patch Changes
+
+- Updated dependencies [25a6106]
+  - @harness-fe/protocol@4.0.0-next.4
+
 ## 4.0.0-next.0
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/gateway",
-    "version": "4.0.0-next.3",
+    "version": "4.0.0-next.4",
     "description": "Harness-FE governance gateway: token lifecycle + RBAC + audit + token→server routing + dynamic manifest + admin panel. Sits in front of one or more daemons for team/public use. Zero native deps (JSON store + node:crypto scrypt).",
     "type": "module",
     "license": "MIT",
