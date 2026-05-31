@@ -1,5 +1,38 @@
 # @harness-fe/runtime
 
+## 4.0.0-next.5
+
+### Minor Changes
+
+- 68e4785: Console: a real sign-in, a clean empty state, and an overlay shortcut that isn't an auth grant.
+
+  - **Sign-in entry** — the console now has a unified sign-in: an **agent read token**
+    (pasted, kept in sessionStorage, sent as Bearer → scoped to the token's projects)
+    or an **admin** session (sees all). Under Open (solo) no sign-in is needed.
+    New `GET /console/api/whoami` reports `{ mode, authenticated, kind, projects }`
+    (never 401s) so the SPA gates on it.
+  - **No more weird empty `/`** — a Governed viewer with no credential gets the
+    sign-in screen instead of a raw 401; authenticated/Open viewers get the data.
+  - **Overlay = pure shortcut** — `deriveDashboardUrl` no longer appends the
+    runtime token; the "open dashboard" button is plain navigation to
+    `/console/sessions/:id`. The viewer authorizes in the console itself (the
+    runtime's write token could never read anyway). The console credential is read
+    from sessionStorage, never the URL.
+
+- 2fa80f1: Rebuild ⑤ — the runtime connects to the gateway `/ws` by default.
+
+  - The default WebSocket target is now `ws://127.0.0.1:<port>/ws` (the gateway
+    front door) instead of the daemon's root socket. Both the build plugin and the
+    in-browser runtime client pick it up. The wire protocol is unchanged, so this
+    is purely a target/path change.
+  - `deriveDashboardUrl` now points at the gateway console (`/console`,
+    `/console/session/:id`) instead of the old `/dashboard/`.
+  - Token semantics: the injected token is now expected to be a **write-scope**
+    gateway token. Core denies every read/control capability to a write-only
+    principal, so extracting the token from `window.__HARNESS_FE__` only lets a
+    page report events and be driven — never read or drive anyone else's data.
+    Solo (loopback) stays token-free.
+
 ## 4.0.0-next.4
 
 ### Minor Changes

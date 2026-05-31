@@ -1,5 +1,23 @@
 # @harness-fe/webpack
 
+## 4.0.0-next.5
+
+### Minor Changes
+
+- c7736ab: Shared auto-spawn gateway + unified console sign-in.
+
+  - **cli**: `harness serve` (headless shared gateway) and `harness mcp` (stdio↔http proxy) subcommands; default-locate `@harness-fe/console-ui` dist so `/console` serves the real UI with no `--console-dir`.
+  - **ensureSharedGateway**: a dev server (vite/unplugin and native webpack) or the mcp launcher — whoever starts first — auto-spawns one shared Open gateway; the other end reuses it. Team (explicit token) never spawns.
+  - **gateway**: `startMcpStdioProxy`; removed the server-rendered `/admin` + `/admin/login` HTML pages — sign-in unified at `/console`.
+  - **console-ui**: sign-in takes effect without a hard reload; governance tab admin-only.
+  - **demo**: `demo.sh` reclaims a stale harness gateway instead of refusing to start.
+
+### Patch Changes
+
+- Updated dependencies [2fa80f1]
+- Updated dependencies [c7736ab]
+  - @harness-fe/unplugin@4.0.0-next.5
+
 ## 4.0.0-next.4
 
 ### Patch Changes
