@@ -232,6 +232,31 @@ importers:
 
   packages/agent-skill: {}
 
+  packages/core:
+    dependencies:
+      '@harness-fe/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      fast-check:
+        specifier: ^3.22.0
+        version: 3.23.2
+      tsx:
+        specifier: ^4.22.3
+        version: 4.22.3
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.19.19)(happy-dom@20.9.0)(terser@5.47.1)
+
   packages/daemon:
     dependencies:
       '@harness-fe/dashboard-ui':

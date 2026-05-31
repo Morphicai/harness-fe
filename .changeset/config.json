@@ -16,6 +16,7 @@
       "@harness-fe/vite",
       "@harness-fe/webpack",
       "@harness-fe/unplugin",
+      "@harness-fe/core",
       "@harness-fe/daemon",
       "@harness-fe/dev-cli",
       "@harness-fe/gateway"

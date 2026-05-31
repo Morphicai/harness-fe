@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ES2022",
+        "moduleResolution": "bundler",
+        "lib": ["ES2022"],
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "outDir": "dist",
+        "declaration": true,
+        "noEmit": false,
+        "types": ["node", "vitest/globals"]
+    },
+    "include": ["src/**/*.ts"],
+    "exclude": ["src/**/*.test.ts", "src/test-utils.ts", "dist"]
+}
