@@ -51,15 +51,15 @@
         "test": "vitest run"
     },
     "dependencies": {
-        "@babel/parser": "^7.29.3",
-        "@babel/traverse": "^7.29.0",
-        "@babel/types": "^7.29.0",
+        "@babel/parser": "^7.29.7",
+        "@babel/traverse": "^7.29.7",
+        "@babel/types": "^7.29.7",
         "@harness-fe/protocol": "workspace:*",
-        "@vue/compiler-dom": "^3.4.0",
-        "@vue/compiler-sfc": "^3.4.0",
+        "@vue/compiler-dom": "^3.5.35",
+        "@vue/compiler-sfc": "^3.5.35",
         "magic-string": "^0.30.21",
         "unplugin": "^2.3.2",
-        "ws": "^8.18.0"
+        "ws": "^8.21.0"
     },
     "devDependencies": {
         "@types/babel__traverse": "^7.28.0",
