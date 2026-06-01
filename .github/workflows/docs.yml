@@ -44,7 +44,7 @@ jobs:
               run: pnpm --filter @harness-fe/docs run docs:build
 
             - name: Upload Pages artifact
-              uses: actions/upload-pages-artifact@v3
+              uses: actions/upload-pages-artifact@v5
               with:
                   path: packages/docs/.vitepress/dist
 
