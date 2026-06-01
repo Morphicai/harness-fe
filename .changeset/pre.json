@@ -40,6 +40,7 @@
     "gateway-publish",
     "mcp-http-per-session",
     "mcp-per-call-principal-p4",
+    "next-adapter-token",
     "package-split-p5",
     "project-agent-binding-grants",
     "project-agent-binding",
