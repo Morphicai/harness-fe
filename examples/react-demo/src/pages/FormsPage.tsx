@@ -5,6 +5,7 @@ interface FormValues {
     email: string;
     role: string;
     subscribe: boolean;
+    fileName: string;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -31,11 +32,12 @@ export function FormsPage() {
     const [email, setEmail] = useState('');
     const [role, setRole] = useState('Developer');
     const [subscribe, setSubscribe] = useState(false);
+    const [fileName, setFileName] = useState('');
     const [submitted, setSubmitted] = useState<FormValues | null>(null);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitted({ name, email, role, subscribe });
+        setSubmitted({ name, email, role, subscribe, fileName });
         console.log('[demo] form submitted', { name, email, role, subscribe });
     };
 
@@ -120,6 +122,23 @@ export function FormsPage() {
                         Subscribe to newsletter
                     </label>
 
+                    <label style={labelStyle}>
+                        Upload file
+                        <input
+                            type="file"
+                            aria-label="Upload file"
+                            data-morphix-comp="FileInput"
+                            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? '')}
+                            style={{ ...inputStyle, padding: '8px 12px', cursor: 'pointer' }}
+                        />
+                        {fileName && (
+                            <span style={{ fontSize: 13, color: '#166534', marginTop: 4, display: 'block' }}
+                                  data-morphix-comp="SelectedFileName">
+                                Selected: {fileName}
+                            </span>
+                        )}
+                    </label>
+
                     <button
                         type="submit"
                         aria-label="Submit form"
@@ -192,7 +211,9 @@ export function FormsPage() {
                 <ul style={{ margin: 0, paddingLeft: 20, color: '#555', fontSize: 14, lineHeight: 1.8 }}>
                     <li>Use <code>page.type</code> with <code>ariaLabel: "Full name"</code> to fill the name field</li>
                     <li>Use <code>page.type</code> with <code>ariaLabel: "Email address"</code> to fill email</li>
-                    <li>Use <code>page.click</code> with <code>ariaLabel: "Subscribe to newsletter"</code> to toggle checkbox</li>
+                    <li>Use <code>page.check</code> with <code>ariaLabel: "Subscribe to newsletter"</code> to toggle checkbox</li>
+                    <li>Use <code>page.select</code> with <code>ariaLabel: "Role"</code> to change the dropdown</li>
+                    <li>Use <code>page.upload</code> with <code>ariaLabel: "Upload file"</code> to inject a file</li>
                     <li>Use <code>page.click</code> with <code>ariaLabel: "Submit form"</code> to submit</li>
                     <li>Use <code>page.dom_query</code> with <code>component: "SubmittedValues"</code> to read results</li>
                 </ul>
