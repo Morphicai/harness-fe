@@ -1,6 +1,15 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it, afterEach, vi } from 'vitest';
+
+// rrweb has CJS/ESM interop issues under happy-dom; stub it out so client.ts
+// can be imported without crashing in the test environment.
+vi.mock('rrweb', () => ({ record: () => () => {}, EventType: { Custom: 5 } }));
+vi.mock('./commands.js', () => ({
+    commandHandlers: {},
+}));
+
 import { tryInheritFromParent } from './parent-inherit.js';
+import { readInjectedConfig } from './client.js';
 
 /**
  * tryInheritFromParent has three branches:
@@ -85,5 +94,35 @@ describe('tryInheritFromParent', () => {
         );
         Object.defineProperty(window, 'parent', { value: evilParent, configurable: true });
         expect(tryInheritFromParent()).toEqual({});
+    });
+});
+
+describe('overlay config', () => {
+    afterEach(() => {
+        delete (window as any).__HARNESS_FE__;
+    });
+
+    it('overlay:false is read from window.__HARNESS_FE__', () => {
+        (window as any).__HARNESS_FE__ = { projectId: 'x', mcpUrl: 'ws://localhost:9000/ws', overlay: false };
+        const config = readInjectedConfig();
+        expect(config.overlay).toBe(false);
+    });
+
+    it('overlay defaults to true when not set', () => {
+        (window as any).__HARNESS_FE__ = { projectId: 'x', mcpUrl: 'ws://localhost:9000/ws' };
+        const config = readInjectedConfig();
+        expect(config.overlay).toBe(true);
+    });
+});
+
+describe('consent config from window.__HARNESS_FE__', () => {
+    afterEach(() => {
+        delete (window as any).__HARNESS_FE__;
+    });
+
+    it('reads consent field', () => {
+        (window as any).__HARNESS_FE__ = { projectId: 'x', mcpUrl: 'ws://localhost:9000/ws', consent: 'always' };
+        const config = readInjectedConfig();
+        expect(config.consent).toBe('always');
     });
 });

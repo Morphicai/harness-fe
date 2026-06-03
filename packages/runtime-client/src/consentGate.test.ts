@@ -4,7 +4,7 @@
  * handleCommand directly with a stubbed `send` and a mocked command-handler
  * table, so the test isolates the consent decision wiring from real DOM ops.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // rrweb has CJS/ESM interop issues under happy-dom; stub it (same as the e2e).
 vi.mock('rrweb', () => ({ record: () => () => {}, EventType: { Custom: 5 } }));
@@ -43,9 +43,16 @@ const command = (cmd: string, id = 'id-1') => ({ type: 'command' as const, id, c
 const run = (c: RuntimeClient, frame: ReturnType<typeof command>) =>
     (c as unknown as { handleCommand: (f: unknown) => Promise<void> }).handleCommand(frame);
 
+const PERMANENT_GRANT_KEY = '__hfe_consent_grant__:p';
+
 beforeEach(() => {
     handlerCalls.length = 0;
     getCaptureStore().dispose();
+    try { localStorage.removeItem(PERMANENT_GRANT_KEY); } catch { /* noop */ }
+});
+
+afterEach(() => {
+    try { localStorage.removeItem(PERMANENT_GRANT_KEY); } catch { /* noop */ }
 });
 
 describe('consent gate', () => {
@@ -111,5 +118,67 @@ describe('consent gate', () => {
         await run(c, command(COMMAND.CONSOLE_TAIL));
         expect(prompter).not.toHaveBeenCalled();
         expect(handlerCalls).toEqual([COMMAND.CONSOLE_TAIL]);
+    });
+});
+
+describe('permanent grant', () => {
+    it('permanent decision: saves to localStorage and grants session', async () => {
+        const { c } = makeClient('session');
+        c.setConsentPrompter(async () => 'permanent' as ConsentDecision);
+        await run(c, command(COMMAND.PAGE_CLICK));
+        expect(handlerCalls).toContain(COMMAND.PAGE_CLICK);
+        expect(localStorage.getItem(PERMANENT_GRANT_KEY)).not.toBeNull();
+    });
+
+    it('loadPermanentGrant: if localStorage has a grant, session is pre-granted', async () => {
+        localStorage.setItem(PERMANENT_GRANT_KEY, JSON.stringify({ grantedAt: Date.now() }));
+        const { c } = makeClient('session');
+        // Call loadPermanentGrant to simulate what start() does.
+        (c as unknown as { loadPermanentGrant: () => void }).loadPermanentGrant();
+        // Prompter throws if called — must never be reached.
+        c.setConsentPrompter(() => { throw new Error('should not prompt'); });
+        await run(c, command(COMMAND.PAGE_CLICK));
+        expect(handlerCalls).toContain(COMMAND.PAGE_CLICK);
+    });
+
+    it('permanent grant skips prompting on subsequent commands', async () => {
+        const { c } = makeClient('session');
+        const prompter = vi.fn(async () => 'permanent' as ConsentDecision);
+        c.setConsentPrompter(prompter);
+        await run(c, command(COMMAND.PAGE_CLICK, 'a'));
+        await run(c, command(COMMAND.PAGE_CLICK, 'b'));
+        // Second command must reuse the session grant, not call the prompter again.
+        expect(prompter).toHaveBeenCalledTimes(1);
+        expect(handlerCalls).toEqual([COMMAND.PAGE_CLICK, COMMAND.PAGE_CLICK]);
+    });
+});
+
+describe('plugin consent priority', () => {
+    it('opts.consent takes priority over hello.ack mode', () => {
+        // Create client with explicit consent: 'off'.
+        const c = new RuntimeClient({ projectId: 'p', consent: 'off' });
+        // Simulate daemon sending hello.ack with consent: { mode: 'session' }.
+        (c as unknown as { onHelloAck: (f: unknown) => void }).onHelloAck({
+            type: 'hello.ack',
+            id: 'ack-1',
+            serverVersion: '4.0.0',
+            consent: { mode: 'session' },
+        });
+        // Plugin option wins: consentMode stays 'off'.
+        expect((c as unknown as { consentMode: ConsentMode }).consentMode).toBe('off');
+    });
+
+    it('falls back to hello.ack when no plugin consent set', () => {
+        // Create client without a consent option.
+        const c = new RuntimeClient({ projectId: 'p' });
+        // Simulate daemon sending hello.ack with consent: { mode: 'session' }.
+        (c as unknown as { onHelloAck: (f: unknown) => void }).onHelloAck({
+            type: 'hello.ack',
+            id: 'ack-2',
+            serverVersion: '4.0.0',
+            consent: { mode: 'session' },
+        });
+        // No plugin override: gateway mode is adopted.
+        expect((c as unknown as { consentMode: ConsentMode }).consentMode).toBe('session');
     });
 });
