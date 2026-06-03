@@ -2301,10 +2301,27 @@ function formatConsentCommand(req: ConsentRequest): string {
     const args = req.args && typeof req.args === 'object'
         ? (req.args as Record<string, unknown>)
         : undefined;
-    const detail = args?.selector ?? args?.url ?? args?.expr ?? args?.value ?? args?.predicate;
-    if (detail === undefined) return req.command;
-    const s = String(detail);
-    return `${req.command}(${s.length > 80 ? `${s.slice(0, 80)}…` : s})`;
+    if (!args) return req.command;
+
+    // Selector objects: pick the most human-readable field
+    const sel = args.selector;
+    let detail: string | undefined;
+    if (sel && typeof sel === 'object') {
+        const s = sel as Record<string, unknown>;
+        const raw = s.text ?? s.ariaLabel ?? s.css ?? s.comp ?? s.role ?? s.loc;
+        if (raw != null) detail = String(raw);
+    } else if (typeof args.url === 'string') {
+        detail = args.url;
+    } else if (typeof args.expr === 'string') {
+        detail = args.expr;
+    } else if (typeof args.value === 'string') {
+        detail = args.value;
+    } else if (typeof args.predicate === 'string') {
+        detail = args.predicate;
+    }
+
+    if (!detail) return req.command;
+    return `${req.command}(${detail.length > 80 ? `${detail.slice(0, 80)}…` : detail})`;
 }
 
 // ─── Element / payload helpers (unchanged from annotation.ts) ────────────

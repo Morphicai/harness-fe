@@ -31,6 +31,8 @@ export default defineConfig({
                       projectId: 'react-demo',
                       mcpUrl: CENTRAL_DAEMON_URL,
                       token: CENTRAL_DAEMON_TOKEN,
+                      consent: 'session',   // team mode: first control cmd per pageload needs approval
+                      overlay: true,
                   }),
               ]
             : []),
