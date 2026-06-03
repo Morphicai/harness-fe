@@ -1,5 +1,7 @@
 # Release flow
 
+> **注：** 文档中个别包名（`@harness-fe/mcp-server`）为旧 3.x 名称，流程本身（changesets dual-line、Version PR BLOCKED gotcha、`--tag next` footgun）仍然准确。
+
 How packages get from a merged PR to npm, and the one gotcha that can wedge the
 pipeline. For **what semver bump to choose**, see
 [versioning-policy.md](../versioning-policy.md); this doc is the operational

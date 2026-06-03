@@ -1,5 +1,7 @@
 # Electron / multi-window host integration
 
+> **注：** 本文档中 "daemon" 指旧 3.x 术语，4.0 对应为 `harness serve` / `harness --governed`。build plugin + runtime client 接入方式本身未变，待补充 4.0 配置示例。
+
 harness-fe was designed for the browser, but a renderer process in
 Electron / Tauri / Capacitor / a CEF-embedded WebView is still a
 browser context — the build plugin + runtime client work as-is.

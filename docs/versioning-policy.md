@@ -1,5 +1,7 @@
 # Versioning policy
 
+> **注：** 本文档中的包名（`@harness-fe/mcp-server`、`@harness-fe/daemon` 等）基于 3.x 架构，已过时。4.0 linked group 为 `core` / `gateway` / `cli` / `console-ui`，待更新。
+
 > This doc is about **what bump to choose**. For the operational pipeline (how a
 > merged PR reaches npm, the dual 3.x/4.0 lines, and the `BLOCKED` gotcha) see
 > [operations/release-flow.md](./operations/release-flow.md).

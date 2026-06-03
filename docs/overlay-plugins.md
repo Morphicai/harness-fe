@@ -1,5 +1,7 @@
 # Overlay plugins
 
+> **注：** 插件 API 本身未变，但文档中 `dashboardUrl` 在 4.0 已改为 `consoleUrl`，`daemon RPC` 说法对应 gateway capability API。待补充 4.0 配置示例。
+
 The in-page "H" overlay is extensible. A **plugin** adds an action button to the
 info card; clicking it runs your handler with a typed context that gives
 on-demand access to the current scene, logs, a screenshot, and the picked
