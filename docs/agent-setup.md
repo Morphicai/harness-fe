@@ -32,21 +32,23 @@ Without the skill, the agent sees a flat list of MCP tools and has to *guess* th
 
 ## 2. Wire the MCP server
 
-Pick the entry that matches your setup (see [the decision table in the README](../README.md#which-path-are-you-on)).
+Pick the entry that matches your setup.
 
 ### Solo / local — zero config
 
 ```jsonc
 {
   "mcpServers": {
-    "harness-fe": { "type": "stdio", "command": "npx", "args": ["-y", "@harness-fe/dev-cli"] }
+    "harness-fe": { "type": "stdio", "command": "npx", "args": ["-y", "@harness-fe/cli", "mcp"] }
   }
 }
 ```
 
-The agent spawns the daemon itself over stdio. Loopback is fully trusted — **no token**. Multiple agent windows share one daemon (leader/follower), so they all see the same browser.
+`harness mcp` auto-spawns a shared gateway (`harness serve`) on `127.0.0.1:47729` the first time, then proxies the agent's stdio MCP traffic to it. Subsequent IDE windows reuse the same gateway — all agents see the same browser state, no configuration needed.
 
-### Team / shared daemon — through the gateway
+Loopback is fully trusted — **no token**.
+
+### Team / shared gateway
 
 ```jsonc
 {
@@ -60,7 +62,7 @@ The agent spawns the daemon itself over stdio. Loopback is fully trusted — **n
 }
 ```
 
-Agents reach a shared daemon **only** through the gateway, which enforces scope (RBAC) + project→agent binding + audit. Full guide: **[gateway-team-mode.md](./gateway-team-mode.md)**.
+Agents connect to a shared `harness --governed` gateway, which enforces scope (RBAC) + project→agent binding + audit. Full guide: **[gateway-team-mode.md](./gateway-team-mode.md)**.
 
 ---
 
@@ -74,7 +76,7 @@ The agent can only see an app that loaded the runtime. Add the build plugin (`@h
 
 | Symptom | Likely cause |
 |---|---|
-| Agent: *"no runtime-client connected"* | The dev page isn't open, or its `mcpUrl` / token doesn't match the daemon you're querying. |
+| Agent: *"no runtime-client connected"* | The dev page isn't open, or its `mcpUrl` / token doesn't match the gateway you're querying. |
 | Tools missing from the agent | Skill not installed, or `.mcp.json` not picked up — restart the IDE / reload MCP. |
 | Team mode: agent sees no sessions | Its token isn't bound to that project — see [project→agent binding](./gateway-team-mode.md#project-agent-binding). |
 

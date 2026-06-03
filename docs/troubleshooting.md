@@ -2,25 +2,27 @@
 
 If something isn't appearing in the timeline, work through these checks in order.
 
-## 1. Is the daemon running?
+## 1. Is the gateway running?
 
 ```bash
 lsof -iTCP:47729 -sTCP:LISTEN
-# Should print one row owned by node (the MCP server)
+# Should print one row owned by node (harness serve)
 ```
 
 Start it manually if not:
 ```bash
-pnpm exec @harness-fe/mcp-server
-# OR if you've cloned the repo:
-pnpm start:mcp
+npx @harness-fe/cli serve
 ```
 
-You should see `WebSocket listening on ws://127.0.0.1:47729` in the log.
+You should see `[harness] OPEN (serve) — http://127.0.0.1:47729` in the log.
+
+The gateway also auto-spawns when the agent runs `harness mcp` — if your `.mcp.json` is wired correctly you shouldn't need to start it by hand.
 
 ## 2. Are peers connecting?
 
-Watch the daemon stdout while you refresh your app. You should see:
+Open the console at `http://localhost:47729/console`. The project list should show your app with a green dot once the dev page loads.
+
+Or watch the gateway stderr while you refresh your app. You should see:
 
 ```
 peer connected role=runtime-client      projectId=my-app  sessionId=<uuid-A>
@@ -49,7 +51,7 @@ ls -lt ~/.harness/data/sessions/ | head -5      # newest first
 cat ~/.harness/data/sessions/<sid>/timeline.jsonl | jq -r '"\(.t)\t\(.payload // {})"'
 ```
 
-If a `console.log` from your code isn't in any timeline, it's either in `server-orphans/` (see §5) or never reached the daemon (see §1, §4).
+If a `console.log` from your code isn't in any timeline, it's either in `server-orphans/` (see §5) or never reached the gateway (see §1, §4).
 
 ## 4. Server-side events missing entirely
 
@@ -60,7 +62,7 @@ Common reasons the Node SDK never connected:
 | `peer connected role=node-runtime` never appears | `<HarnessScript>` not in your layout, `withHarness()` not in `next.config.mjs`, AND no manual `register()` call | Add one. The easiest is dropping `<HarnessScript projectId="…" />` into `app/layout.tsx`. |
 | It appears once but no events follow | `NODE_ENV !== 'development'` | Auto-boot is dev-only by design. To force it on, call `register()` yourself unconditionally. |
 | Connects but events still missing | `captureConsole: false` and you're not using `@harness-fe/log` | Either remove the flag or migrate to `log.*`. |
-| Edge route not appearing | Edge runtime uses HTTP-batch, not WS — confirm daemon stdout shows `POST /events` hits | Check that `mcpUrl` is reachable from the edge env (`localhost` works in dev only) |
+| Edge route not appearing | Edge runtime uses HTTP-batch, not WS — confirm gateway stderr shows `POST /events` hits | Check that `mcpUrl` is reachable from the edge env (`localhost` works in dev only) |
 
 ## 5. `sessionId` mismatch between server and client
 
@@ -93,22 +95,22 @@ They shouldn't. Each tab refresh = a new `sessionId`. If you see this:
 - Check that you didn't override `tabId` or `sessionId` manually
 - Check `~/.harness/data/sessions/<sid>/meta.json` — `participants` should be a single tab. If multiple, you have an iframe inheriting parent identity (see ARCHITECTURE.md → "Same-origin iframe identity inheritance"), which is intentional.
 
-## 8. Daemon disk filling up
+## 8. Disk filling up
 
 Two safeguards run automatically:
 
-- **Retention**: sessions older than `HARNESS_FE_RETENTION_DAYS` (default 14) are purged on each daemon start
+- **Retention**: sessions older than `HARNESS_FE_RETENTION_DAYS` (default 14) are purged on each gateway start
 - **Size cap**: each `timeline.jsonl` is capped at `HARNESS_FE_MAX_TIMELINE_KB` (default 4096); older lines are dropped at write time
 
 To nuke everything:
 ```bash
 rm -rf ~/.harness/data
-# daemon recreates the tree on next start
+# gateway recreates the tree on next start
 ```
 
 ## 9. Agent doesn't see new events
 
-The MCP `console_tail` / `events_recent` tools page from the disk. If the agent's session cached an old cursor, ask it to re-list. The daemon is the source of truth — if `cat timeline.jsonl` shows it, the agent can see it.
+The MCP `console_tail` / `events_recent` tools page from disk. If the agent's session cached an old cursor, ask it to re-list. The gateway is the source of truth — if `cat timeline.jsonl` shows it, the agent can see it.
 
 ## 10. LAN mode — 401 / phone can't connect
 
@@ -118,67 +120,20 @@ Most LAN-mode connectivity issues fall into one of these buckets.
 
 Token didn't match. Check, in order:
 
-1. The exact token from the daemon banner. Tokens are case-sensitive, no
-   surrounding whitespace.
-2. If you set `HARNESS_FE_TOKEN` in your shell rc, did the daemon and
-   the browser-paste URL pick up the **same** value? `echo
-   $HARNESS_FE_TOKEN` in both terminals.
-3. The cookie. After a successful login the daemon sets
-   `harness_fe_token`. If you copied a stale URL with a different
-   token, clear `harness_fe_token` for that origin (Chrome DevTools →
-   Application → Cookies).
+1. The exact token from the gateway banner. Tokens are case-sensitive, no surrounding whitespace.
+2. If you set the token in your shell rc, did the gateway and the browser-paste URL pick up the **same** value?
+3. The cookie. After a successful login the gateway sets `harness_fe_token`. If you copied a stale URL with a different token, clear `harness_fe_token` for that origin (Chrome DevTools → Application → Cookies).
 
-### Daemon refuses to start: "refusing to bind 0.0.0.0 without a token"
-
-The safety guard. You bound a non-loopback host but didn't supply
-`--token`. Either:
-- Add `--token auto` for an ephemeral token, OR
-- `export HARNESS_FE_TOKEN=...` first then re-run
-
-### Phone can reach the dashboard but the plugin's WS connection fails
+### Phone can reach the console but the plugin's WS connection fails
 
 Two common causes:
 
-1. **macOS firewall blocking node**. Settings → Network → Firewall →
-   Options → ensure `node` is allowed (or temporarily disable to
-   confirm). On Linux check `ufw status` / `iptables -L`.
-2. **Wrong IP**. `--host 0.0.0.0` makes the daemon listen on every
-   interface, but the dashboard URL only prints **one** auto-detected
-   LAN IP. On multi-homed machines (Docker, VPN, multiple NICs) it
-   might be the wrong one. Override:
-   ```bash
-   npx @harness-fe/mcp-server --host 0.0.0.0 --token ... --public-host 192.168.x.y
-   ```
-   Or look at `ifconfig` / `ip addr` to find the right LAN IP and
-   substitute it into the URL manually.
-
-### Browser WebSocket fails but `curl` with `?token=` works
-
-Browsers can't set `Authorization` headers on `new WebSocket(...)`. The
-runtime client falls back to the URL query, which is what the plugin
-injects via `__HARNESS_FE__.mcpUrl`. Confirm:
-
-```js
-// In the page console:
-window.__HARNESS_FE__.mcpUrl
-// Should be something like: ws://192.168.x.y:47729?token=...
-```
-
-If `mcpUrl` is missing the token, your plugin config doesn't have it.
-Pass `token: process.env.HARNESS_FE_TOKEN` (or hard-code the value)
-when calling `harnessFE(...)`.
+1. **macOS firewall blocking node**. Settings → Network → Firewall → Options → ensure `node` is allowed (or temporarily disable to confirm). On Linux check `ufw status` / `iptables -L`.
+2. **Wrong IP**. `--host 0.0.0.0` makes the gateway listen on every interface, but the console URL only prints one auto-detected LAN IP. On multi-homed machines (Docker, VPN, multiple NICs) it might be the wrong one. Override with `--public-host 192.168.x.y`.
 
 ### Agent gets 401 from MCP HTTP
 
-Check the `Authorization: Bearer <token>` header in your agent config
-matches the daemon's token. Some clients trim trailing whitespace from
-multi-line JSON values — easy to introduce by accident when copy-paste.
-
-### "warning: bound to non-loopback host"
-
-Not an error — it's a reminder. The daemon will start, but anyone on
-the LAN with the token can read your console / network / recordings.
-Don't expose to public WiFi.
+Check the `Authorization: Bearer <token>` header in your agent config matches the gateway's token. Some clients trim trailing whitespace from multi-line JSON values — easy to introduce by accident when copy-pasting.
 
 ## 11. Vue 2 codebase — files aren't getting `data-morphix-loc`
 
@@ -191,5 +146,5 @@ attributes and why. Full guide:
 
 ## 12. Still stuck
 
-- Run the daemon with `DEBUG=harness-fe:* pnpm start:mcp` for verbose logging
-- File an issue with: the relevant timeline.jsonl excerpt (redact what you must), the daemon stdout, your Next / Vite / Webpack version, and what you expected
+- Run `harness serve` with `DEBUG=harness-fe:*` for verbose logging
+- File an issue with: the relevant timeline.jsonl excerpt (redact what you must), the gateway stderr, your Next / Vite / Webpack version, and what you expected

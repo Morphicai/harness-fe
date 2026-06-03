@@ -1,49 +1,39 @@
-# Team / gateway mode
+# Team / governed mode
 
-Solo dev runs a loopback daemon with no token — the agent spawns it over stdio and sees everything. Perfect for one person on one app. A **team** sharing one daemon needs more: who sees which project, who may drive the browser, and an audit trail. That's the **gateway**.
+Solo dev runs a loopback gateway with no token — the agent auto-spawns it over stdio and sees everything. Perfect for one person on one app. A **team** sharing one gateway needs more: who sees which project, who may drive the browser, and an audit trail. That's **governed mode**.
 
 > New here? Start with [agent-setup.md](./agent-setup.md). This page is the team/shared path.
 
-## daemon vs gateway
+## How it works
 
-|  | `@harness-fe/daemon` (always) | `@harness-fe/gateway` (team only) |
-|---|---|---|
-| Role | capabilities + data + browser connection | the front door / governance |
-| Holds | tools, event store, recording/replay, browser WS | token lifecycle, RBAC, routing, audit, admin |
-| Identity | **consumes** it (tags `createdBy` / `agentId`) | **produces** it (token → caller) |
-| Who needs it | everyone | teams / shared / public dev |
-
-The gateway never implements tools or holds data — it sits **in front of** one or more daemons and forwards MCP requests, injecting the verified caller.
-
-## Topology
+`harness --governed` is a single process that combines the core (data + browser bridge) and the governance layer (tokens, RBAC, audit) in one binary. There is no separate daemon — the gateway *is* the data store.
 
 ```
-  browsers (runtime) ──WS + write──┐
-  app A, app B, app C …            ▼
-                       central daemon :47900  (token, HTTP-MCP upstream)
+  browsers (runtime) ──WS write token──┐
+  app A, app B, app C …                ▼
+                       harness --governed :47950
+                       (/ws  — browser runtime, write-only tokens)
+                       (/mcp — agents, RBAC + audit)
+                       (/console — back-office UI)
+                       (/admin   — token/server management)
                                     ▲
-  agent ──HTTP-MCP + gateway token──┘ via  gateway :47950  ─(inject caller + projects)─┘
-         (read+control, projects=…)        token → scope (RBAC) → route → audit
+  agents ──HTTP-MCP + bearer token──┘
+  (read+control, projects=…)
 ```
 
-Each browser app reports into the **same** daemon as a distinct project. Agents reach it **only** through the gateway.
+Each browser app connects over `/ws` with a write-scope token; it can only push data, never read it. Agents connect over `/mcp` with a read+control token scoped to specific projects.
 
 ## Run it
 
 ```bash
-# 1. central daemon — token-secured, HTTP-MCP transport
-harness-fe --port 47900 --token "$SECRET" --mcp-transport http
-
-# 2. gateway — admin + upstream daemon + a scoped agent token
-harness-gateway --port 47950 --data-dir ~/.harness-fe/gateway \
+harness --governed \
+  --port 47950 \
   --admin-user admin --admin-pass "$PW" \
-  --add-server  name=team,endpoint=http://127.0.0.1:47900,token="$SECRET" \
-  --issue-token name=agentA,server=team,scopes=read+control,projects=my-app
+  --issue-token name=runtime,scopes=write \
+  --issue-token name=agentA,scopes=read+control,projects=my-app
 ```
 
-Or bring up the whole spectrum (solo + team, several apps) in one command: `bash scripts/demo.sh` — see [examples/DEMO.md](../examples/DEMO.md).
-
-Then point the agent at the gateway (`.mcp.json`):
+Then point agents at `/mcp` (`.mcp.json`):
 
 ```jsonc
 { "mcpServers": { "harness-fe": {
@@ -51,6 +41,16 @@ Then point the agent at the gateway (`.mcp.json`):
   "url": "http://127.0.0.1:47950/mcp",
   "headers": { "Authorization": "Bearer <agentA-token>" }
 } } }
+```
+
+And point each app's build plugin at `/ws` with the runtime token:
+
+```ts
+// vite.config.ts
+harnessFE({ mcpUrl: 'ws://127.0.0.1:47950/ws', token: '<runtime-token>', projectId: 'my-app' })
+
+// next.config.mjs
+withHarness({ /* …config… */ }, { mcpUrl: 'ws://127.0.0.1:47950/ws', token: '<runtime-token>', projectId: 'my-app' })
 ```
 
 ## Scopes (RBAC)
@@ -63,26 +63,26 @@ Then point the agent at the gateway (`.mcp.json`):
 
 ## project→agent binding {#project-agent-binding}
 
-A token carries `projects` — `['*']` (all) or a specific list. The gateway forwards the grants to the daemon (`x-harness-projects` header); the daemon then shows a **bound** agent the project's *whole* data set and lets it drive that project's tabs — **regardless of who created each row** (creator ≠ consumer). Without grants, visibility falls back to creator-based ownership (the solo / single-token case, where they coincide).
+A token carries `projects` — `['*']` (all) or a specific list. The gateway scopes what the agent can see and drive to exactly those projects.
 
 This is what makes a team agent actually see users' sessions: the runtime that *creates* a session and the agent that *reads* it are different principals, so binding by **project** — not by creator — is the unit of isolation.
 
 ```bash
-# scope agentA to one project; it sees/controls that project only
-harness-gateway --issue-token name=agentA,server=team,scopes=read+control,projects=my-app
+# agentA sees/controls only my-app
+harness --governed --issue-token name=agentA,scopes=read+control,projects=my-app
 ```
 
-## Browser Consent
+## Browser Consent {#browser-consent}
 
-With the daemon behind a token (team), `control` commands require in-page user approval before they run — the overlay shows a consent prompt (Allow once / Allow for session / Deny). Read-only tools are never gated. On loopback (solo) consent is off.
+In governed mode, `control` commands require in-page user approval before they run — the overlay shows a consent prompt (Allow once / Allow for session / Deny). Read-only tools are never gated. On loopback (solo) consent is off.
 
 ## Audit
 
-Every gateway call is appended to `{data-dir}/audit.jsonl` (`tokenId`, `tool`, `serverId`, `ip`). Manage servers / tokens / audit in the admin panel at `http://<gateway>/admin`.
+Every MCP call is appended to `{data-dir}/audit.jsonl` (`tokenId`, `tool`, `ip`). Manage tokens and view audit in the admin panel at `http://<gateway>/admin`.
 
 ## When to use team mode
 
-- Multiple developers / agents sharing one dev daemon.
+- Multiple developers / agents sharing one gateway.
 - A shared dev VM or public dev environment.
 - You need project-level isolation or an audit trail.
 
