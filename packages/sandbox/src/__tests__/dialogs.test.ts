@@ -245,6 +245,9 @@ describe('window.prompt', () => {
 });
 
 // ─── HTMLInputElement.prototype.click — file input ────────────────────────────
+// Note: file input click interception has been moved to the `forms` channel.
+// These tests now install the `forms` channel (not `dialogs`) and filter for
+// `source: 'forms'` events.
 
 describe('HTMLInputElement.prototype.click — file input', () => {
     let savedOrigClick: () => void;
@@ -264,7 +267,7 @@ describe('HTMLInputElement.prototype.click — file input', () => {
         // Replace BEFORE installSandbox so the patch captures the spy as origInputClick.
         HTMLInputElement.prototype.click = clickSpy;
 
-        const handle = installSandbox({ only: ['dialogs'] });
+        const handle = installSandbox({ only: ['forms'] });
 
         const input = document.createElement('input');
         input.type = 'file';
@@ -280,7 +283,7 @@ describe('HTMLInputElement.prototype.click — file input', () => {
         HTMLInputElement.prototype.click = clickSpy;
 
         const events: SandboxEvent[] = [];
-        const handle = installSandbox({ only: ['dialogs'], onEvent: (e) => events.push(e) });
+        const handle = installSandbox({ only: ['forms'], onEvent: (e) => events.push(e) });
 
         const input = document.createElement('input');
         input.type = 'file';
@@ -293,14 +296,14 @@ describe('HTMLInputElement.prototype.click — file input', () => {
         // Native click must be suppressed
         expect(clickSpy).not.toHaveBeenCalled();
 
-        // Event must be emitted
-        const dialogEvts = dialogEvents(events);
-        expect(dialogEvts).toHaveLength(1);
-        expect(dialogEvts[0].kind).toBe('file_input_click');
-        expect(dialogEvts[0].data).toMatchObject({ type: 'file_input_click' });
+        // Event must be emitted on the forms channel
+        const formsEvts = events.filter((e): e is SandboxEvent & { source: 'forms' } => e.source === 'forms');
+        expect(formsEvts).toHaveLength(1);
+        expect(formsEvts[0].kind).toBe('file_input_click');
+        expect(formsEvts[0].data).toMatchObject({ type: 'file_input_click' });
 
         // Selector derived from id
-        expect((dialogEvts[0].data as { selector?: string }).selector).toBe('#test-file');
+        expect((formsEvts[0].data as { selector?: string }).selector).toBe('#test-file');
 
         // Pending reference must be parked
         expect((window as unknown as Record<string, unknown>).__hfe_pending_file_input__).toBe(input);
@@ -314,7 +317,7 @@ describe('HTMLInputElement.prototype.click — file input', () => {
         HTMLInputElement.prototype.click = clickSpy;
 
         const events: SandboxEvent[] = [];
-        const handle = installSandbox({ only: ['dialogs'], onEvent: (e) => events.push(e) });
+        const handle = installSandbox({ only: ['forms'], onEvent: (e) => events.push(e) });
 
         const input = document.createElement('input');
         input.type = 'file';
@@ -323,9 +326,9 @@ describe('HTMLInputElement.prototype.click — file input', () => {
         setAgentInProgress(true);
         input.click();
 
-        const dialogEvts = dialogEvents(events);
-        expect(dialogEvts).toHaveLength(1);
-        const selector = (dialogEvts[0].data as { selector?: string }).selector ?? '';
+        const formsEvts = events.filter((e): e is SandboxEvent & { source: 'forms' } => e.source === 'forms');
+        expect(formsEvts).toHaveLength(1);
+        const selector = (formsEvts[0].data as { selector?: string }).selector ?? '';
         expect(selector).toContain('input');
 
         handle.dispose();
@@ -335,7 +338,7 @@ describe('HTMLInputElement.prototype.click — file input', () => {
         const clickSpy = vi.fn();
         HTMLInputElement.prototype.click = clickSpy;
 
-        const handle = installSandbox({ only: ['dialogs'] });
+        const handle = installSandbox({ only: ['forms'] });
 
         const input = document.createElement('input');
         input.type = 'text';

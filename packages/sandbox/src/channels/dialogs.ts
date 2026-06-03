@@ -4,7 +4,6 @@
  *
  * Intercepted (agent-triggered only):
  *   window.alert / confirm / prompt / print
- *   HTMLInputElement.prototype.click (file inputs only)
  *   beforeunload event (suppressed while agent command is in flight)
  *
  * User-triggered calls: always passed to the native implementation.
@@ -16,6 +15,9 @@
  * Dialog presets (for confirm/prompt return values) are written by the
  * SET_DIALOG_HANDLER command into `window.__hfe_dialog_presets__`, which is
  * populated by runtime-client/index.ts from the `dialogPresets` Map.
+ *
+ * Note: HTMLInputElement.prototype.click (file inputs) has been moved to the
+ * `forms` channel (channels/forms.ts).
  */
 
 import type { DialogsObservation } from '../types.js';
@@ -34,17 +36,6 @@ function getAndConsumeDialogPreset(type: string): boolean | string | undefined {
     const value = (presets as Map<string, boolean | string>).get(type);
     if (value !== undefined) (presets as Map<string, boolean | string>).delete(type);
     return value;
-}
-
-/** Derive a best-effort CSS selector string from a DOM element. */
-function deriveSelector(el: Element): string {
-    if (el.id) return `#${CSS.escape(el.id)}`;
-    const tag = el.tagName.toLowerCase();
-    const cls = Array.from(el.classList)
-        .slice(0, 2)
-        .map((c) => `.${CSS.escape(c)}`)
-        .join('');
-    return `${tag}${cls}`;
 }
 
 function emitDialog(data: DialogsObservation): void {
@@ -93,37 +84,7 @@ function installDialogsPatch(): () => void {
         // Agent-triggered print is silently suppressed.
     };
 
-    // ── 2. HTMLInputElement.prototype.click (file inputs only) ───────────────
-
-    const origInputClick = HTMLInputElement.prototype.click;
-
-    const patchedInputClick = function (this: HTMLInputElement): void {
-        if (this.type !== 'file' || !isAgentInProgress()) {
-            origInputClick.call(this);
-            return;
-        }
-        // Agent triggered a file-picker click — suppress the native dialog.
-        const selector = deriveSelector(this);
-        emitDialog({ type: 'file_input_click', selector });
-        // Park a reference so page.upload can find the element without a selector.
-        (window as unknown as Record<string, unknown>).__hfe_pending_file_input__ = this;
-        // Auto-clear after 30 s if the agent never responds.
-        const ref = this;
-        setTimeout(() => {
-            const w = window as unknown as Record<string, unknown>;
-            if (w.__hfe_pending_file_input__ === ref) {
-                w.__hfe_pending_file_input__ = null;
-            }
-        }, 30_000);
-    };
-
-    try {
-        HTMLInputElement.prototype.click = patchedInputClick;
-    } catch {
-        // Non-configurable prototype in some hardened environments — degrade silently.
-    }
-
-    // ── 3. beforeunload — suppress when agent command is in progress ──────────
+    // ── 2. beforeunload — suppress when agent command is in progress ──────────
 
     const beforeunloadHandler = (e: BeforeUnloadEvent): void => {
         if (!isAgentInProgress()) return;
@@ -139,13 +100,9 @@ function installDialogsPatch(): () => void {
         window.confirm = origConfirm;
         window.prompt = origPrompt;
         window.print = origPrint;
-        try {
-            HTMLInputElement.prototype.click = origInputClick;
-        } catch { /* ignore */ }
         window.removeEventListener('beforeunload', beforeunloadHandler, true);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         delete (window as any)[PATCHED_FLAG];
-        delete (window as unknown as Record<string, unknown>).__hfe_pending_file_input__;
     };
 }
 

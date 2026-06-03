@@ -145,6 +145,14 @@ export const commandHandlers: Record<string, CommandHandler> = {
         }
         // configurable:true ensures the browser can overwrite this when the user picks a real file
         Object.defineProperty(input, 'files', { value: dt.files, writable: true, configurable: true });
+        // Mark the input so the forms sandbox channel can inject files into FormData/submit.
+        (input as unknown as Record<string, unknown>).__hfe_injected_files__ = dt.files;
+        // Auto-clear after 60 s in case the form is never submitted.
+        setTimeout(() => {
+            if ((input as unknown as Record<string, unknown>).__hfe_injected_files__ === dt.files) {
+                delete (input as unknown as Record<string, unknown>).__hfe_injected_files__;
+            }
+        }, 60_000);
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('input', { bubbles: true }));
         return { via: result.via, fileCount: files.length };
