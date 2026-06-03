@@ -41,7 +41,7 @@ interface ChannelSlot {
 
 const CHANNELS: SandboxChannel[] = [
     'fetch', 'xhr', 'ws', 'storage', 'navigation', 'console', 'errors',
-    'globals', 'indexeddb',
+    'globals', 'indexeddb', 'dialogs',
 ];
 
 function makeSlot(): ChannelSlot {
@@ -112,6 +112,7 @@ const slots: Record<SandboxChannel, ChannelSlot> = {
     errors: makeSlot(),
     globals: makeSlot(),
     indexeddb: makeSlot(),
+    dialogs: makeSlot(),
 };
 
 /** Lazy-loaded patch installers. Filled by `registerPatch()` from each channel module. */

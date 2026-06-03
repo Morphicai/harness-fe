@@ -43,7 +43,8 @@ export type SandboxChannel =
     | 'console'
     | 'errors'
     | 'globals'
-    | 'indexeddb';
+    | 'indexeddb'
+    | 'dialogs';
 
 // ───────────────────────────────────────────────────────────────────
 // Channel observation shapes (what the observer onEvent receives)
@@ -130,6 +131,25 @@ export interface GlobalsObservation {
     previousValue?: unknown;
 }
 
+// ─── dialogs ─────────────────────────────────────────────────────
+export interface DialogsObservation {
+    /**
+     * - alert        : window.alert() — agent triggered, suppressed
+     * - confirm      : window.confirm() — agent triggered, returns preset or false
+     * - prompt       : window.prompt() — agent triggered, returns preset or null
+     * - print        : window.print() — agent triggered, suppressed
+     * - file_input_click : HTMLInputElement(type=file).click() — agent triggered
+     * - beforeunload : beforeunload event fired while agent is in progress
+     */
+    type: 'alert' | 'confirm' | 'prompt' | 'print' | 'file_input_click' | 'beforeunload';
+    /** The message string for alert/confirm/prompt. */
+    message?: string;
+    /** The value returned to the caller (confirm → boolean, prompt → string | null). */
+    returnValue?: boolean | string | null;
+    /** Best-effort CSS selector for the file input element that was clicked. */
+    selector?: string;
+}
+
 // ─── indexeddb ────────────────────────────────────────────────────
 export interface IndexedDbObservation {
     op: 'open' | 'put' | 'add' | 'get' | 'getAll' | 'delete' | 'clear' | 'cursor';
@@ -162,7 +182,8 @@ export type SandboxEvent =
     | { ts: number; source: 'console'; kind: ConsoleObservation['level']; data: ConsoleObservation; initiator?: Initiator; moduleId?: string }
     | { ts: number; source: 'errors'; kind: ErrorObservation['kind']; data: ErrorObservation; initiator?: Initiator; moduleId?: string }
     | { ts: number; source: 'globals'; kind: GlobalsObservation['op']; data: GlobalsObservation; initiator?: Initiator; moduleId?: string }
-    | { ts: number; source: 'indexeddb'; kind: IndexedDbObservation['op']; data: IndexedDbObservation; initiator?: Initiator; moduleId?: string };
+    | { ts: number; source: 'indexeddb'; kind: IndexedDbObservation['op']; data: IndexedDbObservation; initiator?: Initiator; moduleId?: string }
+    | { ts: number; source: 'dialogs'; kind: DialogsObservation['type']; data: DialogsObservation; initiator?: Initiator; moduleId?: string };
 
 // ───────────────────────────────────────────────────────────────────
 // Interceptor hooks per channel

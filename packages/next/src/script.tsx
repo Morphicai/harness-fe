@@ -66,6 +66,19 @@ export interface HarnessScriptProps {
      *   - Dev: leave undefined.
      */
     buildId?: string;
+    /**
+     * Show the in-page "H" overlay (default: true). Set to false to hide the
+     * overlay in production dogfood scenarios — data capture is unaffected.
+     */
+    overlay?: boolean;
+    /**
+     * Browser consent policy. When set, takes priority over the gateway
+     * hello.ack consent mode.
+     *   'off'     — no user prompt, control commands run freely (default)
+     *   'session' — user grants once per page-load
+     *   'always'  — prompt before every control command
+     */
+    consent?: 'off' | 'session' | 'always';
 }
 
 import type React from 'react';

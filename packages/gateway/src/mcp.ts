@@ -15,16 +15,21 @@ import { z } from 'zod';
 import {
     COMMAND,
     PROTOCOL_VERSION,
+    checkArgsSchema,
     clickArgsSchema,
+    dialogHandlerSchema,
     evaluateArgsSchema,
     navigateArgsSchema,
+    pasteArgsSchema,
     reloadArgsSchema,
     screenshotArgsSchema,
     scrollArgsSchema,
+    selectArgsSchema,
     setHtmlArgsSchema,
     setStyleArgsSchema,
     selectorSchema,
     typeArgsSchema,
+    uploadArgsSchema,
     waitForArgsSchema,
 } from '@harness-fe/protocol';
 import {
@@ -147,6 +152,34 @@ function registerCommandTools(command: CommandReg): void {
         description: 'Type a value into an input/textarea resolved by the selector.',
         inputSchema: { selector: selectorSchema, value: z.string(), clear: z.boolean().optional(), tabId: tabIdParam },
     }, ({ selector, value, clear, tabId }) => ({ args: typeArgsSchema.parse({ selector, value, clear }), opts: { tabId: tabId as string | undefined } }));
+
+    command(COMMAND.PAGE_UPLOAD, {
+        description: "Set files on a `<input type='file'>` element and fire change/input events. Files are base64-encoded content provided by the agent.",
+        inputSchema: {
+            selector: selectorSchema,
+            files: z.array(z.object({
+                name: z.string(),
+                content: z.string().describe('Base64-encoded file content, provided by agent.'),
+                mimeType: z.string().optional(),
+            })).min(1),
+            tabId: tabIdParam,
+        },
+    }, ({ selector, files, tabId }) => ({ args: uploadArgsSchema.parse({ selector, files }), opts: { tabId: tabId as string | undefined } }));
+
+    command(COMMAND.PAGE_SELECT, {
+        description: 'Set the value of a `<select>` element and fire change/input events.',
+        inputSchema: { selector: selectorSchema, value: z.string(), tabId: tabIdParam },
+    }, ({ selector, value, tabId }) => ({ args: selectArgsSchema.parse({ selector, value }), opts: { tabId: tabId as string | undefined } }));
+
+    command(COMMAND.PAGE_CHECK, {
+        description: 'Set checked state on a checkbox or radio input and fire change/input events.',
+        inputSchema: { selector: selectorSchema, checked: z.boolean(), tabId: tabIdParam },
+    }, ({ selector, checked, tabId }) => ({ args: checkArgsSchema.parse({ selector, checked }), opts: { tabId: tabId as string | undefined } }));
+
+    command(COMMAND.PAGE_PASTE, {
+        description: 'Dispatch a paste event with synthetic clipboard data to an element.',
+        inputSchema: { selector: selectorSchema, content: z.string(), html: z.string().optional(), tabId: tabIdParam },
+    }, ({ selector, content, html, tabId }) => ({ args: pasteArgsSchema.parse({ selector, content, html }), opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.PAGE_EVALUATE, {
         description: 'Evaluate a JS expression in page context. Must return a JSON-serializable value.',
@@ -287,6 +320,17 @@ function registerReadTools(caps: CoreCapabilities, principal: Principal, gated: 
 
     R(COMMAND.TAB_LIST, { description: 'List all currently connected browser tabs.', inputSchema: {} },
         () => caps.listTabs(principal));
+
+    gated('read', COMMAND.SET_DIALOG_HANDLER, {
+        description: 'Pre-register a return value for the next alert/confirm/prompt call triggered by agent actions.',
+        inputSchema: {
+            type: z.enum(['alert', 'confirm', 'prompt']),
+            value: z.union([z.boolean(), z.string()]).optional(),
+            tabId: tabIdParam,
+        },
+    }, async ({ type, value, tabId }: { type: string; value?: boolean | string; tabId?: string }) => {
+        return ok(await caps.command(COMMAND.SET_DIALOG_HANDLER, dialogHandlerSchema.parse({ type, value }), principal, { tabId: tabId as string | undefined }));
+    });
 
     const taskStatusEnum = z.enum(['pending', 'claimed', 'resolved', 'all']);
 

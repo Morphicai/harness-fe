@@ -219,7 +219,7 @@ export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (o
                     if (options.disabled) return html;
                     const injection = `<!-- @harness-fe injected (dev only) -->
 <script>
-window.__HARNESS_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: identity.getBuildId(projectRoot), parentProjectId: options.parentProjectId, displayName: identity.getDisplayName(projectRoot) })};
+window.__HARNESS_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: identity.getBuildId(projectRoot), parentProjectId: options.parentProjectId, displayName: identity.getDisplayName(projectRoot), overlay: options.overlay ?? true, consent: options.consent })};
 </script>
 <script type="module">import '${VIRTUAL_RUNTIME_ID}';</script>`;
                     return html.replace(/<\/head>/i, `${injection}\n</head>`);

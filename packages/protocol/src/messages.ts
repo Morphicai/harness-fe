@@ -371,6 +371,11 @@ export const COMMAND = {
     TASKS_CLAIM: 'tasks.claim',
     TASKS_RESOLVE: 'tasks.resolve',
     DASHBOARD_OPEN: 'dashboard.open',
+    PAGE_UPLOAD: 'page.upload',
+    PAGE_SELECT: 'page.select',
+    PAGE_CHECK: 'page.check',
+    PAGE_PASTE: 'page.paste',
+    SET_DIALOG_HANDLER: 'page.set_dialog_handler',
 } as const;
 
 export type CommandName = typeof COMMAND[keyof typeof COMMAND];
@@ -393,6 +398,10 @@ export const CONTROL_COMMANDS: ReadonlySet<string> = new Set<string>([
     COMMAND.PAGE_SET_STYLE,
     COMMAND.PAGE_EVALUATE,
     COMMAND.PAGE_WAIT_FOR,
+    COMMAND.PAGE_UPLOAD,
+    COMMAND.PAGE_SELECT,
+    COMMAND.PAGE_CHECK,
+    COMMAND.PAGE_PASTE,
 ]);
 
 /** Commands that always prompt, ignoring a session-level grant (arbitrary code). */
@@ -409,7 +418,7 @@ export interface ConsentRequest {
 }
 
 /** User's answer to a consent prompt. */
-export type ConsentDecision = 'once' | 'session' | 'deny';
+export type ConsentDecision = 'once' | 'session' | 'permanent' | 'deny';
 
 /**
  * Decide whether a command must prompt for consent, given the policy and
@@ -641,6 +650,43 @@ export const typeArgsSchema = z.object({
     clear: z.boolean().optional(),
 });
 export type TypeArgs = z.infer<typeof typeArgsSchema>;
+
+export const uploadArgsSchema = z.object({
+    selector: selectorSchema,
+    files: z.array(z.object({
+        name: z.string(),
+        /** Base64-encoded file content, provided by agent. */
+        content: z.string(),
+        mimeType: z.string().optional(),
+    })).min(1),
+});
+export type UploadArgs = z.infer<typeof uploadArgsSchema>;
+
+export const selectArgsSchema = z.object({
+    selector: selectorSchema,
+    value: z.string(),
+});
+export type SelectArgs = z.infer<typeof selectArgsSchema>;
+
+export const checkArgsSchema = z.object({
+    selector: selectorSchema,
+    checked: z.boolean(),
+});
+export type CheckArgs = z.infer<typeof checkArgsSchema>;
+
+export const pasteArgsSchema = z.object({
+    selector: selectorSchema,
+    content: z.string(),
+    /** Optional text/html content for the clipboard data transfer. */
+    html: z.string().optional(),
+});
+export type PasteArgs = z.infer<typeof pasteArgsSchema>;
+
+export const dialogHandlerSchema = z.object({
+    type: z.enum(['alert', 'confirm', 'prompt']),
+    value: z.union([z.boolean(), z.string()]).optional(),
+});
+export type DialogHandler = z.infer<typeof dialogHandlerSchema>;
 
 export const evaluateArgsSchema = z.object({
     /** JS expression executed in page context; result must be JSON-serializable. */

@@ -53,6 +53,11 @@ export interface ClientOptions {
     /** Optional human-readable name; mostly used by the project tree. */
     displayName?: string;
     /**
+     * Show the in-page "H" overlay (default: true). Set to false to hide the
+     * overlay in production dogfood scenarios — data capture is unaffected.
+     */
+    overlay?: boolean;
+    /**
      * App-supplied user identifier (e.g. supabase.user.id, auth0 sub, …).
      * Optional. When absent, traffic is treated as anonymous (only stitched
      * by visitorId). Propagated by HarnessScript via window.__HARNESS_FE__.userId.
@@ -65,6 +70,14 @@ export interface ClientOptions {
      * See {@link RrwebRecorderOptions.checkoutEveryNms} for the trade-off.
      */
     rrwebCheckoutEveryNms?: number;
+    /**
+     * Browser consent policy override. When supplied by the plugin config,
+     * takes priority over the gateway hello.ack consent mode.
+     *   'off'     — no user prompt, control commands run freely (default)
+     *   'session' — user grants once per page-load
+     *   'always'  — prompt before every control command
+     */
+    consent?: ConsentMode;
 }
 
 const TAB_ID_KEY = '__hfe_tab_id__';
@@ -190,6 +203,7 @@ export class RuntimeClient {
 
 
     start(): void {
+        this.loadPermanentGrant();
         const daemonUrl = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`;
         this.ctx.capture.install(
             (name, payload) => this.sendEvent(name, payload),
@@ -197,6 +211,25 @@ export class RuntimeClient {
         );
         this.recorder.start();
         this.connect();
+    }
+
+    private loadPermanentGrant(): void {
+        try {
+            const key = `__hfe_consent_grant__:${this.opts.projectId}`;
+            const raw = localStorage.getItem(key);
+            if (raw) this.consentSessionGranted = true;
+        } catch {
+            // localStorage unavailable (iOS private mode, sandboxed iframe, etc.)
+        }
+    }
+
+    private savePermanentGrant(): void {
+        try {
+            const key = `__hfe_consent_grant__:${this.opts.projectId}`;
+            localStorage.setItem(key, JSON.stringify({ grantedAt: Date.now() }));
+        } catch {
+            // quota / sandboxed iframe / etc.
+        }
     }
 
     stop(): void {
@@ -298,8 +331,12 @@ export class RuntimeClient {
             // Bridge rejected this hello — do not send PAGE_LOAD.
             return;
         }
-        // Adopt the daemon's consent policy for this connection (4.0 · P2).
-        this.consentMode = frame.consent?.mode ?? 'off';
+        // Plugin config takes priority; gateway hello.ack is the fallback (4.0 · P2).
+        if (this.opts.consent != null) {
+            this.consentMode = this.opts.consent;
+        } else {
+            this.consentMode = frame.consent?.mode ?? 'off';
+        }
         // Force a fresh rrweb FullSnapshot on every ack — including reconnects
         // after daemon restart, network blips, or page-recovery from sleep.
         // Without this, the only baseline for the session is whatever rrweb
@@ -346,11 +383,22 @@ export class RuntimeClient {
                 } satisfies ResponseFrame);
                 return;
             }
-            if (decision === 'session') this.consentSessionGranted = true;
+            if (decision === 'permanent') {
+                this.savePermanentGrant();
+                this.consentSessionGranted = true;
+            } else if (decision === 'session') {
+                this.consentSessionGranted = true;
+            }
             // 'once' → run this one without granting the rest of the session.
         }
         try {
-            const result = await handler(frame.args ?? {}, this.ctx);
+            (window as unknown as Record<string, unknown>).__hfe_agent_in_progress__ = true;
+            let result: unknown;
+            try {
+                result = await handler(frame.args ?? {}, this.ctx);
+            } finally {
+                (window as unknown as Record<string, unknown>).__hfe_agent_in_progress__ = false;
+            }
             this.send({
                 type: 'response',
                 id: frame.id,
@@ -485,6 +533,8 @@ export function readInjectedConfig(): ClientOptions {
             displayName?: string;
             userId?: string;
             sessionId?: string;
+            overlay?: boolean;
+            consent?: string;
         };
     };
     return {
@@ -494,6 +544,8 @@ export function readInjectedConfig(): ClientOptions {
         parentProjectId: w.__HARNESS_FE__?.parentProjectId,
         displayName: w.__HARNESS_FE__?.displayName,
         userId: w.__HARNESS_FE__?.userId,
+        overlay: w.__HARNESS_FE__?.overlay ?? true,
+        consent: w.__HARNESS_FE__?.consent as ConsentMode | undefined,
     };
 }
 

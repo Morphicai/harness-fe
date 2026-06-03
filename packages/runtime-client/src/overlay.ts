@@ -360,27 +360,33 @@ export function installOverlay(client: OverlayClient): void {
     // The client calls this before running a control command when the daemon
     // enabled consent. We show a modal and resolve with the user's choice.
     const consentCmdEl = consentPanel.querySelector('[data-role="consent-cmd"]') as HTMLElement;
-    const consentAllowOnce = consentPanel.querySelector('[data-role="consent-once"]') as HTMLButtonElement;
+    const consentAllowPermanent = consentPanel.querySelector('[data-role="consent-permanent"]') as HTMLButtonElement;
     const consentAllowSession = consentPanel.querySelector('[data-role="consent-session"]') as HTMLButtonElement;
+    const consentAllowOnce = consentPanel.querySelector('[data-role="consent-once"]') as HTMLButtonElement;
     const consentDeny = consentPanel.querySelector('[data-role="consent-deny"]') as HTMLButtonElement;
     let consentChain: Promise<unknown> = Promise.resolve();
 
     const promptConsent = (req: ConsentRequest): Promise<ConsentDecision> =>
         new Promise<ConsentDecision>((resolve) => {
             consentCmdEl.textContent = formatConsentCommand(req);
-            // page.evaluate (alwaysConfirm) can never be granted session-wide.
-            consentAllowSession.style.display = req.alwaysConfirm ? 'none' : '';
+            // page.evaluate (alwaysConfirm) can never be granted session-wide or permanently.
+            const hideSessionLevel = req.alwaysConfirm;
+            consentAllowPermanent.style.display = hideSessionLevel ? 'none' : '';
+            consentAllowSession.style.display = hideSessionLevel ? 'none' : '';
             setState('consent');
             const finish = (decision: ConsentDecision) => {
+                consentAllowPermanent.removeEventListener('click', onPermanent);
                 consentAllowOnce.removeEventListener('click', onOnce);
                 consentAllowSession.removeEventListener('click', onSession);
                 consentDeny.removeEventListener('click', onDeny);
                 setState('idle');
                 resolve(decision);
             };
+            const onPermanent = () => finish('permanent');
             const onOnce = () => finish('once');
             const onSession = () => finish('session');
             const onDeny = () => finish('deny');
+            consentAllowPermanent.addEventListener('click', onPermanent);
             consentAllowOnce.addEventListener('click', onOnce);
             consentAllowSession.addEventListener('click', onSession);
             consentDeny.addEventListener('click', onDeny);
@@ -2236,28 +2242,57 @@ function buildHighlight(): HTMLDivElement {
 
 /**
  * Browser-consent modal (4.0 · P2). Self-contained inline styles (no reliance
- * on buildStyle) — a fixed, centered card with command preview + 3 choices.
+ * on buildStyle) — a browser-extension-style permission dialog with 4 choices:
+ * always allow (permanent localStorage grant), session, once, deny.
  */
 function buildConsentPanel(): HTMLDivElement {
     const panel = document.createElement('div');
     panel.className = 'consent';
+    // Backdrop
     panel.style.cssText = [
-        'display:none', 'position:fixed', 'left:50%', 'top:24px', 'transform:translateX(-50%)',
-        'z-index:2147483647', 'flex-direction:column', 'gap:10px', 'max-width:380px',
-        'width:calc(100% - 32px)', 'box-sizing:border-box', 'padding:16px',
-        'background:#fff', 'color:#111', 'border:1px solid #e5e7eb', 'border-radius:10px',
-        'box-shadow:0 8px 28px rgba(0,0,0,.16)',
-        'font:13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif',
+        'display:none',
+        'position:fixed',
+        'inset:0',
+        'background:rgba(0,0,0,0.4)',
+        'backdrop-filter:blur(4px)',
+        '-webkit-backdrop-filter:blur(4px)',
+        'z-index:2147483646',
+        'align-items:center',
+        'justify-content:center',
     ].join(';');
-    panel.innerHTML = `
-        <div style="font-weight:600">Agent wants to control this page</div>
-        <code data-role="consent-cmd" style="display:block;padding:8px 10px;background:#f6f6f7;border-radius:6px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all"></code>
-        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-            <button data-role="consent-deny" type="button" style="padding:7px 12px;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#111;cursor:pointer">Deny</button>
-            <button data-role="consent-session" type="button" style="padding:7px 12px;border:0;border-radius:6px;background:#f0f0f0;color:#111;cursor:pointer">Allow for session</button>
-            <button data-role="consent-once" type="button" style="padding:7px 12px;border:0;border-radius:6px;background:#111;color:#fff;cursor:pointer">Allow once</button>
+
+    const card = document.createElement('div');
+    card.style.cssText = [
+        'background:#fff',
+        'border-radius:12px',
+        'box-shadow:0 20px 60px rgba(0,0,0,0.3)',
+        'padding:24px',
+        'max-width:400px',
+        'width:90%',
+        'box-sizing:border-box',
+        'font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif',
+        'display:flex',
+        'flex-direction:column',
+        'gap:12px',
+    ].join(';');
+
+    card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:14px;font-weight:700;color:#4f46e5;background:#eef2ff;border-radius:6px;padding:4px 9px;flex-shrink:0">H</span>
+            <span style="font-size:14px;font-weight:600;color:#111827">harness-fe 请求控制此页面</span>
+        </div>
+        <div style="font-size:13px;color:#374151">AI Agent 正在请求执行：</div>
+        <code data-role="consent-cmd" style="display:block;background:#f5f5f5;border-radius:6px;padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111827"></code>
+        <div style="font-size:13px;color:#6b7280">⚠ 允许后 Agent 可点击、输入、填写表单和导航此页面</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px">
+            <button data-role="consent-permanent" type="button" style="background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-family:inherit">始终允许</button>
+            <button data-role="consent-session" type="button" style="background:#f3f4f6;color:#111;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-family:inherit">本次会话</button>
+            <button data-role="consent-once" type="button" style="background:transparent;color:#374151;border:1px solid #d1d5db;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-family:inherit">仅此次</button>
+            <button data-role="consent-deny" type="button" style="background:transparent;color:#ef4444;border:none;padding:8px 14px;cursor:pointer;font-size:13px;font-family:inherit">拒绝</button>
         </div>
     `;
+
+    panel.appendChild(card);
     return panel;
 }
 

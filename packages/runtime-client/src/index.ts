@@ -13,6 +13,7 @@ import {
     type OverlayPlugin,
 } from './pluginRegistry.js';
 import { VERSION } from './version.js';
+import { dialogPresets } from './commands.js';
 
 const w = window as unknown as {
     __harness_fe_started__?: boolean;
@@ -24,6 +25,10 @@ const w = window as unknown as {
 
 if (typeof window !== 'undefined' && !w.__harness_fe_started__) {
     w.__harness_fe_started__ = true;
+    // Expose dialogPresets for the sandbox dialogs channel. The channel reads
+    // this synchronously to decide the return value for confirm/prompt when an
+    // agent triggers those dialogs.
+    (window as unknown as Record<string, unknown>).__hfe_dialog_presets__ = dialogPresets;
     // Public global for runtime plugin registration. Works before or after the
     // overlay mounts — the registry buffers and the overlay subscribes.
     w.HarnessFE = { registerOverlayPlugin, version: VERSION };
@@ -33,7 +38,7 @@ if (typeof window !== 'undefined' && !w.__harness_fe_started__) {
     const cfg = readInjectedConfig();
     const client = new RuntimeClient(cfg);
     client.start();
-    installOverlay(client);
+    if (cfg.overlay !== false) installOverlay(client);
     // Expose for debugging + same-origin iframe inheritance.
     // Same-origin children read `window.parent.__hfe_session_id__` and
     // `window.parent.__harness_fe_client__.tabId` in tryInheritFromParent()

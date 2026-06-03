@@ -16,6 +16,11 @@ import {
     type Selector,
     type TypeArgs,
     type WaitForArgs,
+    uploadArgsSchema,
+    selectArgsSchema,
+    checkArgsSchema,
+    pasteArgsSchema,
+    dialogHandlerSchema,
 } from '@harness-fe/protocol';
 import { snapdom } from '@zumer/snapdom';
 import { resolveSelector } from './selectors.js';
@@ -24,6 +29,12 @@ import type { CaptureStore } from './capture.js';
 export interface CommandContext {
     capture: CaptureStore;
 }
+
+/**
+ * Pre-registered dialog responses keyed by dialog type ('alert' | 'confirm' | 'prompt').
+ * Written by the SET_DIALOG_HANDLER command; read synchronously by the dialogs interception layer.
+ */
+export const dialogPresets = new Map<string, boolean | string>();
 
 export type CommandHandler = (args: unknown, ctx: CommandContext) => Promise<unknown>;
 
@@ -92,6 +103,76 @@ export const commandHandlers: Record<string, CommandHandler> = {
         target.dispatchEvent(new Event('input', { bubbles: true }));
         target.dispatchEvent(new Event('change', { bubbles: true }));
         return { via: result.via, value: target.value };
+    },
+
+    [COMMAND.PAGE_SELECT]: async (raw) => {
+        const { selector, value } = selectArgsSchema.parse(raw);
+        const result = resolveSelector(selector);
+        if (!result.element) throw new Error(`page.select: element not found for selector ${JSON.stringify(selector)}`);
+        const select = result.element as HTMLSelectElement;
+        select.value = value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        select.dispatchEvent(new Event('input', { bubbles: true }));
+        return { via: result.via, value };
+    },
+
+    [COMMAND.PAGE_CHECK]: async (raw) => {
+        const { selector, checked } = checkArgsSchema.parse(raw);
+        const result = resolveSelector(selector);
+        if (!result.element) throw new Error(`page.check: element not found for selector ${JSON.stringify(selector)}`);
+        const input = result.element as HTMLInputElement;
+        if (input.tagName !== 'INPUT' || !['checkbox', 'radio'].includes(input.type)) {
+            throw new Error(`page.check: target must be <input type="checkbox"> or <input type="radio">`);
+        }
+        input.checked = checked;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return { via: result.via, checked };
+    },
+
+    [COMMAND.PAGE_UPLOAD]: async (raw) => {
+        const { selector, files } = uploadArgsSchema.parse(raw);
+        const result = resolveSelector(selector);
+        if (!result.element) throw new Error(`page.upload: element not found for selector ${JSON.stringify(selector)}`);
+        const input = result.element as HTMLInputElement;
+        if (input.tagName !== 'INPUT' || input.type !== 'file') {
+            throw new Error('page.upload: target must be <input type="file">');
+        }
+        const dt = new DataTransfer();
+        for (const f of files) {
+            const bytes = Uint8Array.from(atob(f.content), c => c.charCodeAt(0));
+            dt.items.add(new File([bytes], f.name, { type: f.mimeType ?? 'application/octet-stream' }));
+        }
+        // configurable:true ensures the browser can overwrite this when the user picks a real file
+        Object.defineProperty(input, 'files', { value: dt.files, writable: true, configurable: true });
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return { via: result.via, fileCount: files.length };
+    },
+
+    [COMMAND.PAGE_PASTE]: async (raw) => {
+        const { selector, content, html } = pasteArgsSchema.parse(raw);
+        const result = resolveSelector(selector);
+        if (!result.element) throw new Error(`page.paste: element not found for selector ${JSON.stringify(selector)}`);
+        const dt = new DataTransfer();
+        dt.setData('text/plain', content);
+        if (html) dt.setData('text/html', html);
+        result.element.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dt,
+        }));
+        return { via: result.via, length: content.length };
+    },
+
+    [COMMAND.SET_DIALOG_HANDLER]: async (raw) => {
+        const { type, value } = dialogHandlerSchema.parse(raw);
+        if (value === undefined) {
+            dialogPresets.delete(type);
+        } else {
+            dialogPresets.set(type, value);
+        }
+        return { type, value };
     },
 
     [COMMAND.PAGE_EVALUATE]: async (raw) => {

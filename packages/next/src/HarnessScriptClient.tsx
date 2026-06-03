@@ -26,6 +26,8 @@ declare global {
             buildId?: string;
             userId?: string;
             sessionId?: string;
+            overlay?: boolean;
+            consent?: string;
         };
         __HARNESS_FE_SEED__?: {
             sessionId: string;
@@ -51,6 +53,8 @@ export function HarnessScriptClient(props: HarnessScriptProps): null {
             buildId: props.buildId,
             userId: props.userId,
             sessionId: seed?.sessionId,
+            overlay: props.overlay ?? true,
+            consent: props.consent,
         };
 
         import('@harness-fe/runtime').catch((err: unknown) => {
@@ -65,6 +69,8 @@ export function HarnessScriptClient(props: HarnessScriptProps): null {
         props.mcpUrl,
         props.buildId,
         props.userId,
+        props.overlay,
+        props.consent,
     ]);
     return null;
 }
