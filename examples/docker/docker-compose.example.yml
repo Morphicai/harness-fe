@@ -1,18 +1,15 @@
-# Self-hosted harness-fe MCP daemon — single-user reference setup.
+# harness-fe governed gateway — team deployment reference.
 #
 # Quick start:
-#   1. cp .env.example .env  and fill in HARNESS_FE_TOKEN
-#      (`openssl rand -base64 24` to generate one)
+#   1. cp .env.example .env  and fill in HARNESS_ADMIN_PASS + token secrets
 #   2. docker compose up -d
-#   3. Point plugin / browser at http://<docker-host>:47729?token=...
+#   3. Agent mcp.json: { "type": "http", "url": "http://<host>:47950/mcp",
+#                        "headers": { "Authorization": "Bearer <agent-token>" } }
+#   4. Build plugin: harnessFE({ mcpUrl: 'ws://<host>:47950/ws', token: '<runtime-token>' })
 #
-# Persistence: harness-data volume holds ~/.harness (sessions, recordings,
-# tasks). Mount a host path instead if you prefer:
+# Persistence: harness-data volume holds sessions, recordings, audit log,
+# and token store. Mount a host path if you prefer:
 #   - ./harness-data:/data
-#
-# Multi-tenant / multi-token is not yet supported — everyone connecting
-# through this daemon shares the same token. Don't expose to the public
-# internet without a TLS-terminating proxy in front.
 
 services:
   harness-fe:
@@ -20,24 +17,38 @@ services:
     container_name: harness-fe
     restart: unless-stopped
     ports:
-      - "47729:47729"
+      - "47950:47950"
     environment:
-      HARNESS_FE_TOKEN: ${HARNESS_FE_TOKEN:?HARNESS_FE_TOKEN env var is required}
-      # Override default --public-host when the daemon needs to print URLs
-      # that other devs / phones can actually reach (host IP, DNS name, ...).
-      HARNESS_FE_PUBLIC_HOST: ${HARNESS_FE_PUBLIC_HOST:-}
-      # Switch to stdio if you only want to use this daemon via a local
-      # MCP client (uncommon for the docker path — http is the natural fit).
-      HARNESS_FE_MCP_TRANSPORT: http
+      HARNESS_HOST: "0.0.0.0"
+      HARNESS_PORT: "47950"
+      HARNESS_DATA_DIR: /data
+      # Set in .env — printed in the gateway banner on first start.
+      HARNESS_ADMIN_PASS: ${HARNESS_ADMIN_PASS:?required}
+    command:
+      - "--governed"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "47950"
+      - "--admin-user"
+      - "admin"
+      - "--admin-pass"
+      - "${HARNESS_ADMIN_PASS}"
+      - "--data-dir"
+      - "/data/gateway"
+      - "--core-data-dir"
+      - "/data/core"
+      # Issue tokens at startup. Rotate via /admin panel after first run.
+      - "--issue-token"
+      - "name=runtime,scopes=write"
+      - "--issue-token"
+      - "name=agent,scopes=read+control,projects=*"
     volumes:
       - harness-data:/data
     healthcheck:
-      # Hit / with the configured token to confirm the daemon is up AND
-      # accepting auth correctly. CMD-SHELL form expands $HARNESS_FE_TOKEN
-      # from the container env.
       test:
         - CMD-SHELL
-        - wget -q --spider --header="Authorization: Bearer $$HARNESS_FE_TOKEN" http://127.0.0.1:47729/ || exit 1
+        - wget -q --spider http://127.0.0.1:47950/console/api/meta || exit 1
       interval: 30s
       timeout: 5s
       retries: 3

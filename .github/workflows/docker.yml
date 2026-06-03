@@ -1,21 +1,19 @@
 name: Docker
 
-# Build and push the harness-fe MCP daemon image to Docker Hub
+# Build and push the harness-fe gateway image to Docker Hub
 # (morphixai/harness-fe).
 #
 # Triggers:
-#   - Every time @harness-fe/mcp-server publishes to npm (the changesets
-#     release workflow finishes successfully on main). We re-detect the
-#     freshly published version and tag the image accordingly.
-#   - Manual workflow_dispatch with an explicit version. Useful for
-#     republishing an existing npm version against a new base image.
+#   - Every time @harness-fe/cli publishes to npm (the changesets
+#     release workflow finishes successfully on main or next). We detect
+#     the freshly published version and tag the image accordingly.
+#   - Manual workflow_dispatch with an explicit version + tag.
 #
 # Image tags applied:
-#   - docker.io/morphixai/harness-fe:<version>   e.g. 2.0.0
-#   - docker.io/morphixai/harness-fe:latest      always tracks newest semver
+#   stable release:  morphixai/harness-fe:<version>  +  morphixai/harness-fe:latest
+#   next prerelease: morphixai/harness-fe:<version>  +  morphixai/harness-fe:next
 #
-# Multi-arch build (linux/amd64 + linux/arm64) so Apple Silicon dev VMs +
-# typical x86 servers both work.
+# Multi-arch build (linux/amd64 + linux/arm64).
 #
 # Required repo secrets:
 #   DOCKERHUB_USERNAME    a Docker Hub account with push to morphixai/*
@@ -28,11 +26,17 @@ on:
             - completed
         branches:
             - main
+            - next
     workflow_dispatch:
         inputs:
             version:
-                description: 'mcp-server version to image (e.g. 2.0.0)'
+                description: '@harness-fe/cli version to image (e.g. 4.0.0 or 4.0.0-next.6)'
                 required: true
+                type: string
+            dist_tag:
+                description: 'npm dist-tag to resolve / publish Docker tag (latest or next)'
+                required: false
+                default: 'latest'
                 type: string
 
 permissions:
@@ -47,25 +51,34 @@ env:
 
 jobs:
     build:
-        # Skip when the upstream Release workflow failed.
         if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
-            - name: Resolve version
+            - name: Resolve version and dist-tag
               id: ver
               run: |
                 if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
                   version="${{ inputs.version }}"
+                  dist_tag="${{ inputs.dist_tag }}"
                 else
-                  version=$(npm view @harness-fe/mcp-server version)
+                  # Detect which branch triggered the Release workflow.
+                  branch="${{ github.event.workflow_run.head_branch }}"
+                  if [ "$branch" = "next" ]; then
+                    dist_tag="next"
+                    version=$(npm view @harness-fe/cli@next version)
+                  else
+                    dist_tag="latest"
+                    version=$(npm view @harness-fe/cli version)
+                  fi
                 fi
                 if [ -z "$version" ]; then
-                  echo "::error::could not resolve @harness-fe/mcp-server version"
+                  echo "::error::could not resolve @harness-fe/cli version"
                   exit 1
                 fi
                 echo "version=$version" >> "$GITHUB_OUTPUT"
-                echo "Building harness-fe v$version"
+                echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+                echo "Building harness-fe v$version (dist-tag: $dist_tag)"
 
             - uses: actions/checkout@v4
 
@@ -84,9 +97,6 @@ jobs:
             - name: Skip if version already published
               id: exists
               run: |
-                # Cheap "already there" probe: `docker buildx imagetools inspect`
-                # exits non-zero when the tag is missing. Auth is already in
-                # place from the login step above.
                 if docker buildx imagetools inspect "${IMAGE}:${{ steps.ver.outputs.version }}" > /dev/null 2>&1; then
                   echo "image already published for ${{ steps.ver.outputs.version }}, skipping"
                   echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -98,14 +108,15 @@ jobs:
               if: steps.exists.outputs.skip != 'true'
               uses: docker/build-push-action@v6
               with:
-                  context: packages/mcp-server
-                  file: packages/mcp-server/Dockerfile
+                  context: packages/cli
+                  file: packages/cli/Dockerfile
                   platforms: linux/amd64,linux/arm64
                   build-args: |
                       VERSION=${{ steps.ver.outputs.version }}
+                      NPM_TAG=${{ steps.ver.outputs.dist_tag }}
                   tags: |
                       ${{ env.IMAGE }}:${{ steps.ver.outputs.version }}
-                      ${{ env.IMAGE }}:latest
+                      ${{ env.IMAGE }}:${{ steps.ver.outputs.dist_tag }}
                   push: true
                   provenance: false
                   cache-from: type=gha
