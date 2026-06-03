@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/vite",
-    "version": "4.0.0-next.6",
+    "version": "4.0.0-next.8",
     "description": "Vite plugin for Harness-FE: source-aware transforms, runtime injection, and MCP bridge.",
     "type": "module",
     "license": "MIT",

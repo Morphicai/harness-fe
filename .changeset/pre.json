@@ -26,6 +26,7 @@
   "changesets": [
     "align-linked-versions",
     "browser-consent-p2",
+    "browser-interaction-commands",
     "caller-identity-p1",
     "cli-rebuild-step4",
     "command-target-scoping",

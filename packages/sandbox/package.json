@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/sandbox",
-    "version": "4.0.0-next.6",
+    "version": "4.0.0-next.8",
     "description": "Browser sandbox + interceptor lib — observe and customize fetch / XHR / WebSocket / Storage / Navigation / console / errors with a unified middleware-style API. Used internally by @harness-fe/runtime; standalone-usable by any project (Tanka MF, MorphixAI base, etc.).",
     "type": "module",
     "license": "MIT",

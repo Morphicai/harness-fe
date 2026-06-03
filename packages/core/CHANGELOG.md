@@ -1,5 +1,12 @@
 # @harness-fe/core
 
+## 4.0.0-next.8
+
+### Patch Changes
+
+- Updated dependencies [7274a6c]
+  - @harness-fe/protocol@4.0.0-next.8
+
 ## 4.0.0-next.6
 
 ### Patch Changes
