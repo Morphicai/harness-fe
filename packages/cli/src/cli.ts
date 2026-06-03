@@ -23,9 +23,6 @@
  *   → Governed policy over HTTP: /mcp (agents, RBAC + audit), /ws (write tokens),
  *     /console + /admin. No stdio — agents connect to /mcp.
  *
- * Note: multi-window solo (several IDE windows sharing one core via
- * leader/follower) needs the remote CoreClient and is not wired yet — run a
- * single solo instance per machine for now.
  */
 
 import { createRequire } from 'node:module';
@@ -204,7 +201,10 @@ async function main(): Promise<void> {
         return;
     }
 
-    const coreClient = createCoreClient({ dataDir: cfg.coreDataDir });
+    const coreClient = createCoreClient({
+        dataDir: cfg.coreDataDir,
+        consent: cfg.governed ? { mode: 'session' } : { mode: 'off' },
+    });
     await coreClient.start();
 
     let policy: Policy;
