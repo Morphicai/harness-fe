@@ -137,12 +137,20 @@ Items that apply across the 4.0 team and 5.0 cloud lines; can land incrementally
 - **Token exposure in HTML bundle** — the runtime token is baked into `window.__HARNESS_FE__` at build time and is visible to anyone with DevTools. This is acceptable in dev; it is not acceptable in production. The architecture does not yet have a clear answer for production token delivery. Candidate: runtime fetches a short-lived token from the host app's auth endpoint at startup. Requires the `verifyUser` hook and Token TTL work to land first.
 - **Build plugin is required for source awareness** — `data-morphix-loc` / `data-morphix-comp` attributes are injected at transform time. Any runtime-only path loses file:line element mapping. Is there a viable runtime-only fallback (e.g. reading React DevTools fiber, stack-trace parsing)?
 
-### Extensibility gaps
+### Runtime 动态控制能力
 
-- **No public Runtime Data API** — `window.HarnessFE` only exposes `{ registerOverlayPlugin, version }`. Users cannot: identify the current user dynamically after login, send custom events (`HarnessFE.track`), attach metadata to a session, or enrich events with per-request context (A/B variant, feature flags, deploy SHA). The store's `StoreEvent.d` and `SessionMeta.metadata` fields are open (`unknown` / `Record<string, unknown>`), but there is no API path from the browser to write them. **This must be solved before production use is viable.**
-- **IStore is monolithic** — 35 methods as a single interface means users cannot partially implement a custom backend. Connecting to Postgres (metadata) + ClickHouse (events) + S3 (recordings) requires implementing all 35. The `IMetaStore / IEventStore / IBlobStore` split is designed but not implemented.
-- **GatewayPlugin system missing** — there is no hook for forwarding events to external systems (Sentry, Datadog, custom analytics). Every integration today requires forking the gateway. This blocks production adoption where teams already have observability infrastructure.
-- **No event enrichment pipeline** — no middleware to intercept events before storage and attach global context (app version, git SHA, deployment environment). Plugin config `enrichEvent` hook is designed but not implemented.
+- **`window.HarnessFE` 只有一个真正的扩展点** — 目前仅暴露 `{ registerOverlayPlugin, version }`。`registerOverlayPlugin` 只能挂按钮 + 读数据，不能写数据、不能影响录制行为、不能控制连接状态。RuntimeClient 的所有 public 成员均为只读 getter（`projectId / buildId / userId / mcpUrl`），没有任何动态控制方法。
+- **用户无法在运行时识别身份** — `userId` 只能在构建时通过 `HarnessScript` 静态注入。用户登录后无法动态更新，匿名 session 无法在登录后补全身份信息。
+- **没有自定义事件通道** — 用户无法主动向 gateway 推送业务事件（如"结账开始"、"A/B 命中变体 B"）。`StoreEvent.d` 字段在底层是 `unknown`，具备承载能力，但从浏览器到 gateway 没有任何公开的写入路径。
+- **录制行为不可控** — runtime 在页面加载时自动开始录制，用户无法暂停、恢复或有条件地停止。对于某些页面（如支付表单、敏感操作）这是一个隐私风险，且当前没有任何机制让开发者声明"此路由不录制"。
+- **用户无法主动开关 agent 控制权** — consent gate (P2) 仅在 agent 发送控制命令时弹确认框，但 runtime 本身的连接和录制是静默的、用户无感知的。没有入口让用户主动选择"我允许/不允许 agent 控制我的页面"。
+
+### 后端扩展能力
+
+- **IStore 是单体接口（35 个方法）** — 用户若想对接自有存储（如公司内部的 ClickHouse 或 S3），必须实现全部 35 个方法，其中许多与目标系统无关。局部替换不可能。
+- **Gateway 没有任何钩子** — 目前没有机制在数据写入存储后转发到外部系统（Sentry、Datadog、内部数据仓库）。每一个集成需求都必须 fork gateway 才能实现，这在团队环境中不可维护。
+- **没有事件管道** — 事件从 runtime 到达 gateway 后直接落盘，中间没有任何拦截层。无法在存储前注入全局上下文（部署版本、git SHA、业务标签），也无法做过滤或采样。
+- **存储后无通知机制** — 数据写入后没有任何事件/回调通知外部系统。轮询 store 是唯一的替代方案，不适合生产环境的实时对接需求。
 
 ### Protocol & wire format
 
