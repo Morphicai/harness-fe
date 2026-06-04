@@ -38,10 +38,11 @@ export function App() {
     const isAdmin = who?.kind === 'admin';
     return (
         <Routes>
-            <Route path="/" element={<ProjectList />} />
+            <Route path="/" element={<Navigate to="/projects" replace />} />
+            <Route path="/projects" element={<ProjectList />} />
             <Route path="/sessions/:id" element={<SessionDetail />} />
-            <Route path="/admin" element={isAdmin ? <GovernancePage /> : <Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/admin" element={isAdmin ? <GovernancePage /> : <Navigate to="/projects" replace />} />
+            <Route path="*" element={<Navigate to="/projects" replace />} />
         </Routes>
     );
 }
