@@ -20,6 +20,56 @@ daemon. The daemon bridges your tools to (1) the build plugin (source
 intelligence) and (2) the browser tab (live DOM, console, network, rrweb
 recording).
 
+## Setup — do this first if the project isn't wired up
+
+Before any `mcp__harness-fe__*` tool will return data, the host project needs
+two things: a build-time plugin (or `jsxImportSource`) and an MCP daemon entry
+in the agent's config. Pick the integration path that matches the project:
+
+**Vite (React / Vue) — most common**
+1. `pnpm add -D @harness-fe/vite @harness-fe/runtime`
+2. Add to `vite.config.ts`:
+   ```ts
+   import { harnessFE } from '@harness-fe/vite';
+   export default defineConfig({ plugins: [react(), harnessFE()] });
+   ```
+3. Register the daemon in `.mcp.json` (or the equivalent agent config):
+   ```jsonc
+   { "mcpServers": { "harness-fe": { "command": "npx", "args": ["@harness-fe/mcp-server", "--stdio"] } } }
+   ```
+
+**Next.js (App or Pages Router)** — supports SSR session continuity:
+1. `pnpm add -D @harness-fe/next @harness-fe/react-jsx @harness-fe/runtime @harness-fe/node-runtime`
+2. `tsconfig.json`: `"compilerOptions": { "jsxImportSource": "@harness-fe/react-jsx" }`
+3. `next.config.mjs`: `export default withHarness(config, { projectId: '<app-name>' })`
+4. `app/layout.tsx`: render `<HarnessScript />` inside `<body>`
+5. Same MCP daemon config as above.
+
+**Webpack / Rspack / other React toolchains**: use `@harness-fe/webpack` or
+`@harness-fe/unplugin`; the rest is identical.
+
+After setup, run `npx @harness-fe/mcp-server` once (or it auto-spawns via the
+agent's stdio config) and start the dev server. `tab_list` should return at
+least one tab — you're wired up.
+
+## Documentation — fetch when you need depth
+
+When this skill doesn't cover a specific question — edge-case framework
+integration, deployment topologies, advanced API options — fetch the docs:
+
+- **English**: https://harness-fe.com/
+- **简体中文**: https://harness-fe.com/zh/
+
+Quick lookup table:
+- Framework-specific setup → `harness-fe.com/integrations/<name>`
+  (`vite`, `nextjs`, `webpack`, `electron`, `vue2`)
+- LAN / Docker / multi-daemon → `harness-fe.com/integrations/<topic>`
+- Full API reference → `harness-fe.com/reference/<name>`
+  (`overlay-plugins`, `mcp-tools`, `versioning-policy`)
+- Troubleshooting flowcharts → `harness-fe.com/guide/troubleshooting`
+
+Search is built in: `harness-fe.com/?q=<term>`.
+
 ## Mental model
 
 ```
@@ -302,23 +352,9 @@ The runtime ships a small "H" overlay button. When a user picks an element + dra
 
 If you can't reproduce or decide not to fix, still resolve with the reason so the loop is closed: `resolution: { type: 'cannot-reproduce' }` (or `'wontfix'` / `'duplicate'`).
 
-## Quick reference: install & wire-up
+## Wire-up details
 
-The host project picks one of three integration paths:
-
-**Vite / Webpack (plugin-based, traditional)**:
-1. `pnpm add -D @harness-fe/vite @harness-fe/runtime` (or `@harness-fe/webpack`)
-2. `plugins: [react(), harnessFE()]` in their bundler config
-3. Daemon: `npx @harness-fe/mcp-server` in `.mcp.json` / Claude Code settings
-
-**Next.js (recommended — plugin-less, supports SSR session continuity)**:
-1. `pnpm add -D @harness-fe/next @harness-fe/react-jsx @harness-fe/runtime @harness-fe/node-runtime`
-2. `tsconfig.json`: `"jsxImportSource": "@harness-fe/react-jsx"` (gives `data-morphix-loc` on every JSX element)
-3. `next.config.mjs`: `export default withHarness(config, { projectId })`
-4. `app/layout.tsx`: `<HarnessScript projectId="…" userId={user?.id} />`
-5. Same MCP daemon config as above.
-
-**Any other React toolchain (Remix / Astro / Vite + custom)**:
-- Just `tsconfig.json`'s `jsxImportSource` + `@harness-fe/runtime` boot script. No `node-runtime` (which is Next-specific). Browser-side capture works fully.
-
-Once the dev server is running, `tab_list` returns at least one tab and you can use the rest of the catalog.
+See the **Setup** section at the top of this skill for the canonical install
+steps. For framework-specific edge cases (TanStack Start, Remix, Astro,
+Capacitor, monorepo with multiple bundlers), fetch
+`https://harness-fe.com/integrations/` and pick the matching guide.

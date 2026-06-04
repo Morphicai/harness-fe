@@ -32,7 +32,7 @@
         "@changesets/cli": "^2.31.0",
         "@types/node": "^22.0.0",
         "happy-dom": "^20.9.0",
-        "turbo": "^2.9.14",
+        "turbo": "^2.9.16",
         "typescript": "^5.6.0"
     },
     "pnpm": {
