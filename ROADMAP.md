@@ -76,6 +76,7 @@ Anchored to the gaps surfaced in the multi-tenant readiness review — **all shi
 - [x] **Agent feedback loop (P7)** — structured `tasks.resolve` resolution (`type` / `commit` / `prUrl` / `verificationSessionId`) back-linking a report → its fix → the re-test that proved it
 
 - [ ] **Runtime opt-in + default policy** — users actively enable in-page agent control via an overlay prompt; build plugin declares `runtimeControl: { defaultPolicy: 'ask' | 'allow' | 'deny', scopes }` as the app-level default; runtime client persists the user's choice to localStorage and gates all control commands behind it. Extends the existing Browser Consent (P2) mechanism rather than replacing it. See design analysis: plugin owns policy declaration, runtime client owns user UX + persistence.
+- [ ] **Project visibility default-deny** — currently a token without explicit project grants can still enumerate all projects (`project.list` returns everything). The secure default must be zero visibility: a token sees only the projects it has been explicitly granted. Applies to all data surfaces that filter by `canSee` (`session.list`, `tasks_pending`, etc.). Until this lands, any leaked or misconfigured token gives an agent full read access across every project on the daemon.
 
 Remaining toward **stable 4.0**: graduate `@next` → `latest` (`changeset pre exit`) once the team path settles in real use.
 
@@ -120,6 +121,7 @@ Coverage work that lands as it matures, independent of the 3/4/5 maturity line. 
 
 Items that apply across the 4.0 team and 5.0 cloud lines; can land incrementally.
 
+- [ ] **Project visibility default-deny** — (see 4.0 entry); must land before 4.0 stable. A token with no explicit grants must see zero projects, not all projects.
 - [ ] **Token TTL + IP binding** — expose `ttl` and `allowedIps` on `--issue-token` CLI and admin panel; `expiresAt` and `ip` fields already exist in the store schema, wiring is all that's needed.
 - [ ] **Request signing (HMAC-SHA256)** — see 5.0 entry; can be back-ported to 4.0 gateway once the spec is stable.
 - [ ] **Rate limiting per token** — sliding-window counter in the gateway store; configurable `rateLimit: { requests, windowMs }` per token; returns `429` with `Retry-After`.
