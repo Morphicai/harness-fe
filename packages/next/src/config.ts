@@ -18,8 +18,9 @@
  *     buildId: process.env.VERCEL_GIT_COMMIT_SHA,
  *   });
  *
- * Only active when NODE_ENV === 'development'. In production the wrapper
- * returns nextConfig unchanged.
+ * Whether to activate is the caller's responsibility — this wrapper does not
+ * check NODE_ENV. Wrap the call in a condition in your next.config.mjs if you
+ * only want it in development.
  */
 
 export interface WithHarnessOptions {
@@ -125,10 +126,6 @@ export function withHarness(
     opts: WithHarnessOptions,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Record<string, any> {
-    if (process.env.NODE_ENV !== 'development') {
-        return nextConfig;
-    }
-
     return {
         ...nextConfig,
         webpack(

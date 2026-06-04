@@ -30,8 +30,9 @@
  * precise control over boot order — e.g. registering before any other
  * middleware), but it's no longer required.
  *
- * In production (`NODE_ENV !== 'development'`) this component renders nothing
- * and pulls no code into client bundles.
+ * Whether to render is the caller's responsibility — this component does not
+ * check NODE_ENV. Conditionally render it in your layout if you only want it
+ * in development.
  */
 
 export interface HarnessScriptProps {
@@ -82,8 +83,6 @@ export interface HarnessScriptProps {
 }
 
 import type React from 'react';
-
-const IS_DEV = process.env.NODE_ENV === 'development';
 
 /** Append `?token=…` to the gateway URL (no-op if absent or already present). */
 function withToken(url: string | undefined, token?: string): string | undefined {
@@ -144,8 +143,6 @@ async function ensureNodeRuntimeBooted(opts: {
 }
 
 export async function HarnessScript(props: HarnessScriptProps): Promise<React.ReactElement | null> {
-    if (!IS_DEV) return null;
-
     // Auto-boot the Node SDK on first server render (no instrumentation.ts
     // required). Fire-and-forget — we don't await, so the first request
     // isn't blocked on WS connect. Subsequent requests are no-ops (singleton).

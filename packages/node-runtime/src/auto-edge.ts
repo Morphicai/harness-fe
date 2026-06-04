@@ -14,7 +14,6 @@
  *   HARNESS_FE_DISPLAY_NAME — optional
  *   HARNESS_FE_BUILD_ID     — optional
  *   HARNESS_FE_MCP_URL      — optional; daemon WS URL (ws://… → http://… auto-converted)
- *   NODE_ENV                 — only registers in 'development'
  */
 
 // Force HTTP transport — must happen before importing index.ts
@@ -24,7 +23,7 @@ import { register } from './index.js';
 
 const projectId = process.env.HARNESS_FE_PROJECT_ID;
 
-if (process.env.NODE_ENV === 'development' && projectId) {
+if (projectId) {
     register({
         projectId,
         displayName: process.env.HARNESS_FE_DISPLAY_NAME,
