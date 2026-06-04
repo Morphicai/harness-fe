@@ -23,6 +23,12 @@
  * only want it in development.
  */
 
+import { createRequire } from 'node:module';
+
+// webpack is a transitive dep via Next.js — not listed directly. Use createRequire
+// so this ESM file can load it as CJS without adding webpack as a peer dependency.
+const _require = createRequire(import.meta.url);
+
 export interface WithHarnessOptions {
     /** Stable project id. Used by the node-runtime SDK to tag events. */
     projectId: string;
@@ -101,14 +107,15 @@ class HarnessNodeRuntimePlugin {
 
         // Add the auto-import as an additional entry for the server bundle.
         // We use `webpack.EntryPlugin` to prepend it to the server entry.
-        const webpack = require('webpack') as {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { EntryPlugin } = _require('webpack') as {
             EntryPlugin: new (
                 context: string,
                 entry: string,
                 opts?: { name?: string },
             ) => { apply: (compiler: unknown) => void };
         };
-        new webpack.EntryPlugin(
+        new EntryPlugin(
             (compiler.context as string) || process.cwd(),
             autoEntry,
             { name: undefined }, // add to default entry
