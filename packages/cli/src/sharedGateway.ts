@@ -25,6 +25,8 @@ export interface EnsureSharedGatewayOptions {
     gatewayDataDir?: string;
     /** Max time to wait for a freshly-spawned gateway to answer. Default 10s. */
     readyTimeoutMs?: number;
+    /** Gate experimental tools behind this env var name. Forwarded to the spawned gateway. */
+    experimentalEnvVar?: string;
 }
 
 export interface SharedGatewayHandle {
@@ -68,6 +70,7 @@ export async function ensureSharedGateway(
     const args = [CLI_ENTRY, 'serve', '--port', String(port), '--host', host];
     if (opts.coreDataDir) args.push('--core-data-dir', opts.coreDataDir);
     if (opts.gatewayDataDir) args.push('--data-dir', opts.gatewayDataDir);
+    if (opts.experimentalEnvVar) args.push('--experimental-env-var', opts.experimentalEnvVar);
     const child = spawn(process.execPath, args, { detached: true, stdio: 'ignore' });
     child.unref();
 

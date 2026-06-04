@@ -195,6 +195,7 @@ async function main(): Promise<void> {
             port: cfg.port,
             coreDataDir: cfg.coreDataDir,
             gatewayDataDir: cfg.gatewayDataDir,
+            experimentalEnvVar: cfg.experimentalEnvVar,
         });
         process.stderr.write(`[harness] mcp: ${reused ? 'reusing' : 'spawned'} shared gateway → ${baseUrl}/mcp\n`);
         await startMcpStdioProxy(`${baseUrl}/mcp`);
