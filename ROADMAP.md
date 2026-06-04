@@ -75,6 +75,8 @@ Anchored to the gaps surfaced in the multi-tenant readiness review — **all shi
 - [x] **Governance gateway (P6)** — `@harness-fe/gateway`: token lifecycle + scope RBAC + dynamic manifest + project→agent binding + append-only audit + admin panel; `harness-gateway` CLI
 - [x] **Agent feedback loop (P7)** — structured `tasks.resolve` resolution (`type` / `commit` / `prUrl` / `verificationSessionId`) back-linking a report → its fix → the re-test that proved it
 
+- [ ] **Runtime opt-in + default policy** — users actively enable in-page agent control via an overlay prompt; build plugin declares `runtimeControl: { defaultPolicy: 'ask' | 'allow' | 'deny', scopes }` as the app-level default; runtime client persists the user's choice to localStorage and gates all control commands behind it. Extends the existing Browser Consent (P2) mechanism rather than replacing it. See design analysis: plugin owns policy declaration, runtime client owns user UX + persistence.
+
 Remaining toward **stable 4.0**: graduate `@next` → `latest` (`changeset pre exit`) once the team path settles in real use.
 
 ---
@@ -86,10 +88,13 @@ Remaining toward **stable 4.0**: graduate `@next` → `latest` (`changeset pre e
 > ⚠️ This is a **deliberate reversal** of the previous "no cloud SaaS" stance below. Running a hosted service is now an explicit 5.0 goal. The dev tool stays open and self-hostable; the cloud service is an *additional* offering, not a replacement.
 
 - [ ] **High availability** — multi-instance, no single point of failure; horizontal scale behind a load balancer
-- [ ] **Pluggable persistence backend** — `IStore` → SQLite / Postgres / S3; required once instances share state
+- [ ] **Pluggable persistence backend (IStore split + adapters)** — `IStore` split into three capability sub-interfaces by data characteristic: `IMetaStore` (structured metadata → Postgres/SQLite/Supabase), `IEventStore` (append-only time-series → ClickHouse/TimescaleDB/Kafka), `IBlobStore` (large objects/recordings → S3/MinIO/GCS). A `createCompositeStore({ meta, events, blobs })` factory lets users mix-and-match per sub-interface. The existing `FileStore` becomes the default implementation of all three. Official adapter packages: `@harness-fe/store-postgres`, `@harness-fe/store-clickhouse`, `@harness-fe/store-s3`, `@harness-fe/store-sqlite`; third parties can implement any single sub-interface.
 - [ ] **Remote MCP mode** — daemon hosted; browser tabs and agents report over authenticated WS / HTTP
 - [ ] **Daemon-as-service** — managed deploy story, JWT / session auth integration, tenancy onboarding
 - [ ] **Strict multi-tenant security** — untrusted-tenant isolation guarantees + a security review
+- [ ] **Real user identity binding** — runtime sessions bound to the host app's authenticated user; only users who pass the host app's own auth (JWT/OIDC validation via a developer-supplied `verifyUser` hook) can contribute session data; prevents anonymous or bot-originated uploads from polluting the session store.
+- [ ] **Request signing (HMAC-SHA256)** — every runtime upload and agent API call carries a per-request signature (`X-Harness-Signature: t=<timestamp>,v=<hmac>`) computed from `timestamp + method + path + body-hash`; gateway rejects replays outside a 5-minute window; token secret is the signing key so the token itself never travels in the signature header. Closes the replay-attack surface even if a token is leaked. Client SDK generates the signature transparently.
+- [ ] **Gateway plugin system** — `GatewayPlugin` interface + `plugins: GatewayPlugin[]` in `GatewayOptions`; plugins implement only what they need: `verifyUser` (real-user auth), `verifySignature` (HMAC), `onSession/onError/onNetworkRequest/onRecording` (forward to external systems), `onAudit` (stream audit log). Security mechanisms (HMAC signing, user binding) ship as built-in plugins; external system adapters (Sentry, Datadog, Slack) as `@harness-fe/plugin-*` packages. Third parties can publish their own.
 - [ ] **Observability + limits** — metrics / tracing, rate limits, quotas, and an SLA target
 - [ ] Stable, versioned public API contract
 
@@ -108,6 +113,17 @@ Coverage work that lands as it matures, independent of the 3/4/5 maturity line. 
 - [ ] **React Native source-aware mapping** — Metro / Babel transform mapping RN elements / `testID` / a11y / component names back to files
 - [ ] **Flutter runtime client** — dev-only Dart / VM-service bridge for logs, errors, screenshots, widget tree, interaction
 - [ ] **Multi-user collaborative sessions** — pair-debugging: two humans + the agent share one session timeline
+
+---
+
+## Security hardening (cross-cutting, 4.0+)
+
+Items that apply across the 4.0 team and 5.0 cloud lines; can land incrementally.
+
+- [ ] **Token TTL + IP binding** — expose `ttl` and `allowedIps` on `--issue-token` CLI and admin panel; `expiresAt` and `ip` fields already exist in the store schema, wiring is all that's needed.
+- [ ] **Request signing (HMAC-SHA256)** — see 5.0 entry; can be back-ported to 4.0 gateway once the spec is stable.
+- [ ] **Rate limiting per token** — sliding-window counter in the gateway store; configurable `rateLimit: { requests, windowMs }` per token; returns `429` with `Retry-After`.
+- [ ] **Audit log exposure** — surface the append-only audit log (already written) via `/admin/audit` panel and a streaming MCP tool so operators can detect abuse in real time.
 
 ---
 
