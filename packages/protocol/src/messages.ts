@@ -103,6 +103,23 @@ export const helloFrameSchema = z.object({
 });
 export type HelloFrame = z.infer<typeof helloFrameSchema>;
 
+/**
+ * Browser-consent policy (4.0 · P2). The daemon decides this and pushes it to
+ * the runtime client in hello.ack:
+ *   - `off`     — control commands run without confirmation (loopback solo dev)
+ *   - `session` — the first control command prompts; once granted the rest of
+ *                 the pageload runs without re-prompting
+ *   - `always`  — every control command prompts
+ * `page.evaluate` (arbitrary code) always prompts regardless of mode.
+ */
+export const consentModeSchema = z.enum(['off', 'session', 'always']);
+export type ConsentMode = z.infer<typeof consentModeSchema>;
+
+export const consentPolicySchema = z.object({
+    mode: consentModeSchema,
+});
+export type ConsentPolicy = z.infer<typeof consentPolicySchema>;
+
 export const helloAckFrameSchema = z.object({
     type: z.literal('hello.ack'),
     id: z.string(),
@@ -111,6 +128,8 @@ export const helloAckFrameSchema = z.object({
     serverVersion: z.string(),
     /** Present when the server rejects the connection (e.g. no active session for runtime-client). */
     error: z.string().optional(),
+    /** Browser-consent policy for control commands (4.0 · P2). Absent ⇒ `off`. */
+    consent: consentPolicySchema.optional(),
 });
 export type HelloAckFrame = z.infer<typeof helloAckFrameSchema>;
 
@@ -352,9 +371,72 @@ export const COMMAND = {
     TASKS_CLAIM: 'tasks.claim',
     TASKS_RESOLVE: 'tasks.resolve',
     DASHBOARD_OPEN: 'dashboard.open',
+    PAGE_UPLOAD: 'page.upload',
+    PAGE_SELECT: 'page.select',
+    PAGE_CHECK: 'page.check',
+    PAGE_PASTE: 'page.paste',
+    SET_DIALOG_HANDLER: 'page.set_dialog_handler',
 } as const;
 
 export type CommandName = typeof COMMAND[keyof typeof COMMAND];
+
+// ─── Browser consent (4.0 · P2) ─────────────────────────────────────────────
+
+/**
+ * Control commands — those with a side effect on the page (mutate DOM, type,
+ * navigate, reload, run code). These are gated behind browser consent when the
+ * policy is on. Read-only commands (screenshot, dom_query, *_tail, project.*,
+ * pick_element/select_region — user-driven) are NOT gated.
+ */
+export const CONTROL_COMMANDS: ReadonlySet<string> = new Set<string>([
+    COMMAND.PAGE_CLICK,
+    COMMAND.PAGE_TYPE,
+    COMMAND.PAGE_SCROLL,
+    COMMAND.PAGE_NAVIGATE,
+    COMMAND.PAGE_RELOAD,
+    COMMAND.PAGE_SET_HTML,
+    COMMAND.PAGE_SET_STYLE,
+    COMMAND.PAGE_EVALUATE,
+    COMMAND.PAGE_WAIT_FOR,
+    COMMAND.PAGE_UPLOAD,
+    COMMAND.PAGE_SELECT,
+    COMMAND.PAGE_CHECK,
+    COMMAND.PAGE_PASTE,
+]);
+
+/** Commands that always prompt, ignoring a session-level grant (arbitrary code). */
+export const ALWAYS_CONFIRM_COMMANDS: ReadonlySet<string> = new Set<string>([
+    COMMAND.PAGE_EVALUATE,
+]);
+
+export interface ConsentRequest {
+    command: string;
+    args: unknown;
+    tabId: string;
+    /** True when this command always prompts (e.g. page.evaluate). */
+    alwaysConfirm: boolean;
+}
+
+/** User's answer to a consent prompt. */
+export type ConsentDecision = 'once' | 'session' | 'permanent' | 'deny';
+
+/**
+ * Decide whether a command must prompt for consent, given the policy and
+ * whether the session already granted blanket control. Pure — shared by the
+ * runtime client's gate and its tests.
+ */
+export function requiresConsent(
+    command: string,
+    mode: ConsentMode,
+    sessionGranted: boolean,
+): boolean {
+    if (mode === 'off') return false;
+    if (!CONTROL_COMMANDS.has(command)) return false;
+    if (ALWAYS_CONFIRM_COMMANDS.has(command)) return true;
+    if (mode === 'always') return true;
+    // mode === 'session'
+    return !sessionGranted;
+}
 
 // ─── Event names ────────────────────────────────────────────────────────────
 
@@ -483,6 +565,37 @@ export type TaskSubmitPayload = z.infer<typeof taskSubmitPayloadSchema>;
 
 export type TaskStatus = 'pending' | 'claimed' | 'resolved';
 
+/** How a task was resolved (4.0 · P7). */
+export type TaskResolutionType =
+    | 'code-fix'
+    | 'config'
+    | 'wontfix'
+    | 'duplicate'
+    | 'cannot-reproduce';
+
+/**
+ * Structured outcome of a resolved task (4.0 · P7 — the feedback-loop back-link).
+ *
+ * The daemon owns the *data link* between a reported problem and its fix; the
+ * agent/skill owns the orchestration that fills these in (edit → writeback →
+ * re-test). All fields optional: a plain `tasks.resolve(id, note)` stays valid.
+ */
+export interface TaskResolution {
+    /** Classification of the resolution. */
+    type?: TaskResolutionType;
+    /** Git commit SHA of the fix (agent writeback). */
+    commit?: string;
+    /** Pull-request URL for the fix, if one was opened. */
+    prUrl?: string;
+    /**
+     * Session id of the post-fix re-test that verified the fix — the back-link
+     * that closes the loop from the original problem session to its proof.
+     */
+    verificationSessionId?: string;
+    /** When the fix was verified (epoch ms). Defaulted on resolve when a verificationSessionId is given. */
+    verifiedAt?: number;
+}
+
 export interface Task {
     id: string;
     tabId: string;
@@ -503,11 +616,21 @@ export interface Task {
     selector: TaskSelector;
     element: TaskElement;
     createdAt: number;
+    /**
+     * Caller-identity tag (4.0 · P1). `createdBy` = principal id of the
+     * connection that submitted the task (usually a browser `write` principal);
+     * `agentId` = principal id of the agent that claimed/resolved it. Both
+     * optional and informational in P1 — routing/filtering by them is P3.
+     */
+    createdBy?: string;
+    agentId?: string;
     /** Last edit timestamp from a tasks.update query. Unset on create. */
     updatedAt?: number;
     claimedAt?: number;
     resolvedAt?: number;
     note?: string;
+    /** Structured resolution outcome (4.0 · P7). Set on resolve; absent until then. */
+    resolution?: TaskResolution;
     /** Attachment pointers (daemon side) or inline attachments (wire). */
     attachments?: TaskAttachment[];
 }
@@ -527,6 +650,43 @@ export const typeArgsSchema = z.object({
     clear: z.boolean().optional(),
 });
 export type TypeArgs = z.infer<typeof typeArgsSchema>;
+
+export const uploadArgsSchema = z.object({
+    selector: selectorSchema,
+    files: z.array(z.object({
+        name: z.string(),
+        /** Base64-encoded file content, provided by agent. */
+        content: z.string(),
+        mimeType: z.string().optional(),
+    })).min(1),
+});
+export type UploadArgs = z.infer<typeof uploadArgsSchema>;
+
+export const selectArgsSchema = z.object({
+    selector: selectorSchema,
+    value: z.string(),
+});
+export type SelectArgs = z.infer<typeof selectArgsSchema>;
+
+export const checkArgsSchema = z.object({
+    selector: selectorSchema,
+    checked: z.boolean(),
+});
+export type CheckArgs = z.infer<typeof checkArgsSchema>;
+
+export const pasteArgsSchema = z.object({
+    selector: selectorSchema,
+    content: z.string(),
+    /** Optional text/html content for the clipboard data transfer. */
+    html: z.string().optional(),
+});
+export type PasteArgs = z.infer<typeof pasteArgsSchema>;
+
+export const dialogHandlerSchema = z.object({
+    type: z.enum(['alert', 'confirm', 'prompt']),
+    value: z.union([z.boolean(), z.string()]).optional(),
+});
+export type DialogHandler = z.infer<typeof dialogHandlerSchema>;
 
 export const evaluateArgsSchema = z.object({
     /** JS expression executed in page context; result must be JSON-serializable. */

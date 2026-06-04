@@ -24,15 +24,15 @@ vi.mock('rrweb', () => ({
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Bridge } from '../../mcp-server/src/bridge.js';
-import { JsonlStore } from '../../mcp-server/src/store/index.js';
+import { InProcessCoreClient, JsonlStore, type StoreEvent } from '@harness-fe/core';
+import { createGateway, Policy, type GatewayHandle } from '@harness-fe/gateway';
 import { RuntimeClient } from './client.js';
 import { getCaptureStore } from './capture.js';
-import type { StoreEvent } from '../../mcp-server/src/store/index.js';
 import type { NetworkEntry, StorageEntry, WsEntry } from '@harness-fe/protocol';
 
 interface Env {
-    bridge: Bridge;
+    core: InProcessCoreClient;
+    gw: GatewayHandle;
     store: JsonlStore;
     dir: string;
     port: number;
@@ -59,9 +59,12 @@ async function rmDirWithRetry(dir: string, attempts = 5): Promise<void> {
 async function setup(): Promise<Env> {
     const dir = mkdtempSync(join(tmpdir(), 'harness-rt-e2e-'));
     const store = new JsonlStore(dir);
-    const bridge = new Bridge({ port: 0, host: '127.0.0.1', store, taskStore: null, autoPurge: { enabled: false } });
-    await bridge.start();
-    const port = bridge.getBoundPort();
+    // New architecture: an in-process core behind the gateway front door; the
+    // runtime connects to the gateway's /ws (Open policy → local principal).
+    const core = new InProcessCoreClient({ store, taskStore: null, autoPurge: { enabled: false } });
+    await core.start();
+    const gw = createGateway({ coreClient: core, policy: new Policy({ mode: 'open' }) });
+    const port = await gw.listen(0, '127.0.0.1');
     if (!port) throw new Error('no port');
 
     // happy-dom keeps singletons across tests — reset the patch state so this
@@ -70,7 +73,7 @@ async function setup(): Promise<Env> {
 
     const client = new RuntimeClient({
         projectId: 'rt-e2e',
-        mcpUrl: `ws://127.0.0.1:${port}`,
+        mcpUrl: `ws://127.0.0.1:${port}/ws`,
     });
     client.start();
 
@@ -88,7 +91,7 @@ async function setup(): Promise<Env> {
         throw new Error('runtime-client never connected');
     }
 
-    return { bridge, store, dir, port, client, sessionId: client.sessionId };
+    return { core, gw, store, dir, port, client, sessionId: client.sessionId };
 }
 
 beforeEach(async () => {
@@ -98,7 +101,8 @@ beforeEach(async () => {
 afterEach(async () => {
     if (!env) return;
     env.client.stop();
-    await env.bridge.stop();
+    await env.gw.close();
+    await env.core.stop();
     // close() drains the async write queue — must await, else rmSync races
     // file writes and the dir-recursive-rm trips ENOTEMPTY on Linux CI.
     await env.store.close();
@@ -186,7 +190,7 @@ describe('RuntimeClient E2E — patched WebSocket flows to bridge', () => {
         (window as unknown as { WebSocket: typeof WebSocket }).WebSocket = FakeWS as unknown as typeof WebSocket;
         cap.install(
             (name, payload) => e.client.sendEvent(name, payload),
-            { daemonUrl: `ws://127.0.0.1:${e.port}` },
+            { daemonUrl: `ws://127.0.0.1:${e.port}/ws` },
         );
 
         try {
@@ -245,7 +249,7 @@ describe('RuntimeClient E2E — patched fetch initiator round-trip', () => {
         cap.dispose();
         cap.install(
             (name, payload) => e.client.sendEvent(name, payload),
-            { daemonUrl: `ws://127.0.0.1:${e.port}` },
+            { daemonUrl: `ws://127.0.0.1:${e.port}/ws` },
         );
 
         try {

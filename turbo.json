@@ -1,5 +1,14 @@
 {
   "ui": "tui",
+  "globalPassThroughEnv": [
+    "HARNESS_TEAM_TOKEN",
+    "HARNESS_FE_URL",
+    "HARNESS_FE_TOKEN",
+    "HARNESS_FE_RUNTIME",
+    "HARNESS_FE_DRY_RUN",
+    "HARNESS_CORE_DATA_DIR",
+    "HARNESS_GATEWAY_DATA_DIR"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -7,6 +16,16 @@
       "outputs": ["dist/**"]
     },
     "dev": {
+      "dependsOn": ["^build"],
+      "persistent": true,
+      "cache": false
+    },
+    "dev:parent": {
+      "dependsOn": ["^build"],
+      "persistent": true,
+      "cache": false
+    },
+    "dev:child": {
       "dependsOn": ["^build"],
       "persistent": true,
       "cache": false

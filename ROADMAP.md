@@ -12,7 +12,7 @@ There are **two axes** to this roadmap:
 | Line | Branch / npm tag | What it is | Bar |
 |---|---|---|---|
 | **3.x** | `main` / `latest` | **Personal dev tool** — today's product | Rock-solid in the host app's *dev environment*, zero prod footprint. Bug fixes + dev-experience polish. |
-| **4.0** | `next` / `@next` (prerelease) | **Team-usable (experimental)** | One shared daemon a team self-hosts; members don't collide and each only sees their own. Identity + isolation + routing. |
+| **4.0** | `next` / `@next` (prerelease) | **Team-usable (experimental — shipped `4.0.0-next.4`)** | One shared daemon a team self-hosts; members don't collide and each only sees their own. Identity + isolation + routing + gateway. |
 | **5.0** | (after 4.0) | **Production-grade** | High availability + hosted **cloud service**: multi-instance/no-SPOF, shared persistence, remote MCP, observability, SLA. |
 
 3.x and 4.0 develop **in parallel** (see [docs/operations/release-flow.md](./docs/operations/release-flow.md) for the dual-line release setup). 4.0's identity/isolation work is the foundation 5.0's cloud service builds on.
@@ -58,21 +58,26 @@ Keep the single-developer experience unbreakable; ship dev-experience polish and
 
 ---
 
-## 4.0 — Team-usable (`next`, experimental) · Direction 2
+## 4.0 — Team-usable (`next`, experimental — shipped as `4.0.0-next.4`) · Direction 2
 
 **Goal:** a team self-hosts **one** shared daemon and multiple members use it without colliding — no cross-driving the wrong tab, no seeing each other's projects/sessions. This is the **identity + isolation + routing** layer. Scope is a *trusted* team; hardening against untrusted multi-tenancy is part of 5.0.
 
-经 [Issue #99](https://github.com/Morphicai/harness-fe/issues/99)(MorphixAI 整合)讨论收敛:4.0 采用**身份感知的 daemon 核心层**形态——鉴权不止 allow/deny,而是把*调用者身份*带到 tool 层,daemon 据此做 tenant 过滤。这是 5.0 gateway 治理层得以路由 / 审计 / 隔离的前提(见 [§5.0](#50--production-grade-high-availability-cloud-service))。
+Anchored to the gaps surfaced in the multi-tenant readiness review — **all shipped in `4.0.0-next.4`:**
 
-Anchored to the gaps surfaced in the multi-tenant readiness review(标注实施阶段 P1/P2/…,**P1 是唯一硬前置**):
+- [x] **Caller identity** — auth carries *who* (a `Principal`) through to the tool layer
+- [x] **Tenant isolation** — `project.list` / `session.list` / `tasks_pending` filter by `canSee`; an agent only sees data it's authorized for (was: every caller saw every project)
+- [x] **Command-target scoping** — `sendCommand` / `findTab` scoped to the caller's own tabs, not globally
+- [x] **MCP session isolation** — HTTP transport is now **per-session** (one transport + server per `mcp-session-id`; multiple agents concurrent)
+- [x] **`project → agent` binding** — tokens carry project grants; a bound agent sees the project's whole data set regardless of *who created each row* (creator ≠ consumer solved) — the piece that makes team mode actually usable
+- [x] **Host vs sub-app tagging** — `parentProjectId` owner chain; a host agent sees its sub-apps' data, not vice-versa
+- [x] **Browser Consent (P2)** — control commands (`page.*`) require in-page user approval once the daemon is exposed
+- [x] **Package split (P5)** — `@harness-fe/daemon` (core) / `mcp-server` (MCP protocol) / `dev-cli` (solo launcher)
+- [x] **Governance gateway (P6)** — `@harness-fe/gateway`: token lifecycle + scope RBAC + dynamic manifest + project→agent binding + append-only audit + admin panel; `harness-gateway` CLI
+- [x] **Agent feedback loop (P7)** — structured `tasks.resolve` resolution (`type` / `commit` / `prUrl` / `verificationSessionId`) back-linking a report → its fix → the re-test that proved it
 
-- [ ] **Caller identity** ⭐ **(P1 — 先做,唯一硬前置)** — auth doesn't stop at allow/deny; it carries *who* (agent / user id) through to the tool layer. 本阶段只「带身份 + 打标 `createdBy`/`agentId`」,**不启用过滤、零行为变更**(loopback solo 仍零鉴权、看到全部;token 仍不自动生成);过滤留给 P3
-- [ ] **Browser Consent (P2 — 新增安全原语,可与 P1 并行)** — control 类工具(`page.*`)执行前需浏览器端人工确认。新增 `consent-request` / `consent-response` 帧,默认 session 级一次确认,`evaluate` 强制每次。任何离开 loopback 的暴露都需要它,也是反馈闭环 L4 全自动的门禁(见 [§反馈闭环](#agent-反馈闭环-l1l4--direction-1))
-- [ ] **Tenant isolation (P3 — 依赖 P1)** — `project.list` / `session.list` / `tasks_pending` filter by what the caller owns; an agent only sees its own projects' data (today any caller sees every project on the machine)
-- [ ] **Command-target scoping (P3)** — `sendCommand`'s default "most-recent active tab" is scoped to the caller's own tabs, not globally (today it can drive another person's browser)
-- [ ] **MCP session isolation (P4)** — HTTP transport becomes per-session instead of one shared transport;使身份在 HTTP 多 agent 下成立,是 5.0 gateway 远程接入的前置
-- [ ] **`project → agent` binding index (P3)** — the daemon records "who generated this project" and routes `tasks_pending` accordingly
-- [ ] **Host vs sub-app tagging (P3)** on the project tree so routing can express "host agent sees the sub-app's reports, but not vice-versa"
+- [ ] **Runtime opt-in + default policy** — users actively enable in-page agent control via an overlay prompt; build plugin declares `runtimeControl: { defaultPolicy: 'ask' | 'allow' | 'deny', scopes }` as the app-level default; runtime client persists the user's choice to localStorage and gates all control commands behind it. Extends the existing Browser Consent (P2) mechanism rather than replacing it. See design analysis: plugin owns policy declaration, runtime client owns user UX + persistence.
+
+Remaining toward **stable 4.0**: graduate `@next` → `latest` (`changeset pre exit`) once the team path settles in real use.
 
 ---
 
@@ -82,28 +87,16 @@ Anchored to the gaps surfaced in the multi-tenant readiness review(标注实施�
 
 > ⚠️ This is a **deliberate reversal** of the previous "no cloud SaaS" stance below. Running a hosted service is now an explicit 5.0 goal. The dev tool stays open and self-hostable; the cloud service is an *additional* offering, not a replacement.
 
-按 [Issue #99](https://github.com/Morphicai/harness-fe/issues/99) 收敛的**分层架构**:身份感知的 `daemon` 核心层(必选)+ 可选的 `gateway` 治理层。**划界规则:凡需「数据 / 浏览器连接」的(隔离 / Consent / 存储 / 执行)归 daemon,凡「入口治理」的(token / RBAC / 路由 / 审计 / manifest)归 gateway。**
-
-- [ ] **包解耦 (P5 — gateway 前置)** — 拆 `@harness-fe/daemon`(能力 + 存储 + browser 控制)/ `@harness-fe/mcp-server`(stdio 接入)/ `@harness-fe/gateway`(治理)/ `@harness-fe/dev-cli`(solo 零配置 glue)。daemon 是共享核心,已能 `createDaemon()` embed——主要是**边界清理而非重写**
-- [ ] **MCP Gateway 治理层 (P6 — 体量最大,建立在 P1 + P4 + P5 之上)** — 独立 `@harness-fe/gateway` 进程:argon2id token 生命周期(SQLite)、Casbin RBAC(`control` / `read` / `write` scope)、append-only 审计、`token.server_id → daemon` 路由、按 scope 合成动态 tool manifest、纯 HTML 管理面板。token 管理集中此层,daemon 保持「永不生成 token」。scope 三分:`write` 只给浏览器 runtime client(绝不给 Agent),`read + control` 才是完整 Agent token
 - [ ] **High availability** — multi-instance, no single point of failure; horizontal scale behind a load balancer
-- [ ] **Pluggable persistence backend** — `IStore` → SQLite / Postgres / S3; required once instances share state
+- [ ] **Pluggable persistence backend (IStore split + adapters)** — `IStore` split into three capability sub-interfaces by data characteristic: `IMetaStore` (structured metadata → Postgres/SQLite/Supabase), `IEventStore` (append-only time-series → ClickHouse/TimescaleDB/Kafka), `IBlobStore` (large objects/recordings → S3/MinIO/GCS). A `createCompositeStore({ meta, events, blobs })` factory lets users mix-and-match per sub-interface. The existing `FileStore` becomes the default implementation of all three. Official adapter packages: `@harness-fe/store-postgres`, `@harness-fe/store-clickhouse`, `@harness-fe/store-s3`, `@harness-fe/store-sqlite`; third parties can implement any single sub-interface.
 - [ ] **Remote MCP mode** — daemon hosted; browser tabs and agents report over authenticated WS / HTTP
 - [ ] **Daemon-as-service** — managed deploy story, JWT / session auth integration, tenancy onboarding
 - [ ] **Strict multi-tenant security** — untrusted-tenant isolation guarantees + a security review
+- [ ] **Real user identity binding** — runtime sessions bound to the host app's authenticated user; only users who pass the host app's own auth (JWT/OIDC validation via a developer-supplied `verifyUser` hook) can contribute session data; prevents anonymous or bot-originated uploads from polluting the session store.
+- [ ] **Request signing (HMAC-SHA256)** — every runtime upload and agent API call carries a per-request signature (`X-Harness-Signature: t=<timestamp>,v=<hmac>`) computed from `timestamp + method + path + body-hash`; gateway rejects replays outside a 5-minute window; token secret is the signing key so the token itself never travels in the signature header. Closes the replay-attack surface even if a token is leaked. Client SDK generates the signature transparently.
+- [ ] **Gateway plugin system** — `GatewayPlugin` interface + `plugins: GatewayPlugin[]` in `GatewayOptions`; plugins implement only what they need: `verifyUser` (real-user auth), `verifySignature` (HMAC), `onSession/onError/onNetworkRequest/onRecording` (forward to external systems), `onAudit` (stream audit log). Security mechanisms (HMAC signing, user binding) ship as built-in plugins; external system adapters (Sentry, Datadog, Slack) as `@harness-fe/plugin-*` packages. Third parties can publish their own.
 - [ ] **Observability + limits** — metrics / tracing, rate limits, quotas, and an SLA target
 - [ ] Stable, versioned public API contract
-
----
-
-## Agent 反馈闭环 L1–L4 · Direction 1
-
-**(P7)** 用户报告问题 → task 进队列 → Agent 排查(read 类工具)→ 生成 / 验证修复 → 反馈用户。基建已就绪(overlay 上报、tasks、session replay、`data-morphix-loc` 源码定位),缺的是**自动化编排 + 写回权限分级 + 修复验证标准**。
-
-- [ ] **自动化分级 L1→L4** — L1 排查报告 / L2 生成 diff 待人审 / L3 写 staging 分支过 CI / L4 全自动。**L4 以 P2 Browser Consent 为门禁**
-- [ ] **Writeback** — staging 分支 + PR workflow;git 写权限按 token / project 分级
-- [ ] **task ↔ session ↔ project 关联** — task 绑定原始 sessionId,修复后产生新 sessionId,建立「原始问题 → 修复验证」关联
-- [ ] **修复验证标准** — session replay 自动重放 + console 无 error + screenshot diff / 人工确认
 
 ---
 
@@ -120,6 +113,61 @@ Coverage work that lands as it matures, independent of the 3/4/5 maturity line. 
 - [ ] **React Native source-aware mapping** — Metro / Babel transform mapping RN elements / `testID` / a11y / component names back to files
 - [ ] **Flutter runtime client** — dev-only Dart / VM-service bridge for logs, errors, screenshots, widget tree, interaction
 - [ ] **Multi-user collaborative sessions** — pair-debugging: two humans + the agent share one session timeline
+
+---
+
+## Security hardening (cross-cutting, 4.0+)
+
+Items that apply across the 4.0 team and 5.0 cloud lines; can land incrementally.
+
+- [ ] **Token TTL + IP binding** — expose `ttl` and `allowedIps` on `--issue-token` CLI and admin panel; `expiresAt` and `ip` fields already exist in the store schema, wiring is all that's needed.
+- [ ] **Request signing (HMAC-SHA256)** — see 5.0 entry; can be back-ported to 4.0 gateway once the spec is stable.
+- [ ] **Rate limiting per token** — sliding-window counter in the gateway store; configurable `rateLimit: { requests, windowMs }` per token; returns `429` with `Retry-After`.
+- [ ] **Audit log exposure** — surface the append-only audit log (already written) via `/admin/audit` panel and a streaming MCP tool so operators can detect abuse in real time.
+
+---
+
+## Architectural review — open questions before 5.0
+
+> These are unresolved design questions surfaced during 4.0 development. They must be answered before committing to the 5.0 production architecture. Some may require breaking changes to the wire protocol or store interface.
+
+### Runtime entry & build plugin coupling
+
+- **Is the build plugin (Vite/Webpack) the right entry point?** Currently the plugin is the only ergonomic way to inject the runtime. Without it users must manually inject `window.__HARNESS_FE__` and import the runtime — losing source-location awareness entirely. Should there be a zero-config script-tag path that works without a bundler plugin (at the cost of source mapping)?
+- **Token exposure in HTML bundle** — the runtime token is baked into `window.__HARNESS_FE__` at build time and is visible to anyone with DevTools. This is acceptable in dev; it is not acceptable in production. The architecture does not yet have a clear answer for production token delivery. Candidate: runtime fetches a short-lived token from the host app's auth endpoint at startup. Requires the `verifyUser` hook and Token TTL work to land first.
+- **Build plugin is required for source awareness** — `data-morphix-loc` / `data-morphix-comp` attributes are injected at transform time. Any runtime-only path loses file:line element mapping. Is there a viable runtime-only fallback (e.g. reading React DevTools fiber, stack-trace parsing)?
+
+### Runtime 动态控制能力
+
+- **`window.HarnessFE` 只有一个真正的扩展点** — 目前仅暴露 `{ registerOverlayPlugin, version }`。`registerOverlayPlugin` 只能挂按钮 + 读数据，不能写数据、不能影响录制行为、不能控制连接状态。RuntimeClient 的所有 public 成员均为只读 getter（`projectId / buildId / userId / mcpUrl`），没有任何动态控制方法。
+- **用户无法在运行时识别身份** — `userId` 只能在构建时通过 `HarnessScript` 静态注入。用户登录后无法动态更新，匿名 session 无法在登录后补全身份信息。
+- **没有自定义事件通道** — 用户无法主动向 gateway 推送业务事件（如"结账开始"、"A/B 命中变体 B"）。`StoreEvent.d` 字段在底层是 `unknown`，具备承载能力，但从浏览器到 gateway 没有任何公开的写入路径。
+- **录制行为不可控** — runtime 在页面加载时自动开始录制，用户无法暂停、恢复或有条件地停止。对于某些页面（如支付表单、敏感操作）这是一个隐私风险，且当前没有任何机制让开发者声明"此路由不录制"。
+- **用户无法主动开关 agent 控制权** — consent gate (P2) 仅在 agent 发送控制命令时弹确认框，但 runtime 本身的连接和录制是静默的、用户无感知的。没有入口让用户主动选择"我允许/不允许 agent 控制我的页面"。
+
+### 后端扩展能力
+
+- **IStore 是单体接口（35 个方法）** — 用户若想对接自有存储（如公司内部的 ClickHouse 或 S3），必须实现全部 35 个方法，其中许多与目标系统无关。局部替换不可能。
+- **Gateway 没有任何钩子** — 目前没有机制在数据写入存储后转发到外部系统（Sentry、Datadog、内部数据仓库）。每一个集成需求都必须 fork gateway 才能实现，这在团队环境中不可维护。
+- **没有事件管道** — 事件从 runtime 到达 gateway 后直接落盘，中间没有任何拦截层。无法在存储前注入全局上下文（部署版本、git SHA、业务标签），也无法做过滤或采样。
+- **存储后无通知机制** — 数据写入后没有任何事件/回调通知外部系统。轮询 store 是唯一的替代方案，不适合生产环境的实时对接需求。
+
+### Protocol & wire format
+
+- **Protocol versioning strategy** — `PROTOCOL_VERSION` is locked at `1.0`. The 5.0 changes (user identity, signing, richer metadata) will require breaking changes. There is no negotiation mechanism in `hello` / `hello.ack` beyond a version string. How do we handle mixed-version deployments (old runtime talking to new gateway, or vice versa)?
+- **HTTP batch transport completeness** — the `/events` HTTP batch path (for Node/Edge runtimes without persistent WS) is stateless by design. It does not support command delivery back to the runtime. Is this acceptable long-term, or does every production environment need a persistent WebSocket?
+
+### Production security posture
+
+- **HMAC request signing** — designed (see Security hardening section) but not implemented. Until it lands, any leaked token grants unlimited API access for its lifetime.
+- **No real-user binding** — session data is accepted from any client that holds a valid write-scope token. There is no mechanism to verify that the browser submitting data is an actual authenticated user of the host application. This means a leaked token can be used to inject arbitrary session data.
+- **Runtime opt-in not implemented** — users have no way to actively enable or disable agent control of their browser. The consent gate (P2) requires the user to approve individual commands, but the runtime connects and begins recording automatically on page load with no user-visible indication.
+
+### Scalability & storage
+
+- **FileStore is the only production-tested backend** — the JSONL file layout has not been stress-tested beyond single-developer use. Unknown behavior under concurrent writes from multiple runtime clients or high event throughput (e.g. rrweb at 60fps).
+- **No backpressure on event ingestion** — `appendEvent` is synchronous and unbounded. A misbehaving or high-frequency client can saturate disk I/O with no rate limiting at the store layer.
+- **Recording retention is best-effort** — the purge policy runs on a timer and is not transactional. A crash mid-purge can leave orphaned files. Not a problem in dev; needs hardening before production.
 
 ---
 

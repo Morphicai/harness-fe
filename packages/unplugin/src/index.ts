@@ -30,5 +30,6 @@ export {
 export { createMcpClient } from './internal/mcp-client.js';
 export { installNodeLogCapture } from './internal/log-capture.js';
 export { createBuildIdentity, appendTokenQuery } from './internal/buildIdentity.js';
+export { resolveSoloTarget } from './soloTarget.js';
 export type { McpClient, McpClientContext, PeerRole } from './internal/types.js';
 export type { BuildIdentity, BuildIdentityOptions } from './internal/buildIdentity.js';

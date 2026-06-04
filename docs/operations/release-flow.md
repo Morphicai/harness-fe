@@ -49,8 +49,8 @@ The **human gate is the Version PR** (read the diff, merge to ship) — not a ta
 
 Core packages are **linked** (`.changeset/config.json`), so they all bump to the
 same version number on every release — one package's `minor` pulls the whole
-group to that version. This is why e.g. `@harness-fe/mcp-server` can jump
-`3.2.0 → 3.4.0` (skipping 3.3.0) to stay aligned with `@harness-fe/runtime`.
+group to that version. This is why e.g. `@harness-fe/core` can jump
+`4.0.0-next.4 → 4.0.0-next.6` to stay aligned with `@harness-fe/runtime`.
 Details + the major-risk it creates: [versioning-policy.md](../versioning-policy.md).
 
 ## Parallel lines: 3.x stable + 4.0 experimental

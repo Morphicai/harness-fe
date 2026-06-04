@@ -1,5 +1,157 @@
 # @harness-fe/runtime
 
+## 4.0.0-next.8
+
+### Minor Changes
+
+- 7274a6c: New browser interaction commands, consent UI, overlay option, and full file upload pipeline.
+
+  **New MCP tools (all control-scoped)**
+
+  - `page.upload` — inject files into `<input type="file">` via DataTransfer; files provided as base64 by the agent
+  - `page.select` — set `<select>` value and fire change/input events
+  - `page.check` — set checkbox/radio `.checked` and fire change/input events
+  - `page.paste` — dispatch ClipboardEvent with synthetic clipboard data (fire-and-forget, no dialog)
+  - `page.set_dialog_handler` — pre-register return values for agent-triggered `alert`/`confirm`/`prompt` (read-scope)
+
+  **Consent UI (runtime-only, modern design)**
+
+  - New plugin option `consent?: 'off' | 'session' | 'always'` on `harnessFE()` / `<HarnessScript>`
+  - Plugin config takes priority over gateway `hello.ack`; gateway/CLI unchanged
+  - Permanent grant stored in `localStorage.__hfe_consent_grant__:<projectId>`; survives page refresh
+  - Rebuilt consent panel: blur backdrop + card UI, four buttons (始终允许 / 本次会话 / 仅此次 / 拒绝)
+  - Fixed: consent panel now shows `page.click(#submit-btn)` instead of `page.click([object Object])`
+
+  **Overlay hide option**
+
+  - New plugin option `overlay?: boolean` (default `true`) on `harnessFE()` / `<HarnessScript>`
+  - `overlay: false` hides the "H" floating icon; data capture is unaffected
+
+  **Sandbox: dialogs channel**
+
+  - New `dialogs` sandbox channel intercepts `alert` / `confirm` / `prompt` / `print` / `beforeunload`
+  - Only intercepts when agent is in progress (`__hfe_agent_in_progress__` flag); user calls pass through unchanged
+
+  **Sandbox: forms channel**
+
+  - New `forms` sandbox channel covers the full file upload pipeline to backend:
+    - `HTMLInputElement.prototype.click` (file inputs): suppresses native picker when agent-triggered
+    - `window.FormData` constructor: injects `__hfe_injected_files__` so `new FormData(form)` + fetch sends real files
+    - `HTMLFormElement.prototype.submit`: converts to fetch when agent has injected files; fallback to native on error
+  - `page.upload` sets `__hfe_injected_files__` on the input element (auto-cleared after 60s)
+
+### Patch Changes
+
+- Updated dependencies [7274a6c]
+  - @harness-fe/protocol@4.0.0-next.8
+  - @harness-fe/sandbox@4.0.0-next.8
+
+## 4.0.0-next.6
+
+### Patch Changes
+
+- 46775be: Align the linked package group onto a single 4.0.0-next line.
+
+  The gateway/console work only touched some packages, so changesets left the linked
+  group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
+  prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
+  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
+
+- Updated dependencies [46775be]
+  - @harness-fe/protocol@4.0.0-next.6
+  - @harness-fe/sandbox@4.0.0-next.6
+
+## 4.0.0-next.5
+
+### Minor Changes
+
+- 68e4785: Console: a real sign-in, a clean empty state, and an overlay shortcut that isn't an auth grant.
+
+  - **Sign-in entry** — the console now has a unified sign-in: an **agent read token**
+    (pasted, kept in sessionStorage, sent as Bearer → scoped to the token's projects)
+    or an **admin** session (sees all). Under Open (solo) no sign-in is needed.
+    New `GET /console/api/whoami` reports `{ mode, authenticated, kind, projects }`
+    (never 401s) so the SPA gates on it.
+  - **No more weird empty `/`** — a Governed viewer with no credential gets the
+    sign-in screen instead of a raw 401; authenticated/Open viewers get the data.
+  - **Overlay = pure shortcut** — `deriveDashboardUrl` no longer appends the
+    runtime token; the "open dashboard" button is plain navigation to
+    `/console/sessions/:id`. The viewer authorizes in the console itself (the
+    runtime's write token could never read anyway). The console credential is read
+    from sessionStorage, never the URL.
+
+- 2fa80f1: Rebuild ⑤ — the runtime connects to the gateway `/ws` by default.
+
+  - The default WebSocket target is now `ws://127.0.0.1:<port>/ws` (the gateway
+    front door) instead of the daemon's root socket. Both the build plugin and the
+    in-browser runtime client pick it up. The wire protocol is unchanged, so this
+    is purely a target/path change.
+  - `deriveDashboardUrl` now points at the gateway console (`/console`,
+    `/console/session/:id`) instead of the old `/dashboard/`.
+  - Token semantics: the injected token is now expected to be a **write-scope**
+    gateway token. Core denies every read/control capability to a write-only
+    principal, so extracting the token from `window.__HARNESS_FE__` only lets a
+    page report events and be driven — never read or drive anyone else's data.
+    Solo (loopback) stays token-free.
+
+## 4.0.0-next.4
+
+### Minor Changes
+
+- dbaf5ad: Version observability — surface the running version in both the dashboard and
+  the in-page overlay, so you can tell at a glance which build is live.
+
+  - **daemon** exposes `GET /api/meta` → `{ daemonVersion, protocolVersion }`
+    (read from its own package.json at module load).
+  - **dashboard-ui** header shows a `v<daemonVersion>` badge (protocol version on
+    hover).
+  - **runtime** overlay info card gains a `version` row showing the injected
+    runtime's real version.
+  - **Fix:** the runtime's `VERSION` was a hand-maintained constant stuck at
+    `3.3.0` while the package was `4.0.0-next.x`. It is now generated from
+    package.json at build time (`scripts/gen-version.mjs` → `src/version.ts`), so
+    it can never drift again.
+
+  Additive only — no behaviour change for existing callers.
+
+### Patch Changes
+
+- Updated dependencies [25a6106]
+  - @harness-fe/protocol@4.0.0-next.4
+
+## 4.0.0-next.0
+
+### Minor Changes
+
+- 9a3c5e1: Browser Consent (4.0 · P2) — control commands now require in-page user
+  approval before they run, once the daemon is exposed.
+
+  - The daemon pushes a consent policy in `hello.ack`: `off` on loopback solo
+    dev (zero-friction, unchanged) and `session` once auth is enabled
+    (exposed). Override via `createDaemon({ consent: { mode } })`.
+  - Control commands (`page.click/type/scroll/navigate/reload/set_html/
+set_style/evaluate/wait_for`) are gated; read-only commands (screenshot,
+    dom*query, *\_tail, project.\_) are not. `page.evaluate` always prompts.
+  - The runtime client gates `handleCommand`: in `session` mode the first
+    control command prompts and the rest of the pageload runs once granted;
+    `always` prompts every time; `off` never prompts. No prompter registered ⇒
+    fail-safe deny (a policy that can't ask must not silently allow).
+  - The in-page overlay shows a consent modal (command preview + Allow once /
+    Allow for session / Deny) and registers itself as the prompter.
+
+  Client-side gate by design: consent is the browser-side user's real-time
+  approval, closest to the user; it reuses the existing command→response round
+  trip (a denied command returns `ok:false` / `CONSENT_DENIED`), so the daemon's
+  `sendCommand` path is unchanged. Behaviour is unchanged on loopback (consent
+  off). New `hello.ack.consent` field is optional.
+
+### Patch Changes
+
+- Updated dependencies [9a3c5e1]
+- Updated dependencies [a3bd7ea]
+  - @harness-fe/protocol@4.0.0-next.0
+
 ## 3.4.1
 
 ### Patch Changes

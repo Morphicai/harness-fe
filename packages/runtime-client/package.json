@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/runtime",
-    "version": "3.4.1",
+    "version": "4.0.0-next.8",
     "description": "Browser-side SDK injected into the dev page. Connects to the MCP server via WebSocket and executes commands.",
     "type": "module",
     "license": "MIT",
@@ -28,19 +28,21 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch --preserveWatchOutput",
-        "watch": "tsc --watch --preserveWatchOutput",
+        "build": "node scripts/gen-version.mjs && tsc",
+        "dev": "node scripts/gen-version.mjs && tsc --watch --preserveWatchOutput",
+        "watch": "node scripts/gen-version.mjs && tsc --watch --preserveWatchOutput",
         "typecheck": "tsc --noEmit",
         "test": "vitest run"
     },
     "dependencies": {
         "@harness-fe/protocol": "workspace:*",
         "@harness-fe/sandbox": "workspace:^",
-        "@zumer/snapdom": "^2.12.2",
+        "@zumer/snapdom": "^2.12.0",
         "rrweb": "2.0.0-alpha.4"
     },
     "devDependencies": {
+        "@harness-fe/core": "workspace:*",
+        "@harness-fe/gateway": "workspace:*",
         "happy-dom": "^20.9.0",
         "typescript": "^5.6.0",
         "vitest": "^2.1.9"

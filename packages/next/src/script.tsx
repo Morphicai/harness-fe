@@ -30,8 +30,9 @@
  * precise control over boot order — e.g. registering before any other
  * middleware), but it's no longer required.
  *
- * In production (`NODE_ENV !== 'development'`) this component renders nothing
- * and pulls no code into client bundles.
+ * Whether to render is the caller's responsibility — this component does not
+ * check NODE_ENV. Conditionally render it in your layout if you only want it
+ * in development.
  */
 
 export interface HarnessScriptProps {
@@ -47,6 +48,13 @@ export interface HarnessScriptProps {
     /** MCP daemon WebSocket URL. Defaults to `ws://127.0.0.1:47729`. */
     mcpUrl?: string;
     /**
+     * Write-scope token for a governed (team) gateway. Appended to `mcpUrl` as
+     * `?token=…` for BOTH the browser runtime and the server node-runtime.
+     * Omit for solo / local (no auth). It's a write-only token by design — even
+     * if read from the page it can only report events, never read/drive.
+     */
+    token?: string;
+    /**
      * App-supplied user identifier. Attached to the visitor record on the
      * daemon side. Empty / undefined for anonymous traffic.
      *
@@ -59,11 +67,28 @@ export interface HarnessScriptProps {
      *   - Dev: leave undefined.
      */
     buildId?: string;
+    /**
+     * Show the in-page "H" overlay (default: true). Set to false to hide the
+     * overlay in production dogfood scenarios — data capture is unaffected.
+     */
+    overlay?: boolean;
+    /**
+     * Browser consent policy. When set, takes priority over the gateway
+     * hello.ack consent mode.
+     *   'off'     — no user prompt, control commands run freely (default)
+     *   'session' — user grants once per page-load
+     *   'always'  — prompt before every control command
+     */
+    consent?: 'off' | 'session' | 'always';
 }
 
 import type React from 'react';
 
-const IS_DEV = process.env.NODE_ENV === 'development';
+/** Append `?token=…` to the gateway URL (no-op if absent or already present). */
+function withToken(url: string | undefined, token?: string): string | undefined {
+    if (!url || !token || /[?&]token=/.test(url)) return url;
+    return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+}
 
 /**
  * Process-level singleton: first call kicks off `@harness-fe/node-runtime`
@@ -118,16 +143,17 @@ async function ensureNodeRuntimeBooted(opts: {
 }
 
 export async function HarnessScript(props: HarnessScriptProps): Promise<React.ReactElement | null> {
-    if (!IS_DEV) return null;
-
     // Auto-boot the Node SDK on first server render (no instrumentation.ts
     // required). Fire-and-forget — we don't await, so the first request
     // isn't blocked on WS connect. Subsequent requests are no-ops (singleton).
+    // Fold the token into the URL once; both the server node-runtime (here) and
+    // the browser runtime (HarnessScriptClient below) connect with it.
+    const mcpUrl = withToken(props.mcpUrl, props.token);
     void ensureNodeRuntimeBooted({
         projectId: props.projectId,
         buildId: props.buildId,
         userId: props.userId,
-        mcpUrl: props.mcpUrl,
+        mcpUrl,
     });
 
     // Lazy import so production bundles never pull this in.
@@ -144,7 +170,7 @@ export async function HarnessScript(props: HarnessScriptProps): Promise<React.Re
         <>
             {/* eslint-disable-next-line react/no-danger */}
             <script id="__hfe_seed__" dangerouslySetInnerHTML={{ __html: seedScript }} />
-            <HarnessScriptClient {...props} />
+            <HarnessScriptClient {...props} mcpUrl={mcpUrl} />
         </>
     );
 }

@@ -13,7 +13,8 @@
         "react-dom": "^18.3.0"
     },
     "devDependencies": {
-        "@harness-fe/mcp-server": "workspace:*",
+        "@harness-fe/core": "workspace:*",
+        "@harness-fe/gateway": "workspace:*",
         "@harness-fe/runtime": "workspace:*",
         "@harness-fe/vite": "workspace:*",
         "@types/node": "^22.0.0",

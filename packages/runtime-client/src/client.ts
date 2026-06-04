@@ -6,10 +6,15 @@
  */
 
 import {
+    ALWAYS_CONFIRM_COMMANDS,
     COMMAND,
     DEFAULT_WS_PORT,
     EVENT_NAME,
+    requiresConsent,
     type CommandFrame,
+    type ConsentDecision,
+    type ConsentMode,
+    type ConsentRequest,
     type EventFrame,
     type Frame,
     type HelloAckFrame,
@@ -48,6 +53,11 @@ export interface ClientOptions {
     /** Optional human-readable name; mostly used by the project tree. */
     displayName?: string;
     /**
+     * Show the in-page "H" overlay (default: true). Set to false to hide the
+     * overlay in production dogfood scenarios — data capture is unaffected.
+     */
+    overlay?: boolean;
+    /**
      * App-supplied user identifier (e.g. supabase.user.id, auth0 sub, …).
      * Optional. When absent, traffic is treated as anonymous (only stitched
      * by visitorId). Propagated by HarnessScript via window.__HARNESS_FE__.userId.
@@ -60,6 +70,14 @@ export interface ClientOptions {
      * See {@link RrwebRecorderOptions.checkoutEveryNms} for the trade-off.
      */
     rrwebCheckoutEveryNms?: number;
+    /**
+     * Browser consent policy override. When supplied by the plugin config,
+     * takes priority over the gateway hello.ack consent mode.
+     *   'off'     — no user prompt, control commands run freely (default)
+     *   'session' — user grants once per page-load
+     *   'always'  — prompt before every control command
+     */
+    consent?: ConsentMode;
 }
 
 const TAB_ID_KEY = '__hfe_tab_id__';
@@ -143,6 +161,14 @@ export class RuntimeClient {
         }
     }
     private pageLoadSent = false;
+    // Browser consent (4.0 · P2). Mode comes from the daemon in hello.ack;
+    // default `off` so a daemon that never sends a policy (or loopback solo
+    // dev) keeps running control commands without prompting.
+    private consentMode: ConsentMode = 'off';
+    /** Set once the user grants blanket control for this pageload (mode=session). */
+    private consentSessionGranted = false;
+    /** Set by the overlay to collect the user's decision. Absent ⇒ fail-safe deny. */
+    private consentPrompter?: (req: ConsentRequest) => Promise<ConsentDecision>;
     private readonly ctx: CommandContext = { capture: getCaptureStore() };
     // Initialized in constructor (parameter property `opts` isn't readable at
     // class-field-initializer time — field initializers run before parameter
@@ -177,13 +203,33 @@ export class RuntimeClient {
 
 
     start(): void {
-        const daemonUrl = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+        this.loadPermanentGrant();
+        const daemonUrl = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`;
         this.ctx.capture.install(
             (name, payload) => this.sendEvent(name, payload),
             { daemonUrl },
         );
         this.recorder.start();
         this.connect();
+    }
+
+    private loadPermanentGrant(): void {
+        try {
+            const key = `__hfe_consent_grant__:${this.opts.projectId}`;
+            const raw = localStorage.getItem(key);
+            if (raw) this.consentSessionGranted = true;
+        } catch {
+            // localStorage unavailable (iOS private mode, sandboxed iframe, etc.)
+        }
+    }
+
+    private savePermanentGrant(): void {
+        try {
+            const key = `__hfe_consent_grant__:${this.opts.projectId}`;
+            localStorage.setItem(key, JSON.stringify({ grantedAt: Date.now() }));
+        } catch {
+            // quota / sandboxed iframe / etc.
+        }
     }
 
     stop(): void {
@@ -193,7 +239,7 @@ export class RuntimeClient {
     }
 
     private connect(): void {
-        const url = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+        const url = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`;
         try {
             this.ws = new WebSocket(url);
         } catch (err) {
@@ -271,10 +317,25 @@ export class RuntimeClient {
         }
     }
 
+    /**
+     * Register the consent prompter (the overlay installs this). When the
+     * policy is on and a control command arrives, the client asks this for the
+     * user's decision. Without it, gated commands are denied (fail-safe).
+     */
+    setConsentPrompter(fn: (req: ConsentRequest) => Promise<ConsentDecision>): void {
+        this.consentPrompter = fn;
+    }
+
     private onHelloAck(frame: HelloAckFrame): void {
         if (frame.error) {
             // Bridge rejected this hello — do not send PAGE_LOAD.
             return;
+        }
+        // Plugin config takes priority; gateway hello.ack is the fallback (4.0 · P2).
+        if (this.opts.consent != null) {
+            this.consentMode = this.opts.consent;
+        } else {
+            this.consentMode = frame.consent?.mode ?? 'off';
         }
         // Force a fresh rrweb FullSnapshot on every ack — including reconnects
         // after daemon restart, network blips, or page-recovery from sleep.
@@ -309,8 +370,35 @@ export class RuntimeClient {
             } satisfies ResponseFrame);
             return;
         }
+        // Browser-consent gate (4.0 · P2): control commands need the user's
+        // OK in the page before they run when the daemon enabled consent.
+        if (requiresConsent(frame.command, this.consentMode, this.consentSessionGranted)) {
+            const decision = await this.requestConsent(frame);
+            if (decision === 'deny') {
+                this.send({
+                    type: 'response',
+                    id: frame.id,
+                    ok: false,
+                    error: { code: 'CONSENT_DENIED', message: `user denied "${frame.command}"` },
+                } satisfies ResponseFrame);
+                return;
+            }
+            if (decision === 'permanent') {
+                this.savePermanentGrant();
+                this.consentSessionGranted = true;
+            } else if (decision === 'session') {
+                this.consentSessionGranted = true;
+            }
+            // 'once' → run this one without granting the rest of the session.
+        }
         try {
-            const result = await handler(frame.args ?? {}, this.ctx);
+            (window as unknown as Record<string, unknown>).__hfe_agent_in_progress__ = true;
+            let result: unknown;
+            try {
+                result = await handler(frame.args ?? {}, this.ctx);
+            } finally {
+                (window as unknown as Record<string, unknown>).__hfe_agent_in_progress__ = false;
+            }
             this.send({
                 type: 'response',
                 id: frame.id,
@@ -325,6 +413,26 @@ export class RuntimeClient {
                 ok: false,
                 error: { message },
             } satisfies ResponseFrame);
+        }
+    }
+
+    /**
+     * Ask the user (via the overlay-registered prompter) to approve a control
+     * command. Fail-safe: if no prompter is registered, or it throws, deny —
+     * a consent policy that can't ask must not silently allow.
+     */
+    private async requestConsent(frame: CommandFrame): Promise<ConsentDecision> {
+        if (!this.consentPrompter) return 'deny';
+        const req: ConsentRequest = {
+            command: frame.command,
+            args: frame.args,
+            tabId: this.tabId,
+            alwaysConfirm: ALWAYS_CONFIRM_COMMANDS.has(frame.command),
+        };
+        try {
+            return await this.consentPrompter(req);
+        } catch {
+            return 'deny';
         }
     }
 
@@ -425,6 +533,8 @@ export function readInjectedConfig(): ClientOptions {
             displayName?: string;
             userId?: string;
             sessionId?: string;
+            overlay?: boolean;
+            consent?: string;
         };
     };
     return {
@@ -434,6 +544,8 @@ export function readInjectedConfig(): ClientOptions {
         parentProjectId: w.__HARNESS_FE__?.parentProjectId,
         displayName: w.__HARNESS_FE__?.displayName,
         userId: w.__HARNESS_FE__?.userId,
+        overlay: w.__HARNESS_FE__?.overlay ?? true,
+        consent: w.__HARNESS_FE__?.consent as ConsentMode | undefined,
     };
 }
 

@@ -18,8 +18,9 @@
  *     buildId: process.env.VERCEL_GIT_COMMIT_SHA,
  *   });
  *
- * Only active when NODE_ENV === 'development'. In production the wrapper
- * returns nextConfig unchanged.
+ * Whether to activate is the caller's responsibility — this wrapper does not
+ * check NODE_ENV. Wrap the call in a condition in your next.config.mjs if you
+ * only want it in development.
  */
 
 export interface WithHarnessOptions {
@@ -34,6 +35,11 @@ export interface WithHarnessOptions {
     buildId?: string;
     /** Override the daemon WebSocket URL. Defaults to ws://127.0.0.1:47729. */
     mcpUrl?: string;
+    /**
+     * Write-scope token for a governed (team) gateway. Sets HARNESS_FE_TOKEN so
+     * the server node-runtime's auto entry appends it to mcpUrl as `?token=`.
+     */
+    token?: string;
 }
 
 /**
@@ -46,12 +52,14 @@ class HarnessNodeRuntimePlugin {
     private readonly displayName: string;
     private readonly buildId?: string;
     private readonly mcpUrl?: string;
+    private readonly token?: string;
 
     constructor(opts: WithHarnessOptions) {
         this.projectId = opts.projectId;
         this.displayName = opts.displayName ?? opts.projectId;
         this.buildId = opts.buildId;
         this.mcpUrl = opts.mcpUrl;
+        this.token = opts.token;
     }
 
     apply(compiler: {
@@ -88,6 +96,7 @@ class HarnessNodeRuntimePlugin {
             process.env.HARNESS_FE_DISPLAY_NAME = this.displayName;
             if (this.buildId) process.env.HARNESS_FE_BUILD_ID = this.buildId;
             if (this.mcpUrl) process.env.HARNESS_FE_MCP_URL = this.mcpUrl;
+            if (this.token) process.env.HARNESS_FE_TOKEN = this.token;
         });
 
         // Add the auto-import as an additional entry for the server bundle.
@@ -117,10 +126,6 @@ export function withHarness(
     opts: WithHarnessOptions,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Record<string, any> {
-    if (process.env.NODE_ENV !== 'development') {
-        return nextConfig;
-    }
-
     return {
         ...nextConfig,
         webpack(

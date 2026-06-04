@@ -1,0 +1,56 @@
+{
+    "name": "@harness-fe/cli",
+    "version": "4.0.0-next.8",
+    "description": "Harness-FE CLI — launches the gateway with an in-process core. `harness` (solo: stdio MCP + loopback /ws, zero-config), `harness serve` (shared headless HTTP gateway), or `harness --governed` (team: tokens + RBAC + audit over HTTP).",
+    "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
+        "directory": "packages/cli"
+    },
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
+    "bugs": {
+        "url": "https://github.com/Morphicai/harness-fe/issues"
+    },
+    "main": "dist/cli.js",
+    "types": "dist/cli.d.ts",
+    "bin": {
+        "harness": "./dist/cli.js"
+    },
+    "exports": {
+        "./sharedGateway": {
+            "types": "./dist/sharedGateway.d.ts",
+            "default": "./dist/sharedGateway.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc && node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
+        "dev": "tsc --watch --preserveWatchOutput",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run --passWithNoTests"
+    },
+    "engines": {
+        "node": ">=18"
+    },
+    "dependencies": {
+        "@harness-fe/console-ui": "workspace:*",
+        "@harness-fe/core": "workspace:*",
+        "@harness-fe/gateway": "workspace:*",
+        "@harness-fe/protocol": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.6.0",
+        "vitest": "^2.1.9"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

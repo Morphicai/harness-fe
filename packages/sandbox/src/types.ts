@@ -43,7 +43,9 @@ export type SandboxChannel =
     | 'console'
     | 'errors'
     | 'globals'
-    | 'indexeddb';
+    | 'indexeddb'
+    | 'dialogs'
+    | 'forms';
 
 // ───────────────────────────────────────────────────────────────────
 // Channel observation shapes (what the observer onEvent receives)
@@ -130,6 +132,44 @@ export interface GlobalsObservation {
     previousValue?: unknown;
 }
 
+// ─── dialogs ─────────────────────────────────────────────────────
+export interface DialogsObservation {
+    /**
+     * - alert        : window.alert() — agent triggered, suppressed
+     * - confirm      : window.confirm() — agent triggered, returns preset or false
+     * - prompt       : window.prompt() — agent triggered, returns preset or null
+     * - print        : window.print() — agent triggered, suppressed
+     * - beforeunload : beforeunload event fired while agent is in progress
+     *
+     * Note: file_input_click has been moved to FormsObservation (forms channel).
+     */
+    type: 'alert' | 'confirm' | 'prompt' | 'print' | 'beforeunload';
+    /** The message string for alert/confirm/prompt. */
+    message?: string;
+    /** The value returned to the caller (confirm → boolean, prompt → string | null). */
+    returnValue?: boolean | string | null;
+}
+
+// ─── forms ───────────────────────────────────────────────────────
+export interface FormsObservation {
+    /**
+     * - file_input_click       : HTMLInputElement(type=file).click() — agent triggered, picker suppressed
+     * - formdata_patched       : FormData constructor injected __hfe_injected_files__ into a field
+     * - form_submit_intercepted: form.submit() converted to fetch due to injected files
+     */
+    type: 'file_input_click' | 'formdata_patched' | 'form_submit_intercepted';
+    /** Best-effort CSS selector for the file input element that was clicked. */
+    selector?: string;
+    /** The form field name that received injected files. */
+    field?: string;
+    /** Number of files injected into the field. */
+    fileCount?: number;
+    /** The form action URL. */
+    action?: string;
+    /** The HTTP method used for the intercepted submit. */
+    method?: string;
+}
+
 // ─── indexeddb ────────────────────────────────────────────────────
 export interface IndexedDbObservation {
     op: 'open' | 'put' | 'add' | 'get' | 'getAll' | 'delete' | 'clear' | 'cursor';
@@ -162,7 +202,9 @@ export type SandboxEvent =
     | { ts: number; source: 'console'; kind: ConsoleObservation['level']; data: ConsoleObservation; initiator?: Initiator; moduleId?: string }
     | { ts: number; source: 'errors'; kind: ErrorObservation['kind']; data: ErrorObservation; initiator?: Initiator; moduleId?: string }
     | { ts: number; source: 'globals'; kind: GlobalsObservation['op']; data: GlobalsObservation; initiator?: Initiator; moduleId?: string }
-    | { ts: number; source: 'indexeddb'; kind: IndexedDbObservation['op']; data: IndexedDbObservation; initiator?: Initiator; moduleId?: string };
+    | { ts: number; source: 'indexeddb'; kind: IndexedDbObservation['op']; data: IndexedDbObservation; initiator?: Initiator; moduleId?: string }
+    | { ts: number; source: 'dialogs'; kind: DialogsObservation['type']; data: DialogsObservation; initiator?: Initiator; moduleId?: string }
+    | { ts: number; source: 'forms'; kind: FormsObservation['type']; data: FormsObservation; initiator?: Initiator; moduleId?: string };
 
 // ───────────────────────────────────────────────────────────────────
 // Interceptor hooks per channel
@@ -266,6 +308,7 @@ export interface SandboxOptions {
     navigation?: NavigationInterceptor;
     globals?: GlobalsInterceptor;
     indexeddb?: IndexedDbInterceptor;
+    forms?: { enabled?: boolean };
 
     /**
      * Allowlist of channels to enable. When set, ALL channels NOT in the list

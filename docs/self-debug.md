@@ -1,4 +1,9 @@
-# Self-debug: drive the dashboard with itself
+# Self-debug: drive the console with itself
+
+> **⚠️ 此文档基于 3.x 架构（`@harness-fe/mcp-server` + `dashboard-ui`），已过时，不再维护。**
+> 4.0 对应功能：`harness mcp` + console-ui，文档待更新。
+
+
 
 Sometimes the thing you want to debug is the dashboard itself —
 a layout bug, a chart that won't render, a WS subscriber that

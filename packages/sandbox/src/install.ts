@@ -15,6 +15,8 @@ import './channels/storage.js';
 import './channels/navigation.js';
 import './channels/globals.js';
 import './channels/indexeddb.js';
+import './channels/dialogs.js';
+import './channels/forms.js';
 
 import { addEntry, removeEntry, isChannelEnabled, ALL_CHANNELS, type ChainEntry } from './chain.js';
 import type { SandboxChannel, SandboxHandle, SandboxOptions } from './types.js';

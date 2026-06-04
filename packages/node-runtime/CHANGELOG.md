@@ -1,5 +1,42 @@
 # @harness-fe/node-runtime
 
+## 4.0.0-next.8
+
+### Patch Changes
+
+- Updated dependencies [7274a6c]
+  - @harness-fe/protocol@4.0.0-next.8
+
+## 4.0.0-next.6
+
+### Patch Changes
+
+- 46775be: Align the linked package group onto a single 4.0.0-next line.
+
+  The gateway/console work only touched some packages, so changesets left the linked
+  group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
+  prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
+  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
+
+- Updated dependencies [46775be]
+  - @harness-fe/protocol@4.0.0-next.6
+
+## 4.0.0-next.4
+
+### Patch Changes
+
+- Updated dependencies [25a6106]
+  - @harness-fe/protocol@4.0.0-next.4
+
+## 4.0.0-next.0
+
+### Patch Changes
+
+- Updated dependencies [9a3c5e1]
+- Updated dependencies [a3bd7ea]
+  - @harness-fe/protocol@4.0.0-next.0
+
 ## 3.2.0
 
 ### Minor Changes

@@ -1,0 +1,59 @@
+{
+    "name": "@harness-fe/gateway",
+    "version": "4.0.0-next.8",
+    "description": "Harness-FE gateway: the only front door. Embeds @harness-fe/core in-process and exposes /mcp (agent MCP, RBAC + scoped manifest + audit), /ws (runtime WS, write scope), and /console (data + governance API). Policy: Open (solo loopback) | Governed (team tokens). Zero native deps (JSON store + node:crypto scrypt).",
+    "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Morphicai/harness-fe.git",
+        "directory": "packages/gateway"
+    },
+    "homepage": "https://github.com/Morphicai/harness-fe#readme",
+    "bugs": {
+        "url": "https://github.com/Morphicai/harness-fe/issues"
+    },
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "bin": {
+        "harness-gateway": "./dist/cli.js"
+    },
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "files": [
+        "dist",
+        "src",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc && node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
+        "dev": "tsc --watch --preserveWatchOutput",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run --passWithNoTests"
+    },
+    "engines": {
+        "node": ">=18"
+    },
+    "dependencies": {
+        "@harness-fe/protocol": "workspace:*",
+        "@harness-fe/core": "workspace:*",
+        "@modelcontextprotocol/sdk": "^1.26.0",
+        "rrweb-player": "1.0.0-alpha.4",
+        "ws": "^8.18.0",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "tsx": "^4.22.3",
+        "typescript": "^5.6.0",
+        "vitest": "^2.1.9",
+        "@types/ws": "^8.5.10"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

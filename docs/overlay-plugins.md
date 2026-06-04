@@ -84,14 +84,14 @@ interface OverlayPluginContext {
   // identity / scene (sync)
   projectId; displayName?; buildId?; parentProjectId?;
   sessionId; tabId; visitorId?; userId?;
-  url; connectionState; dashboardUrl?;   // deep link to this session
+  url; connectionState; consoleUrl?;     // deep link to this session in /console
   selectedElement?;                      // present for requiresElement plugins
 
   snapshotMarkdown(): string;            // shareable markdown summary
   snapshot(): PageLoadPayload;           // page / viewport / storage / performance
   getLogs(opts?): { console; network; errors };   // recent buffered logs
   captureScreenshot(el?): Promise<TaskAttachment | null>;  // PNG (base64)
-  query?(method, args?): Promise<…>;     // daemon RPC (e.g. 'tasks.mine')
+  query?(method, args?): Promise<…>;     // gateway capability RPC (e.g. 'tasks.mine')
 
   copyToClipboard(text): Promise<void>;
   toast(message, kind?): void;           // 'ok' | 'error'
@@ -148,7 +148,7 @@ registerOverlayPlugin({
         selector: ctx.selectedElement?.selector,
         env: ctx.snapshot(),
         logs: ctx.getLogs({ network: 20, errors: 20 }),
-        dashboardUrl: ctx.dashboardUrl,
+        consoleUrl: ctx.consoleUrl,
         screenshotPng: shot?.data, // base64 PNG, attach server-side
       }),
     });

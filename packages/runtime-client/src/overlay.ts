@@ -16,12 +16,15 @@
 
 import {
     EVENT_NAME,
+    type ConsentDecision,
+    type ConsentRequest,
     type TaskSubmitPayload,
     type TaskAttachment,
     type NetworkEntry,
 } from '@harness-fe/protocol';
 import { snapdom } from '@zumer/snapdom';
 import { deriveDashboardUrl } from './dashboardUrl.js';
+import { VERSION } from './version.js';
 import { getCaptureStore } from './capture.js';
 import { collectPageLoadSnapshot } from './snapshot.js';
 import {
@@ -101,6 +104,12 @@ export interface OverlayClient {
      * tasks. Resolves with `result`, rejects with the remote error message.
      */
     query?<TResult = unknown>(method: string, args?: unknown): Promise<TResult>;
+    /**
+     * Register the browser-consent prompter (4.0 · P2). The client calls this
+     * to ask the user before running a control command. Optional so embedders
+     * with a non-RuntimeClient overlay client still type-check.
+     */
+    setConsentPrompter?(fn: (req: ConsentRequest) => Promise<ConsentDecision>): void;
 }
 
 /** Subset of @harness-fe/protocol Task that the overlay renders. */
@@ -135,8 +144,9 @@ export function installOverlay(client: OverlayClient): void {
     const pickerBar = buildPickerBar();
     const annotateModal = buildAnnotateModal();
     const questionPanel = buildQuestionPanel();
+    const consentPanel = buildConsentPanel();
     const highlight = buildHighlight();
-    root.append(fab, infoCard, reportsCard, pickerBar, annotateModal, questionPanel, highlight);
+    root.append(fab, infoCard, reportsCard, pickerBar, annotateModal, questionPanel, consentPanel, highlight);
 
     const mount = () => {
         if (!document.body) return false;
@@ -300,7 +310,7 @@ export function installOverlay(client: OverlayClient): void {
     window.addEventListener('resize', onWindowResize);
 
     // ─── State machine ────────────────────────────────────────────────────
-    type State = 'idle' | 'info' | 'reports' | 'picker' | 'annotate' | 'question';
+    type State = 'idle' | 'info' | 'reports' | 'picker' | 'annotate' | 'question' | 'consent';
     let state: State = 'idle';
     let hoveredEl: Element | null = null;
     let lockedEl: Element | null = null;
@@ -323,6 +333,7 @@ export function installOverlay(client: OverlayClient): void {
         pickerBar.style.display = next === 'picker' ? 'flex' : 'none';
         annotateModal.style.display = next === 'annotate' ? 'flex' : 'none';
         questionPanel.style.display = next === 'question' ? 'flex' : 'none';
+        consentPanel.style.display = next === 'consent' ? 'flex' : 'none';
         document.documentElement.style.cursor = next === 'picker' ? 'crosshair' : '';
         fab.dataset.state = (next === 'picker' || next === 'annotate') ? 'active' : 'idle';
         if (next !== 'picker' && next !== 'question' && next !== 'annotate') {
@@ -350,6 +361,50 @@ export function installOverlay(client: OverlayClient): void {
             requestAnimationFrame(() => repositionCards());
         }
     };
+
+    // ─── Browser consent prompter (4.0 · P2) ─────────────────────────────
+    // The client calls this before running a control command when the daemon
+    // enabled consent. We show a modal and resolve with the user's choice.
+    const consentCmdEl = consentPanel.querySelector('[data-role="consent-cmd"]') as HTMLElement;
+    const consentAllowPermanent = consentPanel.querySelector('[data-role="consent-permanent"]') as HTMLButtonElement;
+    const consentAllowSession = consentPanel.querySelector('[data-role="consent-session"]') as HTMLButtonElement;
+    const consentAllowOnce = consentPanel.querySelector('[data-role="consent-once"]') as HTMLButtonElement;
+    const consentDeny = consentPanel.querySelector('[data-role="consent-deny"]') as HTMLButtonElement;
+    let consentChain: Promise<unknown> = Promise.resolve();
+
+    const promptConsent = (req: ConsentRequest): Promise<ConsentDecision> =>
+        new Promise<ConsentDecision>((resolve) => {
+            consentCmdEl.textContent = formatConsentCommand(req);
+            // page.evaluate (alwaysConfirm) can never be granted session-wide or permanently.
+            const hideSessionLevel = req.alwaysConfirm;
+            consentAllowPermanent.style.display = hideSessionLevel ? 'none' : '';
+            consentAllowSession.style.display = hideSessionLevel ? 'none' : '';
+            setState('consent');
+            const finish = (decision: ConsentDecision) => {
+                consentAllowPermanent.removeEventListener('click', onPermanent);
+                consentAllowOnce.removeEventListener('click', onOnce);
+                consentAllowSession.removeEventListener('click', onSession);
+                consentDeny.removeEventListener('click', onDeny);
+                setState('idle');
+                resolve(decision);
+            };
+            const onPermanent = () => finish('permanent');
+            const onOnce = () => finish('once');
+            const onSession = () => finish('session');
+            const onDeny = () => finish('deny');
+            consentAllowPermanent.addEventListener('click', onPermanent);
+            consentAllowOnce.addEventListener('click', onOnce);
+            consentAllowSession.addEventListener('click', onSession);
+            consentDeny.addEventListener('click', onDeny);
+        });
+
+    // Serialize prompts so a burst of control commands queues one dialog at a time.
+    const showConsentPrompt = (req: ConsentRequest): Promise<ConsentDecision> => {
+        const result = consentChain.then(() => promptConsent(req));
+        consentChain = result.catch(() => undefined);
+        return result;
+    };
+    client.setConsentPrompter?.(showConsentPrompt);
 
     // ─── Picker handlers ─────────────────────────────────────────────────
     const setHighlight = (el: Element | null) => {
@@ -450,11 +505,13 @@ export function installOverlay(client: OverlayClient): void {
     // ─── Info card rendering ─────────────────────────────────────────────
     const renderInfo = () => {
         const proj = infoCard.querySelector<HTMLElement>('[data-role=project]')!;
+        const version = infoCard.querySelector<HTMLElement>('[data-role=version]')!;
         const build = infoCard.querySelector<HTMLElement>('[data-role=build]')!;
         const session = infoCard.querySelector<HTMLElement>('[data-role=session]')!;
         const tab = infoCard.querySelector<HTMLElement>('[data-role=tab]')!;
         const url = infoCard.querySelector<HTMLElement>('[data-role=url]')!;
         proj.textContent = client.displayName ?? client.projectId;
+        version.textContent = `v${VERSION}`;
         build.textContent = client.buildId ? abbr(client.buildId) : '—';
         build.title = client.buildId ?? 'No buildId — set HarnessScript buildId prop in prod';
         session.textContent = abbr(client.sessionId);
@@ -2108,6 +2165,7 @@ function buildInfoCard(): HTMLDivElement {
             <button class="close-btn" data-role="close" title="Close (Esc)" type="button">×</button>
         </div>
         <div class="rows">
+            <div class="row"><span class="key">version</span><span class="pill" data-role="version" title="harness runtime version"></span></div>
             <div class="row"><span class="key">build</span><span class="pill" data-role="build" title="Click to copy"></span></div>
             <div class="row"><span class="key">session</span><span class="pill" data-role="session" title="Click to copy"></span></div>
             <div class="row"><span class="key">tab</span><span class="pill" data-role="tab" title="Click to copy"></span></div>
@@ -2222,6 +2280,90 @@ function buildHighlight(): HTMLDivElement {
     const div = document.createElement('div');
     div.className = 'highlight';
     return div;
+}
+
+/**
+ * Browser-consent modal (4.0 · P2). Self-contained inline styles (no reliance
+ * on buildStyle) — a browser-extension-style permission dialog with 4 choices:
+ * always allow (permanent localStorage grant), session, once, deny.
+ */
+function buildConsentPanel(): HTMLDivElement {
+    const panel = document.createElement('div');
+    panel.className = 'consent';
+    // Backdrop
+    panel.style.cssText = [
+        'display:none',
+        'position:fixed',
+        'inset:0',
+        'background:rgba(0,0,0,0.4)',
+        'backdrop-filter:blur(4px)',
+        '-webkit-backdrop-filter:blur(4px)',
+        'z-index:2147483646',
+        'align-items:center',
+        'justify-content:center',
+    ].join(';');
+
+    const card = document.createElement('div');
+    card.style.cssText = [
+        'background:#fff',
+        'border-radius:12px',
+        'box-shadow:0 20px 60px rgba(0,0,0,0.3)',
+        'padding:24px',
+        'max-width:400px',
+        'width:90%',
+        'box-sizing:border-box',
+        'font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif',
+        'display:flex',
+        'flex-direction:column',
+        'gap:12px',
+    ].join(';');
+
+    card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:14px;font-weight:700;color:#4f46e5;background:#eef2ff;border-radius:6px;padding:4px 9px;flex-shrink:0">H</span>
+            <span style="font-size:14px;font-weight:600;color:#111827">harness-fe 请求控制此页面</span>
+        </div>
+        <div style="font-size:13px;color:#374151">AI Agent 正在请求执行：</div>
+        <code data-role="consent-cmd" style="display:block;background:#f5f5f5;border-radius:6px;padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111827"></code>
+        <div style="font-size:13px;color:#6b7280">⚠ 允许后 Agent 可点击、输入、填写表单和导航此页面</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px">
+            <button data-role="consent-permanent" type="button" style="background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-family:inherit">始终允许</button>
+            <button data-role="consent-session" type="button" style="background:#f3f4f6;color:#111;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-family:inherit">本次会话</button>
+            <button data-role="consent-once" type="button" style="background:transparent;color:#374151;border:1px solid #d1d5db;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-family:inherit">仅此次</button>
+            <button data-role="consent-deny" type="button" style="background:transparent;color:#ef4444;border:none;padding:8px 14px;cursor:pointer;font-size:13px;font-family:inherit">拒绝</button>
+        </div>
+    `;
+
+    panel.appendChild(card);
+    return panel;
+}
+
+/** Render a control command + its most telling arg for the consent prompt. */
+function formatConsentCommand(req: ConsentRequest): string {
+    const args = req.args && typeof req.args === 'object'
+        ? (req.args as Record<string, unknown>)
+        : undefined;
+    if (!args) return req.command;
+
+    // Selector objects: pick the most human-readable field
+    const sel = args.selector;
+    let detail: string | undefined;
+    if (sel && typeof sel === 'object') {
+        const s = sel as Record<string, unknown>;
+        const raw = s.text ?? s.ariaLabel ?? s.css ?? s.comp ?? s.role ?? s.loc;
+        if (raw != null) detail = String(raw);
+    } else if (typeof args.url === 'string') {
+        detail = args.url;
+    } else if (typeof args.expr === 'string') {
+        detail = args.expr;
+    } else if (typeof args.value === 'string') {
+        detail = args.value;
+    } else if (typeof args.predicate === 'string') {
+        detail = args.predicate;
+    }
+
+    if (!detail) return req.command;
+    return `${req.command}(${detail.length > 80 ? `${detail.slice(0, 80)}…` : detail})`;
 }
 
 // ─── Element / payload helpers (unchanged from annotation.ts) ────────────

@@ -96,6 +96,40 @@ Key invariants you can rely on:
 - The runtime auto-disables in production builds — anything you see here is
   dev-time only.
 
+## Solo vs Team mode
+
+How you reach the daemon changes what you can see and do — read this before
+concluding "nothing is there" or "the tool is broken".
+
+**Solo (default — loopback, zero config):** the agent spawns `@harness-fe/dev-cli`
+over stdio; the daemon is fully trusted. You see **every** project / session /
+task, `page.*` runs immediately (no approval), and the whole tool catalog is
+available.
+
+**Team (via the gateway):** the agent connects over HTTP-MCP to
+`@harness-fe/gateway` with a scoped token; one daemon is shared by many apps, so
+access is governed:
+
+| Behaviour | Solo | Team (gateway) |
+|---|---|---|
+| Visible projects / sessions / tasks | all | only the **projects your token is bound to** — others return empty `[]` (isolation, not a bug) |
+| `page.*` (click/type/navigate/…) | runs immediately | needs **Browser Consent** — the user approves in-page first; a denial returns `ok:false` / `CONSENT_DENIED` |
+| Available tools (`tools/list`) | full catalog | **scope-filtered** — a `read`-only token never sees `page.*`; calling one is denied (`-32001 scope denied`) |
+| Transport | stdio (direct) | HTTP-MCP via the gateway (routed + audited) |
+
+**In team mode, adjust your behaviour:**
+
+- An empty `project.list` / `session.list` / `tasks.pending` most likely means
+  your token isn't bound to that project — **not** that the app is broken. Say
+  you may lack access rather than asserting nothing exists.
+- Before a `page.*` action, expect a consent prompt to the user. If it's denied,
+  report it and don't blindly retry.
+- If an expected tool is missing, your token's scope doesn't include it
+  (`read` vs `read+control`). `write` is for the browser runtime only — never an agent.
+
+In **solo** mode none of these gates apply — proceed directly. (Tool notes below
+flag the team-mode differences with **[team]**.)
+
 ## Tool catalog
 
 ### Identity & topology
@@ -110,6 +144,8 @@ Key invariants you can rely on:
 | `session.list(projectId)` / `session.summary(id)` | Per-session counts |
 
 ### Page interaction (drive the browser)
+
+> **[team]** Everything here is `control` scope: hidden from a `read`-only token's `tools/list`, and each call triggers a **Browser Consent** prompt the user must approve before it runs (a denial returns `ok:false` / `CONSENT_DENIED`). In solo mode they run directly.
 
 | Tool | Use case |
 |---|---|
@@ -169,11 +205,13 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 
 ### Annotation tasks (human → agent handoff)
 
+> **[team]** `tasks_pending` only returns tasks for the projects your token is bound to — an empty list may mean "not my project", not "no tasks".
+
 | Tool | Use case |
 |---|---|
 | `tasks_pending` | What the user has clicked-and-annotated as a task. Returns id / question / url / selector / **attachments[]** (id + dims, no bytes) |
 | `tasks_claim(id)` | Claim the task; returns full Task incl. element outerHTML, attachment pointers |
-| `tasks_resolve(id, note?)` | Mark complete; optional note shown back to the user in their "My reports" view |
+| `tasks_resolve(id, note?, resolution?)` | Mark complete. `note` is shown back to the user in "My reports". `resolution` (P7) closes the loop: `{ type, commit, prUrl, verificationSessionId }` — back-links the report to its fix + the re-test that proved it. `verifiedAt` defaults when a `verificationSessionId` is given |
 | **`tasks_get_attachment({taskId, attachmentId})`** | Fetch the annotated screenshot as an **MCP image-content block** — `{ type: 'image', mimeType: 'image/png', data: base64 }`. Vision-capable LLMs (Claude / GPT-4V) can attach it directly. The annotations (arrow, text) are already flattened into the pixels |
 
 ### Visitor identity & user journey
@@ -308,8 +346,11 @@ The runtime ships a small "H" overlay button. When a user picks an element + dra
 2. `tasks_claim(taskId)` → get the full Task (selector.loc gives file:line, element.outerHTML gives DOM context)
 3. `tasks_get_attachment({ taskId, attachmentId })` → grab the annotated screenshot. The arrows + text annotations are already drawn on the image; pass it directly into your vision call.
 4. `session.timeline({ sessionId: task.sessionId })` → see what the user was doing before + after the report (console errors, network failures, server-side `server-err` rows)
-5. Form a fix. Use `project_where_is` / `project_source` to navigate to the source. Apply.
-6. `tasks_resolve(taskId, "Fixed in PR #234")` → user sees the note in their "My reports" view next time they open the overlay.
+5. Form a fix. Use `project_where_is` / `project_source` to navigate to the source. Apply the edit + commit (host `git`/`gh` tooling — writeback lives outside harness).
+6. **Verify the fix — close the loop.** Re-drive the reported flow against the patched build: `session_replay_create({ sessionId: task.sessionId })` to recall the exact steps the user took, reproduce them with `page_*`, then prove it's clean — `errors_tail` / `session_tail({ type: 'err' })` show no new errors and `page_*` confirms the expected behavior. Keep the **new sessionId** of this re-test.
+7. `tasks_resolve(taskId, "Fixed in PR #234", { type: 'code-fix', commit: '<sha>', prUrl: '<url>', verificationSessionId: '<re-test session>' })` → the structured `resolution` back-links report → fix → proof; the user still sees `note` in their "My reports".
+
+If you can't reproduce or decide not to fix, still resolve with the reason so the loop is closed: `resolution: { type: 'cannot-reproduce' }` (or `'wontfix'` / `'duplicate'`).
 
 ## Wire-up details
 

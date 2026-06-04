@@ -13,18 +13,20 @@ changeset turns into a major-looking jump across the whole ecosystem**.
 The packages currently in the linked group:
 
 ```
-@harness-fe/protocol      @harness-fe/vite
-@harness-fe/mcp-server    @harness-fe/webpack
-@harness-fe/runtime       @harness-fe/unplugin
-@harness-fe/node-runtime  @harness-fe/next
-@harness-fe/log           @harness-fe/react-jsx
+@harness-fe/core          @harness-fe/vite
+@harness-fe/gateway       @harness-fe/webpack
+@harness-fe/cli           @harness-fe/unplugin
+@harness-fe/console-ui    @harness-fe/next
+@harness-fe/protocol      @harness-fe/react-jsx
+@harness-fe/runtime       @harness-fe/node-runtime
+@harness-fe/log
 ```
 
 Unlinked (independent version numbers):
 
 ```
-@harness-fe/dashboard-ui   (shipped inside mcp-server's tarball)
 @harness-fe/agent-skill    (separate concern)
+@harness-fe/sandbox        (separate concern)
 ```
 
 **Linked-group invariant:** every member must be at the same version
@@ -63,7 +65,7 @@ hasn't changed.
 ## The linked group multiplier
 
 Because all linked packages bump to the same version, a single changeset
-on `@harness-fe/mcp-server` marked `minor` becomes a minor bump on
+on any one package marked `minor` becomes a minor bump on
 **every** linked package — even ones with zero changes that release.
 Users see "10 packages went 3.0 → 3.1" and infer there's a flagship
 feature, when really there's a button.
@@ -106,13 +108,13 @@ Push, and the eventual Version Packages PR will reflect the new level.
 ## Coordinating cross-package work
 
 When a single PR genuinely touches multiple linked packages (e.g.
-`protocol` + `mcp-server` together for a new frame schema), put a
+`protocol` + `core` together for a new frame schema), put a
 **single changeset that names both**:
 
 ```markdown
 ---
 '@harness-fe/protocol': patch
-'@harness-fe/mcp-server': patch
+'@harness-fe/core': patch
 ---
 ```
 
@@ -136,13 +138,13 @@ release more often once users are watching.
 ## Node version: docs vs `engines` (intentional gap)
 
 Public-facing docs (README badge, README prereq, CONTRIBUTING,
-`docs/quickstart.md`) state **Node ≥ 20**. The `engines` field in
-`packages/mcp-server/package.json` stays at **`>=18`**.
+`docs/quickstart.md`) state **Node ≥ 20**. The `engines` field in server-side packages (`core`, `gateway`, `cli`)
+stays at **`>=18`**.
 
 This is deliberate, not drift:
 
 - **Code reality**: no Node 20-only API is used anywhere. Node 18 runs
-  the daemon and every adapter just fine. (Verify: `grep -rn
+  the gateway and every adapter just fine. (Verify: `grep -rn
   "import.meta.resolve\|node:test" packages/*/src` → 0 hits.)
 - **Docs recommendation 20**: Node 18 reached EOL in 2025-04 — running
   it in 2026 means no security patches. We recommend the current LTS.
@@ -152,5 +154,5 @@ This is deliberate, not drift:
 
 **Don't "fix" the gap by aligning them.** Bumping `engines` to `>=20`
 adds zero technical correctness and only frustrates users who'd
-otherwise be successfully running the daemon. Re-evaluate when a real
+otherwise be successfully running the gateway. Re-evaluate when a real
 Node 20-only feature is needed.

@@ -58,6 +58,8 @@ describe('installOverlay', () => {
         const card = root.querySelector('.info-card') as HTMLElement;
         expect(card.style.display).toBe('flex');
         expect(root.querySelector('[data-role=project]')!.textContent).toBe('Demo App');
+        // Runtime version surfaced in the card (real value from version.ts).
+        expect(root.querySelector('[data-role=version]')!.textContent).toMatch(/^v\d/);
         // Abbreviated to 8 chars
         expect(root.querySelector('[data-role=build]')!.textContent).toBe('build-12');
         expect(root.querySelector('[data-role=session]')!.textContent).toBe('sess-123');
@@ -202,12 +204,13 @@ describe('installOverlay', () => {
 
     it('shows the "Open dashboard" button only when the client has an mcpUrl', () => {
         setupDom();
-        installOverlay(makeFakeClient({ mcpUrl: 'ws://127.0.0.1:47729?token=demo' }));
+        installOverlay(makeFakeClient({ mcpUrl: 'ws://127.0.0.1:47729/ws?token=demo' }));
         const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
         expect(btn.style.display).toBe('');
-        expect(btn.title).toContain('http://127.0.0.1:47729/dashboard/sessions/');
-        expect(btn.title).toContain('token=demo');
+        expect(btn.title).toContain('http://127.0.0.1:47729/console/sessions/');
+        // The overlay link is a pure shortcut — it must NOT carry the runtime token.
+        expect(btn.title).not.toContain('token=');
     });
 
     it('hides the "Open dashboard" button when mcpUrl is missing', () => {
@@ -220,7 +223,7 @@ describe('installOverlay', () => {
 
     it('clicking "Open dashboard" calls window.open with the derived URL in a new tab', () => {
         setupDom();
-        installOverlay(makeFakeClient({ mcpUrl: 'wss://harness.lan:8443?token=t' }));
+        installOverlay(makeFakeClient({ mcpUrl: 'wss://harness.lan:8443/ws?token=t' }));
         const root = document.getElementById('__harness_fe_overlay__')!.shadowRoot!;
         const calls: Array<{ url: string; target: string; features: string }> = [];
         (globalThis.window as unknown as { open: typeof window.open }).open = ((
@@ -234,7 +237,7 @@ describe('installOverlay', () => {
         const btn = root.querySelector('[data-role=open-dashboard]') as HTMLButtonElement;
         btn.click();
         expect(calls).toHaveLength(1);
-        expect(calls[0].url).toBe('https://harness.lan:8443/dashboard/sessions/sess-12345-abcdef-9876?token=t');
+        expect(calls[0].url).toBe('https://harness.lan:8443/console/sessions/sess-12345-abcdef-9876');
         expect(calls[0].target).toBe('_blank');
         expect(calls[0].features).toMatch(/noopener/);
     });

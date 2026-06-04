@@ -1,65 +1,34 @@
-# Self-hosting harness-fe with Docker
+# Deploying harness-fe with Docker
 
-Useful when:
-
-- A team wants a single shared daemon on a dev VM instead of each
-  developer running `npx`.
-- You want a reproducible container instead of relying on the host's
-  Node version.
-- You're running CI / preview environments that need to spin up a
-  daemon alongside a dev server.
-
-Not useful when:
-
-- You're a single developer on a laptop. `npx @harness-fe/mcp-server`
-  is simpler and faster.
-- You expect source-aware MCP tools (`project_source`,
-  `project_where_is`) to work across many projects from a central
-  daemon. Those tools read the source tree from disk; centralised
-  multi-project source access isn't supported yet — track this in
-  ROADMAP "Phase B" notes.
-
-## Image
-
-```
-morphixai/harness-fe:<version>
-morphixai/harness-fe:latest
-```
-
-Published from [`.github/workflows/docker.yml`](../.github/workflows/docker.yml)
-on every successful npm release of `@harness-fe/mcp-server`. Multi-arch
-(`linux/amd64` + `linux/arm64`).
+Run a governed gateway on a team VM or CI environment — one shared gateway for all developers and agents.
 
 ## Quick start
 
 ```bash
-docker run --rm -p 47729:47729 \
-  -e HARNESS_FE_TOKEN="$(openssl rand -base64 24)" \
+docker run --rm \
+  -p 47950:47950 \
   -v harness-data:/data \
-  morphixai/harness-fe:latest
+  morphixai/harness-fe:latest \
+  --governed \
+  --host 0.0.0.0 \
+  --port 47950 \
+  --admin-user admin \
+  --admin-pass "$(openssl rand -base64 24)" \
+  --data-dir /data/gateway \
+  --core-data-dir /data/core \
+  --issue-token name=runtime,scopes=write \
+  --issue-token name=agent,scopes=read+control,projects='*'
 ```
 
-Container defaults that differ from `npx`:
-
-| Env | Default in image | Why |
-|---|---|---|
-| `HARNESS_FE_HOST` | `0.0.0.0` | Only sensible bind from inside a container |
-| `HARNESS_FE_MCP_TRANSPORT` | `http` | stdio doesn't work across the container boundary |
-| `HOME` | `/data` | Daemon's `~/.harness` lands on the mounted volume |
-
-You **must** provide `HARNESS_FE_TOKEN`. The daemon refuses to start
-on a non-loopback bind without one.
+The gateway prints each token in the startup banner. Use the runtime token in your build plugin; use the agent token in your `.mcp.json`.
 
 ## docker-compose
 
-A reference compose file lives at
-[`examples/docker/docker-compose.example.yml`](../examples/docker/docker-compose.example.yml).
-Copy it next to a `.env`:
+Copy the reference compose file:
 
 ```bash
 cd examples/docker
-cp .env.example .env
-# Edit .env, set HARNESS_FE_TOKEN=...
+cp .env.example .env    # set HARNESS_ADMIN_PASS
 docker compose up -d
 docker compose logs -f
 ```
@@ -67,95 +36,83 @@ docker compose logs -f
 Stop / wipe:
 
 ```bash
-docker compose down            # keep volume
-docker compose down -v         # wipe sessions + recordings + tasks
+docker compose down        # keep volume
+docker compose down -v     # wipe all data
 ```
-
-## Persistence
-
-Everything the daemon writes — sessions, timeline JSONL, rrweb chunks,
-task records, persistent memory — lives under the `/data` volume. Mount
-a named volume (compose default) or a host path:
-
-```bash
--v /srv/harness:/data
-```
-
-Back up by snapshotting that path. Restore by replacing it before
-container start.
 
 ## Connecting clients
 
-### Build plugin
+### Build plugin (browser runtime → gateway `/ws`)
 
 ```ts
-harnessFE({
-  mcpUrl: 'ws://<docker-host>:47729',
-  token: process.env.HARNESS_FE_TOKEN,   // same token as the container
-})
+// vite.config.ts
+harnessFE({ mcpUrl: 'ws://<docker-host>:47950/ws', token: '<runtime-token>', projectId: 'my-app' })
+
+// next.config.mjs
+withHarness({}, { mcpUrl: 'ws://<docker-host>:47950/ws', token: '<runtime-token>', projectId: 'my-app' })
 ```
 
-Same env var on the dev machine + the container = no extra config.
-
-### Browser
-
-Visit `http://<docker-host>:47729/?token=<token>` once. The daemon
-sets a cookie; subsequent navigation works without the query string.
-
-### Remote agent (Claude Code / Cursor)
+### Agent MCP (agent → gateway `/mcp`)
 
 ```jsonc
 {
-  "type": "http",
-  "url": "http://<docker-host>:47729/mcp",
-  "headers": { "Authorization": "Bearer <token>" }
+  "mcpServers": {
+    "harness-fe": {
+      "type": "http",
+      "url": "http://<docker-host>:47950/mcp",
+      "headers": { "Authorization": "Bearer <agent-token>" }
+    }
+  }
 }
 ```
 
-(The image enables the MCP HTTP transport by default — see the env
-defaults above.)
+### Console
 
-## Outbound URLs and `--public-host`
+Visit `http://<docker-host>:47950/console` — log in with the admin credentials set at startup.
 
-When the daemon prints links (dashboard, replay viewer), it picks the
-first non-internal IPv4 it sees. **Inside a container that's almost
-always the bridge network address**, which nobody outside can reach.
+## Image tags
 
-Set `HARNESS_FE_PUBLIC_HOST` to your docker host's LAN IP or DNS name:
+| Tag | Source | Use for |
+|---|---|---|
+| `morphixai/harness-fe:latest` | npm `@harness-fe/cli` (stable) | production / stable team deploys |
+| `morphixai/harness-fe:next` | npm `@harness-fe/cli@next` | prerelease / early adopters |
+| `morphixai/harness-fe:<version>` | exact npm version | pinned deploys |
 
-```yaml
-environment:
-  HARNESS_FE_PUBLIC_HOST: dev.example.internal
+The image is multi-arch (`linux/amd64` + `linux/arm64`). Built automatically on every npm release via `.github/workflows/docker.yml`.
+
+## Persistence
+
+All data lives under the mounted volume (`/data`):
+
 ```
+/data/
+├── gateway/    ← token store, audit log, admin session
+└── core/       ← sessions, timeline JSONL, rrweb recordings, tasks
+```
+
+Back up by snapshotting the volume. Wipe sessions only: `docker exec <container> rm -rf /data/core`.
+
+## `npx` alternative (no Docker)
+
+```bash
+npx @harness-fe/cli --governed \
+  --port 47950 \
+  --admin-user admin --admin-pass "$PW" \
+  --issue-token name=runtime,scopes=write \
+  --issue-token name=agent,scopes=read+control,projects='*'
+```
+
+Same flags, same behaviour — no container required. Useful for one-shot team sessions or CI environments where Docker is unavailable.
 
 ## TLS
 
-Not built in. If you expose this beyond a trusted LAN, terminate TLS at
-a reverse proxy (nginx / Caddy / Traefik) in front of the container.
-Token auth alone doesn't protect traffic in transit.
+Not built in. Terminate TLS at a reverse proxy (nginx / Caddy / Traefik) in front of the container. Token auth alone doesn't protect traffic in transit.
 
-## What's NOT included (yet)
-
-Phase A is intentionally a thin single-token image. Things the next
-phase would add for real multi-tenant team use:
-
-- Multiple tokens with per-token ACL / audit trail
-- Per-user / per-team session isolation
-- Remote `project_source` (build plugin uploads source content so the
-  daemon doesn't need filesystem access to each project)
-
-If your team needs any of these, file an issue describing the use case.
-
-## Building locally
-
-For testing the Dockerfile against unreleased changes:
+## Building the image locally
 
 ```bash
 docker build -t harness-fe:dev \
-  --build-arg VERSION=2.0.0 \
-  packages/mcp-server/
+  --build-arg VERSION=4.0.0-next.6 \
+  --build-arg NPM_TAG=next \
+  packages/cli/
 ```
-
-The image always installs the package from npm — there's no path that
-copies in local source. To test pre-release code, publish a prerelease
-tag (`@harness-fe/mcp-server@x.y.z-rc.1`) first.

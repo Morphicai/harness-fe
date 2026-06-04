@@ -14,7 +14,6 @@
  *   HARNESS_FE_TOKEN        — optional; appended to mcpUrl as ?token= when set
  *                              (use this when the daemon runs in LAN mode)
  *   HARNESS_FE_NODE_CONSOLE — set to '1' to enable console capture
- *   NODE_ENV                 — only registers in 'development'
  */
 
 import { register } from './index.js';
@@ -28,7 +27,7 @@ function withToken(url: string | undefined, token: string | undefined): string |
     return `${url}${sep}token=${encodeURIComponent(token)}`;
 }
 
-if (process.env.NODE_ENV === 'development' && projectId) {
+if (projectId) {
     register({
         projectId,
         displayName: process.env.HARNESS_FE_DISPLAY_NAME,

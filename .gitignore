@@ -54,6 +54,12 @@ secrets/
 # Lock files (optional — uncomment if you want contributors to use their own)
 # pnpm-lock.yaml
 
+# Demo gateway store (issued tokens / admin hashes — never commit) + core data
+.demo-gateway/
+.demo-core/
+.demo-solo-core/
+.demo-solo-gateway/
+
 # Test artifacts
 coverage
 .nyc_output

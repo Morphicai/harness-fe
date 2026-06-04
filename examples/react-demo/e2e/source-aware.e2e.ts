@@ -11,7 +11,8 @@
  */
 
 import { createServer } from 'vite';
-import { Bridge } from '@harness-fe/mcp-server';
+import { InProcessCoreClient } from '@harness-fe/core';
+import { createGateway, Policy } from '@harness-fe/gateway';
 import { harnessFE } from '@harness-fe/vite';
 import { COMMAND } from '@harness-fe/protocol';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -32,11 +33,12 @@ async function waitFor<T>(probe: () => T | undefined, timeoutMs = 5000): Promise
 }
 
 async function run() {
-    const bridge = new Bridge({ port: 0, host: '127.0.0.1' });
-    await bridge.start();
-    // @ts-expect-error access internal wss for port
-    const port = bridge.wss.address().port as number;
-    console.log(`[e2e] bridge on ws://127.0.0.1:${port}`);
+    const core = new InProcessCoreClient({ autoPurge: { enabled: false } });
+    await core.start();
+    const gw = createGateway({ coreClient: core, policy: new Policy({ mode: 'open' }) });
+    const port = await gw.listen(0, '127.0.0.1');
+    const bridge = core.bridge;
+    console.log(`[e2e] gateway on ws://127.0.0.1:${port}/ws`);
 
     const vite = await createServer({
         root: projectRoot,
@@ -44,7 +46,7 @@ async function run() {
         plugins: [
             harnessFE({
                 projectId: 'react-demo',
-                mcpUrl: `ws://127.0.0.1:${port}`,
+                mcpUrl: `ws://127.0.0.1:${port}/ws`,
             }),
             (await import('@vitejs/plugin-react')).default(),
         ],

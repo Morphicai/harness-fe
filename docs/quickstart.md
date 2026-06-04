@@ -30,11 +30,10 @@ export default defineConfig({
 });
 ```
 
-Start the daemon, then your app:
+Start your app — the gateway auto-spawns when the agent connects:
 
 ```bash
-npx @harness-fe/mcp-server   # daemon on :47729
-pnpm dev                     # your app
+pnpm dev
 ```
 
 Open the app — the floating "H" overlay confirms the runtime is connected.
@@ -75,7 +74,6 @@ export default function RootLayout({ children }) {
 ```
 
 ```bash
-npx @harness-fe/mcp-server
 pnpm dev
 ```
 
@@ -97,48 +95,43 @@ Each package's README on npm has a copy-paste config block.
 
 ## Connect an AI agent
 
-The daemon advertises itself over stdio MCP. Register it once in your agent:
+**Install the skill first** — it teaches the agent *how* to use harness-fe, so you describe the problem and it drives:
 
-**Claude Code / Cursor / Kiro** (`~/.config/...` or in-app settings):
+```bash
+npx @harness-fe/skill install      # auto-detects Claude Code / Cursor / Kiro
+```
+
+Then register the MCP server (`.mcp.json` or in-app settings). Solo / local — stdio, no token:
 
 ```jsonc
 {
   "mcpServers": {
-    "harness-fe": {
-      "command": "npx",
-      "args": ["@harness-fe/mcp-server", "--stdio"]
-    }
+    "harness-fe": { "type": "stdio", "command": "npx", "args": ["-y", "@harness-fe/cli", "mcp"] }
   }
 }
 ```
 
-Alternatively, drop the bundled SKILL.md into your agent so it learns the
-toolset's intended usage:
+`harness mcp` auto-spawns a shared gateway on `127.0.0.1:47729` (once) and proxies the agent's MCP traffic to it. Multiple IDE windows reuse the same gateway automatically.
 
-```bash
-npx @harness-fe/skill install
-```
-
-The agent now sees `session_*`, `page_*`, `project_*`, `tasks_*` and friends.
+The agent now sees `session_*`, `page_*`, `project_*`, `tasks_*` and friends. Sharing one gateway across a team? Use governed mode instead — see [gateway-team-mode.md](./gateway-team-mode.md). Full setup: [agent-setup.md](./agent-setup.md).
 
 ---
 
 ## Verify
 
-Open the dashboard at <http://localhost:47729/dashboard> — you should see:
+Open the console at <http://localhost:47729/console> — you should see:
 
 - The current project, with a green "connected" dot
 - A live session as soon as the dev page loads
 - Network / console / errors streaming in real time
 
-If the dashboard is empty, check [docs/troubleshooting.md](./troubleshooting.md).
+If the console is empty, check [docs/troubleshooting.md](./troubleshooting.md).
 
 ---
 
 ## Next steps
 
-- [Self-debug mode](./self-debug.md) — let an agent drive the Harness dashboard itself
+- [Self-debug mode](./self-debug.md) — let an agent drive the Harness console itself
 - [LAN mode](./lan-mode.md) — phone or second-machine debugging
-- [Docker](./docker.md) — share one daemon across a dev team
 - [Electron / multi-window](./electron.md) — unified session across renderers
 - [Versioning policy](./versioning-policy.md) — what semver promises mean here

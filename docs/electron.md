@@ -90,7 +90,7 @@ window.__HARNESS_FE_SEED__.sessionId   // same across all windows
 window.__harness_fe_client__?.tabId    // different in every window
 ```
 
-If both checks hold, the daemon will record one merged session and the
+If both checks hold, the gateway will record one merged session and the
 agent's `session.tail` will surface every window's events.
 
 ## Resetting the session
@@ -107,7 +107,7 @@ for a "clear logs / start fresh" devtool button.
   seed wiring should not ship to end users.
 - **Race on first boot**: if two windows boot simultaneously and your
   sync primitive isn't strongly atomic, two UUIDs may race. The
-  short-term inconsistency is harmless — the daemon will record up to
+  short-term inconsistency is harmless — the gateway will record up to
   two brief sessions before convergence. If you need stronger
   guarantees, gate window 2 with an "after window 1 ready" signal from
   your host.

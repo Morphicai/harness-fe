@@ -39,7 +39,12 @@ The plugin auto-disables in production builds — zero overhead in your shipped 
 
 ## Options
 
-Same as [`@harness-fe/vite`](https://www.npmjs.com/package/@harness-fe/vite). All bundler-specific plugins share the same option surface via the underlying `unplugin`.
+Same as [`@harness-fe/vite`](https://www.npmjs.com/package/@harness-fe/vite) — including `projectId` / `mcpUrl` / `token` for [team mode](https://github.com/Morphicai/harness-fe/blob/main/docs/gateway-team-mode.md). All bundler plugins share the option surface via the underlying `unplugin`.
+
+```js
+// team mode: report as a distinct project into a shared daemon
+harnessFE({ projectId: 'my-app' })
+```
 
 ## Docs
 

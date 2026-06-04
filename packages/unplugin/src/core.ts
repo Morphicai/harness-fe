@@ -30,6 +30,7 @@ import {
     type VueTransformOptions,
 } from './vue-transform.js';
 import { resolveProjectId } from './resolveProjectId.js';
+import { resolveSoloTarget } from './soloTarget.js';
 import { createMcpClient } from './internal/mcp-client.js';
 import { installNodeLogCapture } from './internal/log-capture.js';
 import { appendTokenQuery, createBuildIdentity } from './internal/buildIdentity.js';
@@ -48,7 +49,7 @@ export type { HarnessFEOptions };
 export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (options = {}) => {
     let projectId = options.projectId ?? 'unknown-project';
     const baseMcpUrl =
-        options.mcpUrl ?? process.env.HARNESS_FE_URL ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}`;
+        options.mcpUrl ?? process.env.HARNESS_FE_URL ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`;
     const token = options.token ?? process.env.HARNESS_FE_TOKEN;
     const mcpUrl = appendTokenQuery(baseMcpUrl, token);
     let projectRoot = process.cwd();
@@ -103,6 +104,7 @@ export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (o
         if (!mcpClient) mcpClient = createMcpClient(buildMcpContext());
         return mcpClient;
     }
+
 
     // Expose for advanced usage (e.g. tests or downstream plugins inspecting state).
     const ctx = {
@@ -176,9 +178,21 @@ export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (o
                 projectId = await resolveProjectId(projectRoot, options.projectId);
             },
 
-            configureServer(server: any) {
+            async configureServer(server: any) {
                 if (options.disabled) return;
                 const client = ensureMcpClient();
+                // Solo: make sure a shared local gateway is up before connecting.
+                // Best-effort — if @harness-fe/cli isn't installed or the gateway
+                // is slow, the client still retries on its own.
+                const solo = resolveSoloTarget(baseMcpUrl, Boolean(token));
+                if (solo) {
+                    try {
+                        const { ensureSharedGateway } = await import('@harness-fe/cli/sharedGateway');
+                        await ensureSharedGateway({ host: solo.host, port: solo.port });
+                    } catch {
+                        /* keep going; client.connect() retries */
+                    }
+                }
                 client.connect();
                 logCaptureCleanup = installNodeLogCapture((name, payload) => client.emitEvent(name, payload));
                 server.httpServer?.once('close', () => {
@@ -205,7 +219,7 @@ export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (o
                     if (options.disabled) return html;
                     const injection = `<!-- @harness-fe injected (dev only) -->
 <script>
-window.__HARNESS_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: identity.getBuildId(projectRoot), parentProjectId: options.parentProjectId, displayName: identity.getDisplayName(projectRoot) })};
+window.__HARNESS_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: identity.getBuildId(projectRoot), parentProjectId: options.parentProjectId, displayName: identity.getDisplayName(projectRoot), overlay: options.overlay ?? true, consent: options.consent })};
 </script>
 <script type="module">import '${VIRTUAL_RUNTIME_ID}';</script>`;
                     return html.replace(/<\/head>/i, `${injection}\n</head>`);
