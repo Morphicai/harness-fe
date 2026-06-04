@@ -1,5 +1,7 @@
 # @harness-fe/unplugin
 
+## 4.0.0-next.11
+
 ## 4.0.0-next.8
 
 ### Minor Changes

@@ -29,6 +29,7 @@
     "browser-consent-p2",
     "browser-interaction-commands",
     "caller-identity-p1",
+    "cli-experimental-env-forward",
     "cli-rebuild-step4",
     "command-target-scoping",
     "console-rich-dashboard",
