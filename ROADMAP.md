@@ -127,6 +127,42 @@ Items that apply across the 4.0 team and 5.0 cloud lines; can land incrementally
 
 ---
 
+## Architectural review — open questions before 5.0
+
+> These are unresolved design questions surfaced during 4.0 development. They must be answered before committing to the 5.0 production architecture. Some may require breaking changes to the wire protocol or store interface.
+
+### Runtime entry & build plugin coupling
+
+- **Is the build plugin (Vite/Webpack) the right entry point?** Currently the plugin is the only ergonomic way to inject the runtime. Without it users must manually inject `window.__HARNESS_FE__` and import the runtime — losing source-location awareness entirely. Should there be a zero-config script-tag path that works without a bundler plugin (at the cost of source mapping)?
+- **Token exposure in HTML bundle** — the runtime token is baked into `window.__HARNESS_FE__` at build time and is visible to anyone with DevTools. This is acceptable in dev; it is not acceptable in production. The architecture does not yet have a clear answer for production token delivery. Candidate: runtime fetches a short-lived token from the host app's auth endpoint at startup. Requires the `verifyUser` hook and Token TTL work to land first.
+- **Build plugin is required for source awareness** — `data-morphix-loc` / `data-morphix-comp` attributes are injected at transform time. Any runtime-only path loses file:line element mapping. Is there a viable runtime-only fallback (e.g. reading React DevTools fiber, stack-trace parsing)?
+
+### Extensibility gaps
+
+- **No public Runtime Data API** — `window.HarnessFE` only exposes `{ registerOverlayPlugin, version }`. Users cannot: identify the current user dynamically after login, send custom events (`HarnessFE.track`), attach metadata to a session, or enrich events with per-request context (A/B variant, feature flags, deploy SHA). The store's `StoreEvent.d` and `SessionMeta.metadata` fields are open (`unknown` / `Record<string, unknown>`), but there is no API path from the browser to write them. **This must be solved before production use is viable.**
+- **IStore is monolithic** — 35 methods as a single interface means users cannot partially implement a custom backend. Connecting to Postgres (metadata) + ClickHouse (events) + S3 (recordings) requires implementing all 35. The `IMetaStore / IEventStore / IBlobStore` split is designed but not implemented.
+- **GatewayPlugin system missing** — there is no hook for forwarding events to external systems (Sentry, Datadog, custom analytics). Every integration today requires forking the gateway. This blocks production adoption where teams already have observability infrastructure.
+- **No event enrichment pipeline** — no middleware to intercept events before storage and attach global context (app version, git SHA, deployment environment). Plugin config `enrichEvent` hook is designed but not implemented.
+
+### Protocol & wire format
+
+- **Protocol versioning strategy** — `PROTOCOL_VERSION` is locked at `1.0`. The 5.0 changes (user identity, signing, richer metadata) will require breaking changes. There is no negotiation mechanism in `hello` / `hello.ack` beyond a version string. How do we handle mixed-version deployments (old runtime talking to new gateway, or vice versa)?
+- **HTTP batch transport completeness** — the `/events` HTTP batch path (for Node/Edge runtimes without persistent WS) is stateless by design. It does not support command delivery back to the runtime. Is this acceptable long-term, or does every production environment need a persistent WebSocket?
+
+### Production security posture
+
+- **HMAC request signing** — designed (see Security hardening section) but not implemented. Until it lands, any leaked token grants unlimited API access for its lifetime.
+- **No real-user binding** — session data is accepted from any client that holds a valid write-scope token. There is no mechanism to verify that the browser submitting data is an actual authenticated user of the host application. This means a leaked token can be used to inject arbitrary session data.
+- **Runtime opt-in not implemented** — users have no way to actively enable or disable agent control of their browser. The consent gate (P2) requires the user to approve individual commands, but the runtime connects and begins recording automatically on page load with no user-visible indication.
+
+### Scalability & storage
+
+- **FileStore is the only production-tested backend** — the JSONL file layout has not been stress-tested beyond single-developer use. Unknown behavior under concurrent writes from multiple runtime clients or high event throughput (e.g. rrweb at 60fps).
+- **No backpressure on event ingestion** — `appendEvent` is synchronous and unbounded. A misbehaving or high-frequency client can saturate disk I/O with no rate limiting at the store layer.
+- **Recording retention is best-effort** — the purge policy runs on a timer and is not transactional. A crash mid-purge can leave orphaned files. Not a problem in dev; needs hardening before production.
+
+---
+
 ## Architectural follow-ups (no schedule, cross-cutting)
 
 - [ ] Extract `@harness-fe/react-session` micro-package — the textbook layering version of today's `setSessionIdProvider` side-effect DI
