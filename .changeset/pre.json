@@ -45,6 +45,7 @@
     "package-split-p5",
     "project-agent-binding-grants",
     "project-agent-binding",
+    "remove-node-env-gate",
     "runtime-gateway-ws-step5",
     "shared-gateway-auto-spawn",
     "task-resolution-p7",
