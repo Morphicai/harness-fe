@@ -43,6 +43,7 @@
     "mcp-http-per-session",
     "mcp-per-call-principal-p4",
     "next-adapter-token",
+    "next-esm-require-fix",
     "package-split-p5",
     "project-agent-binding-grants",
     "project-agent-binding",
