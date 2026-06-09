@@ -82,6 +82,7 @@ const DEFAULT_RETENTION = {
     maxExportsPerProject: 50,
     maxExportBytesPerProject: 200 * 1024 * 1024,
     maxBuildsPerProject: 100,
+    maxTotalBytes: 1 * 1024 * 1024 * 1024, // 1 GiB hard cap
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1068,6 +1069,7 @@ export class JsonlStore implements IStore {
         const maxExportsPerProject = policy.maxExportsPerProject ?? DEFAULT_RETENTION.maxExportsPerProject;
         const maxExportBytesPerProject = policy.maxExportBytesPerProject ?? DEFAULT_RETENTION.maxExportBytesPerProject;
         const maxBuildsPerProject = policy.maxBuildsPerProject ?? DEFAULT_RETENTION.maxBuildsPerProject;
+        const maxTotalBytes = policy.maxTotalBytes !== undefined ? policy.maxTotalBytes : DEFAULT_RETENTION.maxTotalBytes;
 
         const now = Date.now();
         const maxAge = maxAgeDays * 86400000;
@@ -1146,6 +1148,28 @@ export class JsonlStore implements IStore {
                     this.buildIndex.delete(b.id);
                     bytesFreed += size;
                     buildsDeleted++;
+                }
+            }
+        }
+
+        // Total-size cap: if data dir still exceeds maxTotalBytes after all
+        // other passes, evict oldest sessions until we're under the limit.
+        if (maxTotalBytes > 0) {
+            const currentSize = dirSize(this.dataDir);
+            if (currentSize > maxTotalBytes) {
+                const remaining = this.listSessions({ limit: Number.MAX_SAFE_INTEGER });
+                // oldest last → pop from end
+                remaining.sort((a, b) => b.startedAt - a.startedAt);
+                let runningSize = currentSize;
+                while (runningSize > maxTotalBytes && remaining.length > 0) {
+                    const sess = remaining.pop()!;
+                    const dir = this.sessionDir(sess.id);
+                    const size = dirSize(dir);
+                    rmrf(dir);
+                    this.sessionIndex.delete(sess.id);
+                    runningSize -= size;
+                    bytesFreed += size;
+                    sessionsDeleted++;
                 }
             }
         }

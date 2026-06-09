@@ -310,15 +310,75 @@ Every captured event carries an `initiator.stack` — a trimmed JS stack at the 
 2. Distinguish SDK-driven (react-router) vs explicit (`location.assign`) navigations by `kind`.
 3. Pair with `navigation_wait_for`-style flows if you need to block until a specific route change happens — or use `session_tail({ type: 'navigation' })` for cross-navigate history.
 
+## Production deployment options
+
+**Hiding the overlay (data capture unaffected)**
+
+The in-page floating "H" button is off by default in production — set `overlay: false`
+in the plugin config. All rrweb recording and event reporting continue unchanged.
+
+```ts
+harnessFE({ projectId: 'xxx', overlay: false })   // Vite
+withHarness(config, { overlay: false })            // Next.js
+```
+
+A hidden overlay can still be toggled manually by pressing `Cmd/Ctrl + Shift + H`
+(only works when `overlay: true` — the DOM must be present).
+
+**Control commands (`page.click`, `page.type`, …)**
+
+The `consent` option controls whether MCP agents can drive the page:
+
+| Value | Behaviour |
+|---|---|
+| `'deny'` **(default)** | All control commands rejected immediately — no prompt, no UI |
+| `'session'` | First control command prompts the user once per page-load |
+| `'always'` | Prompt before every control command |
+| `'off'` | Run freely, no prompt (loopback dev only) |
+
+Set via plugin config (takes priority over gateway):
+```ts
+harnessFE({ projectId: 'xxx', consent: 'deny' })
+```
+
+Or per gateway (daemon side):
+```
+harness serve --governed   # → consent: 'session' for all peers
+```
+
+**`page.evaluate` (arbitrary JS)** always prompts, regardless of consent mode.
+
+**Storage cap**
+
+Default: **1 GiB** hard cap on the data directory. When exceeded, oldest sessions
+are evicted automatically during the hourly purge. Override with:
+
+```bash
+# Docker
+docker run -e HARNESS_MAX_STORAGE_BYTES=2147483648 morphixai/harness-fe
+
+# Local / ENV
+HARNESS_MAX_STORAGE_BYTES=2147483648 harness serve
+
+# Disable cap entirely
+HARNESS_MAX_STORAGE_BYTES=0 harness serve
+```
+
+**Visitor identity**
+
+- `visitorId` — anonymous, auto-generated, stored in `localStorage`. Not configurable by the plugin.
+- `userId` — app-supplied identity (supabase uid, auth0 sub, …). Pass via plugin config or `<HarnessScript userId={user.id} />`.
+
 ## Constraints & safety
 
 | | |
 |---|---|
 | `page_evaluate(expr)` runs arbitrary JS in the user's page. **Don't** evaluate untrusted code (e.g. from a `console_tail` result that contains user input). |
 | `project_source` is sandboxed to the project root — it refuses paths above `projectRoot`. Never try to use it for system file reads. |
-| The store at `~/.harness/` auto-purges (1h interval) but can still hold sensitive data. If the user is on a multi-user machine, treat the daemon's data as confidential. |
+| The store at `~/.harness/` auto-purges (1h interval, 1 GiB cap) but can still hold sensitive data. If the user is on a multi-user machine, treat the daemon's data as confidential. |
 | rrweb does NOT mask form fields beyond `<input type=password>`. Don't paste recording slices into untrusted contexts — they may contain tokens, addresses, etc. |
 | When the build plugin is offline (`tab_list` returns empty for a project), source-intelligence tools fail. Ask the user to start `pnpm dev` first. |
+| `consent: 'deny'` is the default — if `page.*` tools return `CONSENT_DENIED`, the deployment intentionally blocks control. Do not instruct the user to "just disable consent" without understanding the security intent. |
 
 ## Reading initiator stacks
 

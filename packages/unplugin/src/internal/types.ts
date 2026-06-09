@@ -50,8 +50,9 @@ export interface HarnessFEOptions {
      *   'off'     — no user prompt, control commands run freely (default)
      *   'session' — user grants once per page-load
      *   'always'  — prompt before every control command
+     *   'deny'    — all control commands rejected immediately, no prompt shown
      */
-    consent?: 'off' | 'session' | 'always';
+    consent?: 'off' | 'session' | 'always' | 'deny';
 }
 
 /**

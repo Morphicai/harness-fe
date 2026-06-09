@@ -8,6 +8,7 @@
 import {
     ALWAYS_CONFIRM_COMMANDS,
     COMMAND,
+    CONTROL_COMMANDS,
     DEFAULT_WS_PORT,
     EVENT_NAME,
     requiresConsent,
@@ -367,6 +368,16 @@ export class RuntimeClient {
                 id: frame.id,
                 ok: false,
                 error: { code: 'UNKNOWN_COMMAND', message: `no handler for "${frame.command}"` },
+            } satisfies ResponseFrame);
+            return;
+        }
+        // deny mode: silently reject all control commands, no prompt.
+        if (this.consentMode === 'deny' && CONTROL_COMMANDS.has(frame.command)) {
+            this.send({
+                type: 'response',
+                id: frame.id,
+                ok: false,
+                error: { code: 'CONSENT_DENIED', message: `control commands disabled` },
             } satisfies ResponseFrame);
             return;
         }

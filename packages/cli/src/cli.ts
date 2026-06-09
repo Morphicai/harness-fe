@@ -53,6 +53,7 @@ interface CliConfig {
     adminUser: string | undefined;
     adminPass: string | undefined;
     issueTokens: TokenSpec[];
+    maxStorageBytes: number | undefined;
 }
 
 const VALID_SCOPES: Scope[] = ['control', 'read', 'write'];
@@ -143,6 +144,9 @@ function parseArgs(argv: string[]): CliConfig {
         adminUser: undefined,
         adminPass: undefined,
         issueTokens: [],
+        maxStorageBytes: process.env.HARNESS_MAX_STORAGE_BYTES
+            ? Number(process.env.HARNESS_MAX_STORAGE_BYTES)
+            : undefined,
     };
     // Leading subcommand. `serve` = headless shared gateway; `mcp` = stdio proxy
     // to the shared gateway. Neither combines with the other or with --governed.
@@ -204,7 +208,10 @@ async function main(): Promise<void> {
 
     const coreClient = createCoreClient({
         dataDir: cfg.coreDataDir,
-        consent: cfg.governed ? { mode: 'session' } : { mode: 'off' },
+        consent: cfg.governed ? { mode: 'session' } : { mode: 'deny' },
+        autoPurge: cfg.maxStorageBytes !== undefined
+            ? { policy: { maxTotalBytes: cfg.maxStorageBytes } }
+            : undefined,
     });
     await coreClient.start();
 

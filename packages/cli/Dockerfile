@@ -17,6 +17,10 @@ VOLUME ["/data"]
 ENV HARNESS_HOST=0.0.0.0
 ENV HARNESS_PORT=47950
 
+# Storage cap (bytes). Default 1 GiB — override with -e HARNESS_MAX_STORAGE_BYTES=<n>.
+# Set to 0 to disable the cap.
+ENV HARNESS_MAX_STORAGE_BYTES=1073741824
+
 EXPOSE 47950
 
 # Entrypoint: run `harness` with any extra args passed to `docker run`.

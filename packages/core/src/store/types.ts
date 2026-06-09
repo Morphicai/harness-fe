@@ -288,6 +288,13 @@ export interface RetentionPolicy {
     maxExportBytesPerProject?: number;
     /** Keep at most this many BuildMeta records per project. Default 100. */
     maxBuildsPerProject?: number;
+    /**
+     * Hard cap on total data-directory size in bytes. When the data dir exceeds
+     * this limit after all other pruning passes, oldest sessions are deleted
+     * until the total falls below the cap. Default 1 GiB (1_073_741_824).
+     * Set to 0 to disable the cap.
+     */
+    maxTotalBytes?: number;
 
     // ─── Legacy aliases (v0.3.x backward compat for existing callers) ─────
     /** @deprecated Use maxSessions. */

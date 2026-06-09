@@ -110,9 +110,10 @@ export type HelloFrame = z.infer<typeof helloFrameSchema>;
  *   - `session` — the first control command prompts; once granted the rest of
  *                 the pageload runs without re-prompting
  *   - `always`  — every control command prompts
+ *   - `deny`    — all control commands are rejected immediately, no prompt shown
  * `page.evaluate` (arbitrary code) always prompts regardless of mode.
  */
-export const consentModeSchema = z.enum(['off', 'session', 'always']);
+export const consentModeSchema = z.enum(['off', 'session', 'always', 'deny']);
 export type ConsentMode = z.infer<typeof consentModeSchema>;
 
 export const consentPolicySchema = z.object({
@@ -430,7 +431,7 @@ export function requiresConsent(
     mode: ConsentMode,
     sessionGranted: boolean,
 ): boolean {
-    if (mode === 'off') return false;
+    if (mode === 'off' || mode === 'deny') return false;
     if (!CONTROL_COMMANDS.has(command)) return false;
     if (ALWAYS_CONFIRM_COMMANDS.has(command)) return true;
     if (mode === 'always') return true;

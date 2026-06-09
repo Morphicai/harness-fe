@@ -108,7 +108,7 @@ export interface BridgeOptions {
     /**
      * Browser-consent policy for control commands, pushed to runtime clients in
      * `hello.ack`. The gateway sets this from its Policy (Open → off,
-     * Governed → session). Default `{ mode: 'off' }` (solo / unrestricted).
+     * Governed → session). Default `{ mode: 'deny' }` (control disabled).
      */
     consent?: ConsentPolicy;
     /**
@@ -223,7 +223,7 @@ export class Bridge {
         this.attachDataDir = opts.attachmentsDataDir ?? dataDir;
         // Consent defaults to off (solo / unrestricted). The gateway forces
         // `session` for governed deployments.
-        this.consentPolicy = opts.consent ?? { mode: 'off' };
+        this.consentPolicy = opts.consent ?? { mode: 'deny' };
         this.viewerBaseUrl = opts.viewerBaseUrl;
         // Default auto-purge ON. CI / tests pass `enabled: false` (or set
         // env HARNESS_FE_PURGE_DISABLED=1) to opt out.
