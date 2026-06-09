@@ -17,9 +17,19 @@ VOLUME ["/data"]
 ENV HARNESS_HOST=0.0.0.0
 ENV HARNESS_PORT=47950
 
-# Storage cap (bytes). Default 1 GiB — override with -e HARNESS_MAX_STORAGE_BYTES=<n>.
-# Set to 0 to disable the cap.
+# ── Retention / storage tunables ─────────────────────────────────────────────
+# Total data-dir cap (bytes). Default 1 GiB. Set to 0 to disable.
 ENV HARNESS_MAX_STORAGE_BYTES=1073741824
+# How many days to keep a session. Default 7.
+ENV HARNESS_MAX_AGE_DAYS=7
+# Max sessions to retain globally. Default 200.
+ENV HARNESS_MAX_SESSIONS=200
+# How many days to keep rrweb recording files (shorter than sessions). Default 3.
+ENV HARNESS_RECORDING_RETENTION_DAYS=3
+# Max rrweb recording bytes per session. Default 250 MiB.
+ENV HARNESS_MAX_RECORDING_BYTES_PER_SESSION=262144000
+# Purge interval in ms. Default 3600000 (1 h).
+ENV HARNESS_PURGE_INTERVAL_MS=3600000
 
 EXPOSE 47950
 

@@ -54,6 +54,11 @@ interface CliConfig {
     adminPass: string | undefined;
     issueTokens: TokenSpec[];
     maxStorageBytes: number | undefined;
+    maxAgeDays: number | undefined;
+    maxSessions: number | undefined;
+    recordingRetentionDays: number | undefined;
+    maxRecordingBytesPerSession: number | undefined;
+    purgeIntervalMs: number | undefined;
 }
 
 const VALID_SCOPES: Scope[] = ['control', 'read', 'write'];
@@ -147,6 +152,21 @@ function parseArgs(argv: string[]): CliConfig {
         maxStorageBytes: process.env.HARNESS_MAX_STORAGE_BYTES
             ? Number(process.env.HARNESS_MAX_STORAGE_BYTES)
             : undefined,
+        maxAgeDays: process.env.HARNESS_MAX_AGE_DAYS
+            ? Number(process.env.HARNESS_MAX_AGE_DAYS)
+            : undefined,
+        maxSessions: process.env.HARNESS_MAX_SESSIONS
+            ? Number(process.env.HARNESS_MAX_SESSIONS)
+            : undefined,
+        recordingRetentionDays: process.env.HARNESS_RECORDING_RETENTION_DAYS
+            ? Number(process.env.HARNESS_RECORDING_RETENTION_DAYS)
+            : undefined,
+        maxRecordingBytesPerSession: process.env.HARNESS_MAX_RECORDING_BYTES_PER_SESSION
+            ? Number(process.env.HARNESS_MAX_RECORDING_BYTES_PER_SESSION)
+            : undefined,
+        purgeIntervalMs: process.env.HARNESS_PURGE_INTERVAL_MS
+            ? Number(process.env.HARNESS_PURGE_INTERVAL_MS)
+            : undefined,
     };
     // Leading subcommand. `serve` = headless shared gateway; `mcp` = stdio proxy
     // to the shared gateway. Neither combines with the other or with --governed.
@@ -209,9 +229,16 @@ async function main(): Promise<void> {
     const coreClient = createCoreClient({
         dataDir: cfg.coreDataDir,
         consent: cfg.governed ? { mode: 'session' } : { mode: 'deny' },
-        autoPurge: cfg.maxStorageBytes !== undefined
-            ? { policy: { maxTotalBytes: cfg.maxStorageBytes } }
-            : undefined,
+        autoPurge: {
+            intervalMs: cfg.purgeIntervalMs,
+            policy: {
+                ...(cfg.maxStorageBytes !== undefined && { maxTotalBytes: cfg.maxStorageBytes }),
+                ...(cfg.maxAgeDays !== undefined && { maxAgeDays: cfg.maxAgeDays }),
+                ...(cfg.maxSessions !== undefined && { maxSessions: cfg.maxSessions }),
+                ...(cfg.recordingRetentionDays !== undefined && { recordingRetentionDays: cfg.recordingRetentionDays }),
+                ...(cfg.maxRecordingBytesPerSession !== undefined && { maxRecordingBytesPerSession: cfg.maxRecordingBytesPerSession }),
+            },
+        },
     });
     await coreClient.start();
 
