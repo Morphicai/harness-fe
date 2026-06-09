@@ -1,5 +1,13 @@
 # @harness-fe/webpack
 
+## 4.0.0-next.12
+
+### Patch Changes
+
+- Updated dependencies [2453e70]
+  - @harness-fe/protocol@4.0.0-next.12
+  - @harness-fe/unplugin@4.0.0-next.12
+
 ## 4.0.0-next.11
 
 ### Patch Changes
