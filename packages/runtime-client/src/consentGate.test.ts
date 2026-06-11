@@ -182,3 +182,44 @@ describe('plugin consent priority', () => {
         expect((c as unknown as { consentMode: ConsentMode }).consentMode).toBe('session');
     });
 });
+
+describe('runtime opt-in: user control override', () => {
+    const RC_KEY = '__hfe_runtime_control__:p';
+    const mk = (consent?: ConsentMode) => {
+        const c = new RuntimeClient({ projectId: 'p', consent });
+        const sent: Sent[] = [];
+        (c as unknown as { send: (f: Sent) => void }).send = (f) => sent.push(f);
+        return { c, sent };
+    };
+    beforeEach(() => { try { localStorage.removeItem(RC_KEY); } catch { /* noop */ } });
+    afterEach(() => { try { localStorage.removeItem(RC_KEY); } catch { /* noop */ } });
+
+    it('user "deny" overrides an app consent of off → control blocked', async () => {
+        const { c, sent } = mk('off');
+        c.setRuntimeControl('deny');
+        expect(c.getRuntimeControl()).toBe('deny');
+        await run(c, command(COMMAND.PAGE_CLICK));
+        expect(handlerCalls).toEqual([]);
+        expect(sent[0].error?.code).toBe('CONSENT_DENIED');
+    });
+
+    it('user "allow" overrides an app consent of deny → control runs', async () => {
+        const { c, sent } = mk('deny');
+        c.setRuntimeControl('allow');
+        expect(c.getRuntimeControl()).toBe('allow');
+        await run(c, command(COMMAND.PAGE_CLICK));
+        expect(handlerCalls).toEqual([COMMAND.PAGE_CLICK]);
+        expect(sent[0].ok).toBe(true);
+    });
+
+    it('persists the user choice to localStorage', () => {
+        const { c } = mk();
+        c.setRuntimeControl('deny');
+        expect(localStorage.getItem(RC_KEY)).toBe('deny');
+    });
+
+    it('getRuntimeControl reflects the app default when the user has not chosen', () => {
+        expect(mk('deny').c.getRuntimeControl()).toBe('deny');
+        expect(mk('off').c.getRuntimeControl()).toBe('ask');
+    });
+});

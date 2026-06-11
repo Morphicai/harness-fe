@@ -7,6 +7,7 @@
 
 import { installOverlay } from './overlay.js';
 import { RuntimeClient, readInjectedConfig } from './client.js';
+import type { RuntimeControlPolicy, RuntimeControlChoice } from './client.js';
 import {
     registerOverlayPlugin,
     drainPluginQueue,
@@ -20,7 +21,14 @@ const w = window as unknown as {
     __harness_fe_client__?: RuntimeClient;
     __hfe_session_id__?: string;
     __HARNESS_FE_PLUGINS__?: OverlayPlugin[];
-    HarnessFE?: { registerOverlayPlugin: typeof registerOverlayPlugin; version: string };
+    HarnessFE?: {
+        registerOverlayPlugin: typeof registerOverlayPlugin;
+        version: string;
+        /** The user's current effective control state for this app (4.0 runtime opt-in). */
+        getRuntimeControl?: () => RuntimeControlPolicy;
+        /** Set the user's explicit allow/deny for agent control; persists + re-gates. */
+        setRuntimeControl?: (choice: RuntimeControlChoice) => void;
+    };
 };
 
 if (typeof window !== 'undefined' && !w.__harness_fe_started__) {
@@ -38,6 +46,9 @@ if (typeof window !== 'undefined' && !w.__harness_fe_started__) {
     const cfg = readInjectedConfig();
     const client = new RuntimeClient(cfg);
     client.start();
+    // Let apps / the overlay read and set the user's agent-control choice.
+    w.HarnessFE.getRuntimeControl = () => client.getRuntimeControl();
+    w.HarnessFE.setRuntimeControl = (choice) => client.setRuntimeControl(choice);
     if (cfg.overlay !== false) installOverlay(client);
     // Expose for debugging + same-origin iframe inheritance.
     // Same-origin children read `window.parent.__hfe_session_id__` and
