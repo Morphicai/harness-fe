@@ -4,10 +4,11 @@ description: |
     Debug, inspect, and drive any frontend app that has the Harness-FE
     Vite/Webpack plugin installed. Use this when the user reports a UI
     bug, asks "why is this happening on the page", wants to inspect
-    runtime state, or needs to correlate browser behavior with source
-    files (especially in micro-frontend setups).
+    runtime state, drive an automated browser test, or needs to correlate
+    browser behavior with source files (especially in micro-frontend setups).
 allowed-tools:
     - mcp__harness-fe__*
+    - mcp__harness-solo__*
     - Read
     - Grep
     - Bash
@@ -20,11 +21,17 @@ daemon. The daemon bridges your tools to (1) the build plugin (source
 intelligence) and (2) the browser tab (live DOM, console, network, rrweb
 recording).
 
+> **Tool names use underscores.** Every tool is `mcp__<server>__<name>` with
+> underscores throughout — `project_list`, `session_summary`, `page_click`. The
+> server prefix depends on the user's MCP config (commonly `harness-fe` for the
+> shared gateway, `harness-solo` for the loopback daemon). This doc writes the
+> bare name (`project_list`); prepend whichever prefix your environment exposes.
+
 ## Setup — do this first if the project isn't wired up
 
-Before any `mcp__harness-fe__*` tool will return data, the host project needs
-two things: a build-time plugin (or `jsxImportSource`) and an MCP daemon entry
-in the agent's config. Pick the integration path that matches the project:
+Before any tool will return data, the host project needs two things: a build-time
+plugin (or `jsxImportSource`) and an MCP daemon entry in the agent's config. Pick
+the integration path that matches the project:
 
 **Vite (React / Vue) — most common**
 1. `pnpm add -D @harness-fe/vite @harness-fe/runtime`
@@ -103,7 +110,7 @@ concluding "nothing is there" or "the tool is broken".
 
 **Solo (default — loopback, zero config):** the agent spawns `@harness-fe/dev-cli`
 over stdio; the daemon is fully trusted. You see **every** project / session /
-task, `page.*` runs immediately (no approval), and the whole tool catalog is
+task, `page_*` runs immediately (no approval), and the whole tool catalog is
 available.
 
 **Team (via the gateway):** the agent connects over HTTP-MCP to
@@ -113,16 +120,16 @@ access is governed:
 | Behaviour | Solo | Team (gateway) |
 |---|---|---|
 | Visible projects / sessions / tasks | all | only the **projects your token is bound to** — others return empty `[]` (isolation, not a bug) |
-| `page.*` (click/type/navigate/…) | runs immediately | needs **Browser Consent** — the user approves in-page first; a denial returns `ok:false` / `CONSENT_DENIED` |
-| Available tools (`tools/list`) | full catalog | **scope-filtered** — a `read`-only token never sees `page.*`; calling one is denied (`-32001 scope denied`) |
+| `page_*` (click/type/navigate/…) | runs immediately | needs **Browser Consent** — the user approves in-page first; a denial returns `ok:false` / `CONSENT_DENIED` |
+| Available tools (`tools/list`) | full catalog | **scope-filtered** — a `read`-only token never sees `page_*`; calling one is denied (`-32001 scope denied`) |
 | Transport | stdio (direct) | HTTP-MCP via the gateway (routed + audited) |
 
 **In team mode, adjust your behaviour:**
 
-- An empty `project.list` / `session.list` / `tasks.pending` most likely means
+- An empty `project_list` / `session_list` / `tasks_pending` most likely means
   your token isn't bound to that project — **not** that the app is broken. Say
   you may lack access rather than asserting nothing exists.
-- Before a `page.*` action, expect a consent prompt to the user. If it's denied,
+- Before a `page_*` action, expect a consent prompt to the user. If it's denied,
   report it and don't blindly retry.
 - If an expected tool is missing, your token's scope doesn't include it
   (`read` vs `read+control`). `write` is for the browser runtime only — never an agent.
@@ -137,29 +144,41 @@ flag the team-mode differences with **[team]**.)
 | Tool | Purpose |
 |---|---|
 | `tab_list` | What browser tabs are connected RIGHT NOW |
-| `project.list` | All projects the daemon has ever seen |
-| `project.get(projectId)` | One project's metadata (displayName, parentProjectId, tags) |
-| `project.tree(rootId?)` | Forest assembled from parent links — **start here for micro-frontend setups** |
-| `build.list(projectId)` | Builds for a project, newest first |
-| `session.list(projectId)` / `session.summary(id)` | Per-session counts |
+| `project_list` | All projects the daemon has ever seen |
+| `project_get(projectId)` | One project's metadata (displayName, parentProjectId, tags) |
+| `project_tree(rootId?)` | Forest assembled from parent links — **start here for micro-frontend setups** |
+| `project_sessions(projectId)` | Sessions belonging to a project |
+| `build_list(projectId)` / `build_get(buildId)` | Builds for a project (newest first) / one build's detail |
+| `session_list(projectId)` / `session_summary(sessionId)` | Per-session counts |
+| `dashboard_open` | Open the Harness web dashboard for visual inspection |
+| `experimental_ping` | Liveness check — confirm the daemon is reachable |
 
 ### Page interaction (drive the browser)
 
 > **[team]** Everything here is `control` scope: hidden from a `read`-only token's `tools/list`, and each call triggers a **Browser Consent** prompt the user must approve before it runs (a denial returns `ok:false` / `CONSENT_DENIED`). In solo mode they run directly.
 
-| Tool | Use case |
-|---|---|
-| `page_navigate(url)` | Soft / hard navigate |
-| `page_click(selector)` | Click an element. Selectors support `comp` (component name) + `loc` (file:line) — see "source-aware selectors" below |
-| `page_type(selector, value)` | Fill an input |
-| `page_dom_query(selector)` | Read DOM state |
-| `page_evaluate(expr)` | Run arbitrary JS in page context (returns JSON-serializable result) |
-| `page_screenshot` | Visual checkpoint |
-| `page_scroll` / `page_reload` | Auxiliary |
+| Tool | Signature | Use case |
+|---|---|---|
+| `page_navigate({ url })` | url | Soft / hard navigate |
+| `page_click({ selector })` | selector | Click an element |
+| `page_type({ selector, value })` | selector + value | Type into an input (per-key events) |
+| `page_paste({ selector, content, html? })` | selector + content | Paste text/HTML in one shot (e.g. rich editors) |
+| `page_select({ selector, value })` | selector + value | Choose a `<select>` option, fires change/input |
+| `page_check({ selector, checked })` | selector + bool | Set a checkbox/radio state |
+| `page_upload({ selector, files })` | selector + `[{name, content(base64), mimeType?}]` | Set files on `<input type=file>` |
+| `page_dom_query({ selector })` | selector | Read DOM state (outerHTML, attrs, text) |
+| `page_evaluate({ expr })` | JS expr | Run arbitrary JS in page context (returns JSON-serializable result) |
+| `page_wait_for({ predicate, timeoutMs? })` | `"network.idle"` \| `"dom.ready"` \| JS expr | **Block until a condition is truthy — use before acting on async/late-rendered UI** |
+| `page_set_dialog_handler({ type, value })` | `alert`\|`confirm`\|`prompt` + return value | Pre-arm the answer to the next native dialog so it doesn't block your action |
+| `page_screenshot` | — | Visual checkpoint |
+| `page_scroll` / `page_reload` / `page_set_html` / `page_set_style` | — | Auxiliary |
+
+Every page action takes an optional `tabId` (from `tab_list`); omit it to target
+the most-recent active tab. See **Selectors** below for the selector object shape.
 
 ### Telemetry tail
 
-Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: number` for the last-N pagination, plus channel-specific narrows. Buffers are in-memory per page-load — for cross-navigate history use `session_tail({ type: 'X' })`.
+Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: number` for the last-N pagination, plus channel-specific narrows. Buffers are in-memory per page-load — for cross-navigate history use `session_tail({ sessionId, type: 'X' })`.
 
 | Tool | What you get | Narrows |
 |---|---|---|
@@ -172,6 +191,17 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 | `indexeddb_tail` | IDB ops: open / put / add / get / getAll / delete / clear / cursor | `op`, `store`, `db` |
 | `errors_tail` | Uncaught errors + unhandled promise rejections | — |
 
+### Session timeline (cross-navigate history)
+
+`*_tail` buffers reset on each page-load. To see the whole narrative of a session
+(client + server events merged), use these:
+
+| Tool | Use case |
+|---|---|
+| `session_tail({ sessionId, type?, n?, since?, until? })` | Last-N events from the full session timeline. `type` filters one or many event types (`'err'`, `['ws','storage']`, …) |
+| `session_search({ sessionId, query, type?, limit? })` | Substring search across a session's events |
+| `session_summary({ sessionId })` | Per-type event counts for a session |
+
 ### Targeted fetch / single entry
 
 | Tool | Use case |
@@ -183,7 +213,8 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 
 | Tool | Use case |
 |---|---|
-| `network_wait_for({ urlContains, method?, statusCode?, timeoutMs })` | Block until a matching request happens. Anchored on call-time, so a pre-existing matching request does NOT satisfy. |
+| `page_wait_for({ predicate, timeoutMs? })` | Block until `predicate` is truthy. Built-ins `"network.idle"` / `"dom.ready"`, else any JS expression (e.g. `"document.querySelector('[data-testid=done]')"`) |
+| `network_wait_for({ urlContains?, urlRegex?, method?, statusCode?, timeoutMs? })` | Block until a matching request happens. **Anchored on call-time** — a request that already fired does NOT satisfy it. |
 | `network_wait_for_idle({ idleMs, timeoutMs })` | Block until `idleMs` elapses with no new network entry — analogous to Playwright `networkidle` |
 
 ### Replay & forensics
@@ -212,7 +243,7 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 | `tasks_pending` | What the user has clicked-and-annotated as a task. Returns id / question / url / selector / **attachments[]** (id + dims, no bytes) |
 | `tasks_claim(id)` | Claim the task; returns full Task incl. element outerHTML, attachment pointers |
 | `tasks_resolve(id, note?, resolution?)` | Mark complete. `note` is shown back to the user in "My reports". `resolution` (P7) closes the loop: `{ type, commit, prUrl, verificationSessionId }` — back-links the report to its fix + the re-test that proved it. `verifiedAt` defaults when a `verificationSessionId` is given |
-| **`tasks_get_attachment({taskId, attachmentId})`** | Fetch the annotated screenshot as an **MCP image-content block** — `{ type: 'image', mimeType: 'image/png', data: base64 }`. Vision-capable LLMs (Claude / GPT-4V) can attach it directly. The annotations (arrow, text) are already flattened into the pixels |
+| **`tasks_get_attachment({taskId, attachmentId})`** | Fetch the annotated screenshot as an **MCP image-content block** — `{ type: 'image', mimeType: 'image/png', data: base64 }`. Vision-capable LLMs can attach it directly. The annotations (arrow, text) are already flattened into the pixels |
 
 ### Visitor identity & user journey
 
@@ -220,26 +251,38 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 
 | Tool | Use case |
 |---|---|
-| `visitor.list({ projectId?, limit? })` | All visitors the daemon has seen, newest activity first |
-| `visitor.get(visitorId)` | One visitor's metadata: firstSeenAt / lastSeenAt / sessionCount / projectIds / **lastEnv** (UA, language, timezone, viewport, colorScheme) |
-| `visitor.journey({ visitorId, limit? })` | Chronological **sessions** for this visitor — high-level "what did this person actually do?" |
-| **`visitor.timeline({ visitorId, types?, tabIds?, sessionIds?, since?, until?, limit? })`** | Chronological **events** merged across ALL sessions / tabs of this visitor. Each event carries `tab` + `sessionId`. Use this for cross-tab causality: "a ws.recv in tab A → storage.remove in tab B 3s later" |
+| `visitor_list({ projectId?, limit? })` | All visitors the daemon has seen, newest activity first |
+| `visitor_get(visitorId)` | One visitor's metadata: firstSeenAt / lastSeenAt / sessionCount / projectIds / **lastEnv** (UA, language, timezone, viewport, colorScheme) |
+| `visitor_journey({ visitorId, limit? })` | Chronological **sessions** for this visitor — high-level "what did this person actually do?" |
+| **`visitor_timeline({ visitorId, types?, tabIds?, sessionIds?, since?, until?, limit? })`** | Chronological **events** merged across ALL sessions / tabs of this visitor. Each event carries `tab` + `sessionId`. Use this for cross-tab causality: "a ws.recv in tab A → storage.remove in tab B 3s later" |
 
 ### Server-side capture (Next.js, role = `node-runtime`)
 
-For Next.js apps wired with `@harness-fe/node-runtime` + `<HarnessScript>`, server-side events show up in the **same** `sessions/{sessionId}/timeline.jsonl` as the client-side events for that same refresh (continuity via React `cache()`).
+For Next.js apps wired with `@harness-fe/node-runtime` + `<HarnessScript>`, server-side events show up in the **same** session timeline as the client-side events for that same refresh (continuity via React `cache()`).
 
 Event types you'll see on server-side rows (`t` field):
 - `server-log` — Node `console.*` (opt-in via `HARNESS_FE_NODE_CONSOLE=1`)
 - `server-err` — `process.on('uncaughtException' | 'unhandledRejection')` + Server Component render errors
 - `server-action` — durations / errors from Route Handlers + Server Actions wrapped with `withHarnessTracing(handler)`
 
-When debugging a Next.js bug, the rule of thumb: **filter `session.timeline({ sessionId })` for server-* events first**. Server errors usually precede client hydration failures. If the project has no `node-runtime` connected, server logs are silently missing — tell the user to wrap their next config with `withHarness(...)`.
+When debugging a Next.js bug, the rule of thumb: **`session_tail({ sessionId, type: ['server-log','server-err','server-action'] })` first**. Server errors usually precede client hydration failures. If the project has no `node-runtime` connected, server logs are silently missing — tell the user to wrap their next config with `withHarness(...)`.
 
-## Source-aware selectors
+## Selectors — how to target an element
 
-The Vite/Webpack plugin tags **every JSX element** with two data attributes
-at build time:
+Every `page_*` action that touches an element takes a **selector object** (not a
+bare string). Provide one or more fields; pick the most robust available:
+
+| Field | Targets by | When to use |
+|---|---|---|
+| `component` | React component name (`data-morphix-comp`) | refactor-proof; first choice |
+| `file` + `line` | source location (`data-morphix-loc`) | pin one specific instance in code |
+| `text` | visible text content | buttons / links with stable copy |
+| `role` / `ariaLabel` | ARIA role / aria-label | accessible, semantic targeting |
+| `css` | raw CSS selector | escape hatch — incl. `data-testid` (below) |
+| `nth` | 0-based index among matches | **disambiguate when a selector matches several elements** |
+
+The Vite/Webpack plugin tags **every JSX element** at build time, which is what
+`component` / `file` / `line` read:
 
 ```html
 <button data-morphix-comp="SubmitButton"
@@ -248,15 +291,48 @@ at build time:
 </button>
 ```
 
-So you can target by source location:
+Example calls:
 
 ```ts
 page_click({ selector: { component: 'SubmitButton' } })
-page_dom_query({ selector: { loc: 'src/components/Form.tsx:42' } })
+page_click({ selector: { text: 'Pay now' } })
+page_dom_query({ selector: { file: 'src/components/Form.tsx', line: 42 } })
+page_click({ selector: { component: 'TodoItem', nth: 2 } })   // 3rd TodoItem
 ```
 
-**Prefer source-aware selectors over CSS** — they survive refactors that
-change class names or DOM structure.
+**Prefer `component` / `text` / `role` over `css`** — they survive refactors that
+change class names or DOM structure. Use `nth` to break ties instead of writing a
+brittle deep CSS path.
+
+### Add your own stable hooks while coding
+
+When you're **already editing a component** for a feature or a fix, proactively
+add a `data-testid` to the elements you (or the user) will want to drive or
+assert on later — it's an explicit, refactor-proof handle that complements the
+auto-injected `component`/`file`+`line`:
+
+```html
+<button data-testid="checkout-submit">Pay now</button>
+```
+
+Then target it via the `css` field:
+
+```ts
+page_click({ selector: { css: '[data-testid="checkout-submit"]' } })
+page_dom_query({ selector: { css: '[data-testid="order-total"]' } })
+```
+
+Guidelines:
+
+- Add `data-testid` to **interaction targets** (buttons, inputs, links) and
+  **assertion anchors** (status text, totals, list rows) — the things a test
+  actually touches, not every node.
+- Use a stable, intent-describing name (`checkout-submit`, not `btn-3`).
+- Match the project's existing convention if one exists (`data-testid` vs
+  `data-test` vs `data-cy`) — grep before inventing one.
+
+A testid you add today makes the next "drive the browser and verify" loop
+deterministic instead of fragile.
 
 ## Decision flows
 
@@ -271,13 +347,13 @@ change class names or DOM structure.
 
 ### Flow 2: User reports "the form submits to wrong endpoint"
 
-1. `network_tail({ filter: { url: '/api/' } })` → see what URL was hit.
+1. `network_tail({ urlContains: '/api/' })` → see what URL was hit.
 2. Compare with `project_source` of the submitting component.
 3. Confirm with `page_click` + `network_tail` again.
 
 ### Flow 3: Micro-frontend bug ("the iframe child app errored")
 
-1. `project.tree` → confirm parent/child relationship.
+1. `project_tree` → confirm parent/child relationship.
 2. `tab_list` → tabId.
 3. Note: parent + child share `tabId` AND `sessionId` (runtime inheritance).
 4. `console_tail` / `errors_tail` will surface events from BOTH apps in the
@@ -300,15 +376,81 @@ Every captured event carries an `initiator.stack` — a trimmed JS stack at the 
 ### Flow 6: Cross-tab bug ("opening tab B kicks me out of tab A")
 
 1. `tab_list` → confirm both tabs are connected, find the `tabId`s.
-2. `visitor.get` of either tab's session → grab the shared `visitorId`.
-3. **`visitor.timeline({ visitorId, types: ['ws', 'storage', 'navigation'] })`** → merged timeline across BOTH tabs, each event tagged with its `tab`.
+2. `visitor_get` of either tab's session → grab the shared `visitorId`.
+3. **`visitor_timeline({ visitorId, types: ['ws', 'storage', 'navigation'] })`** → merged timeline across BOTH tabs, each event tagged with its `tab`.
 4. Sequence: e.g. `ws.recv {kind:'kick'} in tab-A → storage.remove 'token' in tab-B → navigation.assign '/login' in tab-B`. One call, full causality.
 
 ### Flow 7: Track SPA route changes
 
 1. `navigation_tail({ kind: 'push' })` → every history.pushState the page made, with the issuing stack.
 2. Distinguish SDK-driven (react-router) vs explicit (`location.assign`) navigations by `kind`.
-3. Pair with `navigation_wait_for`-style flows if you need to block until a specific route change happens — or use `session_tail({ type: 'navigation' })` for cross-navigate history.
+3. For cross-navigate history use `session_tail({ sessionId, type: 'navigation' })`.
+
+### Flow 8: Proactively drive the browser to test a change
+
+You don't have to wait to be asked "go test this." Once you've written or
+changed UI code and a dev tab is connected, **driving the app yourself is
+usually the fastest way to know whether the change actually works** — faster
+and more honest than reasoning about it from the source alone. Reach for this
+after implementing a feature, fixing a UI bug, or to confirm a flow end-to-end.
+
+1. `tab_list` → is a tab connected? If not, ask the user to open the dev page
+   (or start `pnpm dev`). **[team]** expect a Browser Consent prompt before the
+   first `page_*` action — tell the user it's coming.
+2. `page_navigate({ url })` to the route, then `page_wait_for({ predicate: 'dom.ready' })`
+   (or a JS predicate for the element you need) so you don't act before it renders.
+3. Drive the actual user flow with `page_click` / `page_type` / `page_select` /
+   `page_check`, targeting `data-testid` (via `css`) or `component` selectors.
+   If the flow pops a native `confirm`/`alert`, pre-arm `page_set_dialog_handler`.
+4. Assert the outcome — combine `page_dom_query` / `page_evaluate` for state,
+   `errors_tail` + `console_tail` for regressions, and `network_wait_for` /
+   `network_tail` for the right request/response. `page_screenshot` for a visual
+   checkpoint.
+5. Report what you observed (what you clicked, what you saw), not just "it
+   should work." If it failed, the error/network evidence is already in hand.
+
+**Do it without being asked** after a UI change or bug fix (reproduce → fix →
+re-drive to prove clean), or before claiming something is done. **Ask first** for
+flows with side effects (payments, sending messages, destructive actions) — and
+in team mode respect a `CONSENT_DENIED` instead of retrying.
+
+### Flow 9: User filed a task via the in-page overlay
+
+The runtime ships a small "H" overlay button. When a user picks an element + draws an arrow + types a description, the task arrives via `tasks_pending`. To act on it:
+
+1. `tasks_pending({ status: 'pending' })` → list the queue
+2. `tasks_claim(taskId)` → get the full Task (selector gives file:line, element.outerHTML gives DOM context)
+3. `tasks_get_attachment({ taskId, attachmentId })` → grab the annotated screenshot. The arrows + text annotations are already drawn on the image; pass it directly into your vision call.
+4. `session_tail({ sessionId: task.sessionId })` → see what the user was doing before + after the report (console errors, network failures, server-side `server-err` rows)
+5. Form a fix. Use `project_where_is` / `project_source` to navigate to the source. Apply the edit + commit (host `git`/`gh` tooling — writeback lives outside harness).
+6. **Verify the fix — close the loop.** Re-drive the reported flow against the patched build: `session_replay_create({ sessionId: task.sessionId })` to recall the exact steps the user took, reproduce them with `page_*`, then prove it's clean — `errors_tail` / `session_tail({ sessionId, type: 'err' })` show no new errors and `page_*` confirms the expected behavior. Keep the **new sessionId** of this re-test.
+7. `tasks_resolve(taskId, "Fixed in PR #234", { type: 'code-fix', commit: '<sha>', prUrl: '<url>', verificationSessionId: '<re-test session>' })` → the structured `resolution` back-links report → fix → proof; the user still sees `note` in their "My reports".
+
+If you can't reproduce or decide not to fix, still resolve with the reason so the loop is closed: `resolution: { type: 'cannot-reproduce' }` (or `'wontfix'` / `'duplicate'`).
+
+## Troubleshooting
+
+### When a `page_*` action fails
+
+| Symptom | Likely cause | Do this |
+|---|---|---|
+| element not found | selector too specific, or element not rendered yet | `page_dom_query` to confirm it exists; if async, `page_wait_for` first |
+| matched the wrong one | ambiguous selector | add `nth`, or switch to `component` / `text` / `file`+`line` |
+| action ran, nothing happened | the handler errored | `errors_tail` + `console_tail`; check the expected `network_tail` entry fired |
+| `network_wait_for` times out | the request fired BEFORE the wait — it only sees requests after the call | call `network_wait_for` first, THEN trigger the action |
+| a native dialog blocks the action | unanswered `alert` / `confirm` / `prompt` | `page_set_dialog_handler` BEFORE the action that triggers it |
+| `page_evaluate` returns nothing useful | result isn't JSON-serializable (DOM node, function, circular) | return a primitive/plain object (`el.textContent`, `{...}`) instead |
+| **[team]** `CONSENT_DENIED` / `-32001 scope denied` | user declined, or token lacks `control` scope | report it; don't retry blindly — ask the user to approve or widen scope |
+
+### When you "see nothing"
+
+| Symptom | Likely cause | Do this |
+|---|---|---|
+| `tab_list` empty | no dev tab open, or dev server down | ask the user to open the page / start `pnpm dev` |
+| source tools fail (`project_where_is`, `project_source`) | build plugin offline | ask the user to start `pnpm dev` (the plugin runs in the bundler) |
+| `project_list` / `session_list` / `tasks_pending` empty **[team]** | your token isn't bound to that project | say you may lack access — don't assert nothing exists |
+| daemon unreachable | MCP server not configured / not running | `experimental_ping`; if it fails, re-check the MCP config (see Setup) |
+| server-side (Next.js) events missing | no `@harness-fe/node-runtime` connected | tell the user to wrap next config with `withHarness(...)` |
 
 ## Production deployment options
 
@@ -325,7 +467,7 @@ withHarness(config, { overlay: false })            // Next.js
 A hidden overlay can still be toggled manually by pressing `Cmd/Ctrl + Shift + H`
 (only works when `overlay: true` — the DOM must be present).
 
-**Control commands (`page.click`, `page.type`, …)**
+**Control commands (`page_click`, `page_type`, …)**
 
 The `consent` option controls whether MCP agents can drive the page:
 
@@ -346,7 +488,7 @@ Or per gateway (daemon side):
 harness serve --governed   # → consent: 'session' for all peers
 ```
 
-**`page.evaluate` (arbitrary JS)** always prompts, regardless of consent mode.
+**`page_evaluate` (arbitrary JS)** always prompts, regardless of consent mode.
 
 **Storage cap**
 
@@ -378,7 +520,7 @@ HARNESS_MAX_STORAGE_BYTES=0 harness serve
 | The store at `~/.harness/` auto-purges (1h interval, 1 GiB cap) but can still hold sensitive data. If the user is on a multi-user machine, treat the daemon's data as confidential. |
 | rrweb does NOT mask form fields beyond `<input type=password>`. Don't paste recording slices into untrusted contexts — they may contain tokens, addresses, etc. |
 | When the build plugin is offline (`tab_list` returns empty for a project), source-intelligence tools fail. Ask the user to start `pnpm dev` first. |
-| `consent: 'deny'` is the default — if `page.*` tools return `CONSENT_DENIED`, the deployment intentionally blocks control. Do not instruct the user to "just disable consent" without understanding the security intent. |
+| `consent: 'deny'` is the default — if `page_*` tools return `CONSENT_DENIED`, the deployment intentionally blocks control. Do not instruct the user to "just disable consent" without understanding the security intent. |
 
 ## Reading initiator stacks
 
@@ -390,27 +532,14 @@ When reporting "who did X" to the user, quote that frame — not the framework f
 
 - **`sessionId` ≠ build / dev-run id** — `sessionId` is one page-load. The "dev-server run" / source-code snapshot concept is `buildId`. Filter by `sessionId` to see one refresh's worth of activity (server-side + client-side merged). Filter by `buildId` to see "what code was running across all sessions during this dev run".
 - **HMR doesn't change `buildId`** — only a fresh `pnpm dev` does. So during one debugging session you'll usually see one buildId, multiple sessionIds.
+- **`network_wait_for` is call-time-anchored** — it ignores requests that already fired. Set up the wait BEFORE the action that triggers the request.
 - **Cross-origin iframe** — identity inheritance silently degrades. Child gets its own `tabId`/`sessionId`. Tell the user this is expected; suggest same-origin via vite proxy if they need correlation.
 
 ## When to ask for clarification
 
 - "There's no MCP daemon running" → user needs to start it (`pnpm --filter @harness-fe/mcp-server start`) or add it to their Claude Code mcpServers config.
 - "Multiple tabs are connected, which one?" → call `tab_list`, show the user the `url` field, ask which.
-- "Multiple projects share this tabId" — common in micro-frontends. Use `project.tree` to show the hierarchy; ask which sub-app the user's bug is in.
-
-## Decision flow 5: User filed a task via the in-page overlay
-
-The runtime ships a small "H" overlay button. When a user picks an element + draws an arrow + types a description, the task arrives via `tasks_pending`. To act on it:
-
-1. `tasks_pending({ status: 'pending' })` → list the queue
-2. `tasks_claim(taskId)` → get the full Task (selector.loc gives file:line, element.outerHTML gives DOM context)
-3. `tasks_get_attachment({ taskId, attachmentId })` → grab the annotated screenshot. The arrows + text annotations are already drawn on the image; pass it directly into your vision call.
-4. `session.timeline({ sessionId: task.sessionId })` → see what the user was doing before + after the report (console errors, network failures, server-side `server-err` rows)
-5. Form a fix. Use `project_where_is` / `project_source` to navigate to the source. Apply the edit + commit (host `git`/`gh` tooling — writeback lives outside harness).
-6. **Verify the fix — close the loop.** Re-drive the reported flow against the patched build: `session_replay_create({ sessionId: task.sessionId })` to recall the exact steps the user took, reproduce them with `page_*`, then prove it's clean — `errors_tail` / `session_tail({ type: 'err' })` show no new errors and `page_*` confirms the expected behavior. Keep the **new sessionId** of this re-test.
-7. `tasks_resolve(taskId, "Fixed in PR #234", { type: 'code-fix', commit: '<sha>', prUrl: '<url>', verificationSessionId: '<re-test session>' })` → the structured `resolution` back-links report → fix → proof; the user still sees `note` in their "My reports".
-
-If you can't reproduce or decide not to fix, still resolve with the reason so the loop is closed: `resolution: { type: 'cannot-reproduce' }` (or `'wontfix'` / `'duplicate'`).
+- "Multiple projects share this tabId" — common in micro-frontends. Use `project_tree` to show the hierarchy; ask which sub-app the user's bug is in.
 
 ## Wire-up details
 
