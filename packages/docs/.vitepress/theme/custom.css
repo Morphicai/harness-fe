@@ -56,3 +56,95 @@
     --vp-c-divider: rgba(255, 255, 255, 0.06);
     --vp-home-hero-name-background: linear-gradient(120deg, #3380ff 30%, #ffffff);
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Home — restrained, precise polish on the Morphix brand.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Hero: a touch more presence — larger name, softer entrance. */
+.VPHero .name { font-size: clamp(2.6rem, 6vw, 4rem); letter-spacing: -0.02em; }
+.VPHero .text { letter-spacing: -0.01em; }
+.VPHero .tagline { max-width: 42rem; }
+
+/* Feature cards: lift + brand-edge on hover, calm by default. */
+.VPFeature {
+    border: 1px solid var(--vp-c-border);
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+.VPFeature:hover {
+    transform: translateY(-4px);
+    border-color: var(--vp-c-brand-1);
+    box-shadow: 0 12px 32px rgba(0, 94, 255, 0.12);
+}
+.VPFeature .icon {
+    background: var(--vp-c-brand-soft) !important;
+    border-radius: 12px;
+}
+
+/* Centered prose section below the features (the "why" + comparison). */
+.home-section {
+    max-width: 1100px;
+    margin: 12px auto 0;
+    padding: 8px 24px 64px;
+}
+.home-section h2 {
+    border-top: 1px solid var(--vp-c-divider);
+    padding-top: 40px;
+    margin-top: 56px;
+    font-size: 1.75rem;
+    letter-spacing: -0.01em;
+}
+
+/* Comparison table: framed, brand-highlighted Harness-FE column. */
+.home-section table {
+    display: table;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 24px 0;
+    border: 1px solid var(--vp-c-border);
+    border-radius: 14px;
+    overflow: hidden;
+    font-size: 0.92rem;
+}
+.home-section thead th {
+    background: var(--vp-c-bg-soft);
+    font-weight: 600;
+    border-bottom: 1px solid var(--vp-c-border);
+}
+.home-section th, .home-section td {
+    border: none;
+    border-bottom: 1px solid var(--vp-c-divider);
+    padding: 11px 14px;
+    text-align: center;
+}
+.home-section th:first-child, .home-section td:first-child {
+    text-align: left;
+    color: var(--vp-c-text-1);
+}
+.home-section tbody tr:last-child td { border-bottom: none; }
+.home-section tr:nth-child(2n) { background: transparent; }
+/* The Harness-FE column (2nd) — quietly highlighted end to end. */
+.home-section th:nth-child(2), .home-section td:nth-child(2) {
+    background: var(--vp-c-brand-soft);
+    color: var(--vp-c-text-1);
+    font-weight: 600;
+}
+.home-section tbody tr:hover td { background: rgba(0, 94, 255, 0.05); }
+.home-section tbody tr:hover td:nth-child(2) { background: rgba(0, 94, 255, 0.18); }
+
+.home-fineprint {
+    color: var(--vp-c-text-3);
+    font-size: 0.8rem;
+    text-align: center;
+    margin-top: 4px;
+}
+.home-cta {
+    margin-top: 48px;
+    padding: 24px;
+    text-align: center;
+    background: var(--vp-c-bg-soft);
+    border: 1px solid var(--vp-c-border);
+    border-radius: 14px;
+}
+.home-cta p { margin: 0; }

@@ -26,6 +26,8 @@ const enThemeConfig: DefaultTheme.Config = {
             {
                 text: 'Going Further',
                 items: [
+                    { text: 'Team mode (gateway)', link: '/guide/team-mode' },
+                    { text: 'Consent & runtime control', link: '/guide/consent' },
                     { text: 'Self-debug mode', link: '/guide/self-debug' },
                     { text: 'Troubleshooting', link: '/guide/troubleshooting' },
                     { text: 'Migrating 3.x → 4.0', link: '/guide/migration-3-to-4' },
@@ -94,6 +96,8 @@ const zhThemeConfig: DefaultTheme.Config = {
             {
                 text: '深入',
                 items: [
+                    { text: '团队模式(网关)', link: '/zh/guide/team-mode' },
+                    { text: 'Consent 与运行时控制', link: '/zh/guide/consent' },
                     { text: '自调试模式', link: '/zh/guide/self-debug' },
                     { text: '故障排查', link: '/zh/guide/troubleshooting' },
                     { text: '从 3.x 迁移到 4.0', link: '/zh/guide/migration-3-to-4' },
