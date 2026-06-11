@@ -52,6 +52,7 @@
     "remove-node-env-gate",
     "runtime-gateway-ws-step5",
     "shared-gateway-auto-spawn",
+    "skill-tooling-accuracy",
     "task-resolution-p7",
     "tenant-isolation-p3",
     "version-observability"
