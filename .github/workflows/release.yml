@@ -22,8 +22,9 @@ name: Release
 on:
     push:
         branches:
-            - main   # 3.x stable line → npm dist-tag `latest`
-            - next   # 4.0 experimental line (Changesets prerelease) → npm dist-tag `next`
+            - main   # the stable line → npm dist-tag `latest`
+            # (the 4.0 `next` prerelease line graduated to `main`; a future
+            #  5.0 line will re-add a `next` trigger + Changesets pre mode.)
 
 permissions:
     contents: write
@@ -109,12 +110,10 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-                  # Dual-line dist-tag: the 3.x line (`main`) publishes to
-                  # `latest`; the 4.0 prerelease line (`next`) publishes to
-                  # `next`. release-publish.sh reads this and, for any non-latest
-                  # tag, never touches `latest` — so a `4.0.0-next.x` publish can
-                  # never hijack the stable tag.
-                  NPM_DIST_TAG: ${{ github.ref_name == 'next' && 'next' || 'latest' }}
+                  # Single stable line: `main` publishes to `latest`. (When a
+                  # future 5.0 `next` prerelease line is opened, restore the
+                  # dual-line `ref_name == 'next' ? 'next' : 'latest'` logic.)
+                  NPM_DIST_TAG: latest
 
             # The Version Packages PR is opened by GITHUB_TOKEN, so GitHub's
             # anti-recursion rule means it never triggers the CI workflow —
