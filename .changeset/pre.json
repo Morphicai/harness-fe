@@ -32,6 +32,7 @@
     "cli-experimental-env-forward",
     "cli-rebuild-step4",
     "command-target-scoping",
+    "consent-deny-storage-cap",
     "console-rich-dashboard",
     "console-scoped-auth-system-e2e",
     "console-signin-overlay-shortcut",
