@@ -148,9 +148,16 @@ export function canSee(principal: Principal, createdBy: string | null | undefine
  *
  * Visible when the caller owns the project itself **or any ancestor** — so a
  * host agent sees its sub-apps' data, but a sub-app's owner does not see up the
- * tree. `local` sees all; an unowned link (no `createdBy`) is visible (backward
- * compat). Owning a project grants its whole data set (sessions / tasks),
- * regardless of which runtime client created each row.
+ * tree. `local` / `host` (unrestricted) see all via the creator fallback.
+ * Owning a project grants its whole data set (sessions / tasks), regardless of
+ * which runtime client created each row.
+ *
+ * Default-deny: a **scoped** caller (`token` / `forwarded`) with no project
+ * grants may only see a project it actually **owns** (its id appears in the
+ * chain). Unowned / legacy rows (`createdBy == null`) are NOT enumerable by it —
+ * otherwise a leaked or unbound token could read every untagged project on the
+ * daemon. `local` / `host` (unrestricted) keep the lenient creator fallback
+ * (unowned visible), so solo behaviour is unchanged.
  */
 export function canSeeProject(
     principal: Principal,
@@ -163,6 +170,12 @@ export function canSeeProject(
     // back to creator-based ownership (solo / single-token, where they coincide).
     const grant = projectGrant(principal, projectId);
     if (grant !== null) return grant;
+    // No grants → fall back to creator ownership. A scoped caller must own the
+    // project for real (its id in the chain); unowned rows do NOT grant it
+    // visibility (the project-enumeration fix). local / host stay lenient.
+    if (principal.kind === 'token' || principal.kind === 'forwarded') {
+        return ownerChain.some((createdBy) => createdBy != null && createdBy === principal.id);
+    }
     return ownerChain.some((createdBy) => canSee(principal, createdBy));
 }
 

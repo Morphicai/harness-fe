@@ -101,8 +101,15 @@ describe('identity: canSeeProject (project ownership + host subtree)', () => {
         expect(canSeeProject(tokenA, 'p', ['token:bbb', 'token:ccc'])).toBe(false);
     });
 
-    it('unowned link in the chain → visible (backward compat)', () => {
-        expect(canSeeProject(tokenA, 'p', [undefined])).toBe(true);
+    it('scoped token does NOT see a project via an unowned link (enumeration fix)', () => {
+        // Was visible under the old backward-compat rule; default-deny closes it.
+        expect(canSeeProject(tokenA, 'p', [undefined])).toBe(false);
+        expect(canSeeProject(tokenA, 'p', [undefined, 'token:ccc'])).toBe(false);
+    });
+
+    it('local / host still see an unowned project (lenient fallback unchanged)', () => {
+        expect(canSeeProject(LOCAL_PRINCIPAL, 'p', [undefined])).toBe(true);
+        expect(canSeeProject(HOST_PRINCIPAL, 'p', [undefined])).toBe(true);
     });
 
     it('empty chain (unknown project) → not visible to named principal', () => {

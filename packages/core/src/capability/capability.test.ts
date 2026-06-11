@@ -99,6 +99,32 @@ describe('capability — tenant visibility', () => {
         expect((await caps.tasksPending(controller)).length).toBeGreaterThan(0); // bound → sees it
         expect((await caps.tasksPending(LOCAL_PRINCIPAL)).length).toBeGreaterThan(0); // local → all
     });
+
+    it('projectList / projectGet / projectTree filter by visibility (no enumeration for unbound token)', async () => {
+        // Runtime connects as a token principal and registers the project meta
+        // (displayName triggers the upsertProject with createdBy=token:runtime).
+        const sock = new FakePeerSocket();
+        bridge.acceptPeer(sock, writeOnly);
+        sock.receive({
+            type: 'hello', id: 'h1', role: 'runtime-client',
+            projectId: 'demo', tabId: 'tab-1', sessionId: 'sess-1', page: {}, displayName: 'Demo',
+        });
+
+        // Unbound named reader: zero visibility — cannot enumerate or fetch the project.
+        expect(await caps.projectList(reader)).toEqual([]);
+        expect(await caps.projectGet(reader, 'demo')).toBeNull();
+        expect(await caps.projectTree(reader)).toEqual([]);
+
+        // Bound controller (projects:['demo']) sees it on every surface.
+        expect((await caps.projectList(controller)).some((p) => p.id === 'demo')).toBe(true);
+        expect(await caps.projectGet(controller, 'demo')).not.toBeNull();
+        expect((await caps.projectTree(controller)).some((n) => n.id === 'demo')).toBe(true);
+
+        // local sees everything.
+        expect((await caps.projectList(LOCAL_PRINCIPAL)).some((p) => p.id === 'demo')).toBe(true);
+        expect(await caps.projectGet(LOCAL_PRINCIPAL, 'demo')).not.toBeNull();
+        expect((await caps.projectTree(LOCAL_PRINCIPAL)).some((n) => n.id === 'demo')).toBe(true);
+    });
 });
 
 describe('capability — memory + replay', () => {
