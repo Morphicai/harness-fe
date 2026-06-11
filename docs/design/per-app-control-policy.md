@@ -44,8 +44,11 @@ precedence first:
    gateway serves many apps; an operator can override an app's declared default
    without touching its build. Stored alongside the gateway's per-project state.
 3. **App-declared default** (build plugin) — the app author's intent, shipped in
-   the bundle: `runtimeControl: { defaultPolicy: 'ask' | 'allow' | 'deny', scopes? }`,
-   injected via `window.__HARNESS_FE__` (same channel as `consent`).
+   the bundle via the **existing `consent` plugin option** (`off` / `session` /
+   `always` / `deny`), injected on `window.__HARNESS_FE__`. We deliberately did
+   NOT add a separate `runtimeControl.defaultPolicy` that just mirrors `consent`
+   — two overlapping knobs would confuse. A future `runtimeControl: { scopes }`
+   may add a capability-subset dimension `consent` cannot express (below).
 
 Below all three, the global fallback is **deny** (secure default, matches the
 4.0 consent-deny default).
@@ -99,7 +102,8 @@ in-page approval on app B (policy `ask`), and is rejected on app C (policy
 
 ## Extensibility / adaptation
 
-- **Front-end (app author):** `runtimeControl` plugin option (declares default).
+- **Front-end (app author):** the `consent` plugin option declares the default;
+  a future `runtimeControl: { scopes }` adds the capability-subset dimension.
 - **Back-end (operator):** gateway per-project policy + an admin endpoint to set
   overrides; ROADMAP's `GatewayPlugin` interface is the hook for shipping policy
   sources/adapters out-of-tree.
@@ -112,10 +116,10 @@ in-page approval on app B (policy `ask`), and is rejected on app C (policy
 
 ## Staging (maps onto the roadmap)
 
-- **4.0 (in progress, `runtime opt-in`)** — layer 3 (app-declared default) +
-  layer 1 (user `localStorage` choice) + overlay toggle. This is the foundation
-  and ships in the 4.0 closeout. No new app-attribute schema required (uses the
-  plugin option).
+- **4.0 (shipped in `runtime opt-in`)** — layer 3 = the existing `consent`
+  plugin option (no new param); layer 1 = the new user `localStorage` choice
+  (`__hfe_runtime_control__`) + overlay toggle + `window.HarnessFE`
+  get/setRuntimeControl, which overrides `consent`. This is the foundation.
 - **Post-4.0** — layer 2 (gateway per-project override + admin endpoint) and the
   attribute-driven defaults (`env` / `trust` / `controlProfile`), plus the
   `ConsentPolicy → ControlPolicy` protocol extension.
