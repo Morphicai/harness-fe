@@ -19,7 +19,7 @@ import type {
 } from '@harness-fe/protocol';
 import type { Bridge, SendCommandOptions } from '../bridge.js';
 import { canSee, canSeeProject, type Principal } from '../identity.js';
-import type { IStore } from '../store/index.js';
+import type { IStore, ProjectTreeNode } from '../store/index.js';
 import { createReplayExport } from '../replayCreate.js';
 import { buildVisitorTimeline } from '../visitorTimeline.js';
 import { assertScope, requiredScopeForCommand } from './scope.js';
@@ -52,6 +52,27 @@ function ownerChainOf(projectId: string, store: IStore): Array<string | undefine
         id = p.parentProjectId;
     }
     return chain;
+}
+
+/**
+ * Prune a project forest to what `principal` may see. Keeps a node when the
+ * caller can see it OR any of its descendants (so a grant on a sub-app keeps
+ * the path to it reachable), recursing into children. A scoped caller with no
+ * matching grants gets an empty forest — the tree walk must not become a
+ * tenant-isolation bypass.
+ */
+function pruneVisibleTree(
+    nodes: ProjectTreeNode[],
+    principal: Principal,
+    store: IStore,
+): ProjectTreeNode[] {
+    const out: ProjectTreeNode[] = [];
+    for (const node of nodes) {
+        const children = pruneVisibleTree(node.children, principal, store);
+        const selfVisible = canSeeProject(principal, node.id, ownerChainOf(node.id, store));
+        if (selfVisible || children.length > 0) out.push({ ...node, children });
+    }
+    return out;
 }
 
 /** Merge overlapping rrweb recording chunks into contiguous intervals. */
@@ -250,22 +271,28 @@ export class CoreCapabilities {
         }));
     }
 
-    /** List every project the daemon has seen (full metadata). */
+    /** List the projects the caller may see (full metadata). */
     async projectList(principal: Principal) {
         assertScope(principal, 'read');
-        return this.requireStore().listProjects();
+        const store = this.requireStore();
+        return store
+            .listProjects()
+            .filter((p) => canSeeProject(principal, p.id, ownerChainOf(p.id, store)));
     }
 
-    /** Read a single project's metadata. */
+    /** Read a single project's metadata (null if the caller may not see it). */
     async projectGet(principal: Principal, projectId: string) {
         assertScope(principal, 'read');
-        return this.requireStore().getProject(projectId) ?? null;
+        const store = this.requireStore();
+        if (!canSeeProject(principal, projectId, ownerChainOf(projectId, store))) return null;
+        return store.getProject(projectId) ?? null;
     }
 
-    /** Project forest assembled from parentProjectId relationships. */
+    /** Project forest assembled from parentProjectId relationships (pruned to visible). */
     async projectTree(principal: Principal, rootId?: string) {
         assertScope(principal, 'read');
-        return this.requireStore().getProjectTree(rootId);
+        const store = this.requireStore();
+        return pruneVisibleTree(store.getProjectTree(rootId), principal, store);
     }
 
     /** Set or clear a project's parentProjectId (rejects cycles). */
