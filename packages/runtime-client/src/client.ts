@@ -37,6 +37,20 @@ import {
 } from './visitor.js';
 import type { QueryFrame, QueryMethod, QueryResponseFrame } from '@harness-fe/protocol';
 
+/**
+ * The effective, user-facing control state for an app (4.0 runtime opt-in), as
+ * reported by {@link RuntimeClient.getRuntimeControl}. The app's *default* is
+ * the plugin `consent` option; this is what the user currently sees/toggles:
+ *   'allow' — control runs without prompting
+ *   'ask'   — gated by the app/gateway consent default (no explicit user choice)
+ *   'deny'  — control disabled
+ * See docs/design/per-app-control-policy.md.
+ */
+export type RuntimeControlPolicy = 'allow' | 'ask' | 'deny';
+
+/** The user's explicit, persisted opt-in / opt-out for this app's agent control. */
+export type RuntimeControlChoice = 'allow' | 'deny';
+
 export interface ClientOptions {
     projectId: string;
     mcpUrl?: string;
@@ -166,6 +180,14 @@ export class RuntimeClient {
     // default `off` so a daemon that never sends a policy (or loopback solo
     // dev) keeps running control commands without prompting.
     private consentMode: ConsentMode = 'off';
+    /** Consent mode the gateway sent in hello.ack (a resolution input, 4.0 P2). */
+    private daemonConsentMode?: ConsentMode;
+    /**
+     * The user's explicit, persisted runtime-control choice for this app (4.0
+     * runtime opt-in). `null` = the user hasn't chosen → fall back to the
+     * app/gateway default. Highest priority when set. See per-app-control-policy.
+     */
+    private userControlChoice: RuntimeControlChoice | null = null;
     /** Set once the user grants blanket control for this pageload (mode=session). */
     private consentSessionGranted = false;
     /** Set by the overlay to collect the user's decision. Absent ⇒ fail-safe deny. */
@@ -205,6 +227,9 @@ export class RuntimeClient {
 
     start(): void {
         this.loadPermanentGrant();
+        this.loadRuntimeControlChoice();
+        // Resolve an initial mode from app/user defaults; hello.ack may refine it.
+        this.consentMode = this.resolveConsentMode();
         const daemonUrl = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`;
         this.ctx.capture.install(
             (name, payload) => this.sendEvent(name, payload),
@@ -231,6 +256,63 @@ export class RuntimeClient {
         } catch {
             // quota / sandboxed iframe / etc.
         }
+    }
+
+    private runtimeControlKey(): string {
+        return `__hfe_runtime_control__:${this.opts.projectId}`;
+    }
+
+    private loadRuntimeControlChoice(): void {
+        try {
+            const raw = localStorage.getItem(this.runtimeControlKey());
+            if (raw === 'allow' || raw === 'deny') this.userControlChoice = raw;
+        } catch {
+            // localStorage unavailable (iOS private mode, sandboxed iframe, etc.)
+        }
+    }
+
+    private saveRuntimeControlChoice(choice: RuntimeControlChoice): void {
+        try {
+            localStorage.setItem(this.runtimeControlKey(), choice);
+        } catch {
+            // quota / sandboxed iframe / etc.
+        }
+    }
+
+    /**
+     * Resolve the effective consent mode from the per-app control sources, in
+     * precedence order (see docs/design/per-app-control-policy.md):
+     *   1. the user's explicit persisted choice (highest — final say)
+     *   2. the app-declared plugin `consent` (the app's default control policy)
+     *   3. the gateway's hello.ack default
+     *   4. `off` (solo / no policy)
+     */
+    private resolveConsentMode(): ConsentMode {
+        if (this.userControlChoice === 'deny') return 'deny';
+        if (this.userControlChoice === 'allow') return 'off';
+        if (this.opts.consent != null) return this.opts.consent;
+        return this.daemonConsentMode ?? 'off';
+    }
+
+    /**
+     * The user's current effective runtime-control state for this app — what an
+     * overlay toggle should reflect. `'ask'` means "no explicit choice; control
+     * is gated by the app/gateway default".
+     */
+    getRuntimeControl(): RuntimeControlPolicy {
+        if (this.userControlChoice) return this.userControlChoice;
+        return this.resolveConsentMode() === 'deny' ? 'deny' : 'ask';
+    }
+
+    /**
+     * Record the user's explicit opt-in / opt-out for this app's agent control,
+     * persist it, and re-resolve the gate. Highest-priority source.
+     */
+    setRuntimeControl(choice: RuntimeControlChoice): void {
+        this.userControlChoice = choice;
+        this.saveRuntimeControlChoice(choice);
+        if (choice === 'deny') this.consentSessionGranted = false;
+        this.consentMode = this.resolveConsentMode();
     }
 
     stop(): void {
@@ -332,12 +414,10 @@ export class RuntimeClient {
             // Bridge rejected this hello — do not send PAGE_LOAD.
             return;
         }
-        // Plugin config takes priority; gateway hello.ack is the fallback (4.0 · P2).
-        if (this.opts.consent != null) {
-            this.consentMode = this.opts.consent;
-        } else {
-            this.consentMode = frame.consent?.mode ?? 'off';
-        }
+        // Resolve the effective mode across user / plugin / app-default / gateway
+        // sources (4.0 · P2 + runtime opt-in). hello.ack is one input, not final.
+        this.daemonConsentMode = frame.consent?.mode;
+        this.consentMode = this.resolveConsentMode();
         // Force a fresh rrweb FullSnapshot on every ack — including reconnects
         // after daemon restart, network blips, or page-recovery from sleep.
         // Without this, the only baseline for the session is whatever rrweb

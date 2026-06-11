@@ -110,6 +110,13 @@ export interface OverlayClient {
      * with a non-RuntimeClient overlay client still type-check.
      */
     setConsentPrompter?(fn: (req: ConsentRequest) => Promise<ConsentDecision>): void;
+    /**
+     * Runtime opt-in (4.0). The overlay reads the user's current control state
+     * and lets them toggle it; the client persists + re-gates. Optional so
+     * embedders with a non-RuntimeClient overlay client still type-check.
+     */
+    getRuntimeControl?(): 'allow' | 'ask' | 'deny';
+    setRuntimeControl?(choice: 'allow' | 'deny'): void;
 }
 
 /** Subset of @harness-fe/protocol Task that the overlay renders. */
@@ -521,6 +528,30 @@ export function installOverlay(client: OverlayClient): void {
         url.textContent = shortenUrl(location.href);
         url.title = location.href;
         renderConnectionDot();
+        renderControlToggle();
+    };
+
+    // Runtime opt-in (4.0): a one-tap toggle for the user's agent-control choice.
+    // Hidden unless the client exposes the runtime-control API.
+    const renderControlToggle = () => {
+        const btn = infoCard.querySelector<HTMLButtonElement>('[data-role=control-toggle]');
+        if (!btn) return;
+        if (!client.getRuntimeControl || !client.setRuntimeControl) {
+            btn.style.display = 'none';
+            return;
+        }
+        const state = client.getRuntimeControl();
+        btn.style.display = '';
+        btn.textContent =
+            state === 'allow' ? '🔓 Agent control: on' :
+            state === 'deny' ? '🔒 Agent control: off' :
+            '🔓 Agent control: ask';
+        btn.title = 'Allow or block AI agents from driving this page';
+        btn.onclick = () => {
+            const cur = client.getRuntimeControl?.() ?? 'ask';
+            client.setRuntimeControl?.(cur === 'deny' ? 'allow' : 'deny');
+            renderControlToggle();
+        };
     };
 
     const renderConnectionDot = () => {
@@ -2182,6 +2213,7 @@ function buildInfoCard(): HTMLDivElement {
                 <span>Open dashboard</span>
             </button>
             <button class="secondary" data-role="copy-snapshot" type="button">📋 Copy snapshot</button>
+            <button class="secondary" data-role="control-toggle" type="button" style="display:none"></button>
         </div>
         <div class="plugin-actions" data-role="plugin-actions" style="display:none"></div>
         <div class="promo">
