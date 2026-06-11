@@ -160,6 +160,7 @@ If the dashboard is empty, check [docs/troubleshooting.md](/guide/troubleshootin
 
 ## Next steps
 
+- [Team mode (gateway)](/guide/team-mode) — share one daemon across a team: caller identity, project isolation, and a [consent gate](/guide/consent) on browser control
 - [Self-debug mode](/guide/self-debug) — let an agent drive the Harness dashboard itself
 - [LAN mode](/integrations/lan-mode) — phone or second-machine debugging
 - [Docker](/integrations/docker) — share one daemon across a dev team

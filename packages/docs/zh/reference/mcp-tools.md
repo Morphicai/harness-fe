@@ -1,6 +1,10 @@
 # MCP Tools
 
-MCP daemon 暴露 45+ 工具,按功能分组。所有工具对任何支持 MCP 的 Agent(Claude Code、Cursor、Kiro、Windsurf…)都可用。
+MCP daemon 暴露 45+ 工具,按功能分组,可从任何支持 MCP 的 Agent(Claude Code、Cursor、Kiro、Windsurf…)调用。
+
+::: info 权限范围与 consent(4.0)
+**单人**(loopback)模式下所有工具无门控可用。治理[团队模式](/zh/guide/team-mode)更严格:网关**按 token scope 过滤 `tools/list`**(read-only token 根本看不到 `page.*`)、拒绝越权调用(`-32001 scope denied`),并把 `control` 命令(`page.*`)运行在 [consent 门控](/zh/guide/consent)之后。`page.evaluate` 始终提示。
+:::
 
 ## 安装 Agent playbook
 

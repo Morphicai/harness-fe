@@ -1,6 +1,14 @@
 # MCP Tools
 
-The MCP daemon exposes 45+ tools organized into functional groups. All tools are available to any MCP-aware agent (Claude Code, Cursor, Kiro, Windsurf, …).
+The MCP daemon exposes 45+ tools organized into functional groups, usable from any MCP-aware agent (Claude Code, Cursor, Kiro, Windsurf, …).
+
+::: info Scope & consent (4.0)
+In **solo** (loopback) mode every tool is available with no gating. In governed
+[team mode](/guide/team-mode) the gateway is stricter: it **filters `tools/list`
+by your token's scope** (a `read`-only token never even sees `page.*`), denies
+out-of-scope calls (`-32001 scope denied`), and runs `control` commands
+(`page.*`) behind a [consent gate](/guide/consent). `page.evaluate` always prompts.
+:::
 
 ## Install the agent playbook
 

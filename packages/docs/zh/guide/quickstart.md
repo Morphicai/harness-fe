@@ -145,6 +145,7 @@ daemon 通过 stdio MCP 暴露自身。在 Agent 中注册一次即可:
 
 ## 下一步
 
+- [团队模式(网关)](/zh/guide/team-mode) —— 团队共享一个 daemon:调用方身份、项目隔离,以及浏览器控制的 [consent 门控](/zh/guide/consent)
 - [自调试模式](/zh/guide/self-debug) —— 让 Agent 自己驱动 Harness dashboard
 - [LAN 模式](/zh/integrations/lan-mode) —— 手机或第二台机器调试
 - [Docker](/zh/integrations/docker) —— 团队共享一个 daemon
