@@ -1,5 +1,126 @@
 # @harness-fe/protocol
 
+## 4.0.0
+
+### Minor Changes
+
+- 706ef1b: Browser Consent (4.0 · P2) — control commands now require in-page user
+  approval before they run, once the daemon is exposed.
+
+  - The daemon pushes a consent policy in `hello.ack`: `off` on loopback solo
+    dev (zero-friction, unchanged) and `session` once auth is enabled
+    (exposed). Override via `createDaemon({ consent: { mode } })`.
+  - Control commands (`page.click/type/scroll/navigate/reload/set_html/
+set_style/evaluate/wait_for`) are gated; read-only commands (screenshot,
+    dom_query, _\_tail, project._) are not. `page.evaluate` always prompts.
+  - The runtime client gates `handleCommand`: in `session` mode the first
+    control command prompts and the rest of the pageload runs once granted;
+    `always` prompts every time; `off` never prompts. No prompter registered ⇒
+    fail-safe deny (a policy that can't ask must not silently allow).
+  - The in-page overlay shows a consent modal (command preview + Allow once /
+    Allow for session / Deny) and registers itself as the prompter.
+
+  Client-side gate by design: consent is the browser-side user's real-time
+  approval, closest to the user; it reuses the existing command→response round
+  trip (a denied command returns `ok:false` / `CONSENT_DENIED`), so the daemon's
+  `sendCommand` path is unchanged. Behaviour is unchanged on loopback (consent
+  off). New `hello.ack.consent` field is optional.
+
+- 7274a6c: New browser interaction commands, consent UI, overlay option, and full file upload pipeline.
+
+  **New MCP tools (all control-scoped)**
+
+  - `page.upload` — inject files into `<input type="file">` via DataTransfer; files provided as base64 by the agent
+  - `page.select` — set `<select>` value and fire change/input events
+  - `page.check` — set checkbox/radio `.checked` and fire change/input events
+  - `page.paste` — dispatch ClipboardEvent with synthetic clipboard data (fire-and-forget, no dialog)
+  - `page.set_dialog_handler` — pre-register return values for agent-triggered `alert`/`confirm`/`prompt` (read-scope)
+
+  **Consent UI (runtime-only, modern design)**
+
+  - New plugin option `consent?: 'off' | 'session' | 'always'` on `harnessFE()` / `<HarnessScript>`
+  - Plugin config takes priority over gateway `hello.ack`; gateway/CLI unchanged
+  - Permanent grant stored in `localStorage.__hfe_consent_grant__:<projectId>`; survives page refresh
+  - Rebuilt consent panel: blur backdrop + card UI, four buttons (始终允许 / 本次会话 / 仅此次 / 拒绝)
+  - Fixed: consent panel now shows `page.click(#submit-btn)` instead of `page.click([object Object])`
+
+  **Overlay hide option**
+
+  - New plugin option `overlay?: boolean` (default `true`) on `harnessFE()` / `<HarnessScript>`
+  - `overlay: false` hides the "H" floating icon; data capture is unaffected
+
+  **Sandbox: dialogs channel**
+
+  - New `dialogs` sandbox channel intercepts `alert` / `confirm` / `prompt` / `print` / `beforeunload`
+  - Only intercepts when agent is in progress (`__hfe_agent_in_progress__` flag); user calls pass through unchanged
+
+  **Sandbox: forms channel**
+
+  - New `forms` sandbox channel covers the full file upload pipeline to backend:
+    - `HTMLInputElement.prototype.click` (file inputs): suppresses native picker when agent-triggered
+    - `window.FormData` constructor: injects `__hfe_injected_files__` so `new FormData(form)` + fetch sends real files
+    - `HTMLFormElement.prototype.submit`: converts to fetch when agent has injected files; fallback to native on error
+  - `page.upload` sets `__hfe_injected_files__` on the input element (auto-cleared after 60s)
+
+- 7042d17: Caller identity (4.0 · P1) — the auth boundary now carries _who_, not just
+  allow/deny.
+
+  - New `identity` module: `Principal` type + `resolvePrincipal(req, auth)`
+    (loopback → `local`, token → hashed `token:…` id, custom-authorize → `host`),
+    layered on the existing auth primitives so the two never disagree on who is
+    allowed in.
+  - WS connections resolve a `Principal` at upgrade and carry it on
+    `PeerSession.principal`.
+  - Project / session metadata and `Task` gain optional `createdBy` (write-once)
+    and `Task.agentId`; the bridge tags project/session creation with the
+    connection's principal and stamps `agentId` on task claim/resolve.
+
+  Phase 1 only **establishes and tags** identity — reads are not yet filtered by
+  owner (that is P3 tenant isolation). Behaviour is unchanged: loopback solo dev
+  stays a single implicit `local` principal, tokens are still never
+  auto-generated, and all new fields are optional.
+
+- 344f806: Task resolution back-link (4.0 · P7) — close the feedback loop from a reported
+  problem to its fix and the re-test that proved it.
+
+  - `Task` gains an optional `resolution` object: `{ type, commit, prUrl,
+verificationSessionId, verifiedAt }` (`TaskResolution` / `TaskResolutionType`
+    exported from protocol). `type` is one of `code-fix` / `config` / `wontfix` /
+    `duplicate` / `cannot-reproduce`.
+  - `tasks.resolve` accepts a `resolution` arg (after `note`). The daemon defaults
+    `verifiedAt` to now when a `verificationSessionId` is supplied without one, and
+    records the resolution in the persisted task event. Plain
+    `tasks.resolve(id, note)` stays valid — fully backward compatible.
+  - `bridge.resolveTask(id, note?, resolution?, principal?)` and the RemoteBridge
+    RPC carry the resolution through leader/follower.
+  - `@harness-fe/skill` Flow 5 is extended into the full loop: fix → re-drive the
+    reported flow (replay to recall the steps, reproduce with `page_*`) → verify
+    clean (`errors_tail` / `session_tail`) → `tasks.resolve` with the structured
+    resolution.
+
+  Scope: the daemon owns the data link (report → fix → verification session);
+  the L1–L4 automation and git writeback remain agent/skill responsibilities,
+  driven through harness tools + host git. Additive + optional throughout — no
+  behaviour change for existing callers.
+
+### Patch Changes
+
+- 704fb71: Align the linked package group onto a single 4.0.0-next line.
+
+  The gateway/console work only touched some packages, so changesets left the linked
+  group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
+  prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
+  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
+
+- 2453e70: **consent `deny` mode + 1 GiB storage cap**
+
+  - Add `consent: 'deny'` mode — all control commands (`page.click`, `page.type`, etc.) are rejected immediately without any user prompt. Safe default for production deployments.
+  - **Change default consent from `off` to `deny`**. Previously unguarded control commands ran freely unless `--governed` was passed; now control is disabled by default and must be explicitly enabled.
+  - Add `maxTotalBytes` to `RetentionPolicy` (default 1 GiB). After all other pruning passes, oldest sessions are evicted until the data directory falls below the cap.
+  - Add `HARNESS_MAX_STORAGE_BYTES` environment variable and `--max-storage-bytes` support. Override the cap with `-e HARNESS_MAX_STORAGE_BYTES=<bytes>` in Docker. Set to `0` to disable.
+  - Docker image now sets `ENV HARNESS_MAX_STORAGE_BYTES=1073741824` (1 GiB) by default.
+
 ## 4.0.0-next.12
 
 ### Patch Changes

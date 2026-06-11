@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/console-ui",
-    "version": "4.0.0-next.6",
+    "version": "4.0.0",
     "description": "React SPA for the Harness-FE gateway console: data face (projects / sessions / replay) + governance face (tokens / servers / audit). Built with Vite + Tailwind, served by @harness-fe/gateway at /console.",
     "type": "module",
     "license": "MIT",
