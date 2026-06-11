@@ -18,7 +18,8 @@
       "@harness-fe/core",
       "@harness-fe/console-ui",
       "@harness-fe/cli",
-      "@harness-fe/gateway"
+      "@harness-fe/gateway",
+      "@harness-fe/skill"
     ]
   ],
   "access": "public",
