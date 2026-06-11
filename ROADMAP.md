@@ -11,11 +11,11 @@ There are **two axes** to this roadmap:
 
 | Line | Branch / npm tag | What it is | Bar |
 |---|---|---|---|
-| **3.x** | `main` / `latest` | **Personal dev tool** — today's product | Rock-solid in the host app's *dev environment*, zero prod footprint. Bug fixes + dev-experience polish. |
-| **4.0** | `next` / `@next` (prerelease) | **Team-usable (experimental — shipped `4.0.0-next.4`)** | One shared daemon a team self-hosts; members don't collide and each only sees their own. Identity + isolation + routing + gateway. |
-| **5.0** | (after 4.0) | **Production-grade** | High availability + hosted **cloud service**: multi-instance/no-SPOF, shared persistence, remote MCP, observability, SLA. |
+| **4.0** | `main` / `latest` | **Team-usable — current stable** | One shared daemon a team self-hosts; members don't collide and each only sees their own. Identity + isolation + routing + gateway + consent. |
+| **3.x** | `main-3x-stable` (archived) | **Personal dev tool — superseded by 4.0** | Was the single-developer product. Archived on 4.0 graduation; few users, no active maintenance window committed. |
+| **5.0** | `next` / `@next` (future) | **Production-grade** | High availability + hosted **cloud service**: multi-instance/no-SPOF, shared persistence, remote MCP, observability, SLA. |
 
-3.x and 4.0 develop **in parallel** (see [docs/operations/release-flow.md](./docs/operations/release-flow.md) for the dual-line release setup). 4.0's identity/isolation work is the foundation 5.0's cloud service builds on.
+4.0 is the current `latest`. 3.x is archived (it had few users, so the graduation wasn't gated on a long backward-compat window). 4.0's identity/isolation work is the foundation 5.0's cloud service builds on. See [docs/operations/release-flow.md](./docs/operations/release-flow.md).
 
 ---
 
@@ -58,7 +58,7 @@ Keep the single-developer experience unbreakable; ship dev-experience polish and
 
 ---
 
-## 4.0 — Team-usable (`next`, experimental — shipped as `4.0.0-next.4`) · Direction 2
+## 4.0 — Team-usable (`main` / `latest`, current stable) · Direction 2
 
 **Goal:** a team self-hosts **one** shared daemon and multiple members use it without colliding — no cross-driving the wrong tab, no seeing each other's projects/sessions. This is the **identity + isolation + routing** layer. Scope is a *trusted* team; hardening against untrusted multi-tenancy is part of 5.0.
 
