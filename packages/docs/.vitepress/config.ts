@@ -28,6 +28,7 @@ const enThemeConfig: DefaultTheme.Config = {
                 items: [
                     { text: 'Self-debug mode', link: '/guide/self-debug' },
                     { text: 'Troubleshooting', link: '/guide/troubleshooting' },
+                    { text: 'Migrating 3.x → 4.0', link: '/guide/migration-3-to-4' },
                 ],
             },
         ],
@@ -95,6 +96,7 @@ const zhThemeConfig: DefaultTheme.Config = {
                 items: [
                     { text: '自调试模式', link: '/zh/guide/self-debug' },
                     { text: '故障排查', link: '/zh/guide/troubleshooting' },
+                    { text: '从 3.x 迁移到 4.0', link: '/zh/guide/migration-3-to-4' },
                 ],
             },
         ],
