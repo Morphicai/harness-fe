@@ -47,7 +47,7 @@ harness --issue-token name=agentA,scopes=read+control,projects=my-app
 现有配置继续可用。唯一要决定的是控制授权:保持 `deny`(agent 不能控制页面),或设 `consent: 'off'` / 用 overlay 开关允许。daemon 配置(`.mcp.json` 里的 `npx @harness-fe/mcp-server`)不变。
 
 ### 团队(4.0 新增)
-运行一个共享网关,签发受限 token,把 agent 绑定到项目。完整设置见[网关 / 团队模式](../gateway-team-mode.md)。简述:
+运行一个共享网关,签发受限 token,把 agent 绑定到项目。完整设置见[网关 / 团队模式](https://github.com/Morphicai/harness-fe/blob/main/docs/gateway-team-mode.md)。简述:
 
 1. `harness serve --governed`——启动共享、带 consent 门控的网关。
 2. 为 app runtime 签发 write token,为每个 agent 签发 read+control token,各自用 `--issue-token` 绑定到项目。

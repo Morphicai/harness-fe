@@ -65,7 +65,7 @@ overlay toggle to allow it. The daemon config (`npx @harness-fe/mcp-server` in
 
 ### Team (new in 4.0)
 Run one shared gateway, issue scoped tokens, bind agents to projects. Full setup:
-[Gateway / team mode](../gateway-team-mode.md). In short:
+[Gateway / team mode](https://github.com/Morphicai/harness-fe/blob/main/docs/gateway-team-mode.md). In short:
 
 1. `harness serve --governed` — start the shared, consent-gated gateway.
 2. Issue a write token for the app runtime and a read+control token per agent,
