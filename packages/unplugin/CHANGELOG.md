@@ -1,5 +1,93 @@
 # @harness-fe/unplugin
 
+## 4.0.0
+
+### Minor Changes
+
+- 7274a6c: New browser interaction commands, consent UI, overlay option, and full file upload pipeline.
+
+  **New MCP tools (all control-scoped)**
+
+  - `page.upload` — inject files into `<input type="file">` via DataTransfer; files provided as base64 by the agent
+  - `page.select` — set `<select>` value and fire change/input events
+  - `page.check` — set checkbox/radio `.checked` and fire change/input events
+  - `page.paste` — dispatch ClipboardEvent with synthetic clipboard data (fire-and-forget, no dialog)
+  - `page.set_dialog_handler` — pre-register return values for agent-triggered `alert`/`confirm`/`prompt` (read-scope)
+
+  **Consent UI (runtime-only, modern design)**
+
+  - New plugin option `consent?: 'off' | 'session' | 'always'` on `harnessFE()` / `<HarnessScript>`
+  - Plugin config takes priority over gateway `hello.ack`; gateway/CLI unchanged
+  - Permanent grant stored in `localStorage.__hfe_consent_grant__:<projectId>`; survives page refresh
+  - Rebuilt consent panel: blur backdrop + card UI, four buttons (始终允许 / 本次会话 / 仅此次 / 拒绝)
+  - Fixed: consent panel now shows `page.click(#submit-btn)` instead of `page.click([object Object])`
+
+  **Overlay hide option**
+
+  - New plugin option `overlay?: boolean` (default `true`) on `harnessFE()` / `<HarnessScript>`
+  - `overlay: false` hides the "H" floating icon; data capture is unaffected
+
+  **Sandbox: dialogs channel**
+
+  - New `dialogs` sandbox channel intercepts `alert` / `confirm` / `prompt` / `print` / `beforeunload`
+  - Only intercepts when agent is in progress (`__hfe_agent_in_progress__` flag); user calls pass through unchanged
+
+  **Sandbox: forms channel**
+
+  - New `forms` sandbox channel covers the full file upload pipeline to backend:
+    - `HTMLInputElement.prototype.click` (file inputs): suppresses native picker when agent-triggered
+    - `window.FormData` constructor: injects `__hfe_injected_files__` so `new FormData(form)` + fetch sends real files
+    - `HTMLFormElement.prototype.submit`: converts to fetch when agent has injected files; fallback to native on error
+  - `page.upload` sets `__hfe_injected_files__` on the input element (auto-cleared after 60s)
+
+- b3ffe9d: Rebuild ⑤ — the runtime connects to the gateway `/ws` by default.
+
+  - The default WebSocket target is now `ws://127.0.0.1:<port>/ws` (the gateway
+    front door) instead of the daemon's root socket. Both the build plugin and the
+    in-browser runtime client pick it up. The wire protocol is unchanged, so this
+    is purely a target/path change.
+  - `deriveDashboardUrl` now points at the gateway console (`/console`,
+    `/console/session/:id`) instead of the old `/dashboard/`.
+  - Token semantics: the injected token is now expected to be a **write-scope**
+    gateway token. Core denies every read/control capability to a write-only
+    principal, so extracting the token from `window.__HARNESS_FE__` only lets a
+    page report events and be driven — never read or drive anyone else's data.
+    Solo (loopback) stays token-free.
+
+- ded521b: Shared auto-spawn gateway + unified console sign-in.
+
+  - **cli**: `harness serve` (headless shared gateway) and `harness mcp` (stdio↔http proxy) subcommands; default-locate `@harness-fe/console-ui` dist so `/console` serves the real UI with no `--console-dir`.
+  - **ensureSharedGateway**: a dev server (vite/unplugin and native webpack) or the mcp launcher — whoever starts first — auto-spawns one shared Open gateway; the other end reuses it. Team (explicit token) never spawns.
+  - **gateway**: `startMcpStdioProxy`; removed the server-rendered `/admin` + `/admin/login` HTML pages — sign-in unified at `/console`.
+  - **console-ui**: sign-in takes effect without a hard reload; governance tab admin-only.
+  - **demo**: `demo.sh` reclaims a stale harness gateway instead of refusing to start.
+
+### Patch Changes
+
+- 704fb71: Align the linked package group onto a single 4.0.0-next line.
+
+  The gateway/console work only touched some packages, so changesets left the linked
+  group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
+  prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
+  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
+
+- 2453e70: **consent `deny` mode + 1 GiB storage cap**
+
+  - Add `consent: 'deny'` mode — all control commands (`page.click`, `page.type`, etc.) are rejected immediately without any user prompt. Safe default for production deployments.
+  - **Change default consent from `off` to `deny`**. Previously unguarded control commands ran freely unless `--governed` was passed; now control is disabled by default and must be explicitly enabled.
+  - Add `maxTotalBytes` to `RetentionPolicy` (default 1 GiB). After all other pruning passes, oldest sessions are evicted until the data directory falls below the cap.
+  - Add `HARNESS_MAX_STORAGE_BYTES` environment variable and `--max-storage-bytes` support. Override the cap with `-e HARNESS_MAX_STORAGE_BYTES=<bytes>` in Docker. Set to `0` to disable.
+  - Docker image now sets `ENV HARNESS_MAX_STORAGE_BYTES=1073741824` (1 GiB) by default.
+
+- Updated dependencies [704fb71]
+- Updated dependencies [706ef1b]
+- Updated dependencies [7274a6c]
+- Updated dependencies [7042d17]
+- Updated dependencies [2453e70]
+- Updated dependencies [344f806]
+  - @harness-fe/protocol@4.0.0
+
 ## 4.0.0-next.12
 
 ### Patch Changes

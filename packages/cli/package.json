@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/cli",
-    "version": "4.0.0-next.12",
+    "version": "4.0.0",
     "description": "Harness-FE CLI — launches the gateway with an in-process core. `harness` (solo: stdio MCP + loopback /ws, zero-config), `harness serve` (shared headless HTTP gateway), or `harness --governed` (team: tokens + RBAC + audit over HTTP).",
     "type": "module",
     "license": "MIT",

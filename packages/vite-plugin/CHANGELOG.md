@@ -1,5 +1,24 @@
 # @harness-fe/vite
 
+## 4.0.0
+
+### Patch Changes
+
+- 704fb71: Align the linked package group onto a single 4.0.0-next line.
+
+  The gateway/console work only touched some packages, so changesets left the linked
+  group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
+  prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
+  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
+
+- Updated dependencies [704fb71]
+- Updated dependencies [7274a6c]
+- Updated dependencies [2453e70]
+- Updated dependencies [b3ffe9d]
+- Updated dependencies [ded521b]
+  - @harness-fe/unplugin@4.0.0
+
 ## 4.0.0-next.12
 
 ### Patch Changes

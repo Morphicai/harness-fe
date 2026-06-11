@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/skill",
-    "version": "4.0.0-next.13",
+    "version": "4.0.0",
     "description": "Agent skill / playbook for using the Harness-FE MCP toolset. Drop SKILL.md into Claude Code / Cursor / Kiro / etc. via `npx @harness-fe/skill install`.",
     "type": "module",
     "license": "MIT",
