@@ -1,13 +1,13 @@
 ---
-title: Chrome DevTools 不好用？不妨试试 Harness-FE
-description: 一个真实的 dev 阶段调试痛点。Chrome DevTools MCP 解决了一部分，Harness-FE 想往前再走一步。
+title: Chrome DevTools 不好用？不妨试试 harness-fe
+description: 一个真实的 dev 阶段调试痛点。Chrome DevTools MCP 解决了一部分，harness-fe 想往前再走一步。
 date: 2026-05-28
-author: Harness-FE 团队
+author: harness-fe 团队
 ---
 
-# Chrome DevTools 不好用？不妨试试 Harness-FE
+# Chrome DevTools 不好用？不妨试试 harness-fe
 
-![Harness-FE](/blog/images/2026-05-28-devtools-vs-harness/00-banner.png)
+![harness-fe](/blog/images/2026-05-28-devtools-vs-harness/00-banner.png)
 
 ## 背景
 
@@ -35,15 +35,15 @@ author: Harness-FE 团队
 
 我自己最近在构建 [Morphix](https://morphixai.com) 的时候，我的时间真的非常少。我也是一个很懒惰的人——让我去手动点点测试，不仅效率低，而且即便发现了 bug 我也很有可能没有收集到足够的信息。索性帮 Agent 搭建一个能自己取证的工具。
 
-Morphix 本身是一个让用户自己生成 App 的平台。用户可以通过对应用的反馈，或者应用自动产生的反馈，让生成的 App 变得更好、更健壮。这背后的范式跟 Harness-FE 是同一套：**让信息自动回流，让 Agent 自动迭代**。
+Morphix 本身是一个让用户自己生成 App 的平台。用户可以通过对应用的反馈，或者应用自动产生的反馈，让生成的 App 变得更好、更健壮。这背后的范式跟 harness-fe 是同一套：**让信息自动回流，让 Agent 自动迭代**。
 
 只有这样，我才可能利用有限的时间来做更多新的尝试。
 
 ## 实现原理
 
-Harness-FE 由三层组成：
+harness-fe 由三层组成：
 
-![Harness-FE 架构图](/blog/images/2026-05-28-devtools-vs-harness/02-architecture.svg)
+![harness-fe 架构图](/blog/images/2026-05-28-devtools-vs-harness/02-architecture.svg)
 
 **构建插件**:`@harness-fe/vite` / `@harness-fe/webpack` / `@harness-fe/next` 在打包阶段对源码插桩，给每个 JSX 元素加上 `data-morphix-loc="src/Form.tsx:42:8"`。Agent 看到一个元素就直接知道源码位置，不需要 grep，不需要 react-devtools。
 
@@ -76,10 +76,10 @@ skill 是一份 [`SKILL.md`](/zh/reference/mcp-tools)，会被放到 `.claude/sk
 - 什么场景下调哪个工具
 - 不明确时去 [harness-fe.com](https://harness-fe.com) 查文档
 
-然后对 agent 说一句“在这个项目里接入 Harness-FE”，剩下的 Vite / Webpack / Next.js / Electron 集成 agent 会自己完成。各种集成路径在[文档](/zh/integrations/vite)里都有。
+然后对 agent 说一句“在这个项目里接入 harness-fe”，剩下的 Vite / Webpack / Next.js / Electron 集成 agent 会自己完成。各种集成路径在[文档](/zh/integrations/vite)里都有。
 
 ::: tip 它不是 APM
-Harness-FE 的 runtime 只在 dev build 注入，生产构建里不存在。零运行时开销，零隐私顾虑。它不取代 Sentry / Datadog，定位是 dev 阶段你和 agent 一起调试本地代码的工具。
+harness-fe 的 runtime 只在 dev build 注入，生产构建里不存在。零运行时开销，零隐私顾虑。它不取代 Sentry / Datadog，定位是 dev 阶段你和 agent 一起调试本地代码的工具。
 :::
 
 ## 未来的规划
@@ -90,13 +90,13 @@ Harness-FE 的 runtime 只在 dev build 注入，生产构建里不存在。零�
 
 **L4 — 测试阶段（test）**：团队共享 daemon，快速发现 / 快速解决（`next` 分支 / npm `@next` 预发，实验中）。让 QA、产品、开发同时连一台自托管的 daemon——QA 在测试环境撞到 bug 的那一刻，第一现场已经在 daemon 里，开发的 Agent 立刻可以 claim 任务、拉 timeline、定位源码、给修复建议。关键技术点是把调用方身份贯穿到 tool 层、`project.list` / `session.list` / `tasks_pending` 按归属过滤、`sendCommand` 限定在调用者自己的 tab 范围内，以及 MCP session 隔离 + project↔agent 绑定索引。这一层 ready 之后，"测试同学撞到 bug → Agent 取证"才能在团队规模下安全跑。
 
-> 老实说，**L4 这条测试协作线目前还远未完成**——L3 个人开发者场景是稳的，L4 的身份/隔离层还在 `@next` 预发里慢慢推。但这是一个值得做、也已经开了头的方向。我把它公开写在路线图上，是希望吸引同样在思考"AI Agent 怎么真正接管前端调试和验证"的同道一起共建。Harness-FE 想做的不只是一个工具，而是 **Harness 前端开发范式**的一次尝试，这件事一个人或者一个小团队做不到。
+> 老实说，**L4 这条测试协作线目前还远未完成**——L3 个人开发者场景是稳的，L4 的身份/隔离层还在 `@next` 预发里慢慢推。但这是一个值得做、也已经开了头的方向。我把它公开写在路线图上，是希望吸引同样在思考"AI Agent 怎么真正接管前端调试和验证"的同道一起共建。harness-fe 想做的不只是一个工具，而是 **Harness 前端开发范式**的一次尝试，这件事一个人或者一个小团队做不到。
 
 **L5 — 生产阶段（prod）**：用户反馈直接打通到开发团队（L4 之后）。这是 Harness 范式真正落地的样子：**线上终端用户撞到问题，反馈和当时的 session timeline 自动回流到开发团队的 Agent**，Agent 拉源码、定位、提 PR、走 review——不需要人工转述、不需要复现、不需要客服-产品-开发三层翻译。技术底座是生产可用的云服务：多实例无 SPOF、可插拔存储后端（SQLite / Postgres / S3）、远程 MCP、严格多租户安全、SLA。开源 + 自托管的版本一直会在，云服务是额外的选项，不是替代。
 
 **生态覆盖**（独立于成熟度分级，持续推进）。端到端目标是：每一个 Agent 生成的前端项目，默认就带 runtime。`@morphixai/code` mini-app 模板默认接入 `@harness-fe/log` 和 `<HarnessScript>`、`npx @harness-fe/create-app` 一键 scaffold、`@harness-fe/react-native` 给 RN / Expo 提供同等能力（sessionId / MCP 语义一致）。
 
-更长期看，AI Agent 在前端开发里要真正发挥协作价值，工具链需要先把信息基建建好。Harness-FE 是这个方向上的一个具体尝试。代码、issue、PR 都在 GitHub 上欢迎参与：[github.com/Morphicai/harness-fe](https://github.com/Morphicai/harness-fe)。
+更长期看，AI Agent 在前端开发里要真正发挥协作价值，工具链需要先把信息基建建好。harness-fe 是这个方向上的一个具体尝试。代码、issue、PR 都在 GitHub 上欢迎参与：[github.com/Morphicai/harness-fe](https://github.com/Morphicai/harness-fe)。
 
 ---
 

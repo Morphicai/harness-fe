@@ -1,8 +1,8 @@
-# Harness-FE Architecture
+# harness-fe Architecture
 
 ## Layers
 
-![Harness-FE layered architecture](/diagrams/architecture-layers.svg)
+![harness-fe layered architecture](/diagrams/architecture-layers.svg)
 
 | Layer | Package | Responsibility |
 |-------|---------|---------------|

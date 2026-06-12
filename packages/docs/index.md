@@ -1,8 +1,10 @@
 ---
 layout: home
+title: harness-fe — eyes, hands & a source map for your AI agent
+titleTemplate: false
 
 hero:
-  name: "Harness-FE"
+  name: "harness-fe"
   text: "Give your AI agent eyes, hands — and your source map"
   tagline: A dev-time harness that lets an MCP agent see your frontend's console, network, and DOM, drive the page, and trace every element back to the exact file and line. Report → fix → verify, in one loop.
   image:
@@ -44,7 +46,7 @@ features:
 
 ## Built for the dev-time agent loop {#why}
 
-Harness-FE isn't a production monitor and isn't a general-purpose browser bot.
+harness-fe isn't a production monitor and isn't a general-purpose browser bot.
 It's the missing layer that turns an AI coding agent into one that can **see what
 your app is doing, drive it, and know exactly which source line to fix** — then
 prove the fix by replaying the flow. Drop in one build plugin, point an
@@ -52,10 +54,10 @@ MCP-aware agent at it, and the report → fix → verify loop closes itself.
 
 ## How it compares {#how-it-compares}
 
-Other tools each cover a slice. Harness-FE is the one built end-to-end for the
+Other tools each cover a slice. harness-fe is the one built end-to-end for the
 **developer's** agent loop — source-aware, full-stack, and dev-only.
 
-| | **Harness-FE** | Chrome DevTools MCP | browser-use & co. | Sentry / LogRocket |
+| | **harness-fe** | Chrome DevTools MCP | browser-use & co. | Sentry / LogRocket |
 |---|:---:|:---:|:---:|:---:|
 | **Built for** | dev-time agent loop | browser debugging | end-user task agents | production monitoring |
 | Source-aware (file : line) | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck n"></span> |

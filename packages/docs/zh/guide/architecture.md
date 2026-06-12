@@ -1,8 +1,8 @@
-# Harness-FE 架构
+# harness-fe 架构
 
 ## 分层
 
-![Harness-FE 分层架构](/diagrams/architecture-layers.svg)
+![harness-fe 分层架构](/diagrams/architecture-layers.svg)
 
 | 层 | 包 | 职责 |
 |-------|---------|---------------|

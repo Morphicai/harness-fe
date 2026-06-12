@@ -1,8 +1,10 @@
 ---
 layout: home
+title: harness-fe —— 给 AI Agent 一双眼、一双手和源码地图
+titleTemplate: false
 
 hero:
-  name: "Harness-FE"
+  name: "harness-fe"
   text: "给 AI Agent 一双眼、一双手,和你的源码地图"
   tagline: 开发期 harness——让 MCP Agent 看见前端的 console、网络与 DOM,驱动页面,并把每个元素追溯到确切的文件与行号。报告 → 修复 → 验证,一个闭环。
   image:
@@ -44,13 +46,13 @@ features:
 
 ## 为开发期的 Agent 闭环而生 {#why}
 
-Harness-FE 不是生产监控,也不是通用浏览器机器人。它是那一层缺失的桥梁——让 AI 编码 Agent 能**看见你的应用在做什么、驱动它、并准确知道该修哪一行源码**,然后通过回放该流程来验证修复。接入一个构建插件,指向一个支持 MCP 的 Agent,报告 → 修复 → 验证的闭环便自行合拢。
+harness-fe 不是生产监控,也不是通用浏览器机器人。它是那一层缺失的桥梁——让 AI 编码 Agent 能**看见你的应用在做什么、驱动它、并准确知道该修哪一行源码**,然后通过回放该流程来验证修复。接入一个构建插件,指向一个支持 MCP 的 Agent,报告 → 修复 → 验证的闭环便自行合拢。
 
 ## 与同类对比 {#how-it-compares}
 
-其他工具各自覆盖一部分。Harness-FE 是唯一为**开发者**的 Agent 闭环端到端打造的——源码感知、全栈、且仅 dev 期。
+其他工具各自覆盖一部分。harness-fe 是唯一为**开发者**的 Agent 闭环端到端打造的——源码感知、全栈、且仅 dev 期。
 
-| | **Harness-FE** | Chrome DevTools MCP | browser-use 等 | Sentry / LogRocket |
+| | **harness-fe** | Chrome DevTools MCP | browser-use 等 | Sentry / LogRocket |
 |---|:---:|:---:|:---:|:---:|
 | **定位** | 开发期 Agent 闭环 | 浏览器调试 | 终端用户任务 Agent | 生产监控 |
 | 源码感知(file : line) | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck n"></span> |

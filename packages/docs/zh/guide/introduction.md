@@ -1,15 +1,15 @@
 # 介绍
 
-**Harness-FE** 通过 [Model Context Protocol](https://modelcontextprotocol.io) (MCP) 给 AI Agent 提供运行中前端应用的实时可观测能力——console 日志、网络请求、WebSocket 帧、DOM 录制,以及源码感知的元素选择器。
+**harness-fe** 通过 [Model Context Protocol](https://modelcontextprotocol.io) (MCP) 给 AI Agent 提供运行中前端应用的实时可观测能力——console 日志、网络请求、WebSocket 帧、DOM 录制,以及源码感知的元素选择器。
 
 ::: tip Skill 优先的接入方式(推荐)
-最快把 Harness-FE 接入项目的办法,是让 Agent 自己来做。先一次性安装 skill:
+最快把 harness-fe 接入项目的办法,是让 Agent 自己来做。先一次性安装 skill:
 
 ```bash
 npx @harness-fe/skill install
 ```
 
-然后告诉 Agent:*"在这个项目里接入 Harness-FE。"* Skill 文件本身包含安装步骤、MCP daemon 配置、完整的工具目录,以及指向本站的深度链接 —— Agent 拿到这些就够了。
+然后告诉 Agent:*"在这个项目里接入 harness-fe。"* Skill 文件本身包含安装步骤、MCP daemon 配置、完整的工具目录,以及指向本站的深度链接 —— Agent 拿到这些就够了。
 
 手动接入路径见 [快速开始](/zh/guide/quickstart)。
 :::
@@ -46,7 +46,7 @@ Agent 看到的是 `session_tail`、`page_click`、`project_where_is` 等 40+ �
 - **源码感知** —— 元素携带 `data-morphix-loc` / `data-morphix-comp`,Agent 可以调用 `project_where_is` 直接跳到 JSX 源码。
 - **无云端** —— daemon 在本地运行。你的 console 日志和 DOM 录制不会离开你的机器。
 - **框架无关** —— 一个 unplugin 核心支持 Vite、Webpack、Rspack、Rollup、esbuild。
-- **Agent playbook** —— `@harness-fe/skill` 是一个 npm 包,在 Agent 项目里放一个 `SKILL.md`。这个文件教 Agent 如何接入 Harness-FE、每个工具怎么用、何时回查本站获取更深的上下文。**首选安装它** —— 剩下的接入流程都可以对话完成。
+- **Agent playbook** —— `@harness-fe/skill` 是一个 npm 包,在 Agent 项目里放一个 `SKILL.md`。这个文件教 Agent 如何接入 harness-fe、每个工具怎么用、何时回查本站获取更深的上下文。**首选安装它** —— 剩下的接入流程都可以对话完成。
 
 ## 下一步
 

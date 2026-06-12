@@ -12,7 +12,7 @@
 
 ## 第 1 步:安装 Agent skill(推荐)
 
-**Agent skill** 是规范的接入路径。它把 Harness-FE 的全部使用方法——安装步骤、MCP 配置、工具目录、决策流程、安全约束——汇总在一个文件里,Agent 每次会话开始时都会读取。
+**Agent skill** 是规范的接入路径。它把 harness-fe 的全部使用方法——安装步骤、MCP 配置、工具目录、决策流程、安全约束——汇总在一个文件里,Agent 每次会话开始时都会读取。
 
 ```bash
 npx @harness-fe/skill install
@@ -20,7 +20,7 @@ npx @harness-fe/skill install
 
 这会把 `.claude/skills/harness-fe/SKILL.md` 放进你的项目(其他 Agent:`install cursor` / `install kiro` / `install plain`)。然后告诉你的 Agent:
 
-> "在这个项目里接入 Harness-FE。"
+> "在这个项目里接入 harness-fe。"
 
 Agent 会读 skill、识别你的打包器、执行对应的安装命令、写入 MCP 配置。下面的步骤是手动路径——可以作为参考,也可以在你想自己动手时使用。
 

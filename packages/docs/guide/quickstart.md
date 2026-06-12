@@ -16,7 +16,7 @@ project's docs live in [`docs/`](/guide/introduction) and the [README](https://g
 ## Step 1: Install the agent skill (recommended)
 
 The **agent skill** is the canonical onboarding path. It teaches your agent how
-Harness-FE works — install steps, MCP config, tool catalog, decision flows,
+harness-fe works — install steps, MCP config, tool catalog, decision flows,
 safety constraints — all in one file the agent reads at the start of every
 session.
 
@@ -27,7 +27,7 @@ npx @harness-fe/skill install
 That drops `.claude/skills/harness-fe/SKILL.md` into your project (other agents:
 `install cursor` / `install kiro` / `install plain`). From here, ask your agent:
 
-> "Set up Harness-FE in this project."
+> "Set up harness-fe in this project."
 
 The agent reads the skill, detects your bundler, runs the right install
 commands, and writes the MCP config. The rest of this page is the manual path

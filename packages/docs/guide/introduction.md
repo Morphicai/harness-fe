@@ -1,16 +1,16 @@
 # Introduction
 
-**Harness-FE** gives AI agents real-time observability into a running frontend application — console logs, network requests, WebSocket frames, DOM recordings, and source-aware element selectors — via the [Model Context Protocol](https://modelcontextprotocol.io) (MCP).
+**harness-fe** gives AI agents real-time observability into a running frontend application — console logs, network requests, WebSocket frames, DOM recordings, and source-aware element selectors — via the [Model Context Protocol](https://modelcontextprotocol.io) (MCP).
 
 ::: tip Skill-first onboarding (recommended)
-The fastest way to add Harness-FE to a project is to let your agent do it.
+The fastest way to add harness-fe to a project is to let your agent do it.
 Install the agent skill once:
 
 ```bash
 npx @harness-fe/skill install
 ```
 
-Then ask your agent: *"Set up Harness-FE in this project."* The skill contains
+Then ask your agent: *"Set up harness-fe in this project."* The skill contains
 the install steps, the MCP daemon config, the full tool catalog, and pointers
 back to this site for deeper questions — your agent has everything it needs.
 
@@ -49,7 +49,7 @@ The agent sees `session_tail`, `page_click`, `project_where_is`, and 40+ more to
 - **Source awareness** — elements carry `data-morphix-loc` / `data-morphix-comp`, so the agent can call `project_where_is` to jump straight to the JSX source.
 - **No cloud** — the daemon runs locally. Your console logs and DOM recordings never leave your machine.
 - **Framework-agnostic** — one unplugin core supports Vite, Webpack, Rspack, Rollup, and esbuild.
-- **Agent playbook** — `@harness-fe/skill` is a single npm package that drops a `SKILL.md` into your agent project. The file teaches the agent how Harness-FE is set up, how every tool is used, and when to fetch this site for deeper context. **Install it first** — the rest of onboarding is conversational.
+- **Agent playbook** — `@harness-fe/skill` is a single npm package that drops a `SKILL.md` into your agent project. The file teaches the agent how harness-fe is set up, how every tool is used, and when to fetch this site for deeper context. **Install it first** — the rest of onboarding is conversational.
 
 ## Next steps
 

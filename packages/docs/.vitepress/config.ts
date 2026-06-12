@@ -2,7 +2,41 @@ import { defineConfig, type DefaultTheme } from 'vitepress';
 
 const sharedHead: [string, Record<string, string>][] = [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
-    ['meta', { name: 'og:type', content: 'website' }],
+    ['meta', { name: 'theme-color', content: '#005eff' }],
+    [
+        'meta',
+        {
+            name: 'keywords',
+            content:
+                'harness-fe, AI agent, MCP, Model Context Protocol, frontend, dev tools, debugging, source map, console, network, DOM, rrweb, session replay, Claude, Cursor, Codex, browser automation, Vite, Webpack, Next.js',
+        },
+    ],
+    // Open Graph
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:site_name', content: 'harness-fe' }],
+    ['meta', { property: 'og:title', content: 'harness-fe — eyes, hands & a source map for your AI agent' }],
+    [
+        'meta',
+        {
+            property: 'og:description',
+            content:
+                'A dev-time harness that lets an MCP agent see your frontend, drive it, and trace every element to its exact file:line.',
+        },
+    ],
+    ['meta', { property: 'og:image', content: 'https://harness-fe.com/logo.svg' }],
+    ['meta', { property: 'og:url', content: 'https://harness-fe.com/' }],
+    // Twitter
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:title', content: 'harness-fe — eyes, hands & a source map for your AI agent' }],
+    [
+        'meta',
+        {
+            name: 'twitter:description',
+            content:
+                'A dev-time harness that lets an MCP agent see your frontend, drive it, and trace every element to its exact file:line.',
+        },
+    ],
+    ['meta', { name: 'twitter:image', content: 'https://harness-fe.com/logo.svg' }],
 ];
 
 const enThemeConfig: DefaultTheme.Config = {
@@ -156,13 +190,17 @@ const zhThemeConfig: DefaultTheme.Config = {
 };
 
 export default defineConfig({
-    title: 'Harness-FE',
-    description: 'Give AI agents eyes, ears, and hands in your frontend.',
+    title: 'harness-fe',
+    titleTemplate: ':title · harness-fe',
+    description:
+        'Give your AI agent eyes, hands & your source map — see console, network & DOM, drive the page, and trace every element to its exact file:line. MCP-native, dev-only, framework-agnostic.',
     head: sharedHead,
+    sitemap: { hostname: 'https://harness-fe.com' },
+    lastUpdated: true,
 
     themeConfig: {
         logo: '/logo.svg',
-        siteTitle: 'Harness-FE',
+        siteTitle: 'harness-fe',
         socialLinks: [
             { icon: 'github', link: 'https://github.com/Morphicai/harness-fe' },
         ],
@@ -201,8 +239,10 @@ export default defineConfig({
         zh: {
             label: '简体中文',
             lang: 'zh-CN',
-            title: 'Harness-FE',
-            description: '让 AI 代理拥有看见、操作前端的能力。',
+            title: 'harness-fe',
+            titleTemplate: ':title · harness-fe',
+            description:
+                '给你的 AI Agent 一双眼、一双手和源码地图 —— 看见 console、网络与 DOM,驱动页面,并把每个元素追溯到确切的 file:line。MCP 原生、仅 dev 期、框架无关。',
             themeConfig: zhThemeConfig,
         },
     },

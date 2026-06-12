@@ -1,6 +1,6 @@
 # Vite + React / Vue
 
-Add Harness-FE to any Vite project in under 3 minutes.
+Add harness-fe to any Vite project in under 3 minutes.
 
 ## Install
 

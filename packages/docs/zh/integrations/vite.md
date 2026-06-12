@@ -1,6 +1,6 @@
 # Vite + React / Vue
 
-3 分钟内为任何 Vite 项目加上 Harness-FE。
+3 分钟内为任何 Vite 项目加上 harness-fe。
 
 ## 安装
 
