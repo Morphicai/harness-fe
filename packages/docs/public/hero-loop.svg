@@ -1,77 +1,79 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 280" width="600" height="280" fill="none" role="img" aria-label="An AI agent (Claude, Codex, Cursor) drives a web app through harness-fe and observes its network, storage, console and DOM signals from the sandbox — an autonomous loop.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 248" width="640" height="248" fill="none" role="img" aria-label="A three-stage loop: an AI agent (Claude, Codex, Cursor) drives a web app through harness-fe and observes the sandbox's network, storage, console and DOM signals — autonomously.">
   <defs>
-    <linearGradient id="ring" x1="40" y1="90" x2="130" y2="195" gradientUnits="userSpaceOnUse">
+    <linearGradient id="ring" x1="20" y1="52" x2="150" y2="196" gradientUnits="userSpaceOnUse">
       <stop stop-color="#818cf8"/><stop offset="0.5" stop-color="#34d399"/><stop offset="1" stop-color="#fb7185"/>
     </linearGradient>
-    <filter id="glow" x="-90%" y="-90%" width="280%" height="280%">
-      <feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <path id="ctlPath" d="M 140 114 C 220 88 360 84 452 100"/>
-    <path id="obsPath" d="M 452 182 C 360 198 220 194 140 168"/>
   </defs>
 
   <style>
-    .core { transform-box: fill-box; transform-origin: center; animation: breathe 4s ease-in-out infinite; }
-    @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-    .lane.c { animation: dc 1.4s linear infinite; } @keyframes dc { to { stroke-dashoffset: -24; } }
-    .lane.o { animation: db 1.4s linear infinite; } @keyframes db { to { stroke-dashoffset: 24; } }
+    .lane.c { animation: dc 1.3s linear infinite; } @keyframes dc { to { stroke-dashoffset: -22; } }
+    .lane.o { animation: db 1.3s linear infinite; } @keyframes db { to { stroke-dashoffset: 22; } }
     .chip { transform-box: fill-box; transform-origin: center; animation: pop 5s ease-in-out infinite; }
     .c1{animation-delay:0s}.c2{animation-delay:1.25s}.c3{animation-delay:2.5s}.c4{animation-delay:3.75s}
-    @keyframes pop { 0%,100%{opacity:.65} 12%{opacity:1} 32%{opacity:.65} }
-    .lbl  { fill:#5b87f5; font:700 14px ui-sans-serif,-apple-system,'Segoe UI',sans-serif; }
-    .flbl { fill:#8aa0c8; font:700 10.5px ui-sans-serif,-apple-system,sans-serif; letter-spacing:.12em; }
+    @keyframes pop { 0%,100%{opacity:.6} 14%{opacity:1} 34%{opacity:.6} }
+    .cap  { fill:#8aa0c8; font:700 10px ui-sans-serif,-apple-system,'Segoe UI',sans-serif; letter-spacing:.14em; }
+    .ttl  { font:700 17px ui-sans-serif,-apple-system,'Segoe UI',sans-serif; }
+    .sub  { font:500 10px ui-monospace,'SF Mono',monospace; }
     .chiptext { font:600 11px ui-sans-serif,-apple-system,sans-serif; fill:#4d7ff0; }
-    .mono { fill:#8aa0c8; font:500 10px ui-monospace,'SF Mono',monospace; }
-    @media (prefers-reduced-motion: reduce){ .core,.lane,.chip,.pkt { animation:none !important; } }
+    @media (prefers-reduced-motion: reduce){ .lane,.chip,.pkt { animation:none !important; } }
   </style>
 
-  <!-- control lane: Agent → web (drive) -->
-  <use href="#ctlPath" class="lane c" stroke="#005eff" stroke-opacity="0.5" stroke-width="2.4" stroke-dasharray="5 7" stroke-linecap="round"/>
-  <path d="M447 92 l11 8 -10 9 z" fill="#005eff" fill-opacity="0.8"/>
-  <text class="flbl" x="292" y="70" text-anchor="middle" fill="#3f6fe0">CONTROL · DRIVE</text>
-  <g class="pkt"><circle r="5.5" fill="#005eff" filter="url(#glow)"><animateMotion dur="2.8s" repeatCount="indefinite"><mpath href="#ctlPath"/></animateMotion></circle></g>
-  <g class="pkt"><circle r="4" fill="#005eff" fill-opacity="0.8" filter="url(#glow)"><animateMotion dur="2.8s" begin="-1.4s" repeatCount="indefinite"><mpath href="#ctlPath"/></animateMotion></circle></g>
+  <!-- stage captions -->
+  <text class="cap" x="92"  y="34" text-anchor="middle">AGENT</text>
+  <text class="cap" x="320" y="34" text-anchor="middle">HARNESS-FE</text>
+  <text class="cap" x="548" y="34" text-anchor="middle">WEB · SANDBOX</text>
 
-  <!-- observe lane: web → Agent (feedback) -->
-  <use href="#obsPath" class="lane o" stroke="#34d399" stroke-opacity="0.55" stroke-width="2.4" stroke-dasharray="5 7" stroke-linecap="round"/>
-  <path d="M145 160 l-11 8 10 9 z" fill="#34d399" fill-opacity="0.85"/>
-  <text class="flbl" x="292" y="238" text-anchor="middle" fill="#2f9e6e">OBSERVE · FEEDBACK</text>
-  <g class="pkt"><circle r="5.5" fill="#34d399" filter="url(#glow)"><animateMotion dur="2.8s" repeatCount="indefinite"><mpath href="#obsPath"/></animateMotion></circle></g>
-  <g class="pkt"><circle r="4" fill="#34d399" fill-opacity="0.8" filter="url(#glow)"><animateMotion dur="2.8s" begin="-1.4s" repeatCount="indefinite"><mpath href="#obsPath"/></animateMotion></circle></g>
-
-  <!-- Agent -->
-  <g class="core">
-    <circle cx="84" cy="140" r="52" fill="#0f1729"/>
-    <circle cx="84" cy="140" r="52" fill="none" stroke="url(#ring)" stroke-width="3.2"/>
-    <path transform="translate(84 119) scale(0.82) translate(-12 -12)" fill="#fafafa" d="M12 2.5l2.4 6.9 6.9 2.4-6.9 2.4-2.4 6.9-2.4-6.9-6.9-2.4 6.9-2.4z"/>
-    <text x="84" y="150" text-anchor="middle" fill="#fafafa" font-size="16" font-weight="700">Agent</text>
-  </g>
-  <text class="mono" x="84" y="214" text-anchor="middle">Claude · Codex · Cursor</text>
-
-  <!-- harness-fe -->
-  <rect x="246" y="94" width="92" height="92" rx="23" fill="#005eff"/>
-  <g fill="#fafafa">
-    <rect x="278" y="118" width="8" height="44" rx="2"/>
-    <rect x="298" y="118" width="8" height="44" rx="2"/>
-    <rect x="278" y="136" width="28" height="8" rx="2"/>
-  </g>
-  <text class="lbl" x="292" y="214" text-anchor="middle">harness-fe</text>
-
-  <!-- sandbox: the web app the harness wraps -->
+  <!-- ===== control channel (top): drive, left → right ===== -->
   <g>
-    <rect x="396" y="34" width="194" height="212" rx="16" fill="#005eff" fill-opacity="0.03" stroke="#005eff" stroke-opacity="0.32" stroke-width="1.6" stroke-dasharray="3 4"/>
-    <circle cx="412" cy="52" r="3" fill="#fb7185"/><circle cx="423" cy="52" r="3" fill="#fbbf24"/><circle cx="434" cy="52" r="3" fill="#34d399"/>
-    <text class="mono" x="448" y="56" font-size="10">localhost:3000 · sandbox</text>
-    <line x1="396" y1="68" x2="590" y2="68" stroke="#005eff" stroke-opacity="0.16"/>
-    <!-- app wireframe -->
-    <rect x="414" y="84" width="158" height="9" rx="2" fill="#005eff" fill-opacity="0.16"/>
-    <rect x="414" y="101" width="104" height="7" rx="2" fill="#9bb4e8" fill-opacity="0.42"/>
-    <rect x="414" y="114" width="132" height="7" rx="2" fill="#9bb4e8" fill-opacity="0.42"/>
-    <!-- intercepted signals -->
-    <g class="chip c1"><rect x="414" y="138" width="48" height="24" rx="7" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="438" y="154" text-anchor="middle">net</text></g>
-    <g class="chip c2"><rect x="470" y="138" width="74" height="24" rx="7" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="507" y="154" text-anchor="middle">storage</text></g>
-    <g class="chip c3"><rect x="414" y="170" width="74" height="24" rx="7" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="451" y="186" text-anchor="middle">console</text></g>
-    <g class="chip c4"><rect x="496" y="170" width="56" height="24" rx="7" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="524" y="186" text-anchor="middle">DOM</text></g>
-    <text class="mono" x="492" y="220" text-anchor="middle" font-size="9.5" fill-opacity="0.7">intercepted by harness-fe</text>
+    <path class="lane c" d="M168 92 H236" stroke="#005eff" stroke-opacity="0.5" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
+    <path d="M232 86 l9 6 -9 6 z" fill="#005eff" fill-opacity="0.8"/>
+    <path class="lane c" d="M404 92 H464" stroke="#005eff" stroke-opacity="0.5" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
+    <path d="M460 86 l9 6 -9 6 z" fill="#005eff" fill-opacity="0.8"/>
+    <g class="pkt"><circle r="4.5" fill="#005eff" filter="url(#glow)"><animateMotion dur="1.6s" repeatCount="indefinite" path="M168 92 H236"/></circle></g>
+    <g class="pkt"><circle r="4.5" fill="#005eff" filter="url(#glow)"><animateMotion dur="1.6s" begin="-0.8s" repeatCount="indefinite" path="M404 92 H464"/></circle></g>
   </g>
+
+  <!-- ===== observe channel (bottom): feedback, right → left ===== -->
+  <g>
+    <path class="lane o" d="M464 156 H404" stroke="#34d399" stroke-opacity="0.55" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
+    <path d="M408 150 l-9 6 9 6 z" fill="#34d399" fill-opacity="0.85"/>
+    <path class="lane o" d="M236 156 H168" stroke="#34d399" stroke-opacity="0.55" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
+    <path d="M172 150 l-9 6 9 6 z" fill="#34d399" fill-opacity="0.85"/>
+    <g class="pkt"><circle r="4.5" fill="#34d399" filter="url(#glow)"><animateMotion dur="1.6s" repeatCount="indefinite" path="M464 156 H404"/></circle></g>
+    <g class="pkt"><circle r="4.5" fill="#34d399" filter="url(#glow)"><animateMotion dur="1.6s" begin="-0.8s" repeatCount="indefinite" path="M236 156 H168"/></circle></g>
+  </g>
+
+  <!-- ===== Card 1 · Agent ===== -->
+  <rect x="20" y="46" width="148" height="156" rx="18" fill="#0f1729"/>
+  <rect x="20" y="46" width="148" height="156" rx="18" fill="none" stroke="url(#ring)" stroke-width="2.5"/>
+  <path transform="translate(94 92) scale(0.95) translate(-12 -12)" fill="#fafafa" d="M12 2.5l2.4 6.9 6.9 2.4-6.9 2.4-2.4 6.9-2.4-6.9-6.9-2.4 6.9-2.4z"/>
+  <text class="ttl" x="94" y="138" text-anchor="middle" fill="#fafafa">Agent</text>
+  <text class="sub" x="94" y="162" text-anchor="middle" fill="#fafafa" fill-opacity="0.6">Claude · Codex</text>
+  <text class="sub" x="94" y="176" text-anchor="middle" fill="#fafafa" fill-opacity="0.6">Cursor · …</text>
+
+  <!-- ===== Card 2 · harness-fe ===== -->
+  <rect x="246" y="46" width="148" height="156" rx="18" fill="#005eff"/>
+  <g fill="#fafafa">
+    <rect x="305" y="80" width="9" height="52" rx="2"/>
+    <rect x="326" y="80" width="9" height="52" rx="2"/>
+    <rect x="305" y="101" width="30" height="9" rx="2"/>
+  </g>
+  <text class="ttl" x="320" y="166" text-anchor="middle" fill="#fafafa">harness-fe</text>
+  <text class="sub" x="320" y="184" text-anchor="middle" fill="#fafafa" fill-opacity="0.75">observe + drive</text>
+
+  <!-- ===== Card 3 · Web sandbox ===== -->
+  <rect x="472" y="46" width="148" height="156" rx="18" fill="#005eff" fill-opacity="0.04" stroke="#005eff" stroke-opacity="0.32" stroke-width="1.6" stroke-dasharray="3 4"/>
+  <circle cx="488" cy="64" r="3" fill="#fb7185"/><circle cx="499" cy="64" r="3" fill="#fbbf24"/><circle cx="510" cy="64" r="3" fill="#34d399"/>
+  <text class="sub" x="524" y="68" fill="#8aa0c8">localhost:3000</text>
+  <line x1="472" y1="80" x2="620" y2="80" stroke="#005eff" stroke-opacity="0.14"/>
+  <rect x="488" y="92" width="116" height="8" rx="2" fill="#005eff" fill-opacity="0.16"/>
+  <rect x="488" y="106" width="74" height="6" rx="2" fill="#9bb4e8" fill-opacity="0.42"/>
+  <g class="chip c1"><rect x="488" y="124" width="50" height="22" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="513" y="139" text-anchor="middle">net</text></g>
+  <g class="chip c2"><rect x="544" y="124" width="62" height="22" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="575" y="139" text-anchor="middle">store</text></g>
+  <g class="chip c3"><rect x="488" y="152" width="62" height="22" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="519" y="167" text-anchor="middle">console</text></g>
+  <g class="chip c4"><rect x="556" y="152" width="50" height="22" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="581" y="167" text-anchor="middle">DOM</text></g>
+  <text class="sub" x="546" y="190" text-anchor="middle" fill="#8aa0c8" fill-opacity="0.7">intercepted</text>
 </svg>
