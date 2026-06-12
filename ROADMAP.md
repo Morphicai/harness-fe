@@ -108,6 +108,8 @@ Coverage work that lands as it matures, independent of the 3/4/5 maturity line. 
 - [ ] **`@morphixai/code` template integration** — mini-app templates include `@harness-fe/log` + `<HarnessScript>` by default
 - [ ] **Scaffold CLI** — `npx @harness-fe/create-app` produces a pre-wired project
 - [ ] **Harness-first Skill v2** — `@harness-fe/skill` evolves from "how to use the tools" into "the contract every Harness-aware agent follows"
+> Why web-only today and what the RN/Flutter path looks like: [blog — *Does harness-fe work with React Native or Flutter?*](https://harness-fe.com/blog/2026-06-14-react-native-flutter).
+
 - [ ] **React Native runtime client** — dev-only `@harness-fe/react-native` for console / errors / network / screenshots / interaction; same `sessionId` + MCP semantics
 - [ ] **Expo support** — first-class Expo dev workflow, incl. dev clients with native modules
 - [ ] **React Native Harness integration** — real-device test backend agents can init / run / inspect for regression

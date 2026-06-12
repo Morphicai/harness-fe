@@ -19,7 +19,7 @@ pick the top `status: todo` topic, write a bilingual (EN + ZH) post under
 | 4 | Real scenario: "user keeps getting logged out" — DevTools vs harness-fe | Same bug, two workflows, side by side. Commands + timeline. | todo |
 | 5 | Source-aware debugging: why file:line changes everything | `data-morphix-loc` — the agent edits the right line, no grep, no guessing. | todo |
 | 6 | The report → fix → verify loop, explained | How the agent closes its own loop, with the re-test session as proof. | todo |
-| 7 | Does harness-fe work with React Native / Flutter? | The honest answer (web-only today) + the technical path to RN/Flutter. | todo |
+| 7 | Does harness-fe work with React Native / Flutter? | The honest answer (web-only today) + the technical path to RN/Flutter. | done |
 | 8 | The sandbox interceptor: observing fetch / storage / DOM | How `@harness-fe/sandbox` hijacks browser APIs to feed the agent. | todo |
 | 9 | Team mode: one shared gateway, zero collisions | Identity, tenant isolation, project→agent binding — why teams need it. | todo |
 | 10 | Consent & runtime control: letting users say no to the agent | The default-deny gate + the user's runtime opt-in. | todo |
@@ -38,3 +38,4 @@ pick the top `status: todo` topic, write a bilingual (EN + ZH) post under
 
 - 2026-06-12 · #1 What is a harness? → [`blog/2026-06-12-what-is-a-harness`](../packages/docs/blog/2026-06-12-what-is-a-harness.md)
 - 2026-06-13 · (ad-hoc real scenario) The bug that vanishes when you refresh — Morphix SSE reconnect race → [`blog/2026-06-13-streaming-agent-reconnect-bug`](../packages/docs/blog/2026-06-13-streaming-agent-reconnect-bug.md)
+- 2026-06-14 · #7 React Native / Flutter — honest answer + technical path → [`blog/2026-06-14-react-native-flutter`](../packages/docs/blog/2026-06-14-react-native-flutter.md)

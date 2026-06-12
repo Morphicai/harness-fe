@@ -9,6 +9,8 @@ Engineering notes, debugging case studies, and design decisions.
 
 ## 2026
 
+- [Does harness-fe work with React Native or Flutter? An honest answer](/blog/2026-06-14-react-native-flutter) — 2026-06-14
+  > Today: web only. The why — what harness-fe patches for eyes and hands — and the concrete path to RN and Flutter, where it's the same contract behind a different adapter.
 - [The bug that vanishes when you refresh: debugging a streaming agent with harness-fe](/blog/2026-06-13-streaming-agent-reconnect-bug) — 2026-06-13
   > A real bug from building Morphix: refresh mid-stream and a sub-agent's results duplicate or disappear. How harness-fe gets the lost first scene back.
 - [What is a harness? The missing layer between your AI agent and your frontend](/blog/2026-06-12-what-is-a-harness) — 2026-06-12
