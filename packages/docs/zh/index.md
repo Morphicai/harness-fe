@@ -53,17 +53,17 @@ Harness-FE 不是生产监控,也不是通用浏览器机器人。它是那一�
 | | **Harness-FE** | Chrome DevTools MCP | browser-use 等 | Sentry / LogRocket |
 |---|:---:|:---:|:---:|:---:|
 | **定位** | 开发期 Agent 闭环 | 浏览器调试 | 终端用户任务 Agent | 生产监控 |
-| 源码感知(file : line) | ✓ | – | – | – |
-| 报告 → 修复 → 验证闭环 | ✓ | – | – | – |
-| 全栈可观测¹ | ✓ | 部分 | – | ✓(生产) |
-| Agent 驱动页面 | ✓ | ✓ | ✓ | – |
-| 会话回放(rrweb) | ✓ | – | – | ✓ |
-| 多打包器 / 框架² | ✓ | – | – | 部分 |
-| MCP 原生 | ✓ | ✓ | 视情况 | – |
-| 仅 dev · 零生产负担 | ✓ | ✓ | 不适用 | –(跑在生产) |
-| 团队隔离 + 治理 | ✓ | – | – | ✓(SaaS) |
+| 源码感知(file : line) | ✅ | ➖ | ➖ | ➖ |
+| 报告 → 修复 → 验证闭环 | ✅ | ➖ | ➖ | ➖ |
+| 全栈可观测¹ | ✅ | 🟡 | ➖ | ✅ |
+| Agent 驱动页面 | ✅ | ✅ | ✅ | ➖ |
+| 会话回放(rrweb) | ✅ | ➖ | ➖ | ✅ |
+| 多打包器 / 框架² | ✅ | ➖ | ➖ | 🟡 |
+| MCP 原生 | ✅ | ✅ | 🟡 | ➖ |
+| 仅 dev · 零生产负担 | ✅ | ✅ | ⚪ | ➖ |
+| 团队隔离 + 治理 | ✅ | ➖ | ➖ | ✅ |
 
-<p class="home-fineprint">¹ console + 网络 + WebSocket + 错误 + DOM 录制。&nbsp; ² Vite · Webpack · Rspack · Next.js · Vue · React。</p>
+<p class="home-fineprint">✅ 支持 &nbsp;·&nbsp; 🟡 部分 / 有条件 &nbsp;·&nbsp; ➖ 不支持 &nbsp;·&nbsp; ⚪ 不适用 &nbsp;&nbsp;|&nbsp;&nbsp; ¹ console + 网络 + WebSocket + 错误 + DOM 录制 &nbsp;·&nbsp; ² Vite · Webpack · Rspack · Next.js · Vue · React</p>
 
 <div class="home-cta">
 

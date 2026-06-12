@@ -58,17 +58,17 @@ Other tools each cover a slice. Harness-FE is the one built end-to-end for the
 | | **Harness-FE** | Chrome DevTools MCP | browser-use & co. | Sentry / LogRocket |
 |---|:---:|:---:|:---:|:---:|
 | **Built for** | dev-time agent loop | browser debugging | end-user task agents | production monitoring |
-| Source-aware (file : line) | ✓ | – | – | – |
-| Report → fix → verify loop | ✓ | – | – | – |
-| Full-stack observability¹ | ✓ | partial | – | ✓ (prod) |
-| Drive the page (agent) | ✓ | ✓ | ✓ | – |
-| Session replay (rrweb) | ✓ | – | – | ✓ |
-| Multi-bundler / framework² | ✓ | – | – | partial |
-| MCP-native | ✓ | ✓ | varies | – |
-| Dev-only · zero prod footprint | ✓ | ✓ | n/a | – (runs in prod) |
-| Team isolation + governance | ✓ | – | – | ✓ (SaaS) |
+| Source-aware (file : line) | ✅ | ➖ | ➖ | ➖ |
+| Report → fix → verify loop | ✅ | ➖ | ➖ | ➖ |
+| Full-stack observability¹ | ✅ | 🟡 | ➖ | ✅ |
+| Drive the page (agent) | ✅ | ✅ | ✅ | ➖ |
+| Session replay (rrweb) | ✅ | ➖ | ➖ | ✅ |
+| Multi-bundler / framework² | ✅ | ➖ | ➖ | 🟡 |
+| MCP-native | ✅ | ✅ | 🟡 | ➖ |
+| Dev-only · zero prod footprint | ✅ | ✅ | ⚪ | ➖ |
+| Team isolation + governance | ✅ | ➖ | ➖ | ✅ |
 
-<p class="home-fineprint">¹ console + network + WebSocket + errors + DOM recordings. &nbsp; ² Vite · Webpack · Rspack · Next.js · Vue · React.</p>
+<p class="home-fineprint">✅ yes &nbsp;·&nbsp; 🟡 partial / conditional &nbsp;·&nbsp; ➖ no &nbsp;·&nbsp; ⚪ n/a &nbsp;&nbsp;|&nbsp;&nbsp; ¹ console + network + WebSocket + errors + DOM recordings &nbsp;·&nbsp; ² Vite · Webpack · Rspack · Next.js · Vue · React</p>
 
 <div class="home-cta">
 
