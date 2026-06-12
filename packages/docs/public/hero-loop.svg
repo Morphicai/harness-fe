@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 420" width="460" height="420" fill="none" role="img" aria-label="An agent running the harness-fe loop: see, locate, act, verify.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 440" width="460" height="440" fill="none" role="img" aria-label="An AI agent (Claude, Codex, Cursor) at the center runs an autonomous loop on harness-fe: harness-fe feeds back what it sees and accepts the agent's control.">
   <defs>
-    <linearGradient id="ring" x1="60" y1="60" x2="400" y2="360" gradientUnits="userSpaceOnUse">
+    <linearGradient id="ring" x1="60" y1="70" x2="400" y2="380" gradientUnits="userSpaceOnUse">
       <stop stop-color="#818cf8"/>
       <stop offset="0.5" stop-color="#34d399"/>
       <stop offset="1" stop-color="#fb7185"/>
@@ -13,104 +13,92 @@
       <feGaussianBlur stdDeviation="3.2" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <!-- the closed loop the agent travels -->
-    <path id="loop" d="M 230 70 A 135 135 0 1 1 229.9 70 Z"/>
+    <path id="loop" d="M 230 70 A 140 140 0 1 1 229.9 70 Z"/>
   </defs>
 
   <style>
-    .track   { stroke: #005eff; stroke-opacity: 0.22; stroke-width: 2; stroke-dasharray: 5 9;
-               animation: flow 2.4s linear infinite; }
+    .track { stroke: #005eff; stroke-opacity: 0.22; stroke-width: 2; stroke-dasharray: 5 9; animation: flow 2.4s linear infinite; }
     @keyframes flow { to { stroke-dashoffset: -28; } }
-
-    .node    { transform-box: fill-box; transform-origin: center; animation: beat 6s ease-in-out infinite; }
-    .node .ringline { stroke: #005eff; stroke-opacity: 0.35; }
-    .n1 { animation-delay: 0s; } .n2 { animation-delay: 1.5s; }
-    .n3 { animation-delay: 3s; } .n4 { animation-delay: 4.5s; }
-    @keyframes beat {
-      0%, 100% { transform: scale(1);    opacity: 0.82; }
-      8%       { transform: scale(1.14); opacity: 1; }
-      24%      { transform: scale(1);    opacity: 0.82; }
-    }
-
+    .node { transform-box: fill-box; transform-origin: center; animation: beat 6s ease-in-out infinite; }
+    .n1 { animation-delay: 0s; } .n2 { animation-delay: 1.5s; } .n3 { animation-delay: 3s; } .n4 { animation-delay: 4.5s; }
+    @keyframes beat { 0%,100% { transform: scale(1); opacity: 0.82; } 8% { transform: scale(1.14); opacity: 1; } 24% { transform: scale(1); opacity: 0.82; } }
     .core { transform-box: fill-box; transform-origin: center; animation: breathe 4s ease-in-out infinite; }
-    @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-
-    .lbl  { fill: #5b87f5; font: 600 13px ui-sans-serif, -apple-system, 'Segoe UI', sans-serif; letter-spacing: 0.02em; }
-
-    @media (prefers-reduced-motion: reduce) {
-      .track, .node, .core, .spark { animation: none !important; }
-    }
+    @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+    .fb { stroke-dasharray: 4 5; animation: flowin 1.6s linear infinite; }
+    @keyframes flowin { to { stroke-dashoffset: -18; } }
+    .ctl { stroke-dasharray: 4 5; animation: flowout 1.6s linear infinite; }
+    @keyframes flowout { to { stroke-dashoffset: 18; } }
+    .lbl  { fill: #5b87f5; font: 600 13px ui-sans-serif, -apple-system, 'Segoe UI', sans-serif; }
+    .flow-lbl { fill: #7e93bf; font: 600 10px ui-sans-serif, -apple-system, sans-serif; letter-spacing: 0.04em; text-transform: uppercase; }
+    @media (prefers-reduced-motion: reduce) { .track,.node,.core,.spark,.fb,.ctl { animation: none !important; } }
   </style>
 
-  <!-- the loop track -->
-  <circle class="track" cx="230" cy="205" r="135"/>
+  <!-- the autonomous loop track -->
+  <circle class="track" cx="230" cy="210" r="140"/>
 
-  <!-- clockwise direction arrowheads on the track -->
+  <!-- clockwise arrowheads -->
   <g fill="#005eff" fill-opacity="0.5">
-    <path d="M365 198 l8 7 -8 7 z"/>            <!-- right, pointing down -->
-    <path d="M237 340 l-7 8 -7 -8 z"/>          <!-- bottom, pointing left -->
-    <path d="M95 212 l-8 -7 8 -7 z"/>           <!-- left, pointing up -->
-    <path d="M223 70 l7 -8 7 8 z"/>             <!-- top, pointing right -->
+    <path d="M370 203 l8 7 -8 7 z"/>
+    <path d="M237 350 l-7 8 -7 -8 z"/>
+    <path d="M90 217 l-8 -7 8 -7 z"/>
+    <path d="M223 70 l7 -8 7 8 z"/>
   </g>
 
-  <!-- the agent, travelling the loop autonomously -->
+  <!-- the agent (spark) travelling the loop autonomously -->
   <g class="spark">
-    <circle r="16" fill="url(#spark)">
-      <animateMotion dur="6s" repeatCount="indefinite" rotate="auto"><mpath href="#loop"/></animateMotion>
-    </circle>
-    <circle r="6" fill="#34d399" filter="url(#glow)">
-      <animateMotion dur="6s" repeatCount="indefinite"><mpath href="#loop"/></animateMotion>
-    </circle>
+    <circle r="16" fill="url(#spark)"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#loop"/></animateMotion></circle>
+    <circle r="6" fill="#34d399" filter="url(#glow)"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#loop"/></animateMotion></circle>
   </g>
 
-  <!-- See (top) -->
+  <!-- harness-fe capabilities on the ring -->
   <g class="node n1">
-    <circle cx="230" cy="70" r="30" fill="#005eff"/>
-    <circle class="ringline" cx="230" cy="70" r="35" fill="none"/>
-    <g transform="translate(230 70) scale(0.92) translate(-12 -12)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="230" cy="70" r="28" fill="#005eff"/>
+    <g transform="translate(230 70) scale(0.86) translate(-12 -12)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>
     </g>
   </g>
-  <text class="lbl" x="230" y="22" text-anchor="middle">See</text>
+  <text class="lbl" x="230" y="24" text-anchor="middle">See</text>
 
-  <!-- Locate (right) -->
   <g class="node n2">
-    <circle cx="365" cy="205" r="30" fill="#005eff"/>
-    <circle class="ringline" cx="365" cy="205" r="35" fill="none"/>
-    <g transform="translate(365 205) scale(0.92) translate(-12 -12)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="370" cy="210" r="28" fill="#005eff"/>
+    <g transform="translate(370 210) scale(0.86) translate(-12 -12)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="9"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/><circle cx="12" cy="12" r="2.2" fill="#fff" stroke="none"/>
     </g>
   </g>
-  <text class="lbl" x="408" y="210" text-anchor="middle">Locate</text>
+  <text class="lbl" x="412" y="214" text-anchor="middle">Locate</text>
 
-  <!-- Act (bottom) -->
   <g class="node n3">
-    <circle cx="230" cy="340" r="30" fill="#005eff"/>
-    <circle class="ringline" cx="230" cy="340" r="35" fill="none"/>
-    <g transform="translate(230 340) scale(0.92) translate(-12 -12)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="230" cy="350" r="28" fill="#005eff"/>
+    <g transform="translate(230 350) scale(0.86) translate(-12 -12)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3 3l7.2 17 2.5-7.3L20 10.2 3 3z"/><path d="M13 13l6 6"/>
     </g>
   </g>
-  <text class="lbl" x="230" y="392" text-anchor="middle">Act</text>
+  <text class="lbl" x="230" y="400" text-anchor="middle">Act</text>
 
-  <!-- Verify (left) -->
   <g class="node n4">
-    <circle cx="95" cy="205" r="30" fill="#005eff"/>
-    <circle class="ringline" cx="95" cy="205" r="35" fill="none"/>
-    <g transform="translate(95 205) scale(0.92) translate(-12 -12)" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="90" cy="210" r="28" fill="#005eff"/>
+    <g transform="translate(90 210) scale(0.86) translate(-12 -12)" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
       <path d="M20 6 9 17l-5-5"/>
     </g>
   </g>
-  <text class="lbl" x="52" y="210" text-anchor="middle">Verify</text>
+  <text class="lbl" x="48" y="214" text-anchor="middle">Verify</text>
 
-  <!-- core: harness-fe -->
+  <!-- feedback: harness-fe → agent (inbound, from See) -->
+  <path class="fb" d="M230 100 V152" stroke="#34d399" stroke-width="2" stroke-linecap="round"/>
+  <path d="M226 146 l4 7 4 -7 z" fill="#34d399"/>
+  <text class="flow-lbl" x="244" y="128" fill="#2f9e6e">feedback</text>
+
+  <!-- control: agent → harness-fe (outbound, to Act) -->
+  <path class="ctl" d="M230 268 V320" stroke="#005eff" stroke-width="2" stroke-linecap="round"/>
+  <path d="M226 314 l4 7 4 -7 z" fill="#005eff"/>
+  <text class="flow-lbl" x="244" y="298" fill="#3f6fe0">control</text>
+
+  <!-- center: the Agent -->
   <g class="core">
-    <circle cx="230" cy="205" r="46" fill="#0f1729"/>
-    <circle cx="230" cy="205" r="46" fill="none" stroke="url(#ring)" stroke-width="3"/>
-    <g fill="#fafafa">
-      <rect x="214" y="186" width="7" height="38" rx="1.5"/>
-      <rect x="239" y="186" width="7" height="38" rx="1.5"/>
-      <rect x="214" y="201" width="32" height="7" rx="1.5"/>
-    </g>
+    <circle cx="230" cy="210" r="54" fill="#0f1729"/>
+    <circle cx="230" cy="210" r="54" fill="none" stroke="url(#ring)" stroke-width="3"/>
+    <path transform="translate(230 188) scale(0.8) translate(-12 -12)" fill="#fafafa" d="M12 2.5l2.4 6.9 6.9 2.4-6.9 2.4-2.4 6.9-2.4-6.9-6.9-2.4 6.9-2.4z"/>
+    <text x="230" y="222" text-anchor="middle" fill="#fafafa" font="700 15px ui-sans-serif, -apple-system, sans-serif" font-size="15" font-weight="700">Agent</text>
+    <text x="230" y="238" text-anchor="middle" fill="#fafafa" fill-opacity="0.62" font-size="8.5" font-weight="500">Claude · Codex · Cursor</text>
   </g>
 </svg>
