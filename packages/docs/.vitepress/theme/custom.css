@@ -180,8 +180,41 @@
 }
 .VPHero .image-bg { animation: hfe-drift 16s ease-in-out infinite; }
 
-/* Comparison-table ✓/etc. a touch larger for legibility. */
-.home-section td { font-size: 1.02rem; }
+/* Comparison-table status icons (mask-tinted SVG, no emoji). */
+.home-section .ck {
+    display: inline-block;
+    width: 19px;
+    height: 19px;
+    vertical-align: -4px;
+}
+.home-section .ck::before {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-color: var(--ck-color, var(--vp-c-text-3));
+    -webkit-mask: center / contain no-repeat var(--ck-src);
+    mask: center / contain no-repeat var(--ck-src);
+}
+.home-section .ck.y  { --ck-src: url(/icons/ck-yes.svg);     --ck-color: var(--vp-c-brand-1); }
+.home-section .ck.p  { --ck-src: url(/icons/ck-partial.svg); --ck-color: #d97706; }
+.home-section .ck.n  { --ck-src: url(/icons/ck-no.svg);      --ck-color: var(--vp-c-text-3); }
+.home-section .ck.na { --ck-src: url(/icons/ck-na.svg);      --ck-color: var(--vp-c-text-3); opacity: 0.55; }
+.dark .home-section .ck.p { --ck-color: #fbbf24; }
+
+/* Feature icon: clean tile, no heavy fill behind the line icon. */
+.VPFeature .icon {
+    background: var(--vp-c-brand-soft) !important;
+    border: 1px solid var(--vp-c-border);
+}
+
+/* Light-mode gradient echo of the dark hero — soft ring tint on accents. */
+.home-cta {
+    background:
+        linear-gradient(120deg, rgba(129, 140, 248, 0.08), rgba(52, 211, 153, 0.06) 50%, rgba(251, 113, 133, 0.07)),
+        var(--vp-c-bg-soft);
+}
+.home-section h2 { position: relative; }
 
 @media (prefers-reduced-motion: reduce) {
     .VPHero .name, .VPHero .text, .VPHero .tagline, .VPHero .actions,

@@ -20,22 +20,22 @@ hero:
       link: https://github.com/Morphicai/harness-fe
 
 features:
-  - icon: 🎯
+  - icon: { src: /icons/source-aware.svg, width: 30, height: 30 }
     title: 源码感知,精确到行
     details: 每个元素都携带 JSX 源位置。Agent 知道该改哪个文件、哪一行——无需猜测、无需 grep。这是任何调试器都给不了的部分。
-  - icon: 👁️
+  - icon: { src: /icons/observability.svg, width: 30, height: 30 }
     title: 全栈可观测
     details: Console、网络、WebSocket、错误、rrweb DOM 录制——实时流式推送给 Agent。回放任意会话,看清到底发生了什么。
-  - icon: 🕹️
+  - icon: { src: /icons/drive.svg, width: 30, height: 30 }
     title: 安全地驱动浏览器
     details: Agent 可点击、输入、导航、求值——都在用户掌控的 consent 门控之后。按 app 选择开启,或一键禁止。
-  - icon: 🔌
+  - icon: { src: /icons/mcp.svg, width: 30, height: 30 }
     title: MCP 原生
     details: 兼容 Claude Code、Cursor、Kiro、Windsurf 及任何支持 MCP 的客户端。一个 server,45+ 工具,stdio 或 HTTP。
-  - icon: 👥
+  - icon: { src: /icons/team.svg, width: 30, height: 30 }
     title: 团队就绪(4.0)
     details: 一个共享网关、受限 token、调用方身份与租户隔离——队友互不干扰,各自只看到自己的项目。
-  - icon: 🌱
+  - icon: { src: /icons/dev-only.svg, width: 30, height: 30 }
     title: 仅 dev 期,零负担
     details: 运行时仅在开发构建中加载。生产零开销,不向第三方上报遥测,无需账号或 API key 即可开始。
 ---
@@ -53,17 +53,17 @@ Harness-FE 不是生产监控,也不是通用浏览器机器人。它是那一�
 | | **Harness-FE** | Chrome DevTools MCP | browser-use 等 | Sentry / LogRocket |
 |---|:---:|:---:|:---:|:---:|
 | **定位** | 开发期 Agent 闭环 | 浏览器调试 | 终端用户任务 Agent | 生产监控 |
-| 源码感知(file : line) | ✅ | ➖ | ➖ | ➖ |
-| 报告 → 修复 → 验证闭环 | ✅ | ➖ | ➖ | ➖ |
-| 全栈可观测¹ | ✅ | 🟡 | ➖ | ✅ |
-| Agent 驱动页面 | ✅ | ✅ | ✅ | ➖ |
-| 会话回放(rrweb) | ✅ | ➖ | ➖ | ✅ |
-| 多打包器 / 框架² | ✅ | ➖ | ➖ | 🟡 |
-| MCP 原生 | ✅ | ✅ | 🟡 | ➖ |
-| 仅 dev · 零生产负担 | ✅ | ✅ | ⚪ | ➖ |
-| 团队隔离 + 治理 | ✅ | ➖ | ➖ | ✅ |
+| 源码感知(file : line) | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck n"></span> |
+| 报告 → 修复 → 验证闭环 | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck n"></span> |
+| 全栈可观测¹ | <span class="ck y"></span> | <span class="ck p"></span> | <span class="ck n"></span> | <span class="ck y"></span> |
+| Agent 驱动页面 | <span class="ck y"></span> | <span class="ck y"></span> | <span class="ck y"></span> | <span class="ck n"></span> |
+| 会话回放(rrweb) | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck y"></span> |
+| 多打包器 / 框架² | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck p"></span> |
+| MCP 原生 | <span class="ck y"></span> | <span class="ck y"></span> | <span class="ck p"></span> | <span class="ck n"></span> |
+| 仅 dev · 零生产负担 | <span class="ck y"></span> | <span class="ck y"></span> | <span class="ck na"></span> | <span class="ck n"></span> |
+| 团队隔离 + 治理 | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck y"></span> |
 
-<p class="home-fineprint">✅ 支持 &nbsp;·&nbsp; 🟡 部分 / 有条件 &nbsp;·&nbsp; ➖ 不支持 &nbsp;·&nbsp; ⚪ 不适用 &nbsp;&nbsp;|&nbsp;&nbsp; ¹ console + 网络 + WebSocket + 错误 + DOM 录制 &nbsp;·&nbsp; ² Vite · Webpack · Rspack · Next.js · Vue · React</p>
+<p class="home-fineprint"><span class="ck y"></span> 支持 &nbsp;·&nbsp; <span class="ck p"></span> 部分 / 有条件 &nbsp;·&nbsp; <span class="ck n"></span> 不支持 &nbsp;·&nbsp; <span class="ck na"></span> 不适用 &nbsp;&nbsp;|&nbsp;&nbsp; ¹ console + 网络 + WebSocket + 错误 + DOM 录制 &nbsp;·&nbsp; ² Vite · Webpack · Rspack · Next.js · Vue · React</p>
 
 <div class="home-cta">
 

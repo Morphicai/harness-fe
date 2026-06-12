@@ -20,22 +20,22 @@ hero:
       link: https://github.com/Morphicai/harness-fe
 
 features:
-  - icon: 🎯
+  - icon: { src: /icons/source-aware.svg, width: 30, height: 30 }
     title: Source-aware, to the line
     details: Every element carries its JSX source location. The agent knows which file and line to edit — no guessing, no grep. The part no debugger gives you.
-  - icon: 👁️
+  - icon: { src: /icons/observability.svg, width: 30, height: 30 }
     title: Full-stack observability
     details: Console, network, WebSocket, errors, and rrweb DOM recordings — streamed to your agent in real time. Replay any session to see exactly what happened.
-  - icon: 🕹️
+  - icon: { src: /icons/drive.svg, width: 30, height: 30 }
     title: Drive the browser, safely
     details: The agent can click, type, navigate, and evaluate — behind a consent gate the user controls. Opt in per app, or block it with one tap.
-  - icon: 🔌
+  - icon: { src: /icons/mcp.svg, width: 30, height: 30 }
     title: MCP-native
     details: Works with Claude Code, Cursor, Kiro, Windsurf, and any MCP-aware client. One server, 45+ tools, stdio or HTTP.
-  - icon: 👥
+  - icon: { src: /icons/team.svg, width: 30, height: 30 }
     title: Team-ready (4.0)
     details: One shared gateway, scoped tokens, caller identity, and tenant isolation — teammates don't collide and each only sees their own projects.
-  - icon: 🌱
+  - icon: { src: /icons/dev-only.svg, width: 30, height: 30 }
     title: Dev-only, zero footprint
     details: The runtime ships only in development. Zero production overhead, zero telemetry to third parties, no accounts or API keys to start.
 ---
@@ -58,17 +58,17 @@ Other tools each cover a slice. Harness-FE is the one built end-to-end for the
 | | **Harness-FE** | Chrome DevTools MCP | browser-use & co. | Sentry / LogRocket |
 |---|:---:|:---:|:---:|:---:|
 | **Built for** | dev-time agent loop | browser debugging | end-user task agents | production monitoring |
-| Source-aware (file : line) | ✅ | ➖ | ➖ | ➖ |
-| Report → fix → verify loop | ✅ | ➖ | ➖ | ➖ |
-| Full-stack observability¹ | ✅ | 🟡 | ➖ | ✅ |
-| Drive the page (agent) | ✅ | ✅ | ✅ | ➖ |
-| Session replay (rrweb) | ✅ | ➖ | ➖ | ✅ |
-| Multi-bundler / framework² | ✅ | ➖ | ➖ | 🟡 |
-| MCP-native | ✅ | ✅ | 🟡 | ➖ |
-| Dev-only · zero prod footprint | ✅ | ✅ | ⚪ | ➖ |
-| Team isolation + governance | ✅ | ➖ | ➖ | ✅ |
+| Source-aware (file : line) | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck n"></span> |
+| Report → fix → verify loop | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck n"></span> |
+| Full-stack observability¹ | <span class="ck y"></span> | <span class="ck p"></span> | <span class="ck n"></span> | <span class="ck y"></span> |
+| Drive the page (agent) | <span class="ck y"></span> | <span class="ck y"></span> | <span class="ck y"></span> | <span class="ck n"></span> |
+| Session replay (rrweb) | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck y"></span> |
+| Multi-bundler / framework² | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck p"></span> |
+| MCP-native | <span class="ck y"></span> | <span class="ck y"></span> | <span class="ck p"></span> | <span class="ck n"></span> |
+| Dev-only · zero prod footprint | <span class="ck y"></span> | <span class="ck y"></span> | <span class="ck na"></span> | <span class="ck n"></span> |
+| Team isolation + governance | <span class="ck y"></span> | <span class="ck n"></span> | <span class="ck n"></span> | <span class="ck y"></span> |
 
-<p class="home-fineprint">✅ yes &nbsp;·&nbsp; 🟡 partial / conditional &nbsp;·&nbsp; ➖ no &nbsp;·&nbsp; ⚪ n/a &nbsp;&nbsp;|&nbsp;&nbsp; ¹ console + network + WebSocket + errors + DOM recordings &nbsp;·&nbsp; ² Vite · Webpack · Rspack · Next.js · Vue · React</p>
+<p class="home-fineprint"><span class="ck y"></span> yes &nbsp;·&nbsp; <span class="ck p"></span> partial / conditional &nbsp;·&nbsp; <span class="ck n"></span> no &nbsp;·&nbsp; <span class="ck na"></span> n/a &nbsp;&nbsp;|&nbsp;&nbsp; ¹ console + network + WebSocket + errors + DOM recordings &nbsp;·&nbsp; ² Vite · Webpack · Rspack · Next.js · Vue · React</p>
 
 <div class="home-cta">
 
