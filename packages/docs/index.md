@@ -6,8 +6,8 @@ hero:
   text: "Give your AI agent eyes, hands — and your source map"
   tagline: A dev-time harness that lets an MCP agent see your frontend's console, network, and DOM, drive the page, and trace every element back to the exact file and line. Report → fix → verify, in one loop.
   image:
-    src: /logo.svg
-    alt: Harness-FE
+    src: /hero-loop.svg
+    alt: An agent autonomously running the harness-fe loop — see, locate, act, verify
   actions:
     - theme: brand
       text: Get started in 3 minutes

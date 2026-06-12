@@ -6,8 +6,8 @@ hero:
   text: "给 AI Agent 一双眼、一双手,和你的源码地图"
   tagline: 开发期 harness——让 MCP Agent 看见前端的 console、网络与 DOM,驱动页面,并把每个元素追溯到确切的文件与行号。报告 → 修复 → 验证,一个闭环。
   image:
-    src: /logo.svg
-    alt: Harness-FE
+    src: /hero-loop.svg
+    alt: Agent 自主运行 harness-fe 闭环 —— 观测、定位、操作、验证
   actions:
     - theme: brand
       text: 3 分钟上手
