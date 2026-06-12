@@ -9,6 +9,8 @@ description: harness-fe 团队的工程随笔、调试案例、版本说明。
 
 ## 2026
 
+- [刷新一下就消失的 bug:用 harness-fe 调试流式 agent](/zh/blog/2026-06-13-streaming-agent-reconnect-bug) —— 2026-06-13
+  > 一个来自 Morphix 的真实 bug:流式对话中刷新,子 agent 结果重复或消失。harness-fe 怎么把丢失的第一现场捡回来。
 - [什么是 harness?AI Agent 与你的前端之间,缺的那一层](/zh/blog/2026-06-12-what-is-a-harness) —— 2026-06-12
   > AI Agent 会写代码,却看不见、碰不到正在运行的应用。harness 给它一双眼、一双手,和一张回到确切源码行的地图。
 - [Chrome DevTools 不好用?不妨试试 harness-fe](/zh/blog/2026-05-28-devtools-vs-harness-fe) —— 2026-05-28
