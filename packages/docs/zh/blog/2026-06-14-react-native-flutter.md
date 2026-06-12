@@ -27,6 +27,8 @@ harness-fe 给 AI agent 在运行中的前端上三样东西:**眼睛**(观察�
 
 这份契约是平台无关的。"给我最近 20 条网络请求,连同它们的 initiator 栈"在*任何*会发网络请求的运行时上都是个有意义的问题。每个平台变的只是底下的**适配器**:那个知道怎么真正捕获一次网络调用、一条日志、一次崩溃、一张截图、一次交互,并把它喂进同一条时间线、同一个 `sessionId` 的东西。
 
+契约骑在一个标准之上,这一点很关键。[Model Context Protocol](https://en.wikipedia.org/wiki/Model_Context_Protocol)(Anthropic 于 2024 年 11 月推出,2025 年被 OpenAI 和 Google 采纳)已[沉淀为默认的 agent 集成层](https://blog.modelcontextprotocol.io/posts/2026-mcp-roadmap/),到 2026 年在全行业跑在生产环境。所以契约的 agent 这一侧,不管什么平台都是固定的 —— 一个 React Native 或 Flutter 适配器不会发明新的 agent 接口,它说的是每个 MCP 客户端都已经懂的那一套。
+
 所以路线图不是"为移动端重建 harness-fe"。而是"写一个说现有契约的新适配器"。
 
 ## 通往 React Native 的路径

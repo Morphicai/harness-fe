@@ -17,15 +17,32 @@ Follow these steps in order. Do not skip the quality bar or the compliance check
   `#`), unless the user named a specific topic in the command arguments — then use that.
 - If the queue is empty, tell the user and stop (propose 3–5 fresh topics for them to approve).
 
-## 2. Research for substance (this is what makes it good, not generic)
+## 2. Research for substance — DEPTH IS THE BAR (not generic marketing)
 
-- A great post is built on a **real, specific scenario** with real commands and
-  an honest DevTools-vs-harness-fe contrast — like the two seed posts
-  (`blog/2026-06-12-what-is-a-harness.md`, `blog/2026-06-13-streaming-agent-reconnect-bug.md`).
-- You may mine **Morphix** (the user's personal project, nameable) for real
-  scenarios — read its frontend code under `/Users/admin/www/morphix/apps/morphicai-web`
-  if relevant. **Every code detail you cite must be verified real** (open the file,
-  confirm the symbol/line). Never invent code.
+The user's standing feedback: posts must **not be hollow**. They must (a) be
+grounded in the **real current state of agent development** and (b) use a **real,
+verified dev scenario**, and (c) demonstrate genuine technical depth. Hollow
+"imagine a bug" framing fails the bar.
+
+- **Landscape grounding (cite real sources).** Anchor claims about how agents
+  work / where they fail in citable evidence — vendor docs, GitHub issues, papers,
+  practitioner blogs, HN threads. For a big/authoritative post, run the
+  `deep-research` skill first. Reusable, already-verified anchors:
+  - Chrome's own framing that agents are "programming with a blindfold on" — [developer.chrome.com/blog/chrome-devtools-mcp](https://developer.chrome.com/blog/chrome-devtools-mcp)
+  - Chrome DevTools MCP console traces point at *bundled*, not source-mapped, lines — [chrome-devtools-mcp #695](https://github.com/ChromeDevTools/chrome-devtools-mcp/issues/695)
+  - the "describe-check-fix loop" + what tools can't see — [dev.to/bluehotdog](https://dev.to/bluehotdog/ai-coding-tools-that-actually-see-your-browser-2026-2hoc)
+  - agents falsely report success on broken UIs — [huuhka.net](https://www.huuhka.net/browser-verification-for-coding-agents-chrome-devtools-mcp-vs-agent-browser/)
+  - MCP trajectory (Anthropic Nov 2024 → OpenAI/Google 2025 → production 2026) — [Wikipedia](https://en.wikipedia.org/wiki/Model_Context_Protocol) / [2026 roadmap](https://blog.modelcontextprotocol.io/posts/2026-mcp-roadmap/)
+  - Be fair to competitors (it reads as credible, not defensive). Two claims were
+    *refuted* in research — do NOT write them: that browser-driving is
+    "architecturally inferior" to backend integration, and that DevTools-MCP-vs-Playwright
+    is cleanly "observe vs act".
+- **Real scenario (verified).** Mine **Morphix** (personal, nameable) frontend
+  code under `/Users/admin/www/morphix/apps/morphicai-web`, or anonymize a
+  **Tanka** scenario (`/Users/admin/www/tanka-2b-web_memo/` etc. — genericize, no
+  names/packages). **Every code detail you cite must be verified real** (open the
+  file, confirm the symbol/line). Never invent code, and don't trust a research
+  agent's *causal* claim about a bug without re-reading the code yourself.
 - Verify harness-fe tool names against the installed skill
   (`~/.claude/skills/harness-fe/SKILL.md`) and `packages/agent-skill/skill/SKILL.md` —
   tool names use underscores (`network_tail`, `storage_tail`, `session_replay_create`,

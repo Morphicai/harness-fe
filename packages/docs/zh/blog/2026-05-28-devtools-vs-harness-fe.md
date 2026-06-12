@@ -17,9 +17,11 @@ author: harness-fe 团队
 2. 多账号并行测试，要在多个浏览器实例 / Chrome profile 里登不同账号来回切
 3. 移动端测试，日志收集成本极高，要靠截图、录屏、相机拍
 
-[Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) 出来其实有一段时间了。它是 Chrome 官方做的一组 MCP 工具，核心能力是 attach 到 Chrome、`page_evaluate` 在 tab 里跑代码、截图、控制 navigation——让 Agent 替开发者去操作一个浏览器 tab。
+先说清楚:这个痛点不是我一个人臆想的。[Chrome 官方工程博客](https://developer.chrome.com/blog/chrome-devtools-mcp)自己就承认,当下的 coding agent "看不到自己生成的代码在浏览器里跑起来到底做了什么 —— 实际上是在蒙着眼睛编程"。
 
-我做过一些尝试，但一直没有真的用起来。它的工作模型是“远程操作我此刻 attach 到的那一个 tab”，**所有信息都来自 agent 当下去看**；但我前面那几个场景，信息是过去的、是分散在不同实例里的、是不在我面前的那个浏览器里的。
+而 [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) 正是 Chrome 团队对这个盲区给出的官方答案,而且它很能打 —— 按官方说法,它能"在 live 页面上检查 DOM 和 CSS、分析网络请求和 console 日志、录制并分析性能 trace、导航/填表单/点按钮来模拟用户行为",甚至能"自动验证代码改动是否如预期工作"。如果你的问题是"驱动我面前这个 tab,告诉我此刻在发生什么",DevTools MCP 是一个出色的、第一方的工具,该用就用。
+
+所以这不是"DevTools 不行"。我做过一些尝试,但一直没真的用起来,原因在它的**工作模型**:"Agent 远程操作我此刻 attach 到的那一个 tab,并读取它当下能看到的东西"。**所有信息都来自 agent 当下去看**;但我前面那几个场景,信息是过去的、是分散在不同实例里的、是不在我面前的那个浏览器里的。这是两条我反复掉下去的边。
 
 我理想中的状态是：测试同学提出 bug，Agent 自己就能知道第一现场是什么，甚至复原第一现场，然后结合代码立马定位问题、解决问题，最后自己再驱动浏览器验证一遍问题。
 
@@ -46,6 +48,8 @@ harness-fe 由三层组成：
 ![harness-fe 架构图](/blog/images/2026-05-28-devtools-vs-harness/02-architecture.svg)
 
 **构建插件**:`@harness-fe/vite` / `@harness-fe/webpack` / `@harness-fe/next` 在打包阶段对源码插桩，给每个 JSX 元素加上 `data-morphix-loc="src/Form.tsx:42:8"`。Agent 看到一个元素就直接知道源码位置，不需要 grep，不需要 react-devtools。
+
+这一点恰好戳中一个具体差异。截至 2025 年底,Chrome DevTools MCP 的 `list_console_messages` 返回的栈,**指向的是打包/转译后的文件和行号,即便 bundle 带了有效的 sourcemap 也不映射回原始源码**([chrome-devtools-mcp #695](https://github.com/ChromeDevTools/chrome-devtools-mcp/issues/695))。也就是说,即便 Agent *能*看到一个 runtime 错误,回到*你的*代码的线索也会断在 `vendor.a3f9.js:1:88421`。harness-fe 从另一头解决:不在读取时映射,而在**构建时**就把源码出处烙进元素。"这个按钮"直接就是 `Form.tsx:42`。
 
 **Runtime**:`@harness-fe/runtime` 是注入到浏览器的 in-page SDK，在 runtime 层 hook 所有副作用——console、network(fetch / XHR)、localStorage / sessionStorage / cookie 写入、WebSocket 帧、navigation、未捕获错误、rrweb DOM 录制。**每条事件都附带一份 JS 调用栈**(`initiator.stack`)，这意味着 Agent 拿到事件的同时拿到“谁触发的”。
 

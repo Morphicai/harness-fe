@@ -15,5 +15,5 @@ Engineering notes, debugging case studies, and design decisions.
   > A real bug from building Morphix: refresh mid-stream and a sub-agent's results duplicate or disappear. How harness-fe gets the lost first scene back.
 - [What is a harness? The missing layer between your AI agent and your frontend](/blog/2026-06-12-what-is-a-harness) — 2026-06-12
   > Your AI agent can write code but can't see or touch your running app. A harness gives it eyes, hands, and a map back to the exact source line.
-- [Chrome DevTools getting in your way? Try harness-fe](/blog/2026-05-28-devtools-vs-harness-fe) — 2026-05-28
-  > By the time QA files a bug, the first scene is gone. harness-fe recovers it for the agent. *(English translation in progress — read the [中文版](/zh/blog/2026-05-28-devtools-vs-harness-fe) for the full essay.)*
+- [Chrome DevTools MCP vs. harness-fe: two honest answers to the agent's blind spot](/blog/2026-05-28-devtools-vs-harness-fe) — 2026-05-28
+  > DevTools MCP is real and good — but it attaches to the current tab, and its console traces point at bundled code, not your source. Where a persistent dev harness draws a different line, with a real session and a cited gap.

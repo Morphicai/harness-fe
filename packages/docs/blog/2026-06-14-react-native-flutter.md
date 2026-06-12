@@ -54,6 +54,15 @@ the thing that knows how to actually capture a network call, a log, a crash, a
 screenshot, an interaction — and feed it into the same timeline under the same
 `sessionId`.
 
+It helps that the contract rides on a standard. The
+[Model Context Protocol](https://en.wikipedia.org/wiki/Model_Context_Protocol)
+(Anthropic, Nov 2024; adopted by OpenAI and Google in 2025) has
+[consolidated into the default agent integration layer](https://blog.modelcontextprotocol.io/posts/2026-mcp-roadmap/),
+running in production across the industry by 2026. So the agent side of the
+contract is fixed regardless of platform — a React Native or Flutter adapter
+doesn't invent a new agent interface, it speaks the one every MCP client already
+knows.
+
 So the roadmap isn't "rebuild harness-fe for mobile." It's "write a new adapter
 that speaks the existing contract."
 
