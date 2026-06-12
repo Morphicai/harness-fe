@@ -1,9 +1,10 @@
 # Blog backlog (evangelism)
 
-Queue for the **weekly** harness-fe blog. The scheduled routine picks the top
-`status: todo` topic, writes a bilingual (EN + ZH) post under
-`packages/docs/blog/` + `packages/docs/zh/blog/`, registers it in both
-`blog/index.md`, flips the topic to `done`, and opens a PR (human merges).
+Queue for the **weekly** harness-fe blog. Run the `/weekly-blog` slash command to:
+pick the top `status: todo` topic, write a bilingual (EN + ZH) post under
+`packages/docs/blog/` + `packages/docs/zh/blog/`, register it in both
+`blog/index.md`, flip the topic to `done`, and open a PR (human merges).
+(Manual trigger — run it once a week. See `.claude/commands/weekly-blog.md`.)
 
 > Cadence: **one per week**. Keep posts concrete — real scenarios, real commands,
 > honest comparisons. No fluff, no overclaiming.
@@ -12,7 +13,7 @@ Queue for the **weekly** harness-fe blog. The scheduled routine picks the top
 
 | # | Topic | Angle | Status |
 |---|---|---|---|
-| 1 | What is a "harness"? | The missing layer between your AI agent and your running frontend — define the term, why "harness" not "devtool". | todo |
+| 1 | What is a "harness"? | The missing layer between your AI agent and your running frontend — define the term, why "harness" not "devtool". | done |
 | 2 | The 2026 landscape: how agents see the browser today | Survey Chrome DevTools MCP / Playwright MCP / browser-use / Sentry·LogRocket — what each does and where it stops. | todo |
 | 3 | The pain: by the time the bug is reported, the scene is gone | The core problem harness-fe solves — no stable, structured record an agent can pick up. | todo |
 | 4 | Real scenario: "user keeps getting logged out" — DevTools vs harness-fe | Same bug, two workflows, side by side. Commands + timeline. | todo |
@@ -34,3 +35,6 @@ Queue for the **weekly** harness-fe blog. The scheduled routine picks the top
 ## Done
 
 <!-- routine moves published topics here with date + link -->
+
+- 2026-06-12 · #1 What is a harness? → [`blog/2026-06-12-what-is-a-harness`](../packages/docs/blog/2026-06-12-what-is-a-harness.md)
+- 2026-06-13 · (ad-hoc real scenario) The bug that vanishes when you refresh — Morphix SSE reconnect race → [`blog/2026-06-13-streaming-agent-reconnect-bug`](../packages/docs/blog/2026-06-13-streaming-agent-reconnect-bug.md)
