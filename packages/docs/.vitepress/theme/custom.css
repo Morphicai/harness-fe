@@ -216,11 +216,11 @@
 }
 .home-section h2 { position: relative; }
 
-/* Hero art (animated 3-stage pipeline) — wide aspect, fills the right column. */
+/* Hero art (animated 3-stage vertical pipeline). */
 @media (min-width: 960px) {
-    .VPHero .image-container { width: 580px; height: 240px; }
-    .VPHero .image-src { max-width: 580px; max-height: 240px; }
-    .VPHero .image-bg { width: 420px; height: 260px; opacity: 0.55; }
+    .VPHero .image-container { width: 380px; height: 500px; }
+    .VPHero .image-src { max-width: 380px; max-height: 500px; }
+    .VPHero .image-bg { width: 340px; height: 440px; opacity: 0.5; }
 }
 
 @media (prefers-reduced-motion: reduce) {

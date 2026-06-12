@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 248" width="640" height="248" fill="none" role="img" aria-label="A three-stage loop: an AI agent (Claude, Codex, Cursor) drives a web app through harness-fe and observes the sandbox's network, storage, console and DOM signals — autonomously.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" width="400" height="560" fill="none" role="img" aria-label="A vertical loop: an AI agent (Claude, Codex, Cursor) drives a web app through harness-fe and observes the sandbox's network, storage, console and DOM signals — autonomously.">
   <defs>
-    <linearGradient id="ring" x1="20" y1="52" x2="150" y2="196" gradientUnits="userSpaceOnUse">
+    <linearGradient id="ring" x1="92" y1="20" x2="308" y2="166" gradientUnits="userSpaceOnUse">
       <stop stop-color="#818cf8"/><stop offset="0.5" stop-color="#34d399"/><stop offset="1" stop-color="#fb7185"/>
     </linearGradient>
     <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
@@ -14,66 +14,60 @@
     .chip { transform-box: fill-box; transform-origin: center; animation: pop 5s ease-in-out infinite; }
     .c1{animation-delay:0s}.c2{animation-delay:1.25s}.c3{animation-delay:2.5s}.c4{animation-delay:3.75s}
     @keyframes pop { 0%,100%{opacity:.6} 14%{opacity:1} 34%{opacity:.6} }
-    .cap  { fill:#8aa0c8; font:700 10px ui-sans-serif,-apple-system,'Segoe UI',sans-serif; letter-spacing:.14em; }
-    .ttl  { font:700 17px ui-sans-serif,-apple-system,'Segoe UI',sans-serif; }
-    .sub  { font:500 10px ui-monospace,'SF Mono',monospace; }
+    .ttl { font:700 17px ui-sans-serif,-apple-system,'Segoe UI',sans-serif; }
+    .sub { font:500 10.5px ui-monospace,'SF Mono',monospace; }
+    .hint{ fill:#8aa0c8; font:700 9px ui-sans-serif,-apple-system,sans-serif; letter-spacing:.1em; }
     .chiptext { font:600 11px ui-sans-serif,-apple-system,sans-serif; fill:#4d7ff0; }
     @media (prefers-reduced-motion: reduce){ .lane,.chip,.pkt { animation:none !important; } }
   </style>
 
-  <!-- stage captions -->
-  <text class="cap" x="92"  y="34" text-anchor="middle">AGENT</text>
-  <text class="cap" x="320" y="34" text-anchor="middle">HARNESS-FE</text>
-  <text class="cap" x="548" y="34" text-anchor="middle">WEB · SANDBOX</text>
-
-  <!-- ===== control channel (top): drive, left → right ===== -->
+  <!-- ===== control channel (left, downward): drive ===== -->
   <g>
-    <path class="lane c" d="M168 92 H236" stroke="#005eff" stroke-opacity="0.5" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
-    <path d="M232 86 l9 6 -9 6 z" fill="#005eff" fill-opacity="0.8"/>
-    <path class="lane c" d="M404 92 H464" stroke="#005eff" stroke-opacity="0.5" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
-    <path d="M460 86 l9 6 -9 6 z" fill="#005eff" fill-opacity="0.8"/>
-    <g class="pkt"><circle r="4.5" fill="#005eff" filter="url(#glow)"><animateMotion dur="1.6s" repeatCount="indefinite" path="M168 92 H236"/></circle></g>
-    <g class="pkt"><circle r="4.5" fill="#005eff" filter="url(#glow)"><animateMotion dur="1.6s" begin="-0.8s" repeatCount="indefinite" path="M404 92 H464"/></circle></g>
+    <path class="lane c" d="M168 168 V204" stroke="#005eff" stroke-opacity="0.5" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
+    <path d="M162 200 l6 9 6 -9 z" fill="#005eff" fill-opacity="0.8"/>
+    <path class="lane c" d="M168 334 V370" stroke="#005eff" stroke-opacity="0.5" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
+    <path d="M162 366 l6 9 6 -9 z" fill="#005eff" fill-opacity="0.8"/>
+    <g class="pkt"><circle r="4.5" fill="#005eff" filter="url(#glow)"><animateMotion dur="1.6s" repeatCount="indefinite" path="M168 168 V204"/></circle></g>
+    <g class="pkt"><circle r="4.5" fill="#005eff" filter="url(#glow)"><animateMotion dur="1.6s" begin="-0.8s" repeatCount="indefinite" path="M168 334 V370"/></circle></g>
   </g>
 
-  <!-- ===== observe channel (bottom): feedback, right → left ===== -->
+  <!-- ===== observe channel (right, upward): feedback ===== -->
   <g>
-    <path class="lane o" d="M464 156 H404" stroke="#34d399" stroke-opacity="0.55" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
-    <path d="M408 150 l-9 6 9 6 z" fill="#34d399" fill-opacity="0.85"/>
-    <path class="lane o" d="M236 156 H168" stroke="#34d399" stroke-opacity="0.55" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
-    <path d="M172 150 l-9 6 9 6 z" fill="#34d399" fill-opacity="0.85"/>
-    <g class="pkt"><circle r="4.5" fill="#34d399" filter="url(#glow)"><animateMotion dur="1.6s" repeatCount="indefinite" path="M464 156 H404"/></circle></g>
-    <g class="pkt"><circle r="4.5" fill="#34d399" filter="url(#glow)"><animateMotion dur="1.6s" begin="-0.8s" repeatCount="indefinite" path="M236 156 H168"/></circle></g>
+    <path class="lane o" d="M232 370 V334" stroke="#34d399" stroke-opacity="0.55" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
+    <path d="M226 338 l6 -9 6 9 z" fill="#34d399" fill-opacity="0.85"/>
+    <path class="lane o" d="M232 204 V168" stroke="#34d399" stroke-opacity="0.55" stroke-width="2.4" stroke-dasharray="5 6" stroke-linecap="round"/>
+    <path d="M226 172 l6 -9 6 9 z" fill="#34d399" fill-opacity="0.85"/>
+    <g class="pkt"><circle r="4.5" fill="#34d399" filter="url(#glow)"><animateMotion dur="1.6s" repeatCount="indefinite" path="M232 370 V334"/></circle></g>
+    <g class="pkt"><circle r="4.5" fill="#34d399" filter="url(#glow)"><animateMotion dur="1.6s" begin="-0.8s" repeatCount="indefinite" path="M232 204 V168"/></circle></g>
   </g>
 
   <!-- ===== Card 1 · Agent ===== -->
-  <rect x="20" y="46" width="148" height="156" rx="18" fill="#0f1729"/>
-  <rect x="20" y="46" width="148" height="156" rx="18" fill="none" stroke="url(#ring)" stroke-width="2.5"/>
-  <path transform="translate(94 92) scale(0.95) translate(-12 -12)" fill="#fafafa" d="M12 2.5l2.4 6.9 6.9 2.4-6.9 2.4-2.4 6.9-2.4-6.9-6.9-2.4 6.9-2.4z"/>
-  <text class="ttl" x="94" y="138" text-anchor="middle" fill="#fafafa">Agent</text>
-  <text class="sub" x="94" y="162" text-anchor="middle" fill="#fafafa" fill-opacity="0.6">Claude · Codex</text>
-  <text class="sub" x="94" y="176" text-anchor="middle" fill="#fafafa" fill-opacity="0.6">Cursor · …</text>
+  <rect x="92" y="20" width="216" height="146" rx="18" fill="#0f1729"/>
+  <rect x="92" y="20" width="216" height="146" rx="18" fill="none" stroke="url(#ring)" stroke-width="2.5"/>
+  <path transform="translate(200 60) scale(0.95) translate(-12 -12)" fill="#fafafa" d="M12 2.5l2.4 6.9 6.9 2.4-6.9 2.4-2.4 6.9-2.4-6.9-6.9-2.4 6.9-2.4z"/>
+  <text class="ttl" x="200" y="106" text-anchor="middle" fill="#fafafa">Agent</text>
+  <text class="sub" x="200" y="132" text-anchor="middle" fill="#fafafa" fill-opacity="0.6">Claude · Codex · Cursor</text>
 
   <!-- ===== Card 2 · harness-fe ===== -->
-  <rect x="246" y="46" width="148" height="156" rx="18" fill="#005eff"/>
+  <rect x="92" y="210" width="216" height="124" rx="18" fill="#005eff"/>
   <g fill="#fafafa">
-    <rect x="305" y="80" width="9" height="52" rx="2"/>
-    <rect x="326" y="80" width="9" height="52" rx="2"/>
-    <rect x="305" y="101" width="30" height="9" rx="2"/>
+    <rect x="190" y="232" width="8" height="40" rx="2"/>
+    <rect x="204" y="232" width="8" height="40" rx="2"/>
+    <rect x="190" y="248" width="22" height="8" rx="2"/>
   </g>
-  <text class="ttl" x="320" y="166" text-anchor="middle" fill="#fafafa">harness-fe</text>
-  <text class="sub" x="320" y="184" text-anchor="middle" fill="#fafafa" fill-opacity="0.75">observe + drive</text>
+  <text class="ttl" x="200" y="300" text-anchor="middle" fill="#fafafa" font-size="16">harness-fe</text>
+  <text class="sub" x="200" y="320" text-anchor="middle" fill="#fafafa" fill-opacity="0.78">observe + drive</text>
 
   <!-- ===== Card 3 · Web sandbox ===== -->
-  <rect x="472" y="46" width="148" height="156" rx="18" fill="#005eff" fill-opacity="0.04" stroke="#005eff" stroke-opacity="0.32" stroke-width="1.6" stroke-dasharray="3 4"/>
-  <circle cx="488" cy="64" r="3" fill="#fb7185"/><circle cx="499" cy="64" r="3" fill="#fbbf24"/><circle cx="510" cy="64" r="3" fill="#34d399"/>
-  <text class="sub" x="524" y="68" fill="#8aa0c8">localhost:3000</text>
-  <line x1="472" y1="80" x2="620" y2="80" stroke="#005eff" stroke-opacity="0.14"/>
-  <rect x="488" y="92" width="116" height="8" rx="2" fill="#005eff" fill-opacity="0.16"/>
-  <rect x="488" y="106" width="74" height="6" rx="2" fill="#9bb4e8" fill-opacity="0.42"/>
-  <g class="chip c1"><rect x="488" y="124" width="50" height="22" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="513" y="139" text-anchor="middle">net</text></g>
-  <g class="chip c2"><rect x="544" y="124" width="62" height="22" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="575" y="139" text-anchor="middle">store</text></g>
-  <g class="chip c3"><rect x="488" y="152" width="62" height="22" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="519" y="167" text-anchor="middle">console</text></g>
-  <g class="chip c4"><rect x="556" y="152" width="50" height="22" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="581" y="167" text-anchor="middle">DOM</text></g>
-  <text class="sub" x="546" y="190" text-anchor="middle" fill="#8aa0c8" fill-opacity="0.7">intercepted</text>
+  <rect x="92" y="376" width="216" height="164" rx="18" fill="#005eff" fill-opacity="0.04" stroke="#005eff" stroke-opacity="0.32" stroke-width="1.6" stroke-dasharray="3 4"/>
+  <circle cx="110" cy="396" r="3" fill="#fb7185"/><circle cx="121" cy="396" r="3" fill="#fbbf24"/><circle cx="132" cy="396" r="3" fill="#34d399"/>
+  <text class="sub" x="148" y="400" fill="#8aa0c8">localhost:3000 · sandbox</text>
+  <line x1="92" y1="412" x2="308" y2="412" stroke="#005eff" stroke-opacity="0.14"/>
+  <rect x="110" y="424" width="150" height="8" rx="2" fill="#005eff" fill-opacity="0.16"/>
+  <rect x="110" y="438" width="96" height="6" rx="2" fill="#9bb4e8" fill-opacity="0.42"/>
+  <g class="chip c1"><rect x="110" y="456" width="48" height="23" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="134" y="472" text-anchor="middle">net</text></g>
+  <g class="chip c2"><rect x="166" y="456" width="62" height="23" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="197" y="472" text-anchor="middle">store</text></g>
+  <g class="chip c3"><rect x="110" y="485" width="64" height="23" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="142" y="501" text-anchor="middle">console</text></g>
+  <g class="chip c4"><rect x="182" y="485" width="50" height="23" rx="6" fill="none" stroke="#005eff" stroke-opacity="0.5"/><text class="chiptext" x="207" y="501" text-anchor="middle">DOM</text></g>
+  <text class="sub" x="270" y="472" text-anchor="middle" font-size="9" fill="#8aa0c8" fill-opacity="0.7">intercepted</text>
 </svg>
