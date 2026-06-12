@@ -23,7 +23,9 @@ const sharedHead: [string, Record<string, string>][] = [
                 'A dev-time harness that lets an MCP agent see your frontend, drive it, and trace every element to its exact file:line.',
         },
     ],
-    ['meta', { property: 'og:image', content: 'https://harness-fe.com/logo.svg' }],
+    ['meta', { property: 'og:image', content: 'https://harness-fe.com/og.png' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
     ['meta', { property: 'og:url', content: 'https://harness-fe.com/' }],
     // Twitter
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
@@ -36,7 +38,7 @@ const sharedHead: [string, Record<string, string>][] = [
                 'A dev-time harness that lets an MCP agent see your frontend, drive it, and trace every element to its exact file:line.',
         },
     ],
-    ['meta', { name: 'twitter:image', content: 'https://harness-fe.com/logo.svg' }],
+    ['meta', { name: 'twitter:image', content: 'https://harness-fe.com/og.png' }],
 ];
 
 const enThemeConfig: DefaultTheme.Config = {

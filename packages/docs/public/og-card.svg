@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0b1220"/><stop offset="1" stop-color="#0f1f3d"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="80" y1="120" x2="560" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#818cf8"/><stop offset="0.5" stop-color="#34d399"/><stop offset="1" stop-color="#fb7185"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop stop-color="#005eff" stop-opacity="0.28"/><stop offset="1" stop-color="#005eff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="960" cy="320" r="320" fill="url(#halo)"/>
+
+  <!-- brand mark -->
+  <rect x="80" y="74" width="56" height="56" rx="14" fill="#005eff"/>
+  <g fill="#fafafa"><rect x="98" y="88" width="6" height="28" rx="1.5"/><rect x="112" y="88" width="6" height="28" rx="1.5"/><rect x="98" y="99" width="20" height="6" rx="1.5"/></g>
+  <text x="152" y="112" fill="#fafafa" font-size="30" font-weight="700" font-family="ui-sans-serif,-apple-system,'Segoe UI',sans-serif">harness-fe</text>
+
+  <!-- headline -->
+  <text x="80" y="280" fill="#fafafa" font-size="76" font-weight="800" font-family="ui-sans-serif,-apple-system,'Segoe UI',sans-serif" letter-spacing="-0.02em">Give your AI agent</text>
+  <text x="80" y="362" fill="#fafafa" font-size="76" font-weight="800" font-family="ui-sans-serif,-apple-system,'Segoe UI',sans-serif" letter-spacing="-0.02em">eyes, hands —</text>
+  <text x="80" y="444" font-size="76" font-weight="800" font-family="ui-sans-serif,-apple-system,'Segoe UI',sans-serif" letter-spacing="-0.02em" fill="url(#ring)">&amp; your source map</text>
+
+  <!-- feature pills -->
+  <g font-family="ui-sans-serif,-apple-system,sans-serif" font-size="22" font-weight="600">
+    <rect x="80"  y="496" width="186" height="46" rx="23" fill="none" stroke="#3a5680" stroke-width="1.5"/><text x="173" y="525" text-anchor="middle" fill="#9fb6e0">MCP-native</text>
+    <rect x="280" y="496" width="200" height="46" rx="23" fill="none" stroke="#3a5680" stroke-width="1.5"/><text x="380" y="525" text-anchor="middle" fill="#9fb6e0">source-aware</text>
+    <rect x="494" y="496" width="150" height="46" rx="23" fill="none" stroke="#3a5680" stroke-width="1.5"/><text x="569" y="525" text-anchor="middle" fill="#9fb6e0">dev-only</text>
+  </g>
+
+  <!-- decorative mini-loop on the right -->
+  <g opacity="0.95">
+    <circle cx="960" cy="180" r="48" fill="#0f1729" stroke="url(#ring)" stroke-width="3"/>
+    <path transform="translate(960 180) scale(1.2) translate(-12 -12)" fill="#fafafa" d="M12 2.5l2.4 6.9 6.9 2.4-6.9 2.4-2.4 6.9-2.4-6.9-6.9-2.4 6.9-2.4z"/>
+    <rect x="912" y="296" width="96" height="96" rx="22" fill="#005eff"/>
+    <g fill="#fafafa"><rect x="945" y="320" width="8" height="48" rx="2"/><rect x="967" y="320" width="8" height="48" rx="2"/><rect x="945" y="340" width="22" height="8" rx="2"/></g>
+    <rect x="892" y="452" width="136" height="118" rx="14" fill="none" stroke="#005eff" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="4 5"/>
+    <circle cx="908" cy="470" r="4" fill="#fb7185"/><circle cx="922" cy="470" r="4" fill="#fbbf24"/><circle cx="936" cy="470" r="4" fill="#34d399"/>
+    <rect x="908" y="490" width="104" height="9" rx="2" fill="#005eff" fill-opacity="0.3"/>
+    <rect x="908" y="506" width="70" height="7" rx="2" fill="#9bb4e8" fill-opacity="0.4"/>
+    <text x="960" y="544" text-anchor="middle" fill="#7e93bf" font-size="15" font-family="ui-monospace,monospace">net·storage·DOM</text>
+    <!-- connectors -->
+    <path d="M945 228 V296" stroke="#005eff" stroke-opacity="0.45" stroke-width="2.5" stroke-dasharray="5 6"/>
+    <path d="M975 392 V452" stroke="#34d399" stroke-opacity="0.5" stroke-width="2.5" stroke-dasharray="5 6"/>
+  </g>
+
+  <!-- footer -->
+  <text x="80" y="586" fill="#7e93bf" font-size="22" font-weight="500" font-family="ui-sans-serif,-apple-system,sans-serif">harness-fe.com · open source (MIT) · Claude · Cursor · Codex</text>
+</svg>
