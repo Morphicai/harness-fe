@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/runtime",
-    "version": "4.0.0",
+    "version": "4.1.0",
     "description": "Browser-side SDK injected into the dev page. Connects to the MCP server via WebSocket and executes commands.",
     "type": "module",
     "license": "MIT",
