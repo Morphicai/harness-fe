@@ -473,6 +473,7 @@ export class CoreCapabilities {
         policy: {
             maxAgeDays?: number;
             maxSessionsPerProject?: number;
+            recordingRetentionMs?: number;
             recordingRetentionDays?: number;
             maxRecordingChunksPerTab?: number;
             maxRecordingBytesPerTab?: number;

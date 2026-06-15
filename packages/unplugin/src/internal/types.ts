@@ -53,6 +53,35 @@ export interface HarnessFEOptions {
      *   'deny'    — all control commands rejected immediately, no prompt shown
      */
     consent?: 'off' | 'session' | 'always' | 'deny';
+    /**
+     * How often (ms) rrweb emits a fresh FullSnapshot baseline. Default 30 min.
+     * Set below the daemon's recording retention window so a retained replay
+     * window always contains a baseline (see harness-fe#160). 0 disables periodic
+     * baselines (start() + reconnect baselines only).
+     */
+    rrwebCheckoutEveryNms?: number;
+    /**
+     * Defer runtime start until the host app has painted: waits for `load`,
+     * then `requestIdleCallback`, before installing capture + starting the
+     * rrweb recorder. Avoids competing with the app's first-paint work on
+     * heavy pages (e.g. Electron). Default false (start eagerly at import).
+     */
+    deferStart?: boolean;
+    /**
+     * CSS selector for DOM subtrees rrweb must NOT record into (passed through
+     * as rrweb `blockSelector`). Use for micro-frontend containers whose inner
+     * document rrweb cannot safely serialize — notably wujie's `wujie-app`
+     * shadow host / sandbox iframe, which throws on traversal. The sub-app
+     * should run its own harness instance instead. Example: `'wujie-app'`.
+     */
+    rrwebBlockSelector?: string;
+    /**
+     * Sample IndexedDB observations: forward at most one idb event per this many
+     * ms (trailing — the most recent within each window wins), dropping the rest.
+     * Apps that hammer idb (hundreds of ops/sec) otherwise flood the transport.
+     * 0 (default) forwards every op. Local `indexeddb.tail` is unaffected.
+     */
+    idbThrottleMs?: number;
 }
 
 /**

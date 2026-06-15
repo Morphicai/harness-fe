@@ -186,15 +186,30 @@ export function createConsoleHandler(
             sendJson(res, 403, { error: 'forbidden: read scope required' });
             return true;
         }
-        const canSee = (projectId: string): boolean =>
-            !!projectId && canSeeProject(principal, projectId, ownerChainOf(projectId, store));
+        // Visibility for a single project id. Delegates to core's canSeeProject,
+        // which already handles the unrestricted (local/admin) case — so we must
+        // NOT pre-empt it with a `!!projectId` short-circuit (that wrongly hid
+        // empty-projectId rows from admin too, harness-fe#161).
+        const canSeeProjectId = (projectId: string): boolean =>
+            canSeeProject(principal, projectId, ownerChainOf(projectId, store));
+
+        // A session is visible if the principal can see ANY of its participants'
+        // projects. Picking participants[0] was fragile — a session can carry
+        // several participants and the project-owning one isn't necessarily first
+        // (and may be empty), which dropped sessions even for admin. A session
+        // with no project at all is unowned → only local/admin see it.
+        const canSeeSession = (s: { participants: Array<{ projectId: string }> }): boolean => {
+            const pids = s.participants.map((p) => p.projectId).filter((v): v is string => !!v);
+            if (pids.length === 0) return canSeeProjectId('');
+            return pids.some((pid) => canSeeProjectId(pid));
+        };
 
         const method = req.method ?? 'GET';
 
         if (method === 'GET' && path === '/console/api/projects') {
             const entries = store
                 .listProjects()
-                .filter((project) => canSee(project.id))
+                .filter((project) => canSeeProjectId(project.id))
                 .map((project) => ({
                     project,
                     recentSessions: store.listSessions({ projectId: project.id, limit: SESSIONS_PER_PROJECT }),
@@ -205,7 +220,7 @@ export function createConsoleHandler(
 
         if (method === 'GET' && path === '/console/api/sessions') {
             const projectId = url.searchParams.get('projectId') ?? undefined;
-            if (projectId && !canSee(projectId)) {
+            if (projectId && !canSeeProjectId(projectId)) {
                 sendJson(res, 200, { sessions: [] });
                 return true;
             }
@@ -216,7 +231,7 @@ export function createConsoleHandler(
                     buildId: url.searchParams.get('buildId') ?? undefined,
                     limit: parseIntOr(url.searchParams.get('limit'), 50),
                 })
-                .filter((s) => canSee(s.participants[0]?.projectId ?? ''));
+                .filter((s) => canSeeSession(s));
             sendJson(res, 200, { sessions });
             return true;
         }
@@ -229,7 +244,7 @@ export function createConsoleHandler(
 
             // Gate by the session's project — a 404 either way (don't leak existence).
             const owning = store.getSession(sessionId);
-            if (!owning || !canSee(owning.participants[0]?.projectId ?? '')) {
+            if (!owning || !canSeeSession(owning)) {
                 sendJson(res, 404, { error: 'session not found', sessionId });
                 return true;
             }

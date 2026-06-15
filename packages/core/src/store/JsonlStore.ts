@@ -75,7 +75,14 @@ const DEFAULT_DATA_DIR = join(homedir(), '.harness', 'data');
 const DEFAULT_RETENTION = {
     maxAgeDays: 7,
     maxSessions: 200,
-    recordingRetentionDays: 3,
+    // rrweb recording retention. Default 30 min (harness-fe#160): recordings are
+    // a debugging aid, not an archive, and at team scale they dominate disk. ms
+    // granularity (the old `recordingRetentionDays` only did whole/fractional
+    // days); callers may still pass `recordingRetentionDays` and it's honored.
+    // SAFETY: pruneRecordingFile is baseline-aware — it never evicts the
+    // FullSnapshot that the oldest surviving chunk needs, so a short window can't
+    // leave orphan increments that won't replay.
+    recordingRetentionMs: 30 * 60 * 1000,
     maxRecordingChunksPerSession: 500,
     maxRecordingBytesPerSession: 250 * 1024 * 1024,
     preserveMarkedChunks: true,
@@ -168,6 +175,17 @@ interface RecordingChunkRecord extends RecordingChunk {
     bytes: number;
     marked: boolean;
     ageTs: number;
+}
+
+/**
+ * Whether a recording chunk carries an rrweb FullSnapshot (type:2) — the
+ * baseline a replay must roll forward from. Used by retention pruning to avoid
+ * evicting the baseline the surviving increments depend on (harness-fe#160).
+ */
+function chunkContainsFullSnapshot(chunk: { events: unknown[] }): boolean {
+    return chunk.events.some(
+        (ev) => typeof ev === 'object' && ev !== null && (ev as { type?: unknown }).type === 2,
+    );
 }
 
 function parseRecordingChunkLine(
@@ -1062,7 +1080,6 @@ export class JsonlStore implements IStore {
         // Normalize aliases
         const maxSessions = policy.maxSessions ?? policy.maxSessionsPerProject ?? DEFAULT_RETENTION.maxSessions;
         const maxAgeDays = policy.maxAgeDays ?? DEFAULT_RETENTION.maxAgeDays;
-        const recordingRetentionDays = policy.recordingRetentionDays ?? DEFAULT_RETENTION.recordingRetentionDays;
         const maxChunks = policy.maxRecordingChunksPerSession ?? policy.maxRecordingChunksPerTab ?? DEFAULT_RETENTION.maxRecordingChunksPerSession;
         const maxBytes = policy.maxRecordingBytesPerSession ?? policy.maxRecordingBytesPerTab ?? DEFAULT_RETENTION.maxRecordingBytesPerSession;
         const preserveMarkedChunks = policy.preserveMarkedChunks ?? DEFAULT_RETENTION.preserveMarkedChunks;
@@ -1073,7 +1090,13 @@ export class JsonlStore implements IStore {
 
         const now = Date.now();
         const maxAge = maxAgeDays * 86400000;
-        const recMaxAge = recordingRetentionDays * 86400000;
+        // Recording retention: explicit ms wins; else fall back to the (legacy)
+        // days field if the caller set it; else the ms default.
+        const recMaxAge =
+            policy.recordingRetentionMs ??
+            (policy.recordingRetentionDays != null
+                ? policy.recordingRetentionDays * 86400000
+                : DEFAULT_RETENTION.recordingRetentionMs);
 
         let sessionsDeleted = 0;
         let recordingsDeleted = 0;
@@ -1315,6 +1338,36 @@ export class JsonlStore implements IStore {
             totalBytes = kept.reduce((sum, chunk) => sum + chunk.bytes, 0);
         }
 
+        // Baseline-aware rescue (harness-fe#160). A replay window can only be
+        // assembled from a FullSnapshot (rrweb type:2) at or before it; the
+        // age/size eviction above is blind to that, so dropping the baseline
+        // while keeping later increments would leave the surviving tail
+        // unreplayable (the very risk of a short retention window). Guarantee the
+        // oldest surviving chunk is anchored: if no retained chunk at-or-before it
+        // carries a FullSnapshot, pull the most-recent such baseline back out of
+        // `removed`. May leave one chunk over a size/count cap — correctness wins,
+        // same spirit as preserveMarkedChunks.
+        if (kept.length > 0) {
+            const oldestKeptTs = Math.min(...kept.map((c) => c.startTs));
+            const anchored = kept.some(
+                (c) => c.startTs <= oldestKeptTs && chunkContainsFullSnapshot(c),
+            );
+            if (!anchored) {
+                const baseline = chunks
+                    .filter(
+                        (c) =>
+                            removed.has(c.chunkId) &&
+                            c.startTs <= oldestKeptTs &&
+                            chunkContainsFullSnapshot(c),
+                    )
+                    .sort((a, b) => b.startTs - a.startTs)[0];
+                if (baseline) {
+                    removed.delete(baseline.chunkId);
+                    kept.push(baseline);
+                }
+            }
+        }
+
         if (removed.size === 0) return { chunksDeleted: 0, bytesFreed: 0 };
 
         const bytesFreed = chunks
@@ -1324,7 +1377,11 @@ export class JsonlStore implements IStore {
         if (kept.length === 0) {
             unlinkSync(recPath);
         } else {
-            writeFileSync(recPath, `${kept.map((chunk) => chunk.line).join('\n')}\n`, 'utf-8');
+            // Persist in chronological order — the rescue can append an older
+            // baseline out of order, and replay assembly expects events in time
+            // order.
+            const ordered = [...kept].sort((a, b) => a.startTs - b.startTs);
+            writeFileSync(recPath, `${ordered.map((chunk) => chunk.line).join('\n')}\n`, 'utf-8');
         }
 
         return { chunksDeleted: removed.size, bytesFreed };

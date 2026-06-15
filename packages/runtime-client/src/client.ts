@@ -73,6 +73,12 @@ export interface ClientOptions {
      */
     overlay?: boolean;
     /**
+     * Defer runtime start until after the host app has painted (load + idle).
+     * Consumed by the auto-start entry, not by RuntimeClient itself (mirrors
+     * how `overlay` is consumed there). Default false.
+     */
+    deferStart?: boolean;
+    /**
      * App-supplied user identifier (e.g. supabase.user.id, auth0 sub, …).
      * Optional. When absent, traffic is treated as anonymous (only stitched
      * by visitorId). Propagated by HarnessScript via window.__HARNESS_FE__.userId.
@@ -93,6 +99,17 @@ export interface ClientOptions {
      *   'always'  — prompt before every control command
      */
     consent?: ConsentMode;
+    /**
+     * CSS selector for DOM subtrees rrweb must not record into (rrweb
+     * `blockSelector`). Used to exclude micro-frontend containers whose inner
+     * document rrweb cannot safely serialize (e.g. wujie's `wujie-app`).
+     */
+    rrwebBlockSelector?: string;
+    /**
+     * Sample IndexedDB observations: forward at most one idb event per N ms
+     * (trailing). 0 / undefined forwards every op. See {@link CaptureStore.install}.
+     */
+    idbThrottleMs?: number;
 }
 
 const TAB_ID_KEY = '__hfe_tab_id__';
@@ -176,6 +193,12 @@ export class RuntimeClient {
         }
     }
     private pageLoadSent = false;
+    /**
+     * Set once the first hello.ack of this page-load has been processed. Used to
+     * skip the redundant FullSnapshot on the first ack (start() already produced
+     * a sticky baseline) while still refreshing it on reconnect acks.
+     */
+    private firstHelloAckSeen = false;
     // Browser consent (4.0 · P2). Mode comes from the daemon in hello.ack;
     // default `off` so a daemon that never sends a policy (or loopback solo
     // dev) keeps running control commands without prompting.
@@ -220,7 +243,10 @@ export class RuntimeClient {
         publishVisitorIdToWindow(this.visitorId);
         this.recorder = new RrwebRecorder(
             (chunk) => this.sendEvent(EVENT_NAME.RRWEB, chunk),
-            { checkoutEveryNms: opts.rrwebCheckoutEveryNms },
+            {
+                checkoutEveryNms: opts.rrwebCheckoutEveryNms,
+                blockSelector: opts.rrwebBlockSelector,
+            },
         );
     }
 
@@ -233,7 +259,7 @@ export class RuntimeClient {
         const daemonUrl = this.opts.mcpUrl ?? `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`;
         this.ctx.capture.install(
             (name, payload) => this.sendEvent(name, payload),
-            { daemonUrl },
+            { daemonUrl, idbThrottleMs: this.opts.idbThrottleMs },
         );
         this.recorder.start();
         this.connect();
@@ -418,15 +444,21 @@ export class RuntimeClient {
         // sources (4.0 · P2 + runtime opt-in). hello.ack is one input, not final.
         this.daemonConsentMode = frame.consent?.mode;
         this.consentMode = this.resolveConsentMode();
-        // Force a fresh rrweb FullSnapshot on every ack — including reconnects
-        // after daemon restart, network blips, or page-recovery from sleep.
-        // Without this, the only baseline for the session is whatever rrweb
-        // emitted at start(); if that chunk was evicted from the outbox
-        // (FIFO overflow during a long disconnect) or the daemon was down at
-        // the critical moment, the session is unreplayable forever.
-        // Safe to call on every ack: rrweb emits another type:2, replay
-        // engines treat additional baselines as a checkpoint reset.
-        this.recorder.takeFullSnapshot();
+        // Force a fresh rrweb FullSnapshot on RECONNECT acks — after daemon
+        // restart, network blips, or page-recovery from sleep — so each new
+        // connection has its own baseline even if the start() baseline was
+        // evicted from the outbox (FIFO overflow during a long disconnect).
+        //
+        // Skip it on the FIRST ack: start() already emitted a baseline moments
+        // ago, and it's a sticky frame (isStickyFrame) that survived the outbox
+        // and was drained right after hello — the daemon already has it. Taking
+        // another here just re-serializes the whole DOM a second time during
+        // first paint, which is exactly the startup jank we're avoiding
+        // (harness-fe#158). Reconnect acks still refresh the baseline.
+        if (this.firstHelloAckSeen) {
+            this.recorder.takeFullSnapshot();
+        }
+        this.firstHelloAckSeen = true;
 
         // Send the page-load snapshot exactly once per load. The reconnect
         // path also lands here; emit only on the first ack of this load.
@@ -626,17 +658,26 @@ export function readInjectedConfig(): ClientOptions {
             sessionId?: string;
             overlay?: boolean;
             consent?: string;
+            rrwebCheckoutEveryNms?: number;
+            deferStart?: boolean;
+            rrwebBlockSelector?: string;
+            idbThrottleMs?: number;
         };
     };
+    const cfg = w.__HARNESS_FE__;
     return {
-        projectId: w.__HARNESS_FE__?.projectId ?? 'unknown-project',
-        mcpUrl: w.__HARNESS_FE__?.mcpUrl,
-        buildId: w.__HARNESS_FE__?.buildId,
-        parentProjectId: w.__HARNESS_FE__?.parentProjectId,
-        displayName: w.__HARNESS_FE__?.displayName,
-        userId: w.__HARNESS_FE__?.userId,
-        overlay: w.__HARNESS_FE__?.overlay ?? true,
-        consent: w.__HARNESS_FE__?.consent as ConsentMode | undefined,
+        projectId: cfg?.projectId ?? 'unknown-project',
+        mcpUrl: cfg?.mcpUrl,
+        buildId: cfg?.buildId,
+        parentProjectId: cfg?.parentProjectId,
+        displayName: cfg?.displayName,
+        userId: cfg?.userId,
+        overlay: cfg?.overlay ?? true,
+        consent: cfg?.consent as ConsentMode | undefined,
+        rrwebCheckoutEveryNms: cfg?.rrwebCheckoutEveryNms,
+        deferStart: cfg?.deferStart,
+        rrwebBlockSelector: cfg?.rrwebBlockSelector,
+        idbThrottleMs: cfg?.idbThrottleMs,
     };
 }
 

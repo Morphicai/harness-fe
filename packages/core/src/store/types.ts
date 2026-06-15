@@ -274,7 +274,14 @@ export interface RetentionPolicy {
     maxAgeDays?: number;
     /** Keep at most this many sessions globally. Default 200. */
     maxSessions?: number;
-    /** Delete recording.jsonl files older than this many days. Default 3. */
+    /**
+     * Drop rrweb recording chunks older than this many ms. Takes precedence over
+     * `recordingRetentionDays`. Default 30 min (harness-fe#160). Pruning is
+     * baseline-aware, so a short window still replays (the anchoring FullSnapshot
+     * is preserved).
+     */
+    recordingRetentionMs?: number;
+    /** @deprecated Prefer {@link recordingRetentionMs}. Older-than-N-days recording cutoff. */
     recordingRetentionDays?: number;
     /** Keep at most this many recording chunks per session. */
     maxRecordingChunksPerSession?: number;

@@ -27,6 +27,14 @@ export interface RrwebRecorderOptions {
      * @default 30 * 60 * 1000  (30 minutes)
      */
     checkoutEveryNms?: number;
+    /**
+     * CSS selector passed to rrweb as `blockSelector`: matching subtrees are
+     * recorded as an inert placeholder and never descended into. Used to keep
+     * rrweb out of micro-frontend containers it cannot safely serialize —
+     * notably wujie's `wujie-app` shadow host / sandbox iframe, where full-tree
+     * traversal throws. The embedded sub-app should run its own harness.
+     */
+    blockSelector?: string;
 }
 
 export class RrwebRecorder {
@@ -52,6 +60,10 @@ export class RrwebRecorder {
             collectFonts: false,
             maskAllInputs: false,
             checkoutEveryNms: checkoutEveryNms > 0 ? checkoutEveryNms : undefined,
+            // Keep rrweb out of subtrees it can't serialize (e.g. wujie's
+            // shadow/iframe container) — traversal there throws and corrupts
+            // the FullSnapshot baseline. undefined when unset = rrweb default.
+            blockSelector: this.opts.blockSelector || undefined,
         });
         this.flushTimer = window.setInterval(() => this.flush(), FLUSH_MS);
     }

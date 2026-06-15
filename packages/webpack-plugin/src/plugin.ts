@@ -30,6 +30,7 @@ import {
     installNodeLogCapture,
     appendTokenQuery,
     resolveSoloTarget,
+    buildInjectedConfig,
     type ComponentLocation,
     type HarnessFEOptions,
     type McpClient,
@@ -273,15 +274,18 @@ export class HarnessFEWebpackPlugin {
     }
 
     private injectConfigScript(html: string): string {
+        const config = buildInjectedConfig(
+            {
+                projectId: this.projectId,
+                mcpUrl: this.mcpUrl,
+                buildId: this.identity.getBuildId(this.projectRoot),
+                displayName: this.identity.getDisplayName(this.projectRoot),
+            },
+            this.options,
+        );
         const injection = `<!-- @harness-fe injected (dev only) -->
 <script>
-window.__HARNESS_FE__ = ${JSON.stringify({
-            projectId: this.projectId,
-            mcpUrl: this.mcpUrl,
-            buildId: this.identity.getBuildId(this.projectRoot),
-            parentProjectId: this.options.parentProjectId,
-            displayName: this.identity.getDisplayName(this.projectRoot),
-        })};
+window.__HARNESS_FE__ = ${JSON.stringify(config)};
 </script>`;
         return html.replace(/<\/head>/i, `${injection}\n</head>`);
     }
