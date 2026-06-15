@@ -126,3 +126,34 @@ describe('consent config from window.__HARNESS_FE__', () => {
         expect(config.consent).toBe('always');
     });
 });
+
+describe('runtime/perf knobs from window.__HARNESS_FE__ (harness-fe#162)', () => {
+    afterEach(() => {
+        delete (window as any).__HARNESS_FE__;
+    });
+
+    it('reads rrwebCheckoutEveryNms / deferStart / rrwebBlockSelector / idbThrottleMs', () => {
+        (window as any).__HARNESS_FE__ = {
+            projectId: 'x',
+            mcpUrl: 'ws://localhost:9000/ws',
+            rrwebCheckoutEveryNms: 60_000,
+            deferStart: true,
+            rrwebBlockSelector: 'wujie-app',
+            idbThrottleMs: 250,
+        };
+        const config = readInjectedConfig();
+        expect(config.rrwebCheckoutEveryNms).toBe(60_000);
+        expect(config.deferStart).toBe(true);
+        expect(config.rrwebBlockSelector).toBe('wujie-app');
+        expect(config.idbThrottleMs).toBe(250);
+    });
+
+    it('leaves the knobs undefined when not injected', () => {
+        (window as any).__HARNESS_FE__ = { projectId: 'x', mcpUrl: 'ws://localhost:9000/ws' };
+        const config = readInjectedConfig();
+        expect(config.rrwebCheckoutEveryNms).toBeUndefined();
+        expect(config.deferStart).toBeUndefined();
+        expect(config.rrwebBlockSelector).toBeUndefined();
+        expect(config.idbThrottleMs).toBeUndefined();
+    });
+});

@@ -30,6 +30,7 @@ import {
     type VueTransformOptions,
 } from './vue-transform.js';
 import { resolveProjectId } from './resolveProjectId.js';
+import { buildInjectedConfig } from './internal/injectedConfig.js';
 import { resolveSoloTarget } from './soloTarget.js';
 import { createMcpClient } from './internal/mcp-client.js';
 import { installNodeLogCapture } from './internal/log-capture.js';
@@ -217,9 +218,18 @@ export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (o
                 order: 'pre' as const,
                 handler(html: string) {
                     if (options.disabled) return html;
+                    const config = buildInjectedConfig(
+                        {
+                            projectId,
+                            mcpUrl,
+                            buildId: identity.getBuildId(projectRoot),
+                            displayName: identity.getDisplayName(projectRoot),
+                        },
+                        options,
+                    );
                     const injection = `<!-- @harness-fe injected (dev only) -->
 <script>
-window.__HARNESS_FE__ = ${JSON.stringify({ projectId, mcpUrl, buildId: identity.getBuildId(projectRoot), parentProjectId: options.parentProjectId, displayName: identity.getDisplayName(projectRoot), overlay: options.overlay ?? true, consent: options.consent })};
+window.__HARNESS_FE__ = ${JSON.stringify(config)};
 </script>
 <script type="module">import '${VIRTUAL_RUNTIME_ID}';</script>`;
                     return html.replace(/<\/head>/i, `${injection}\n</head>`);

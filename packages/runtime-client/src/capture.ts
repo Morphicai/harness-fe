@@ -63,11 +63,22 @@ export class CaptureStore {
 
     private handle?: SandboxHandle;
 
+    /**
+     * IndexedDB forward sampling. 0 = off (forward every op). When > 0, the
+     * adapter forwards at most one idb event per `idbThrottleMs` (leading edge +
+     * trailing flush, latest within a window wins). The local `indexeddb`
+     * RingBuffer is always written, so `indexeddb.tail` keeps full fidelity.
+     */
+    private idbThrottleMs = 0;
+    private idbPending: IndexedDbEntry | null = null;
+    private idbTimer?: ReturnType<typeof setTimeout>;
+
     install(
         onEvent: (name: string, payload: unknown) => void,
-        opts: { daemonUrl?: string } = {},
+        opts: { daemonUrl?: string; idbThrottleMs?: number } = {},
     ): void {
         if (this.handle) return;
+        this.idbThrottleMs = Math.max(0, opts.idbThrottleMs ?? 0);
         const selfUrls = opts.daemonUrl ? [opts.daemonUrl] : undefined;
         this.handle = installSandbox({
             selfUrls,
@@ -76,8 +87,44 @@ export class CaptureStore {
     }
 
     dispose(): void {
+        if (this.idbTimer !== undefined) {
+            clearTimeout(this.idbTimer);
+            this.idbTimer = undefined;
+        }
+        this.idbPending = null;
         this.handle?.dispose();
         this.handle = undefined;
+    }
+
+    /**
+     * Forward an idb entry honoring {@link idbThrottleMs}. Leading-edge: the
+     * first entry emits immediately and opens a window; further entries within
+     * the window only update the pending "latest", which is flushed when the
+     * window closes (and reopens the window if more arrived).
+     */
+    private forwardIdb(
+        entry: IndexedDbEntry,
+        onEvent: (name: string, payload: unknown) => void,
+    ): void {
+        if (this.idbThrottleMs <= 0) {
+            onEvent('indexeddb', entry);
+            return;
+        }
+        this.idbPending = entry;
+        if (this.idbTimer !== undefined) return; // window open — latest kept
+        this.flushIdb(onEvent);
+    }
+
+    private flushIdb(onEvent: (name: string, payload: unknown) => void): void {
+        if (this.idbPending) {
+            const entry = this.idbPending;
+            this.idbPending = null;
+            onEvent('indexeddb', entry);
+        }
+        this.idbTimer = setTimeout(() => {
+            this.idbTimer = undefined;
+            if (this.idbPending) this.flushIdb(onEvent); // trailing flush
+        }, this.idbThrottleMs);
     }
 
     private adapt(e: SandboxEvent, onEvent: (name: string, payload: unknown) => void): void {
@@ -129,8 +176,8 @@ export class CaptureStore {
             }
             case 'indexeddb': {
                 const entry = adaptIndexedDb(e);
-                this.indexeddb.push(entry);
-                onEvent('indexeddb', entry);
+                this.indexeddb.push(entry); // local tail keeps every op
+                this.forwardIdb(entry, onEvent);
                 return;
             }
         }
