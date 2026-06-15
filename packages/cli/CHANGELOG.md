@@ -1,5 +1,13 @@
 # @harness-fe/cli
 
+## 4.1.0
+
+### Patch Changes
+
+- Updated dependencies [2a94faa]
+  - @harness-fe/core@4.1.0
+  - @harness-fe/gateway@4.1.0
+
 ## 4.0.0
 
 ### Minor Changes
