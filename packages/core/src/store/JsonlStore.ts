@@ -32,6 +32,7 @@ import {
     unlinkSync,
     writeFileSync,
 } from 'node:fs';
+import { StringDecoder } from 'node:string_decoder';
 import { WriteQueue } from './WriteQueue.js';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -147,6 +148,42 @@ function readLastNLines(filePath: string, n: number): string[] {
     }
 }
 
+/**
+ * Stream a JSONL file line-by-line, synchronously, without ever materializing
+ * the whole file as a single string. `readAllLines`/`readFileSync(_, 'utf-8')`
+ * throw `Cannot create a string longer than 0x1fffffe8 characters` once a file
+ * passes V8's ~512 MB string cap — which a long-running rrweb `recording.jsonl`
+ * can hit (harness-fe#166). Reads fixed-size buffers and emits one trimmed,
+ * non-empty line at a time; peak memory is one chunk + one line, never the file.
+ * `index` counts emitted (non-empty) lines, matching `readAllLines(...).forEach`.
+ */
+function forEachLineSync(filePath: string, onLine: (line: string, index: number) => void): void {
+    if (!existsSync(filePath)) return;
+    const CHUNK = 1024 * 1024;
+    const fd = openSync(filePath, 'r');
+    const decoder = new StringDecoder('utf8');
+    const buf = Buffer.allocUnsafe(CHUNK);
+    let pending = '';
+    let index = 0;
+    try {
+        let bytesRead: number;
+        while ((bytesRead = readSync(fd, buf, 0, CHUNK, null)) > 0) {
+            pending += decoder.write(buf.subarray(0, bytesRead));
+            let nl = pending.indexOf('\n');
+            while (nl !== -1) {
+                const line = pending.slice(0, nl);
+                pending = pending.slice(nl + 1);
+                if (line.trim()) onLine(line, index++);
+                nl = pending.indexOf('\n');
+            }
+        }
+        pending += decoder.end();
+        if (pending.trim()) onLine(pending, index++);
+    } finally {
+        closeSync(fd);
+    }
+}
+
 function readAllLines(filePath: string): string[] {
     if (!existsSync(filePath)) return [];
     return readFileSync(filePath, 'utf-8')
@@ -175,6 +212,12 @@ interface RecordingChunkRecord extends RecordingChunk {
     bytes: number;
     marked: boolean;
     ageTs: number;
+    /**
+     * Set during pruning so the baseline-rescue check doesn't need the parsed
+     * `events` retained in memory (they're dropped after this is computed —
+     * keeping every chunk's events for a multi-hundred-MB file would risk OOM).
+     */
+    hasFullSnapshot?: boolean;
 }
 
 /**
@@ -242,6 +285,12 @@ function parseRecordingChunkLine(
 const META_EXTENSION_LIMIT_BYTES = 16 * 1024;
 const MAX_EVENT_BYTES = 256 * 1024;
 const MAX_RECORDING_CHUNK_BYTES = 2 * 1024 * 1024;
+// Hard ceiling on a single session's recording.jsonl, enforced at append time.
+// `maxRecordingBytesPerSession` only bounds it during purge, which is too late:
+// a runaway recording can blow past V8's ~512 MB string cap, after which the
+// file can no longer even be read or pruned (harness-fe#166). 384 MB leaves
+// generous headroom under the 512 MB cap; once reached, new chunks are dropped.
+const MAX_RECORDING_FILE_BYTES = 384 * 1024 * 1024;
 
 function enforceExtensionBudget(meta: { tags?: unknown; metadata?: unknown }, label: string): void {
     const open = JSON.stringify({ tags: meta.tags, metadata: meta.metadata });
@@ -297,6 +346,9 @@ export class JsonlStore implements IStore {
      * Enables O(1) session lookup without disk reads.
      */
     private sessionIndex = new Map<string, SessionMeta>();
+
+    /** Sessions already warned about exceeding the recording file ceiling (warn once). */
+    private readonly oversizedRecordingWarned = new Set<string>();
 
     /**
      * In-memory index: buildId → projectId (from openBuild / upsertBuild).
@@ -620,6 +672,24 @@ export class JsonlStore implements IStore {
             return;
         }
         const target = this.sessionRecording(sessionId);
+        // Per-file ceiling: stop appending once a session's recording approaches
+        // the V8 string cap, so it stays readable/prunable (harness-fe#166). The
+        // on-disk size lags queued writes slightly, but the 384 MB ceiling leaves
+        // ample headroom under 512 MB to absorb that.
+        try {
+            if (existsSync(target) && statSync(target).size > MAX_RECORDING_FILE_BYTES) {
+                if (!this.oversizedRecordingWarned.has(sessionId)) {
+                    this.oversizedRecordingWarned.add(sessionId);
+                    process.stderr.write(
+                        `[harness-fe] recording for session ${sessionId} exceeds ${MAX_RECORDING_FILE_BYTES} bytes — dropping further rrweb chunks. ` +
+                        `Lower retention / baseline cadence, or purge this session.\n`,
+                    );
+                }
+                return;
+            }
+        } catch {
+            /* stat race / transient fs error — fall through and append */
+        }
         ensureDir(this.sessionDir(sessionId));
         this.writeQueue.enqueue(target, sessionId, serialized);
     }
@@ -897,7 +967,7 @@ export class JsonlStore implements IStore {
         const sessionMeta = this.getSession(sessionId);
         const tabId = sessionMeta?.tabId ?? '';
 
-        readAllLines(recPath).forEach((line, index) => {
+        forEachLineSync(recPath, (line, index) => {
             const chunk = parseRecordingChunkLine(line, tabId, 0, index);
             if (!chunk) return;
             chunks.push({
@@ -920,7 +990,7 @@ export class JsonlStore implements IStore {
         const tabId = sessionMeta?.tabId ?? '';
         const chunks: RecordingChunk[] = [];
 
-        readAllLines(recPath).forEach((line, index) => {
+        forEachLineSync(recPath, (line, index) => {
             const chunk = parseRecordingChunkLine(line, tabId, 0, index);
             if (!chunk) return;
             if (chunk.endTs < since || chunk.startTs > until) return;
@@ -1291,17 +1361,24 @@ export class JsonlStore implements IStore {
         maxBytesLimit: number,
         preserveMarkedChunks: boolean,
     ): { chunksDeleted: number; bytesFreed: number } {
-        const lines = readAllLines(recPath);
-        if (lines.length === 0) return { chunksDeleted: 0, bytesFreed: 0 };
+        if (!existsSync(recPath)) return { chunksDeleted: 0, bytesFreed: 0 };
         const fallbackAgeTs = statSync(recPath).mtimeMs;
 
         const markerTimestamps = this.readMarkerTimestamps(timelinePath);
         const chunks: RecordingChunkRecord[] = [];
 
-        lines.forEach((line, index) => {
+        // Stream line-by-line: a recording large enough to need pruning is exactly
+        // the case that can exceed V8's string cap, so this must never read the
+        // whole file as one string (harness-fe#166).
+        forEachLineSync(recPath, (line, index) => {
             const chunk = parseRecordingChunkLine(line, '', fallbackAgeTs, index);
             if (!chunk) return;
             chunk.marked = markerTimestamps.some((ts) => ts >= chunk.startTs && ts <= chunk.endTs);
+            // Compute the baseline flag now, then drop events — the rescue below
+            // only needs the boolean, and retaining every chunk's events for a
+            // very large file would risk OOM (harness-fe#166).
+            chunk.hasFullSnapshot = chunkContainsFullSnapshot(chunk);
+            chunk.events = [];
             chunks.push(chunk);
         });
 
@@ -1350,7 +1427,7 @@ export class JsonlStore implements IStore {
         if (kept.length > 0) {
             const oldestKeptTs = Math.min(...kept.map((c) => c.startTs));
             const anchored = kept.some(
-                (c) => c.startTs <= oldestKeptTs && chunkContainsFullSnapshot(c),
+                (c) => c.startTs <= oldestKeptTs && c.hasFullSnapshot,
             );
             if (!anchored) {
                 const baseline = chunks
@@ -1358,7 +1435,7 @@ export class JsonlStore implements IStore {
                         (c) =>
                             removed.has(c.chunkId) &&
                             c.startTs <= oldestKeptTs &&
-                            chunkContainsFullSnapshot(c),
+                            c.hasFullSnapshot,
                     )
                     .sort((a, b) => b.startTs - a.startTs)[0];
                 if (baseline) {
