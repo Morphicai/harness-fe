@@ -55,3 +55,21 @@ describe('RrwebRecorder periodic baseline (checkoutEveryNms)', () => {
         r.stop();
     });
 });
+
+describe('RrwebRecorder blockSelector (harness-fe#158 — wujie)', () => {
+    it('passes blockSelector through to rrweb when set', () => {
+        const r = new RrwebRecorder(() => { /* noop */ }, { blockSelector: 'wujie-app' });
+        r.start();
+        const call = recordSpy.mock.calls[0]?.[0] as { blockSelector?: string };
+        expect(call.blockSelector).toBe('wujie-app');
+        r.stop();
+    });
+
+    it('passes undefined (rrweb default) when no selector set', () => {
+        const r = new RrwebRecorder(() => { /* noop */ });
+        r.start();
+        const call = recordSpy.mock.calls[0]?.[0] as { blockSelector?: string };
+        expect(call.blockSelector).toBeUndefined();
+        r.stop();
+    });
+});
