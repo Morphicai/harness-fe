@@ -326,6 +326,77 @@ describe('JsonlStore', () => {
         expect(remaining).toEqual(['rrc_2', 'rrc_3']);
     });
 
+    it('age purge rescues the FullSnapshot baseline that surviving chunks need (harness-fe#160)', async () => {
+        const { sessionId } = openSession(store, 'proj', 'tab-1');
+        const now = Date.now();
+        // Old baseline chunk (FullSnapshot type:2), well beyond the retention
+        // window, followed by recent increments inside the window.
+        store.appendRecording(sessionId, {
+            chunkId: 'rrc_base',
+            startTs: now - 600_000,
+            endTs: now - 590_000,
+            eventCount: 2,
+            events: [{ type: 4 }, { type: 2 }], // Meta + FullSnapshot
+        });
+        store.appendRecording(sessionId, {
+            chunkId: 'rrc_inc1',
+            startTs: now - 950,
+            endTs: now - 900,
+            eventCount: 1,
+            events: [{ type: 3 }], // increment, inside the window
+        });
+        store.appendRecording(sessionId, {
+            chunkId: 'rrc_inc2',
+            startTs: now - 600,
+            endTs: now - 500,
+            eventCount: 1,
+            events: [{ type: 3 }],
+        });
+
+        await store.flush();
+        // 1-second retention: the baseline is far older and would be age-evicted,
+        // but the surviving increments depend on it.
+        const result = store.purge({ recordingRetentionMs: 1000 });
+
+        const remaining = store.listRecordings(sessionId).map((c) => c.chunkId);
+        // Baseline is rescued and persisted in chronological order, ahead of the
+        // increments it anchors.
+        expect(remaining).toEqual(['rrc_base', 'rrc_inc1', 'rrc_inc2']);
+        expect(result.recordingsDeleted).toBe(0);
+        // The baseline stays on disk so replay assembly's lookback can still find
+        // a FullSnapshot for the surviving window (replayCreate searches earlier
+        // chunks, not just the requested window).
+        expect(
+            store.sliceRecordings(sessionId, 0, now).some((c) => c.events.some((e: any) => e?.type === 2)),
+        ).toBe(true);
+    });
+
+    it('age purge does NOT keep an old non-baseline chunk (rescue is baseline-specific)', async () => {
+        const { sessionId } = openSession(store, 'proj', 'tab-1');
+        const now = Date.now();
+        store.appendRecording(sessionId, {
+            chunkId: 'rrc_old',
+            startTs: now - 600_000,
+            endTs: now - 590_000,
+            eventCount: 1,
+            events: [{ type: 3 }], // increment, no baseline
+        });
+        store.appendRecording(sessionId, {
+            chunkId: 'rrc_new',
+            startTs: now - 800,
+            endTs: now - 400,
+            eventCount: 2,
+            events: [{ type: 4 }, { type: 2 }], // recent baseline survives on its own
+        });
+
+        await store.flush();
+        const result = store.purge({ recordingRetentionMs: 1000 });
+
+        const remaining = store.listRecordings(sessionId).map((c) => c.chunkId);
+        expect(remaining).toEqual(['rrc_new']);
+        expect(result.recordingsDeleted).toBe(1);
+    });
+
     it('recording prune leaves session timeline intact', async () => {
         const { sessionId } = openSession(store, 'proj', 'tab-1');
         const now = Date.now();
