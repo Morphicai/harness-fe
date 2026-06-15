@@ -242,6 +242,39 @@ describe('JsonlStore', () => {
         expect(store.sliceRecordings(sessionId, 2600, 3000)).toEqual([]);
     });
 
+    it('reads recordings via the streaming line reader across buffer boundaries + unicode (harness-fe#166)', async () => {
+        const { sessionId } = openSession(store, 'proj', 'tab-1');
+        // Chunk with multibyte text and an embedded (JSON-escaped) newline — must
+        // survive line splitting + UTF-8 decoding intact.
+        const tricky = '日本語🎉 line-one\nline-two 末';
+        store.appendRecording(sessionId, {
+            chunkId: 'rrc_uni',
+            startTs: 1000,
+            endTs: 1100,
+            eventCount: 1,
+            events: [{ type: 3, data: { text: tricky } }],
+        });
+        // A ~1.5 MB chunk pushes the file past the 1 MB read buffer, forcing
+        // forEachLineSync to stitch lines across multiple reads.
+        store.appendRecording(sessionId, {
+            chunkId: 'rrc_big',
+            startTs: 2000,
+            endTs: 2100,
+            eventCount: 1,
+            events: [{ type: 3, data: { blob: 'x'.repeat(1_500_000) } }],
+        });
+        await store.flush();
+
+        const all = store.listRecordings(sessionId).map((c) => c.chunkId);
+        expect(all).toEqual(['rrc_uni', 'rrc_big']);
+
+        const slice = store.sliceRecordings(sessionId, 0, 3000);
+        expect(slice.map((c) => c.chunkId)).toEqual(['rrc_uni', 'rrc_big']);
+        // Unicode + embedded newline round-tripped correctly through streaming read.
+        expect((slice[0].events[0] as any).data.text).toBe(tricky);
+        expect((slice[1].events[0] as any).data.blob).toHaveLength(1_500_000);
+    });
+
     it('purge trims recording chunks by per-session count limit', async () => {
         const { sessionId } = openSession(store, 'proj', 'tab-1');
         store.appendRecording(sessionId, {
