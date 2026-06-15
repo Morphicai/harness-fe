@@ -27,8 +27,20 @@ export function principalFromCaller(caller: VerifiedCaller): Principal {
             control: caller.scopes.includes('control'),
             write: caller.scopes.includes('write'),
         },
-        // undefined / ['*'] → all projects (no list); a list scopes the agent.
-        projects: caller.projects && caller.projects.length ? caller.projects : undefined,
+        // Project→agent binding. The token store documents "undefined / ['*'] =
+        // all projects on the server; a list scopes the agent" (store.ts). core,
+        // however, treats a token principal with NO grant as default-deny (the
+        // enumeration fix in identity.ts — a scoped caller only sees projects it
+        // created). Those two intents collided: a read token issued without an
+        // explicit projects= saw *nothing* instead of everything (harness-fe#161).
+        //
+        // Resolve it here, at the gateway→core boundary, by materializing the
+        // store's "undefined = all" contract into an explicit ['*'] grant. This
+        // keeps core's default-deny intact for hand-built / forwarded principals
+        // that genuinely carry no grant, and does not widen the leaked-browser-
+        // token risk: runtime tokens are write-scoped and core denies read/control
+        // to a write-only principal regardless of projects.
+        projects: caller.projects && caller.projects.length ? caller.projects : ['*'],
     };
 }
 

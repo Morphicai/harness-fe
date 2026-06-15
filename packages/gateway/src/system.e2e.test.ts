@@ -78,6 +78,7 @@ describe('system e2e — all access surfaces against one governed gateway', () =
     let runtimeTok: string; // write, projects=[app-a]
     let agentA: string;     // read+control, projects=[app-a]
     let agentB: string;     // read, projects=[app-b]
+    let agentAll: string;   // read, NO projects grant → should see everything (#161)
 
     beforeEach(async () => {
         dir = mkdtempSync(join(tmpdir(), 'hfe-sys-gw-'));
@@ -88,6 +89,8 @@ describe('system e2e — all access surfaces against one governed gateway', () =
         runtimeTok = store.createToken({ name: 'rt', serverId: srv.id, scopes: ['write'], projects: ['app-a'] }).raw;
         agentA = store.createToken({ name: 'A', serverId: srv.id, scopes: ['read', 'control'], projects: ['app-a'] }).raw;
         agentB = store.createToken({ name: 'B', serverId: srv.id, scopes: ['read'], projects: ['app-b'] }).raw;
+        // read token issued WITHOUT a projects= list — store docs "undefined = all".
+        agentAll = store.createToken({ name: 'all', serverId: srv.id, scopes: ['read'] }).raw;
 
         core = new InProcessCoreClient({ dataDir: coreDir, taskStore: null, autoPurge: { enabled: false } });
         await core.start();
@@ -97,6 +100,11 @@ describe('system e2e — all access surfaces against one governed gateway', () =
             s.upsertProject(pid, { displayName: pid, createdBy: 'local' });
             s.upsertSession(`sess-${pid}`, { tabId: 't', startedAt: Date.now(), participants: [{ projectId: pid, joinedAt: Date.now() }] });
         }
+        // Edge sessions for the visibility fix (#161): one with no project on its
+        // participant, and one whose project-owning participant isn't first. Both
+        // were wrongly dropped from the list — even for admin — by the old filter.
+        s.upsertSession('sess-orphan', { tabId: 't', startedAt: Date.now(), participants: [{ projectId: '', joinedAt: Date.now() }] });
+        s.upsertSession('sess-multi', { tabId: 't', startedAt: Date.now(), participants: [{ projectId: '', joinedAt: Date.now() }, { projectId: 'app-a', joinedAt: Date.now() }] });
         await s.flush();
 
         gw = createGateway({ coreClient: core, policy: new Policy({ mode: 'governed', store }), store });
@@ -176,6 +184,38 @@ describe('system e2e — all access surfaces against one governed gateway', () =
         const cookie = await adminLogin(base);
         const all = await getJson(base, '/console/api/projects', { cookie });
         expect(all.body.projects.map((e: any) => e.project.id).sort()).toEqual(['app-a', 'app-b']);
+    });
+
+    it('console: a read token with no projects= grant sees ALL projects (harness-fe#161)', async () => {
+        // Was the footgun: a read token issued without projects= saw nothing,
+        // because core default-denies a token principal with no grant. The
+        // gateway now materializes the documented "undefined = all" into ['*'].
+        const r = await getJson(base, '/console/api/projects', { authorization: `Bearer ${agentAll}` });
+        expect(r.status).toBe(200);
+        expect(r.body.projects.map((e: any) => e.project.id).sort()).toEqual(['app-a', 'app-b']);
+        // and it can read a session in any project
+        const sess = await getJson(base, '/console/api/sessions/sess-app-b', { authorization: `Bearer ${agentAll}` });
+        expect(sess.status).toBe(200);
+    });
+
+    it('console: admin sees sessions with empty / non-first project participants (harness-fe#161)', async () => {
+        const cookie = await adminLogin(base);
+        const all = await getJson(base, '/console/api/sessions', { cookie });
+        expect(all.status).toBe(200);
+        const ids = all.body.sessions.map((s: any) => s.id);
+        expect(ids).toContain('sess-orphan'); // empty projectId — dropped by old !!projectId short-circuit
+        expect(ids).toContain('sess-multi');  // owning participant wasn't participants[0]
+    });
+
+    it('console: a scoped token still does NOT see unowned/other sessions (no regression)', async () => {
+        // agentB is scoped to app-b; it must not gain visibility into the
+        // empty-project orphan session via the relaxed filter.
+        const r = await getJson(base, '/console/api/sessions?projectId=app-b', { authorization: `Bearer ${agentB}` });
+        expect(r.status).toBe(200);
+        const ids = r.body.sessions.map((s: any) => s.id);
+        expect(ids).toContain('sess-app-b');
+        expect(ids).not.toContain('sess-orphan');
+        expect(ids).not.toContain('sess-app-a');
     });
 
     it('console: a token cannot read a session outside its projects (404)', async () => {
