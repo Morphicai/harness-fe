@@ -478,6 +478,9 @@ export class CoreCapabilities {
             maxRecordingChunksPerTab?: number;
             maxRecordingBytesPerTab?: number;
             preserveMarkedChunks?: boolean;
+            maxTimelineBytesPerSession?: number;
+            maxTimelineChunksPerSession?: number;
+            timelineRetentionMs?: number;
         } = {},
     ) {
         assertScope(principal, 'read');
