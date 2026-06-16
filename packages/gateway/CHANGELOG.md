@@ -1,5 +1,12 @@
 # @harness-fe/gateway
 
+## 4.1.1
+
+### Patch Changes
+
+- Updated dependencies [9fd5d8d]
+  - @harness-fe/core@4.1.1
+
 ## 4.1.0
 
 ### Patch Changes
