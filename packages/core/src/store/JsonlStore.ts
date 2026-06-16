@@ -156,8 +156,16 @@ function readLastNLines(filePath: string, n: number): string[] {
  * can hit (harness-fe#166). Reads fixed-size buffers and emits one trimmed,
  * non-empty line at a time; peak memory is one chunk + one line, never the file.
  * `index` counts emitted (non-empty) lines, matching `readAllLines(...).forEach`.
+ * Used for any JSONL that can grow past the cap — rrweb `recording.jsonl` and the
+ * event `timeline.jsonl` (harness-fe#166 and its timeline sibling).
+ *
+ * The callback may return `false` to stop early (e.g. a capped search), which
+ * avoids streaming a multi-GB file to the end once enough rows are collected.
  */
-function forEachLineSync(filePath: string, onLine: (line: string, index: number) => void): void {
+function forEachLineSync(
+    filePath: string,
+    onLine: (line: string, index: number) => void | boolean,
+): void {
     if (!existsSync(filePath)) return;
     const CHUNK = 1024 * 1024;
     const fd = openSync(filePath, 'r');
@@ -173,7 +181,7 @@ function forEachLineSync(filePath: string, onLine: (line: string, index: number)
             while (nl !== -1) {
                 const line = pending.slice(0, nl);
                 pending = pending.slice(nl + 1);
-                if (line.trim()) onLine(line, index++);
+                if (line.trim() && onLine(line, index++) === false) return;
                 nl = pending.indexOf('\n');
             }
         }
@@ -291,6 +299,11 @@ const MAX_RECORDING_CHUNK_BYTES = 2 * 1024 * 1024;
 // file can no longer even be read or pruned (harness-fe#166). 384 MB leaves
 // generous headroom under the 512 MB cap; once reached, new chunks are dropped.
 const MAX_RECORDING_FILE_BYTES = 384 * 1024 * 1024;
+// Same ceiling for a single session's event timeline.jsonl. A chatty session
+// (console/network/idb spam) can grow it past the V8 string cap, which broke the
+// session-detail page AND aborted auto-purge (harness-fe#166 sibling). 384 MB
+// leaves headroom under 512 MB; beyond it, further events for that session drop.
+const MAX_TIMELINE_FILE_BYTES = 384 * 1024 * 1024;
 
 function enforceExtensionBudget(meta: { tags?: unknown; metadata?: unknown }, label: string): void {
     const open = JSON.stringify({ tags: meta.tags, metadata: meta.metadata });
@@ -349,6 +362,15 @@ export class JsonlStore implements IStore {
 
     /** Sessions already warned about exceeding the recording file ceiling (warn once). */
     private readonly oversizedRecordingWarned = new Set<string>();
+    /** Sessions already warned about exceeding the timeline file ceiling (warn once). */
+    private readonly oversizedTimelineWarned = new Set<string>();
+    /**
+     * Approximate on-disk bytes of each session's timeline.jsonl, kept in memory
+     * so the per-event append path doesn't `statSync` on every event. Seeded once
+     * per session per process from the real file size (so a restart doesn't forget
+     * an already-large file), then advanced by each appended line.
+     */
+    private readonly timelineBytes = new Map<string, number>();
 
     /**
      * In-memory index: buildId → projectId (from openBuild / upsertBuild).
@@ -637,12 +659,14 @@ export class JsonlStore implements IStore {
     appendEvent(sessionId: string, event: StoreEvent): void {
         if (!this.getSession(sessionId)) return;
         const line = JSON.stringify(event);
-        if (Buffer.byteLength(line, 'utf-8') > MAX_EVENT_BYTES) {
+        const bytes = Buffer.byteLength(line, 'utf-8');
+        if (bytes > MAX_EVENT_BYTES) {
             process.stderr.write(
-                `[harness-fe] dropping oversized event (${Buffer.byteLength(line, 'utf-8')} bytes > ${MAX_EVENT_BYTES}) — type=${event.t}\n`,
+                `[harness-fe] dropping oversized event (${bytes} bytes > ${MAX_EVENT_BYTES}) — type=${event.t}\n`,
             );
             return;
         }
+        if (!this.timelineCapAllows(sessionId, bytes)) return;
         this.writeQueue.enqueue(this.sessionTimeline(sessionId), sessionId, line);
     }
 
@@ -651,14 +675,48 @@ export class JsonlStore implements IStore {
         if (!this.getSession(sessionId)) return;
         for (const event of events) {
             const line = JSON.stringify(event);
-            if (Buffer.byteLength(line, 'utf-8') > MAX_EVENT_BYTES) {
+            const bytes = Buffer.byteLength(line, 'utf-8');
+            if (bytes > MAX_EVENT_BYTES) {
                 process.stderr.write(
-                    `[harness-fe] dropping oversized event in batch (${Buffer.byteLength(line, 'utf-8')} bytes) — type=${event.t}\n`,
+                    `[harness-fe] dropping oversized event in batch (${bytes} bytes) — type=${event.t}\n`,
                 );
                 continue;
             }
+            if (!this.timelineCapAllows(sessionId, bytes)) return; // file full — stop the batch
             this.writeQueue.enqueue(this.sessionTimeline(sessionId), sessionId, line);
         }
+    }
+
+    /**
+     * Per-session timeline.jsonl ceiling (harness-fe#166 sibling). Returns false
+     * once the file would pass {@link MAX_TIMELINE_FILE_BYTES}, so a runaway
+     * session can't grow it past V8's string cap (which broke session detail and
+     * aborted auto-purge). Uses an in-memory byte counter — seeded once from the
+     * real file size — to keep the per-event path off `statSync`.
+     */
+    private timelineCapAllows(sessionId: string, lineBytes: number): boolean {
+        let cur = this.timelineBytes.get(sessionId);
+        if (cur === undefined) {
+            try {
+                const p = this.sessionTimeline(sessionId);
+                cur = existsSync(p) ? statSync(p).size : 0;
+            } catch {
+                cur = 0;
+            }
+        }
+        if (cur > MAX_TIMELINE_FILE_BYTES) {
+            if (!this.oversizedTimelineWarned.has(sessionId)) {
+                this.oversizedTimelineWarned.add(sessionId);
+                process.stderr.write(
+                    `[harness-fe] timeline for session ${sessionId} exceeds ${MAX_TIMELINE_FILE_BYTES} bytes — dropping further events. ` +
+                    `Lower retention or purge this session.\n`,
+                );
+            }
+            this.timelineBytes.set(sessionId, cur);
+            return false;
+        }
+        this.timelineBytes.set(sessionId, cur + lineBytes + 1); // +1 for the newline
+        return true;
     }
 
     appendRecording(sessionId: string, chunk: unknown): void {
@@ -947,14 +1005,16 @@ export class JsonlStore implements IStore {
         const lowerQuery = query.toLowerCase();
         const results: StoreEvent[] = [];
 
-        for (const line of readAllLines(filePath)) {
-            if (!line.toLowerCase().includes(lowerQuery)) continue;
+        // Stream — timeline.jsonl can exceed V8's string cap (harness-fe#166
+        // sibling); never read it whole. Stop once we have `limit` matches.
+        forEachLineSync(filePath, (line) => {
+            if (!line.toLowerCase().includes(lowerQuery)) return;
             const event = parseEvent(line);
-            if (!event) continue;
-            if (!matchesType(event, opts.type)) continue;
+            if (!event) return;
+            if (!matchesType(event, opts.type)) return;
             results.push(event);
-            if (results.length >= limit) break;
-        }
+            if (results.length >= limit) return false;
+        });
 
         return results;
     }
@@ -1102,14 +1162,16 @@ export class JsonlStore implements IStore {
         let lastError: StoreEvent | undefined;
         let lastActivity: number | undefined;
 
+        // Stream — a large timeline.jsonl would otherwise blow V8's string cap
+        // here too, breaking the console session-detail page (harness-fe#166).
         const filePath = this.sessionTimeline(sessionId);
-        for (const line of readAllLines(filePath)) {
+        forEachLineSync(filePath, (line) => {
             const event = parseEvent(line);
-            if (!event) continue;
+            if (!event) return;
             counts[event.t] = (counts[event.t] ?? 0) + 1;
             if (event.t === 'err') lastError = event;
             if (!lastActivity || event.ts > lastActivity) lastActivity = event.ts;
-        }
+        });
 
         const tabs: string[] = session ? [session.tabId].filter(Boolean) : [];
 
@@ -1205,22 +1267,30 @@ export class JsonlStore implements IStore {
                 }
             }
 
-            // Trim recording data per session
+            // Trim recording data per session. Isolate each session: a single
+            // unreadable / pathological file must not abort the whole purge run
+            // (harness-fe#166 — one oversized file used to wedge all retention).
             for (const sess of this.listSessions({ limit: Number.MAX_SAFE_INTEGER })) {
                 const recPath = this.sessionRecording(sess.id);
                 if (!existsSync(recPath)) continue;
                 const timelinePath = this.sessionTimeline(sess.id);
-                const result = this.pruneRecordingFile(
-                    recPath,
-                    timelinePath,
-                    now,
-                    recMaxAge,
-                    maxChunks,
-                    maxBytes,
-                    preserveMarkedChunks,
-                );
-                bytesFreed += result.bytesFreed;
-                recordingsDeleted += result.chunksDeleted;
+                try {
+                    const result = this.pruneRecordingFile(
+                        recPath,
+                        timelinePath,
+                        now,
+                        recMaxAge,
+                        maxChunks,
+                        maxBytes,
+                        preserveMarkedChunks,
+                    );
+                    bytesFreed += result.bytesFreed;
+                    recordingsDeleted += result.chunksDeleted;
+                } catch (err) {
+                    process.stderr.write(
+                        `[harness-fe] purge: failed to prune recording for session ${sess.id}: ${(err as Error).message}\n`,
+                    );
+                }
             }
         }
 
@@ -1466,11 +1536,14 @@ export class JsonlStore implements IStore {
 
     private readMarkerTimestamps(timelinePath: string): number[] {
         const timestamps: number[] = [];
-        for (const line of readAllLines(timelinePath)) {
+        // Stream — this runs inside purge for every session; a single multi-GB
+        // timeline.jsonl read whole-file here threw and aborted the ENTIRE
+        // auto-purge (harness-fe#166 sibling). Line-by-line keeps purge alive.
+        forEachLineSync(timelinePath, (line) => {
             const event = parseEvent(line);
-            if (!event || event.t !== 'rrweb:marker') continue;
+            if (!event || event.t !== 'rrweb:marker') return;
             timestamps.push(event.ts);
-        }
+        });
         return timestamps;
     }
 }

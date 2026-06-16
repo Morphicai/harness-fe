@@ -275,6 +275,26 @@ describe('JsonlStore', () => {
         expect((slice[1].events[0] as any).data.blob).toHaveLength(1_500_000);
     });
 
+    it('reads a >1MB timeline via streaming — summary counts + search early-stop (harness-fe#166 timeline)', async () => {
+        const { sessionId } = openSession(store, 'proj', 'tab-1');
+        const filler = 'y'.repeat(600);
+        const events = [];
+        for (let i = 0; i < 2500; i++) {
+            events.push({ ts: 1000 + i, t: i === 1234 ? 'err' : 'log', d: { args: [filler], i } });
+        }
+        store.appendEventBatch(sessionId, events as any);
+        await store.flush();
+
+        // summary streams the whole (>1MB) timeline without building one big string
+        const sum = store.summary(sessionId);
+        expect(sum.counts.log).toBe(2499);
+        expect(sum.counts.err).toBe(1);
+
+        // search streams + stops early once `limit` matches are collected
+        const found = store.search(sessionId, 'yyy', { limit: 5 });
+        expect(found).toHaveLength(5);
+    });
+
     it('purge trims recording chunks by per-session count limit', async () => {
         const { sessionId } = openSession(store, 'proj', 'tab-1');
         store.appendRecording(sessionId, {
