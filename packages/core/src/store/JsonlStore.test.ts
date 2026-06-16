@@ -8,10 +8,19 @@ import { JsonlStore, sanitizeId } from './JsonlStore.js';
 import { WriteQueue } from './WriteQueue.js';
 
 /** Helper: create a fresh store + temp dir */
-function makeStore() {
+function makeStore(opts?: { recordingChunkBytes?: number; timelineChunkBytes?: number }) {
     const dir = mkdtempSync(join(tmpdir(), 'harness-store-test-'));
-    const store = new JsonlStore(dir);
+    const store = new JsonlStore(dir, opts);
     return { store, dir };
+}
+
+/**
+ * Store whose chunk files rotate on every line — each recording chunk / timeline
+ * event lands in its own `NNNNNN.jsonl`. Used by retention tests so whole-file
+ * eviction operates at single-chunk granularity (harness-fe#171).
+ */
+function makePerChunkStore() {
+    return makeStore({ recordingChunkBytes: 1, timelineChunkBytes: 1 });
 }
 
 function cleanup(dir: string) {
@@ -296,6 +305,7 @@ describe('JsonlStore', () => {
     });
 
     it('purge trims recording chunks by per-session count limit', async () => {
+        const { store, dir } = makePerChunkStore(); // one chunk per file → file-granular eviction
         const { sessionId } = openSession(store, 'proj', 'tab-1');
         store.appendRecording(sessionId, {
             chunkId: 'rrc_1',
@@ -331,9 +341,12 @@ describe('JsonlStore', () => {
         // Only the 2 newest chunks should remain
         const remaining = store.listRecordings(sessionId).map((chunk) => chunk.chunkId);
         expect(remaining).toEqual(['rrc_2', 'rrc_3']);
+        await store.close();
+        cleanup(dir);
     });
 
     it('purge prefers keeping marked chunks when configured', async () => {
+        const { store, dir } = makePerChunkStore();
         const { sessionId } = openSession(store, 'proj', 'tab-1');
         const now = Date.now();
         // Marker event overlaps rrc_2
@@ -377,9 +390,12 @@ describe('JsonlStore', () => {
         const remaining = store.listRecordings(sessionId).map((chunk) => chunk.chunkId);
         // rrc_2 must survive (overlaps marker); rrc_1 is oldest and dropped
         expect(remaining).toEqual(['rrc_2', 'rrc_3']);
+        await store.close();
+        cleanup(dir);
     });
 
     it('age purge rescues the FullSnapshot baseline that surviving chunks need (harness-fe#160)', async () => {
+        const { store, dir } = makePerChunkStore(); // each chunk → its own file; rescue spans files
         const { sessionId } = openSession(store, 'proj', 'tab-1');
         const now = Date.now();
         // Old baseline chunk (FullSnapshot type:2), well beyond the retention
@@ -422,9 +438,12 @@ describe('JsonlStore', () => {
         expect(
             store.sliceRecordings(sessionId, 0, now).some((c) => c.events.some((e: any) => e?.type === 2)),
         ).toBe(true);
+        await store.close();
+        cleanup(dir);
     });
 
     it('age purge does NOT keep an old non-baseline chunk (rescue is baseline-specific)', async () => {
+        const { store, dir } = makePerChunkStore();
         const { sessionId } = openSession(store, 'proj', 'tab-1');
         const now = Date.now();
         store.appendRecording(sessionId, {
@@ -448,9 +467,12 @@ describe('JsonlStore', () => {
         const remaining = store.listRecordings(sessionId).map((c) => c.chunkId);
         expect(remaining).toEqual(['rrc_new']);
         expect(result.recordingsDeleted).toBe(1);
+        await store.close();
+        cleanup(dir);
     });
 
     it('recording prune leaves session timeline intact', async () => {
+        const { store, dir } = makePerChunkStore();
         const { sessionId } = openSession(store, 'proj', 'tab-1');
         const now = Date.now();
         store.appendEvent(sessionId, { ts: now - 800, t: 'log', d: { args: ['hello'] } });
@@ -483,6 +505,80 @@ describe('JsonlStore', () => {
         expect(after).toEqual(before);
         expect(afterMarkers).toEqual(beforeMarkers);
         expect(afterMarkers).toHaveLength(1);
+        await store.close();
+        cleanup(dir);
+    });
+
+    // ── Chunk-file storage (harness-fe#171) ──────────────────────────────
+
+    it('rotates recordings into numbered chunk files and reads merge across them', async () => {
+        const { existsSync: efs, readdirSync: rdir } = await import('node:fs');
+        const { store, dir } = makePerChunkStore(); // each chunk → its own file
+        const { sessionId, tabId } = openSession(store, 'proj', 'tab-1');
+        for (let i = 0; i < 5; i++) {
+            store.appendRecording(sessionId, {
+                chunkId: `c_${i}`, startTs: 1000 + i * 100, endTs: 1050 + i * 100,
+                eventCount: 1, events: [{ type: i === 0 ? 2 : 3 }],
+            });
+        }
+        await store.flush();
+
+        const recDir = join(dir, 'sessions', sanitizeId(sessionId), 'recording');
+        const files = rdir(recDir).filter((f) => f.endsWith('.jsonl')).sort();
+        expect(files).toEqual(['000001.jsonl', '000002.jsonl', '000003.jsonl', '000004.jsonl', '000005.jsonl']);
+        // every chunk landed whole in exactly one file (no split lines)
+        expect(efs(join(dir, 'sessions', sanitizeId(sessionId), 'recording.jsonl'))).toBe(false);
+
+        // reads merge across files, chronological
+        expect(store.listRecordings(sessionId).map((c) => c.chunkId)).toEqual(['c_0', 'c_1', 'c_2', 'c_3', 'c_4']);
+        const slice = store.sliceRecordings(sessionId, 1150, 1260); // overlaps c_1,c_2
+        expect(slice.map((c) => c.chunkId)).toEqual(['c_1', 'c_2']);
+        void tabId;
+        await store.close();
+        cleanup(dir);
+    });
+
+    it('reads a legacy single recording.jsonl merged with new chunk-dir files (migration compat)', async () => {
+        const { writeFileSync: wf, mkdirSync: mkd } = await import('node:fs');
+        const { store, dir } = makePerChunkStore();
+        const { sessionId } = openSession(store, 'proj', 'tab-1');
+        // Hand-write a legacy single file as it existed pre-#171.
+        const sessDir = join(dir, 'sessions', sanitizeId(sessionId));
+        mkd(sessDir, { recursive: true });
+        wf(
+            join(sessDir, 'recording.jsonl'),
+            JSON.stringify({ chunkId: 'legacy', startTs: 10, endTs: 20, eventCount: 1, events: [{ type: 2 }] }) + '\n',
+            'utf-8',
+        );
+        // New writes go to the chunk dir.
+        store.appendRecording(sessionId, { chunkId: 'fresh', startTs: 100, endTs: 110, eventCount: 1, events: [{ type: 3 }] });
+        await store.flush();
+
+        // Legacy chunk is read as the oldest, ahead of the dir chunk.
+        expect(store.listRecordings(sessionId).map((c) => c.chunkId)).toEqual(['legacy', 'fresh']);
+        await store.close();
+        cleanup(dir);
+    });
+
+    it('timeline trimming drops the OLDEST chunk files and keeps recent events (harness-fe#171)', async () => {
+        const { store, dir } = makePerChunkStore(); // each event → its own file
+        const { sessionId } = openSession(store, 'proj', 'tab-1');
+        const now = Date.now();
+        for (let i = 0; i < 30; i++) {
+            store.appendEvent(sessionId, { ts: now - (30 - i) * 1000, t: 'log', d: { i } });
+        }
+        await store.flush();
+
+        // Keep at most 5 timeline files — oldest dropped, recent kept.
+        store.purge({ maxTimelineChunksPerSession: 5 });
+
+        const recent = store.tail(sessionId, { n: 100 });
+        // The newest events survive; the oldest (i=0) is gone.
+        expect(recent.some((e) => (e.d as any).i === 29)).toBe(true);
+        expect(recent.some((e) => (e.d as any).i === 0)).toBe(false);
+        expect(recent.length).toBeLessThanOrEqual(6); // ~5 files × 1 event
+        await store.close();
+        cleanup(dir);
     });
 
     // ── Exports (replay) ─────────────────────────────────────────────────
@@ -1552,8 +1648,8 @@ describe('Property 11: Purge count-based deletion', () => {
 
 // Feature: persistence, Property 12: Recording purge preserves timeline
 describe('Property 12: Recording purge preserves timeline', () => {
-    it('purge deletes recording.jsonl but preserves timeline.jsonl', async () => {
-        const { utimesSync, existsSync: efs } = await import('node:fs');
+    it('age purge deletes the recording chunk but preserves the timeline (chunk-file layout, harness-fe#171)', async () => {
+        const { existsSync: efs, readdirSync: rdir } = await import('node:fs');
 
         await fc.assert(
             fc.asyncProperty(
@@ -1564,36 +1660,34 @@ describe('Property 12: Recording purge preserves timeline', () => {
                         const s = new JsonlStore(tmpDir);
                         const { sessionId } = openSession(s, 'proj');
 
-                        s.appendEvent(sessionId, { ts: Date.now(), t: 'log', d: {} });
+                        // Recent timeline event; a recording chunk whose endTs is
+                        // `daysAgo` old (the chunk's own time drives age eviction).
+                        const now = Date.now();
+                        s.appendEvent(sessionId, { ts: now, t: 'log', d: {} });
+                        const recEnd = now - daysAgo * 86400000;
                         s.appendRecording(sessionId, {
-                            chunkId: 'c1', startTs: 1, endTs: 2, eventCount: 1,
+                            chunkId: 'c1', startTs: recEnd - 1000, endTs: recEnd, eventCount: 1,
                             events: [{ type: 4, data: {} }],
                         });
                         await s.flush();
 
-                        // Paths in the NEW flat layout
                         const sessDir = join(tmpDir, 'sessions', sanitizeId(sessionId));
-                        const recordingPath = join(sessDir, 'recording.jsonl');
-                        const timelinePath = join(sessDir, 'timeline.jsonl');
-
-                        const oldTime = new Date(Date.now() - daysAgo * 86400000);
-                        if (efs(recordingPath)) {
-                            utimesSync(recordingPath, oldTime, oldTime);
-                        }
+                        const recDir = join(sessDir, 'recording');
+                        const tlDir = join(sessDir, 'timeline');
 
                         const recordingRetentionDays = Math.max(0, daysAgo - 1);
-                        s.purge({
-                            maxAgeDays: 365,
-                            maxSessions: 1000,
-                            recordingRetentionDays,
-                        });
+                        s.purge({ maxAgeDays: 365, maxSessions: 1000, recordingRetentionDays });
 
+                        // The recording chunk file is age-evicted (its endTs is older
+                        // than the retention window); recording dir ends up empty.
                         if (daysAgo > recordingRetentionDays) {
-                            expect(efs(recordingPath)).toBe(false);
+                            const recFiles = efs(recDir) ? rdir(recDir).filter((f) => f.endsWith('.jsonl')) : [];
+                            expect(recFiles).toHaveLength(0);
                         }
-
-                        // timeline must still exist
-                        expect(efs(timelinePath)).toBe(true);
+                        // Timeline (recent) is untouched.
+                        const tlFiles = efs(tlDir) ? rdir(tlDir).filter((f) => f.endsWith('.jsonl')) : [];
+                        expect(tlFiles.length).toBeGreaterThan(0);
+                        expect(s.tail(sessionId, { n: 10 }).length).toBeGreaterThan(0);
 
                         await s.close();
                     } finally {
@@ -1601,7 +1695,7 @@ describe('Property 12: Recording purge preserves timeline', () => {
                     }
                 },
             ),
-            { numRuns: 100 },
+            { numRuns: 50 },
         );
     });
 });

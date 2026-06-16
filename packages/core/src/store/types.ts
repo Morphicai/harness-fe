@@ -289,6 +289,14 @@ export interface RetentionPolicy {
     maxRecordingBytesPerSession?: number;
     /** Prefer keeping chunks that overlap rrweb markers when trimming. */
     preserveMarkedChunks?: boolean;
+    /**
+     * Per-session event-timeline budget (harness-fe#171). Keep recent timeline
+     * chunk files, drop the oldest beyond these. Default 64 MB / 24 files.
+     */
+    maxTimelineBytesPerSession?: number;
+    maxTimelineChunksPerSession?: number;
+    /** Drop timeline chunk files untouched within this many ms. Default = maxAgeDays. */
+    timelineRetentionMs?: number;
     /** Keep at most this many replay exports per project. Default 50. */
     maxExportsPerProject?: number;
     /** Keep at most this many bytes of replay exports per project. Default 200MB. */

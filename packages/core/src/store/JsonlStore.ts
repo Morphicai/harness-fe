@@ -87,6 +87,11 @@ const DEFAULT_RETENTION = {
     maxRecordingChunksPerSession: 500,
     maxRecordingBytesPerSession: 250 * 1024 * 1024,
     preserveMarkedChunks: true,
+    // Per-session timeline budget (harness-fe#171): keep recent timeline chunk
+    // files, drop oldest beyond these. Bounds a single session's event history
+    // (the 2.3 GB timeline that wedged auto-purge can't recur).
+    maxTimelineBytesPerSession: 64 * 1024 * 1024,
+    maxTimelineChunksPerSession: 24,
     maxExportsPerProject: 50,
     maxExportBytesPerProject: 200 * 1024 * 1024,
     maxBuildsPerProject: 100,
@@ -192,6 +197,45 @@ function forEachLineSync(
     }
 }
 
+/**
+ * Stream every line across an ordered (oldest→newest) list of JSONL files as if
+ * they were one file (chunk-file storage, harness-fe#171). `index` is global
+ * across files (matches the old single-file `forEachLineSync` index). The
+ * callback may return `false` to stop — early-stop spans files (e.g. a capped
+ * search closes no further files once full).
+ */
+function forEachLineInFiles(
+    files: readonly string[],
+    onLine: (line: string, index: number) => void | boolean,
+): void {
+    let index = 0;
+    for (const f of files) {
+        let stopped = false;
+        forEachLineSync(f, (line) => {
+            if (onLine(line, index++) === false) {
+                stopped = true;
+                return false;
+            }
+        });
+        if (stopped) break;
+    }
+}
+
+/**
+ * Last `n` lines across an ordered (oldest→newest) list of files, chronological.
+ * Scans newest file backward (via {@link readLastNLines}) and walks older files
+ * only if the newest don't yield `n` — so `tail` usually touches just the active
+ * chunk. Returns ≤ n lines in chronological order.
+ */
+function lastNLinesInFiles(files: readonly string[], n: number): string[] {
+    const out: string[] = [];
+    for (let i = files.length - 1; i >= 0 && out.length < n; i--) {
+        const lines = readLastNLines(files[i], n - out.length);
+        out.unshift(...lines); // older file's lines precede what's already collected
+    }
+    return out;
+}
+
 function readAllLines(filePath: string): string[] {
     if (!existsSync(filePath)) return [];
     return readFileSync(filePath, 'utf-8')
@@ -293,17 +337,61 @@ function parseRecordingChunkLine(
 const META_EXTENSION_LIMIT_BYTES = 16 * 1024;
 const MAX_EVENT_BYTES = 256 * 1024;
 const MAX_RECORDING_CHUNK_BYTES = 2 * 1024 * 1024;
-// Hard ceiling on a single session's recording.jsonl, enforced at append time.
-// `maxRecordingBytesPerSession` only bounds it during purge, which is too late:
-// a runaway recording can blow past V8's ~512 MB string cap, after which the
-// file can no longer even be read or pruned (harness-fe#166). 384 MB leaves
-// generous headroom under the 512 MB cap; once reached, new chunks are dropped.
-const MAX_RECORDING_FILE_BYTES = 384 * 1024 * 1024;
-// Same ceiling for a single session's event timeline.jsonl. A chatty session
-// (console/network/idb spam) can grow it past the V8 string cap, which broke the
-// session-detail page AND aborted auto-purge (harness-fe#166 sibling). 384 MB
-// leaves headroom under 512 MB; beyond it, further events for that session drop.
-const MAX_TIMELINE_FILE_BYTES = 384 * 1024 * 1024;
+// Chunk-file rotation thresholds (harness-fe#171). A stream rotates to a new
+// numbered chunk file before a write that would exceed these, so no single file
+// approaches V8's ~512 MB string cap — readable, slice-able, and evictable
+// whole. Both are far above the per-line caps above, keeping file counts low.
+const RECORDING_CHUNK_BYTES = 16 * 1024 * 1024;
+const TIMELINE_CHUNK_BYTES = 8 * 1024 * 1024;
+
+/** Per-file metadata for whole-file recording eviction (harness-fe#171). */
+interface RecordingFileMeta {
+    path: string;
+    minTs: number;
+    maxTs: number;
+    bytes: number;
+    chunkCount: number;
+    hasFullSnapshot: boolean;
+    hasMarker: boolean;
+}
+
+/** Active chunk file state for one session+stream (harness-fe#171). */
+interface StreamState {
+    /** Current chunk sequence number (1-based; file is `NNNNNN.jsonl`). */
+    num: number;
+    /** Approximate bytes already in the active chunk file. */
+    bytes: number;
+}
+
+/** `1` → `000001.jsonl`. Zero-padded so lexical readdir order == chronological. */
+function chunkFileName(num: number): string {
+    return `${String(num).padStart(6, '0')}.jsonl`;
+}
+
+/**
+ * Lazily recover the active chunk state for a stream dir on first touch in this
+ * process: highest existing chunk number + its on-disk size. A fresh stream (no
+ * dir, or only a legacy single file alongside) starts at chunk `000001`.
+ */
+function seedStreamState(dir: string): StreamState {
+    try {
+        const files = readdirSync(dir).filter((e) => e.endsWith('.jsonl')).sort();
+        const last = files[files.length - 1];
+        if (last) {
+            const num = parseInt(last, 10) || 1;
+            let bytes = 0;
+            try {
+                bytes = statSync(join(dir, last)).size;
+            } catch {
+                /* racing rotation/delete — treat as empty, will rotate if needed */
+            }
+            return { num, bytes };
+        }
+    } catch {
+        /* dir absent — fresh stream */
+    }
+    return { num: 1, bytes: 0 };
+}
 
 function enforceExtensionBudget(meta: { tags?: unknown; metadata?: unknown }, label: string): void {
     const open = JSON.stringify({ tags: meta.tags, metadata: meta.metadata });
@@ -360,17 +448,14 @@ export class JsonlStore implements IStore {
      */
     private sessionIndex = new Map<string, SessionMeta>();
 
-    /** Sessions already warned about exceeding the recording file ceiling (warn once). */
-    private readonly oversizedRecordingWarned = new Set<string>();
-    /** Sessions already warned about exceeding the timeline file ceiling (warn once). */
-    private readonly oversizedTimelineWarned = new Set<string>();
     /**
-     * Approximate on-disk bytes of each session's timeline.jsonl, kept in memory
-     * so the per-event append path doesn't `statSync` on every event. Seeded once
-     * per session per process from the real file size (so a restart doesn't forget
-     * an already-large file), then advanced by each appended line.
+     * Active chunk file per session per stream (harness-fe#171): the current
+     * numbered chunk and its in-memory byte size. Seeded once per session per
+     * process (lazy first-touch) from the on-disk dir, then advanced by each
+     * appended line so the hot path stays off `statSync`. Rotation bumps `num`.
      */
-    private readonly timelineBytes = new Map<string, number>();
+    private readonly timelineStreams = new Map<string, StreamState>();
+    private readonly recordingStreams = new Map<string, StreamState>();
 
     /**
      * In-memory index: buildId → projectId (from openBuild / upsertBuild).
@@ -378,9 +463,15 @@ export class JsonlStore implements IStore {
      */
     private buildIndex = new Map<string, string>(); // buildId → projectId
 
-    constructor(dataDir?: string) {
+    /** Chunk-file rotation thresholds (bytes). Overridable for tests. */
+    private readonly recordingChunkBytes: number;
+    private readonly timelineChunkBytes: number;
+
+    constructor(dataDir?: string, opts?: { recordingChunkBytes?: number; timelineChunkBytes?: number }) {
         const serverStartTimestamp = Date.now();
         this.dataDir = resolve(dataDir ?? DEFAULT_DATA_DIR);
+        this.recordingChunkBytes = opts?.recordingChunkBytes ?? RECORDING_CHUNK_BYTES;
+        this.timelineChunkBytes = opts?.timelineChunkBytes ?? TIMELINE_CHUNK_BYTES;
         ensureDir(this.dataDir);
         this._rebuildIndexes(serverStartTimestamp);
     }
@@ -484,6 +575,43 @@ export class JsonlStore implements IStore {
 
     private sessionRecording(sessionId: string): string {
         return join(this.sessionDir(sessionId), 'recording.jsonl');
+    }
+
+    // Chunk-file storage (harness-fe#171): each stream shards into a directory of
+    // numbered chunk files. The legacy single file (above) is still read as the
+    // oldest "chunk 0" for backward compat; new writes go into these dirs.
+    private sessionTimelineDir(sessionId: string): string {
+        return join(this.sessionDir(sessionId), 'timeline');
+    }
+
+    private sessionRecordingDir(sessionId: string): string {
+        return join(this.sessionDir(sessionId), 'recording');
+    }
+
+    /**
+     * Ordered (oldest→newest) chunk files for a stream: the legacy single file
+     * first (if it exists — it predates the chunk dir, so it's the oldest), then
+     * the numbered `NNNNNN.jsonl` chunk files in lexical (== chronological) order.
+     */
+    private chunkFiles(legacyPath: string, dir: string): string[] {
+        const files: string[] = [];
+        if (existsSync(legacyPath)) files.push(legacyPath);
+        try {
+            for (const f of readdirSync(dir).filter((e) => e.endsWith('.jsonl')).sort()) {
+                files.push(join(dir, f));
+            }
+        } catch {
+            /* dir absent (legacy-only session, or nothing written yet) */
+        }
+        return files;
+    }
+
+    private timelineFiles(sessionId: string): string[] {
+        return this.chunkFiles(this.sessionTimeline(sessionId), this.sessionTimelineDir(sessionId));
+    }
+
+    private recordingFiles(sessionId: string): string[] {
+        return this.chunkFiles(this.sessionRecording(sessionId), this.sessionRecordingDir(sessionId));
     }
 
     private exportsDir(): string {
@@ -666,8 +794,14 @@ export class JsonlStore implements IStore {
             );
             return;
         }
-        if (!this.timelineCapAllows(sessionId, bytes)) return;
-        this.writeQueue.enqueue(this.sessionTimeline(sessionId), sessionId, line);
+        const target = this.activeChunkPath(
+            this.timelineStreams,
+            this.sessionTimelineDir(sessionId),
+            this.timelineChunkBytes,
+            bytes,
+            sessionId,
+        );
+        this.writeQueue.enqueue(target, sessionId, line);
     }
 
     appendEventBatch(sessionId: string, events: StoreEvent[]): void {
@@ -682,74 +816,67 @@ export class JsonlStore implements IStore {
                 );
                 continue;
             }
-            if (!this.timelineCapAllows(sessionId, bytes)) return; // file full — stop the batch
-            this.writeQueue.enqueue(this.sessionTimeline(sessionId), sessionId, line);
+            const target = this.activeChunkPath(
+                this.timelineStreams,
+                this.sessionTimelineDir(sessionId),
+                this.timelineChunkBytes,
+                bytes,
+                sessionId,
+            );
+            this.writeQueue.enqueue(target, sessionId, line);
         }
-    }
-
-    /**
-     * Per-session timeline.jsonl ceiling (harness-fe#166 sibling). Returns false
-     * once the file would pass {@link MAX_TIMELINE_FILE_BYTES}, so a runaway
-     * session can't grow it past V8's string cap (which broke session detail and
-     * aborted auto-purge). Uses an in-memory byte counter — seeded once from the
-     * real file size — to keep the per-event path off `statSync`.
-     */
-    private timelineCapAllows(sessionId: string, lineBytes: number): boolean {
-        let cur = this.timelineBytes.get(sessionId);
-        if (cur === undefined) {
-            try {
-                const p = this.sessionTimeline(sessionId);
-                cur = existsSync(p) ? statSync(p).size : 0;
-            } catch {
-                cur = 0;
-            }
-        }
-        if (cur > MAX_TIMELINE_FILE_BYTES) {
-            if (!this.oversizedTimelineWarned.has(sessionId)) {
-                this.oversizedTimelineWarned.add(sessionId);
-                process.stderr.write(
-                    `[harness-fe] timeline for session ${sessionId} exceeds ${MAX_TIMELINE_FILE_BYTES} bytes — dropping further events. ` +
-                    `Lower retention or purge this session.\n`,
-                );
-            }
-            this.timelineBytes.set(sessionId, cur);
-            return false;
-        }
-        this.timelineBytes.set(sessionId, cur + lineBytes + 1); // +1 for the newline
-        return true;
     }
 
     appendRecording(sessionId: string, chunk: unknown): void {
         if (!this.getSession(sessionId)) return;
         const line = Array.isArray(chunk) ? { ts: Date.now(), events: chunk } : chunk;
         const serialized = JSON.stringify(line);
-        if (Buffer.byteLength(serialized, 'utf-8') > MAX_RECORDING_CHUNK_BYTES) {
+        const bytes = Buffer.byteLength(serialized, 'utf-8');
+        if (bytes > MAX_RECORDING_CHUNK_BYTES) {
             process.stderr.write(
-                `[harness-fe] dropping oversized rrweb chunk (${Buffer.byteLength(serialized, 'utf-8')} bytes > ${MAX_RECORDING_CHUNK_BYTES})\n`,
+                `[harness-fe] dropping oversized rrweb chunk (${bytes} bytes > ${MAX_RECORDING_CHUNK_BYTES})\n`,
             );
             return;
         }
-        const target = this.sessionRecording(sessionId);
-        // Per-file ceiling: stop appending once a session's recording approaches
-        // the V8 string cap, so it stays readable/prunable (harness-fe#166). The
-        // on-disk size lags queued writes slightly, but the 384 MB ceiling leaves
-        // ample headroom under 512 MB to absorb that.
-        try {
-            if (existsSync(target) && statSync(target).size > MAX_RECORDING_FILE_BYTES) {
-                if (!this.oversizedRecordingWarned.has(sessionId)) {
-                    this.oversizedRecordingWarned.add(sessionId);
-                    process.stderr.write(
-                        `[harness-fe] recording for session ${sessionId} exceeds ${MAX_RECORDING_FILE_BYTES} bytes — dropping further rrweb chunks. ` +
-                        `Lower retention / baseline cadence, or purge this session.\n`,
-                    );
-                }
-                return;
-            }
-        } catch {
-            /* stat race / transient fs error — fall through and append */
-        }
-        ensureDir(this.sessionDir(sessionId));
+        const target = this.activeChunkPath(
+            this.recordingStreams,
+            this.sessionRecordingDir(sessionId),
+            this.recordingChunkBytes,
+            bytes,
+            sessionId,
+        );
         this.writeQueue.enqueue(target, sessionId, serialized);
+    }
+
+    /**
+     * Resolve the chunk file to append `lineBytes` to, rotating to the next
+     * numbered chunk when the active one would exceed `threshold` (harness-fe#171).
+     * Never splits a line — rotation is decided before the write — so a single
+     * (≤2 MB) rrweb chunk always lands whole in one file. Keeps an in-memory
+     * byte counter so the hot append path never `statSync`s; seeds it lazily on
+     * first touch from the highest existing chunk in `dir`. Creates `dir`.
+     */
+    private activeChunkPath(
+        streams: Map<string, StreamState>,
+        dir: string,
+        threshold: number,
+        lineBytes: number,
+        sessionId: string,
+    ): string {
+        let st = streams.get(sessionId);
+        if (!st) {
+            st = seedStreamState(dir);
+            streams.set(sessionId, st);
+        }
+        // Rotate before writing if the active chunk is non-empty and this line
+        // would push it over the threshold. An empty chunk always accepts a line.
+        if (st.bytes > 0 && st.bytes + lineBytes + 1 > threshold) {
+            st.num += 1;
+            st.bytes = 0;
+        }
+        st.bytes += lineBytes + 1; // +1 for the newline
+        ensureDir(dir);
+        return join(dir, chunkFileName(st.num));
     }
 
     writeNote(projectId: string, key: string, value: string): void {
@@ -979,10 +1106,9 @@ export class JsonlStore implements IStore {
     tail(sessionId: string, opts: TailOptions = {}): StoreEvent[] {
         if (!this.getSession(sessionId)) return [];
 
-        const filePath = this.sessionTimeline(sessionId);
         const n = opts.n ?? 50;
         const multiplier = opts.type || opts.since || opts.until || opts.projectId ? 5 : 1;
-        const rawLines = readLastNLines(filePath, n * multiplier);
+        const rawLines = lastNLinesInFiles(this.timelineFiles(sessionId), n * multiplier);
 
         const events: StoreEvent[] = [];
         for (const line of rawLines) {
@@ -1000,14 +1126,13 @@ export class JsonlStore implements IStore {
     search(sessionId: string, query: string, opts: SearchOptions = {}): StoreEvent[] {
         if (!this.getSession(sessionId)) return [];
 
-        const filePath = this.sessionTimeline(sessionId);
         const limit = opts.limit ?? 50;
         const lowerQuery = query.toLowerCase();
         const results: StoreEvent[] = [];
 
-        // Stream — timeline.jsonl can exceed V8's string cap (harness-fe#166
-        // sibling); never read it whole. Stop once we have `limit` matches.
-        forEachLineSync(filePath, (line) => {
+        // Stream across chunk files — timeline can exceed V8's string cap
+        // (harness-fe#166); never read whole. Stop once we have `limit` matches.
+        forEachLineInFiles(this.timelineFiles(sessionId), (line) => {
             if (!line.toLowerCase().includes(lowerQuery)) return;
             const event = parseEvent(line);
             if (!event) return;
@@ -1022,12 +1147,11 @@ export class JsonlStore implements IStore {
     listRecordings(sessionId: string): RecordingChunkSummary[] {
         if (!this.getSession(sessionId)) return [];
 
-        const recPath = this.sessionRecording(sessionId);
         const chunks: RecordingChunkSummary[] = [];
         const sessionMeta = this.getSession(sessionId);
         const tabId = sessionMeta?.tabId ?? '';
 
-        forEachLineSync(recPath, (line, index) => {
+        forEachLineInFiles(this.recordingFiles(sessionId), (line, index) => {
             const chunk = parseRecordingChunkLine(line, tabId, 0, index);
             if (!chunk) return;
             chunks.push({
@@ -1045,12 +1169,11 @@ export class JsonlStore implements IStore {
     sliceRecordings(sessionId: string, since: number, until: number): RecordingChunk[] {
         if (!this.getSession(sessionId)) return [];
 
-        const recPath = this.sessionRecording(sessionId);
         const sessionMeta = this.getSession(sessionId);
         const tabId = sessionMeta?.tabId ?? '';
         const chunks: RecordingChunk[] = [];
 
-        forEachLineSync(recPath, (line, index) => {
+        forEachLineInFiles(this.recordingFiles(sessionId), (line, index) => {
             const chunk = parseRecordingChunkLine(line, tabId, 0, index);
             if (!chunk) return;
             if (chunk.endTs < since || chunk.startTs > until) return;
@@ -1162,10 +1285,9 @@ export class JsonlStore implements IStore {
         let lastError: StoreEvent | undefined;
         let lastActivity: number | undefined;
 
-        // Stream — a large timeline.jsonl would otherwise blow V8's string cap
-        // here too, breaking the console session-detail page (harness-fe#166).
-        const filePath = this.sessionTimeline(sessionId);
-        forEachLineSync(filePath, (line) => {
+        // Stream across chunk files — a large timeline would otherwise blow V8's
+        // string cap here too, breaking the console session-detail page (#166).
+        forEachLineInFiles(this.timelineFiles(sessionId), (line) => {
             const event = parseEvent(line);
             if (!event) return;
             counts[event.t] = (counts[event.t] ?? 0) + 1;
@@ -1229,6 +1351,11 @@ export class JsonlStore implements IStore {
             (policy.recordingRetentionDays != null
                 ? policy.recordingRetentionDays * 86400000
                 : DEFAULT_RETENTION.recordingRetentionMs);
+        // Timeline per-session budget (harness-fe#171). Default age = whole-session
+        // maxAge (timeline isn't trimmed more aggressively than the session lives).
+        const maxTimelineBytes = policy.maxTimelineBytesPerSession ?? DEFAULT_RETENTION.maxTimelineBytesPerSession;
+        const maxTimelineFiles = policy.maxTimelineChunksPerSession ?? DEFAULT_RETENTION.maxTimelineChunksPerSession;
+        const timelineMaxAge = policy.timelineRetentionMs ?? maxAge;
 
         let sessionsDeleted = 0;
         let recordingsDeleted = 0;
@@ -1271,24 +1398,30 @@ export class JsonlStore implements IStore {
             // unreadable / pathological file must not abort the whole purge run
             // (harness-fe#166 — one oversized file used to wedge all retention).
             for (const sess of this.listSessions({ limit: Number.MAX_SAFE_INTEGER })) {
-                const recPath = this.sessionRecording(sess.id);
-                if (!existsSync(recPath)) continue;
-                const timelinePath = this.sessionTimeline(sess.id);
+                // Isolate each session: one pathological file must not abort the
+                // whole purge run (harness-fe#166).
                 try {
-                    const result = this.pruneRecordingFile(
-                        recPath,
-                        timelinePath,
+                    const rec = this.pruneRecordingFiles(
+                        sess.id,
                         now,
                         recMaxAge,
                         maxChunks,
                         maxBytes,
                         preserveMarkedChunks,
                     );
-                    bytesFreed += result.bytesFreed;
-                    recordingsDeleted += result.chunksDeleted;
+                    bytesFreed += rec.bytesFreed;
+                    recordingsDeleted += rec.chunksDeleted;
+                    const tl = this.pruneTimelineFiles(
+                        sess.id,
+                        now,
+                        timelineMaxAge,
+                        maxTimelineBytes,
+                        maxTimelineFiles,
+                    );
+                    bytesFreed += tl.bytesFreed;
                 } catch (err) {
                     process.stderr.write(
-                        `[harness-fe] purge: failed to prune recording for session ${sess.id}: ${(err as Error).message}\n`,
+                        `[harness-fe] purge: failed to prune session ${sess.id}: ${(err as Error).message}\n`,
                     );
                 }
             }
@@ -1422,124 +1555,208 @@ export class JsonlStore implements IStore {
         }
     }
 
-    private pruneRecordingFile(
-        recPath: string,
-        timelinePath: string,
+    /**
+     * Build per-file metadata for one recording chunk file by streaming it once.
+     * `chunkCount`/`bytes` drive the count/byte caps; `hasFullSnapshot`/`hasMarker`
+     * drive baseline rescue + marker preservation; `minTs`/`maxTs` drive age.
+     */
+    private recordingFileMeta(path: string, markerTimestamps: number[]): RecordingFileMeta {
+        let minTs = Infinity;
+        let maxTs = -Infinity;
+        let chunkCount = 0;
+        let hasFullSnapshot = false;
+        let hasMarker = false;
+        forEachLineSync(path, (line, index) => {
+            const chunk = parseRecordingChunkLine(line, '', 0, index);
+            if (!chunk) return;
+            chunkCount += 1;
+            if (chunk.startTs < minTs) minTs = chunk.startTs;
+            if (chunk.endTs > maxTs) maxTs = chunk.endTs;
+            if (!hasFullSnapshot && chunkContainsFullSnapshot(chunk)) hasFullSnapshot = true;
+            if (!hasMarker && markerTimestamps.some((ts) => ts >= chunk.startTs && ts <= chunk.endTs)) {
+                hasMarker = true;
+            }
+        });
+        let bytes = 0;
+        try {
+            bytes = statSync(path).size;
+        } catch {
+            /* racing delete */
+        }
+        return { path, minTs, maxTs, bytes, chunkCount, hasFullSnapshot, hasMarker };
+    }
+
+    /**
+     * Evict whole recording chunk FILES (harness-fe#171) by age/count/bytes,
+     * preserving the line-granular invariants at file granularity:
+     *  - never evict the file currently being appended (the active chunk);
+     *  - baseline-aware rescue (#160): keep the most-recent file holding a
+     *    FullSnapshot at-or-before the oldest surviving file;
+     *  - marker preservation: prefer evicting files with no rrweb:marker overlap.
+     * Eviction is `unlinkSync` of whole files — no file is ever read or rewritten
+     * whole, so a multi-GB recording can never wedge purge again.
+     */
+    private pruneRecordingFiles(
+        sessionId: string,
         now: number,
         recMaxAge: number,
         maxChunks: number,
         maxBytesLimit: number,
         preserveMarkedChunks: boolean,
     ): { chunksDeleted: number; bytesFreed: number } {
-        if (!existsSync(recPath)) return { chunksDeleted: 0, bytesFreed: 0 };
-        const fallbackAgeTs = statSync(recPath).mtimeMs;
+        const files = this.recordingFiles(sessionId);
+        if (files.length === 0) return { chunksDeleted: 0, bytesFreed: 0 };
+        const markerTimestamps = this.readMarkerTimestamps(this.timelineFiles(sessionId));
+        const metas = files.map((p) => this.recordingFileMeta(p, markerTimestamps)).filter((m) => m.chunkCount > 0);
+        if (metas.length === 0) return { chunksDeleted: 0, bytesFreed: 0 };
 
-        const markerTimestamps = this.readMarkerTimestamps(timelinePath);
-        const chunks: RecordingChunkRecord[] = [];
-
-        // Stream line-by-line: a recording large enough to need pruning is exactly
-        // the case that can exceed V8's string cap, so this must never read the
-        // whole file as one string (harness-fe#166).
-        forEachLineSync(recPath, (line, index) => {
-            const chunk = parseRecordingChunkLine(line, '', fallbackAgeTs, index);
-            if (!chunk) return;
-            chunk.marked = markerTimestamps.some((ts) => ts >= chunk.startTs && ts <= chunk.endTs);
-            // Compute the baseline flag now, then drop events — the rescue below
-            // only needs the boolean, and retaining every chunk's events for a
-            // very large file would risk OOM (harness-fe#166).
-            chunk.hasFullSnapshot = chunkContainsFullSnapshot(chunk);
-            chunk.events = [];
-            chunks.push(chunk);
-        });
-
-        if (chunks.length === 0) return { chunksDeleted: 0, bytesFreed: 0 };
+        // Active chunk (currently appended): exempt from count/bytes eviction so a
+        // concurrent write isn't lost. NOT exempt from age — a live session's
+        // active chunk has a recent maxTs (naturally safe), while an ended
+        // session's last chunk must stay reclaimable.
+        const st = this.recordingStreams.get(sessionId);
+        const activePath = st ? join(this.sessionRecordingDir(sessionId), chunkFileName(st.num)) : undefined;
+        const isActive = (m: RecordingFileMeta) => m.path === activePath;
 
         const removed = new Set<string>();
-
-        for (const chunk of chunks) {
-            if (now - chunk.ageTs > recMaxAge) removed.add(chunk.chunkId);
+        // 1. age — evict whole files entirely past the window.
+        for (const m of metas) {
+            if (now - m.maxTs > recMaxAge) removed.add(m.path);
         }
+        let kept = metas.filter((m) => !removed.has(m.path));
 
-        let kept = chunks.filter((chunk) => !removed.has(chunk.chunkId));
-
-        const chooseRemovalCandidate = (): RecordingChunkRecord | undefined => {
-            if (kept.length === 0) return undefined;
-            const sorted = [...kept].sort((a, b) => a.startTs - b.startTs);
-            if (!preserveMarkedChunks) return sorted[0];
-            return sorted.find((chunk) => !chunk.marked) ?? sorted[0];
+        const chooseRemovalCandidate = (): RecordingFileMeta | undefined => {
+            const candidates = kept.filter((m) => !isActive(m)).sort((a, b) => a.minTs - b.minTs);
+            if (candidates.length === 0) return undefined;
+            if (!preserveMarkedChunks) return candidates[0];
+            return candidates.find((m) => !m.hasMarker) ?? candidates[0];
+        };
+        const evict = (m: RecordingFileMeta) => {
+            removed.add(m.path);
+            kept = kept.filter((k) => k.path !== m.path);
         };
 
-        while (kept.length > maxChunks) {
-            const candidate = chooseRemovalCandidate();
-            if (!candidate) break;
-            removed.add(candidate.chunkId);
-            kept = kept.filter((chunk) => chunk.chunkId !== candidate.chunkId);
+        // 2. count + bytes — evict oldest non-active files until under caps.
+        while (kept.reduce((s, m) => s + m.chunkCount, 0) > maxChunks) {
+            const c = chooseRemovalCandidate();
+            if (!c) break;
+            evict(c);
+        }
+        while (kept.reduce((s, m) => s + m.bytes, 0) > maxBytesLimit) {
+            const c = chooseRemovalCandidate();
+            if (!c) break;
+            evict(c);
         }
 
-        let totalBytes = kept.reduce((sum, chunk) => sum + chunk.bytes, 0);
-        while (totalBytes > maxBytesLimit) {
-            const candidate = chooseRemovalCandidate();
-            if (!candidate) break;
-            removed.add(candidate.chunkId);
-            kept = kept.filter((chunk) => chunk.chunkId !== candidate.chunkId);
-            totalBytes = kept.reduce((sum, chunk) => sum + chunk.bytes, 0);
-        }
-
-        // Baseline-aware rescue (harness-fe#160). A replay window can only be
-        // assembled from a FullSnapshot (rrweb type:2) at or before it; the
-        // age/size eviction above is blind to that, so dropping the baseline
-        // while keeping later increments would leave the surviving tail
-        // unreplayable (the very risk of a short retention window). Guarantee the
-        // oldest surviving chunk is anchored: if no retained chunk at-or-before it
-        // carries a FullSnapshot, pull the most-recent such baseline back out of
-        // `removed`. May leave one chunk over a size/count cap — correctness wins,
-        // same spirit as preserveMarkedChunks.
+        // 3. baseline-aware rescue at file granularity (#160).
         if (kept.length > 0) {
-            const oldestKeptTs = Math.min(...kept.map((c) => c.startTs));
-            const anchored = kept.some(
-                (c) => c.startTs <= oldestKeptTs && c.hasFullSnapshot,
-            );
+            const oldestKeptTs = Math.min(...kept.map((m) => m.minTs));
+            const anchored = kept.some((m) => m.minTs <= oldestKeptTs && m.hasFullSnapshot);
             if (!anchored) {
-                const baseline = chunks
-                    .filter(
-                        (c) =>
-                            removed.has(c.chunkId) &&
-                            c.startTs <= oldestKeptTs &&
-                            c.hasFullSnapshot,
-                    )
-                    .sort((a, b) => b.startTs - a.startTs)[0];
+                const baseline = metas
+                    .filter((m) => removed.has(m.path) && m.minTs <= oldestKeptTs && m.hasFullSnapshot)
+                    .sort((a, b) => b.minTs - a.minTs)[0];
                 if (baseline) {
-                    removed.delete(baseline.chunkId);
+                    removed.delete(baseline.path);
                     kept.push(baseline);
                 }
             }
         }
 
         if (removed.size === 0) return { chunksDeleted: 0, bytesFreed: 0 };
-
-        const bytesFreed = chunks
-            .filter((chunk) => removed.has(chunk.chunkId))
-            .reduce((sum, chunk) => sum + chunk.bytes, 0);
-
-        if (kept.length === 0) {
-            unlinkSync(recPath);
-        } else {
-            // Persist in chronological order — the rescue can append an older
-            // baseline out of order, and replay assembly expects events in time
-            // order.
-            const ordered = [...kept].sort((a, b) => a.startTs - b.startTs);
-            writeFileSync(recPath, `${ordered.map((chunk) => chunk.line).join('\n')}\n`, 'utf-8');
+        let chunksDeleted = 0;
+        let bytesFreed = 0;
+        for (const m of metas) {
+            if (!removed.has(m.path)) continue;
+            try {
+                unlinkSync(m.path);
+            } catch {
+                /* already gone */
+            }
+            chunksDeleted += m.chunkCount;
+            bytesFreed += m.bytes;
         }
-
-        return { chunksDeleted: removed.size, bytesFreed };
+        return { chunksDeleted, bytesFreed };
     }
 
-    private readMarkerTimestamps(timelinePath: string): number[] {
+    /**
+     * Bound a single session's timeline (harness-fe#171, the core ask): when the
+     * timeline chunk files exceed the per-session byte / file-count budget, drop
+     * the OLDEST whole files — keep recent events, never the wrong-direction
+     * "drop new events" of the old append cap. No baseline/marker rescue: timeline
+     * events are independent. The active chunk is never evicted.
+     */
+    private pruneTimelineFiles(
+        sessionId: string,
+        now: number,
+        timelineMaxAge: number,
+        maxBytes: number,
+        maxFiles: number,
+    ): { bytesFreed: number } {
+        const files = this.timelineFiles(sessionId);
+        if (files.length === 0) return { bytesFreed: 0 };
+        const st = this.timelineStreams.get(sessionId);
+        const activePath = st ? join(this.sessionTimelineDir(sessionId), chunkFileName(st.num)) : undefined;
+
+        const metas = files
+            .map((p) => {
+                let bytes = 0;
+                let mtimeMs = 0;
+                try {
+                    const s = statSync(p);
+                    bytes = s.size;
+                    mtimeMs = s.mtimeMs;
+                } catch {
+                    /* racing delete */
+                }
+                return { path: p, bytes, mtimeMs };
+            })
+            .filter((m) => m.bytes > 0);
+
+        const removed = new Set<string>();
+        // age — evict whole files not touched within the window (mtime proxy).
+        // No active exemption (a live session's active file has a recent mtime).
+        for (const m of metas) {
+            if (now - m.mtimeMs > timelineMaxAge) removed.add(m.path);
+        }
+        let kept = metas.filter((m) => !removed.has(m.path));
+        const oldestNonActive = (): { path: string; bytes: number } | undefined =>
+            kept.filter((m) => m.path !== activePath)[0]; // metas already oldest→newest
+        const evict = (m: { path: string }) => {
+            removed.add(m.path);
+            kept = kept.filter((k) => k.path !== m.path);
+        };
+        while (kept.length > maxFiles) {
+            const c = oldestNonActive();
+            if (!c) break;
+            evict(c);
+        }
+        while (kept.reduce((s, m) => s + m.bytes, 0) > maxBytes) {
+            const c = oldestNonActive();
+            if (!c) break;
+            evict(c);
+        }
+
+        if (removed.size === 0) return { bytesFreed: 0 };
+        let bytesFreed = 0;
+        for (const m of metas) {
+            if (!removed.has(m.path)) continue;
+            try {
+                unlinkSync(m.path);
+            } catch {
+                /* already gone */
+            }
+            bytesFreed += m.bytes;
+        }
+        return { bytesFreed };
+    }
+
+    private readMarkerTimestamps(timelineFiles: string[]): number[] {
         const timestamps: number[] = [];
-        // Stream — this runs inside purge for every session; a single multi-GB
-        // timeline.jsonl read whole-file here threw and aborted the ENTIRE
+        // Stream across chunk files — runs inside purge for every session; a
+        // multi-GB timeline read whole-file here threw and aborted the ENTIRE
         // auto-purge (harness-fe#166 sibling). Line-by-line keeps purge alive.
-        forEachLineSync(timelinePath, (line) => {
+        forEachLineInFiles(timelineFiles, (line) => {
             const event = parseEvent(line);
             if (!event || event.t !== 'rrweb:marker') return;
             timestamps.push(event.ts);
