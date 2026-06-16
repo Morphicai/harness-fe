@@ -1,5 +1,11 @@
 # @harness-fe/vite
 
+## 4.1.2
+
+### Patch Changes
+
+- @harness-fe/unplugin@4.1.2
+
 ## 4.1.1
 
 ### Patch Changes
