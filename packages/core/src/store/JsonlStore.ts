@@ -192,6 +192,45 @@ function forEachLineSync(
     }
 }
 
+/**
+ * Stream every line across an ordered (oldest→newest) list of JSONL files as if
+ * they were one file (chunk-file storage, harness-fe#171). `index` is global
+ * across files (matches the old single-file `forEachLineSync` index). The
+ * callback may return `false` to stop — early-stop spans files (e.g. a capped
+ * search closes no further files once full).
+ */
+function forEachLineInFiles(
+    files: readonly string[],
+    onLine: (line: string, index: number) => void | boolean,
+): void {
+    let index = 0;
+    for (const f of files) {
+        let stopped = false;
+        forEachLineSync(f, (line) => {
+            if (onLine(line, index++) === false) {
+                stopped = true;
+                return false;
+            }
+        });
+        if (stopped) break;
+    }
+}
+
+/**
+ * Last `n` lines across an ordered (oldest→newest) list of files, chronological.
+ * Scans newest file backward (via {@link readLastNLines}) and walks older files
+ * only if the newest don't yield `n` — so `tail` usually touches just the active
+ * chunk. Returns ≤ n lines in chronological order.
+ */
+function lastNLinesInFiles(files: readonly string[], n: number): string[] {
+    const out: string[] = [];
+    for (let i = files.length - 1; i >= 0 && out.length < n; i--) {
+        const lines = readLastNLines(files[i], n - out.length);
+        out.unshift(...lines); // older file's lines precede what's already collected
+    }
+    return out;
+}
+
 function readAllLines(filePath: string): string[] {
     if (!existsSync(filePath)) return [];
     return readFileSync(filePath, 'utf-8')
@@ -484,6 +523,43 @@ export class JsonlStore implements IStore {
 
     private sessionRecording(sessionId: string): string {
         return join(this.sessionDir(sessionId), 'recording.jsonl');
+    }
+
+    // Chunk-file storage (harness-fe#171): each stream shards into a directory of
+    // numbered chunk files. The legacy single file (above) is still read as the
+    // oldest "chunk 0" for backward compat; new writes go into these dirs.
+    private sessionTimelineDir(sessionId: string): string {
+        return join(this.sessionDir(sessionId), 'timeline');
+    }
+
+    private sessionRecordingDir(sessionId: string): string {
+        return join(this.sessionDir(sessionId), 'recording');
+    }
+
+    /**
+     * Ordered (oldest→newest) chunk files for a stream: the legacy single file
+     * first (if it exists — it predates the chunk dir, so it's the oldest), then
+     * the numbered `NNNNNN.jsonl` chunk files in lexical (== chronological) order.
+     */
+    private chunkFiles(legacyPath: string, dir: string): string[] {
+        const files: string[] = [];
+        if (existsSync(legacyPath)) files.push(legacyPath);
+        try {
+            for (const f of readdirSync(dir).filter((e) => e.endsWith('.jsonl')).sort()) {
+                files.push(join(dir, f));
+            }
+        } catch {
+            /* dir absent (legacy-only session, or nothing written yet) */
+        }
+        return files;
+    }
+
+    private timelineFiles(sessionId: string): string[] {
+        return this.chunkFiles(this.sessionTimeline(sessionId), this.sessionTimelineDir(sessionId));
+    }
+
+    private recordingFiles(sessionId: string): string[] {
+        return this.chunkFiles(this.sessionRecording(sessionId), this.sessionRecordingDir(sessionId));
     }
 
     private exportsDir(): string {
@@ -979,10 +1055,9 @@ export class JsonlStore implements IStore {
     tail(sessionId: string, opts: TailOptions = {}): StoreEvent[] {
         if (!this.getSession(sessionId)) return [];
 
-        const filePath = this.sessionTimeline(sessionId);
         const n = opts.n ?? 50;
         const multiplier = opts.type || opts.since || opts.until || opts.projectId ? 5 : 1;
-        const rawLines = readLastNLines(filePath, n * multiplier);
+        const rawLines = lastNLinesInFiles(this.timelineFiles(sessionId), n * multiplier);
 
         const events: StoreEvent[] = [];
         for (const line of rawLines) {
@@ -1000,14 +1075,13 @@ export class JsonlStore implements IStore {
     search(sessionId: string, query: string, opts: SearchOptions = {}): StoreEvent[] {
         if (!this.getSession(sessionId)) return [];
 
-        const filePath = this.sessionTimeline(sessionId);
         const limit = opts.limit ?? 50;
         const lowerQuery = query.toLowerCase();
         const results: StoreEvent[] = [];
 
-        // Stream — timeline.jsonl can exceed V8's string cap (harness-fe#166
-        // sibling); never read it whole. Stop once we have `limit` matches.
-        forEachLineSync(filePath, (line) => {
+        // Stream across chunk files — timeline can exceed V8's string cap
+        // (harness-fe#166); never read whole. Stop once we have `limit` matches.
+        forEachLineInFiles(this.timelineFiles(sessionId), (line) => {
             if (!line.toLowerCase().includes(lowerQuery)) return;
             const event = parseEvent(line);
             if (!event) return;
@@ -1022,12 +1096,11 @@ export class JsonlStore implements IStore {
     listRecordings(sessionId: string): RecordingChunkSummary[] {
         if (!this.getSession(sessionId)) return [];
 
-        const recPath = this.sessionRecording(sessionId);
         const chunks: RecordingChunkSummary[] = [];
         const sessionMeta = this.getSession(sessionId);
         const tabId = sessionMeta?.tabId ?? '';
 
-        forEachLineSync(recPath, (line, index) => {
+        forEachLineInFiles(this.recordingFiles(sessionId), (line, index) => {
             const chunk = parseRecordingChunkLine(line, tabId, 0, index);
             if (!chunk) return;
             chunks.push({
@@ -1045,12 +1118,11 @@ export class JsonlStore implements IStore {
     sliceRecordings(sessionId: string, since: number, until: number): RecordingChunk[] {
         if (!this.getSession(sessionId)) return [];
 
-        const recPath = this.sessionRecording(sessionId);
         const sessionMeta = this.getSession(sessionId);
         const tabId = sessionMeta?.tabId ?? '';
         const chunks: RecordingChunk[] = [];
 
-        forEachLineSync(recPath, (line, index) => {
+        forEachLineInFiles(this.recordingFiles(sessionId), (line, index) => {
             const chunk = parseRecordingChunkLine(line, tabId, 0, index);
             if (!chunk) return;
             if (chunk.endTs < since || chunk.startTs > until) return;
@@ -1162,10 +1234,9 @@ export class JsonlStore implements IStore {
         let lastError: StoreEvent | undefined;
         let lastActivity: number | undefined;
 
-        // Stream — a large timeline.jsonl would otherwise blow V8's string cap
-        // here too, breaking the console session-detail page (harness-fe#166).
-        const filePath = this.sessionTimeline(sessionId);
-        forEachLineSync(filePath, (line) => {
+        // Stream across chunk files — a large timeline would otherwise blow V8's
+        // string cap here too, breaking the console session-detail page (#166).
+        forEachLineInFiles(this.timelineFiles(sessionId), (line) => {
             const event = parseEvent(line);
             if (!event) return;
             counts[event.t] = (counts[event.t] ?? 0) + 1;
@@ -1273,11 +1344,10 @@ export class JsonlStore implements IStore {
             for (const sess of this.listSessions({ limit: Number.MAX_SAFE_INTEGER })) {
                 const recPath = this.sessionRecording(sess.id);
                 if (!existsSync(recPath)) continue;
-                const timelinePath = this.sessionTimeline(sess.id);
                 try {
                     const result = this.pruneRecordingFile(
                         recPath,
-                        timelinePath,
+                        this.timelineFiles(sess.id),
                         now,
                         recMaxAge,
                         maxChunks,
@@ -1424,7 +1494,7 @@ export class JsonlStore implements IStore {
 
     private pruneRecordingFile(
         recPath: string,
-        timelinePath: string,
+        timelineFiles: string[],
         now: number,
         recMaxAge: number,
         maxChunks: number,
@@ -1434,7 +1504,7 @@ export class JsonlStore implements IStore {
         if (!existsSync(recPath)) return { chunksDeleted: 0, bytesFreed: 0 };
         const fallbackAgeTs = statSync(recPath).mtimeMs;
 
-        const markerTimestamps = this.readMarkerTimestamps(timelinePath);
+        const markerTimestamps = this.readMarkerTimestamps(timelineFiles);
         const chunks: RecordingChunkRecord[] = [];
 
         // Stream line-by-line: a recording large enough to need pruning is exactly
@@ -1534,12 +1604,12 @@ export class JsonlStore implements IStore {
         return { chunksDeleted: removed.size, bytesFreed };
     }
 
-    private readMarkerTimestamps(timelinePath: string): number[] {
+    private readMarkerTimestamps(timelineFiles: string[]): number[] {
         const timestamps: number[] = [];
-        // Stream — this runs inside purge for every session; a single multi-GB
-        // timeline.jsonl read whole-file here threw and aborted the ENTIRE
+        // Stream across chunk files — runs inside purge for every session; a
+        // multi-GB timeline read whole-file here threw and aborted the ENTIRE
         // auto-purge (harness-fe#166 sibling). Line-by-line keeps purge alive.
-        forEachLineSync(timelinePath, (line) => {
+        forEachLineInFiles(timelineFiles, (line) => {
             const event = parseEvent(line);
             if (!event || event.t !== 'rrweb:marker') return;
             timestamps.push(event.ts);
