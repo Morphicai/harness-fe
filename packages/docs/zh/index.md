@@ -20,6 +20,9 @@ hero:
     - theme: alt
       text: 在 GitHub 上查看
       link: https://github.com/Morphicai/harness-fe
+    - theme: alt
+      text: 问 DeepWiki
+      link: https://deepwiki.com/Morphicai/harness-fe
 
 features:
   - icon: { src: /icons/source-aware.svg, width: 30, height: 30 }

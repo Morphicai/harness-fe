@@ -25,6 +25,7 @@
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-3c873a" alt="Node ≥ 20" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
   <a href="./CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-fbbf24" alt="PRs welcome" /></a>
+  <a href="https://deepwiki.com/Morphicai/harness-fe"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" /></a>
 </p>
 
 ---
