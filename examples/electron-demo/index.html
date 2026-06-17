@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>harness-fe · Electron rrweb demo</title>
+        <style>
+            :root { color-scheme: light dark; font-family: system-ui, -apple-system, sans-serif; }
+            body { margin: 0; padding: 2rem; max-width: 720px; }
+            h1 { font-size: 1.25rem; }
+            .row { display: flex; gap: .5rem; align-items: center; margin: .75rem 0; flex-wrap: wrap; }
+            button { padding: .4rem .8rem; border-radius: 6px; border: 1px solid currentColor; background: transparent; cursor: pointer; }
+            input, textarea { padding: .4rem; border-radius: 6px; border: 1px solid #8888; }
+            #list li { margin: .2rem 0; }
+            #count { font-variant-numeric: tabular-nums; font-weight: 600; }
+            .box { width: 64px; height: 64px; border-radius: 8px; background: #6c8cff; transition: transform .2s; }
+            small { opacity: .7; }
+        </style>
+    </head>
+    <body>
+        <h1>harness-fe — Electron rrweb recording demo</h1>
+        <p><small>Renderer is a Chromium browser context. The harness runtime + rrweb recorder run unchanged. Interact below to generate DOM mutations for rrweb to capture.</small></p>
+
+        <div class="row">
+            <button id="inc">Increment</button>
+            <button id="reset">Reset</button>
+            <span>count: <span id="count">0</span></span>
+        </div>
+
+        <div class="row">
+            <input id="text" placeholder="type something…" />
+            <button id="add">Add to list</button>
+        </div>
+
+        <ul id="list"></ul>
+
+        <div class="row">
+            <button id="spin">Spin box</button>
+            <div class="box" id="box"></div>
+        </div>
+
+        <script type="module" src="./src/renderer.ts"></script>
+    </body>
+</html>
