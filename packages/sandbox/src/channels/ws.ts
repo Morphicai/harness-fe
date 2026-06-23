@@ -215,7 +215,16 @@ function installWsPatch(): () => void {
             const { payload, truncated } = serializeFrame(data, bodyCap);
 
             // onSend chain
+            //
+            // `current` carries the (lossy) serialized frame used for the
+            // timeline + interceptor hooks — for binary frames it is a marker
+            // string like "[binary ArrayBuffer 123B]", NOT the wire data.
+            // `rewritten` tracks whether a hook EXPLICITLY returned a new value;
+            // only then do we override what goes on the wire. Otherwise we must
+            // always transmit the original `data` untouched — inferring "rewrote"
+            // from `current !== data` would corrupt every binary frame (#180).
             let current: unknown = payload;
+            let rewritten = false;
             let drop = false;
             for (const entry of getChain('ws')) {
                 const hook = entry.opts.ws?.onSend;
@@ -223,7 +232,7 @@ function installWsPatch(): () => void {
                 try {
                     const r = hook(current, id, { channel: 'ws', kind: 'send', initiator, ts: Date.now() });
                     if (r === false) { drop = true; break; }
-                    if (r !== undefined) current = r;
+                    if (r !== undefined) { current = r; rewritten = true; }
                 } catch { /* skip */ }
             }
 
@@ -246,8 +255,10 @@ function installWsPatch(): () => void {
                 initiator,
             });
 
-            // If interceptor rewrote payload to a string, we send that. Otherwise pass original `data`.
-            const toSend = (typeof current === 'string' && current !== data) ? current : data;
+            // Only an interceptor that explicitly returned a new string overrides
+            // the wire payload; the default path always transmits original `data`
+            // (binary stays binary — see #180).
+            const toSend = (rewritten && typeof current === 'string') ? current : data;
             return origProtoSend.call(this, toSend as string | ArrayBufferLike | Blob | ArrayBufferView);
         } catch {
             // Anything goes wrong in our wrapper → pass through to original send to preserve business behavior.
