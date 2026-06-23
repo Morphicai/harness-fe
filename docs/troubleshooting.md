@@ -155,7 +155,7 @@ notifications never arrive — you likely hit
 The sandbox WebSocket capture used to replace outgoing **binary** frames
 (`ArrayBuffer` / `Blob` / `TypedArray`) with their human-readable timeline
 marker (e.g. `"[binary ArrayBuffer 123B]"`) on the wire, corrupting any
-binary protocol. **Fixed in `@harness-fe/sandbox` ≥ 4.0.1** — binary frames
+binary protocol. **Fixed in `@harness-fe/sandbox` ≥ 4.3.0** — binary frames
 are now always transmitted untouched; only an `onSend` interceptor that
 explicitly returns a string overrides the payload. Upgrade
 `@harness-fe/*` and the issue disappears with no app-side change.
