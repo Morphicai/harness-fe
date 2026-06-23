@@ -144,7 +144,27 @@ report on stderr — you'll get a list of which files are missing
 attributes and why. Full guide:
 [docs/vue2-compat.md](./vue2-compat.md).
 
-## 12. Still stuck
+## 12. WebRTC / real-time apps (Agora, LiveKit, Twilio) — calls break
+
+If a real-time SDK that signals over **binary** WebSocket frames misbehaves
+only when Harness-FE is enabled — e.g. Agora RTM fails to log in
+(`-10023`), hang-up doesn't dismiss the call UI, or audio→video switch
+notifications never arrive — you likely hit
+[#180](https://github.com/Morphicai/harness-fe/issues/180).
+
+The sandbox WebSocket capture used to replace outgoing **binary** frames
+(`ArrayBuffer` / `Blob` / `TypedArray`) with their human-readable timeline
+marker (e.g. `"[binary ArrayBuffer 123B]"`) on the wire, corrupting any
+binary protocol. **Fixed in `@harness-fe/sandbox` ≥ 4.0.1** — binary frames
+are now always transmitted untouched; only an `onSend` interceptor that
+explicitly returns a string overrides the payload. Upgrade
+`@harness-fe/*` and the issue disappears with no app-side change.
+
+If you're on an older version and can't upgrade yet, the only built-in
+escape hatch is to disable capture entirely for that app
+(`harnessFE({ disabled: true })` / `withHarness(config, { disabled: true })`).
+
+## 13. Still stuck
 
 - Run `harness serve` with `DEBUG=harness-fe:*` for verbose logging
 - File an issue with: the relevant timeline.jsonl excerpt (redact what you must), the gateway stderr, your Next / Vite / Webpack version, and what you expected
