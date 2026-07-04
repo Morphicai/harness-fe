@@ -387,6 +387,43 @@ describe('window.print', () => {
     });
 });
 
+// ─── beforeunload ──────────────────────────────────────────────────────────
+
+describe('beforeunload', () => {
+    it('agent-triggered: does NOT preventDefault (no native dialog) and still emits event', () => {
+        const events: SandboxEvent[] = [];
+        const handle = installSandbox({ only: ['dialogs'], onEvent: (e) => events.push(e) });
+
+        setAgentInProgress(true);
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+
+        // Regression guard for the inverted-logic bug: harness-fe must never
+        // be the reason a native "Leave site?" dialog is shown.
+        expect(event.defaultPrevented).toBe(false);
+
+        const dialogEvts = dialogEvents(events);
+        expect(dialogEvts).toHaveLength(1);
+        expect(dialogEvts[0].kind).toBe('beforeunload');
+        expect(dialogEvts[0].data).toMatchObject({ type: 'beforeunload' });
+
+        handle.dispose();
+    });
+
+    it('user-triggered (no agent flag): does not preventDefault and does not emit', () => {
+        const events: SandboxEvent[] = [];
+        const handle = installSandbox({ only: ['dialogs'], onEvent: (e) => events.push(e) });
+
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(false);
+        expect(dialogEvents(events)).toHaveLength(0);
+
+        handle.dispose();
+    });
+});
+
 // ─── Uninstall (dispose) ──────────────────────────────────────────────────────
 
 describe('uninstall', () => {

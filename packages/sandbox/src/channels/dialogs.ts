@@ -4,7 +4,9 @@
  *
  * Intercepted (agent-triggered only):
  *   window.alert / confirm / prompt / print
- *   beforeunload event (suppressed while agent command is in flight)
+ *   beforeunload event (never suppressed by this channel; agent-triggered
+ *   navigations pass through untouched so no native "Leave site?" dialog is
+ *   shown — see channel section 2 below for rationale)
  *
  * User-triggered calls: always passed to the native implementation.
  *
@@ -84,12 +86,19 @@ function installDialogsPatch(): () => void {
         // Agent-triggered print is silently suppressed.
     };
 
-    // ── 2. beforeunload — suppress when agent command is in progress ──────────
+    // ── 2. beforeunload — never call preventDefault(); a page can only ASK the
+    //      browser to show its native "unsaved changes" dialog by calling
+    //      preventDefault()/setting returnValue, and once shown that dialog
+    //      cannot be suppressed by JS (spec, anti-abuse). So when an agent
+    //      command triggers navigation, this listener must leave the event
+    //      completely untouched — it only observes/emits for telemetry.
 
     const beforeunloadHandler = (e: BeforeUnloadEvent): void => {
         if (!isAgentInProgress()) return;
-        e.preventDefault();
         emitDialog({ type: 'beforeunload' });
+        // Deliberately do NOT call e.preventDefault() / set e.returnValue.
+        // This channel only observes; it must never be the reason the native
+        // "leave site?" dialog appears during an agent-triggered navigation.
     };
     window.addEventListener('beforeunload', beforeunloadHandler, true);
 
