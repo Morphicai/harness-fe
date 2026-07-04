@@ -376,8 +376,8 @@ importers:
         specifier: ^1.26.0
         version: 1.29.0(zod@4.4.3)
       rrweb-player:
-        specifier: 1.0.0-alpha.4
-        version: 1.0.0-alpha.4
+        specifier: 2.1.0
+        version: 2.1.0
       ws:
         specifier: ^8.18.0
         version: 8.20.1
@@ -1298,6 +1298,10 @@ packages:
 
   '@babel/runtime@7.29.2':
     resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/runtime@7.29.7':
+    resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
     engines: {node: '>=6.9.0'}
 
   '@babel/template@7.28.6':
@@ -2434,6 +2438,12 @@ packages:
     resolution: {integrity: sha512-hPt/bgL5cE+Qp+/TPHBqptcAgPzgj46mPcg/16zNUmbQk0j+mOEQV/+Lqu8QRtDV3Ek95Q6FeFITpuhl6OTsAA==}
     cpu: [x64]
     os: [win32]
+
+  '@rrweb/packer@2.1.0':
+    resolution: {integrity: sha512-M3Di2TuUN2xqgwK6OiLgikB0ebU1Wxx6iXMoSiDVhDZRgyc6euL5JQs3GclJOuYstDx+8jjbZ12hTcQe+Ai8WQ==}
+
+  '@rrweb/replay@2.1.0':
+    resolution: {integrity: sha512-a6s3Lzf4iIEL22o6+DHZrbjH/q6OIM9CFh/KzU6pDZ2mOYFP3u3Yd3IL57Oc9usnqFt/kNCvOjUf5JbBrQ9o7A==}
 
   '@rrweb/types@2.1.0':
     resolution: {integrity: sha512-svOHkcuukP6rIjz2umwVsS7uYct+2h0N97+bg+8IJYKIUj5+YjwIvqx5y9NILFKPIu3yk+Mb+KDFfJ8RV+4JlA==}
@@ -3667,6 +3677,9 @@ packages:
       picomatch:
         optional: true
 
+  fflate@0.4.8:
+    resolution: {integrity: sha512-FJqqoDBR00Mdj9ppamLa/Y7vxm+PRmNWA67N846RvsoYVMKB4q3y/de5PA7gUmRMYK/8CMz2GDZQmCRN1wBcWA==}
+
   fill-range@7.1.1:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
     engines: {node: '>=8'}
@@ -4807,8 +4820,8 @@ packages:
   rrdom@2.1.0:
     resolution: {integrity: sha512-d7oaIHzwffxI74UJMZDGq/f97/Yfm3QX4CcTIlQelt2HsLavItLjp8x8nQ0g9Pet5+5wG1RGr9yvsxb1gJlo8A==}
 
-  rrweb-player@1.0.0-alpha.4:
-    resolution: {integrity: sha512-Wlmn9GZ5Fdqa37vd3TzsYdLl/JWEvXNUrLCrYpnOwEgmY409HwVIvvA5aIo7k582LoKgdRCsB87N+f0oWAR0Kg==}
+  rrweb-player@2.1.0:
+    resolution: {integrity: sha512-EU0dCgrN66o2E8GAT67wDBRMgcJ1QJuu2lGa8PKO3xSosSS2eCaHlJWmX9fFCMvKkLsahWe15GnuqUjprCGMoA==}
 
   rrweb-snapshot@2.1.0:
     resolution: {integrity: sha512-CFjUKWlO+Dl72gk8qwcDcNE/Pj9yr6IvGRAiRAx12pmJaSWaOKFoFgpQQ1j/mW0WKwEZXbHnMJL8M92gIsdwUQ==}
@@ -6500,6 +6513,8 @@ snapshots:
 
   '@babel/runtime@7.29.2': {}
 
+  '@babel/runtime@7.29.7': {}
+
   '@babel/template@7.28.6':
     dependencies:
       '@babel/code-frame': 7.29.0
@@ -7485,6 +7500,16 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.60.3':
     optional: true
 
+  '@rrweb/packer@2.1.0':
+    dependencies:
+      '@rrweb/types': 2.1.0
+      fflate: 0.4.8
+
+  '@rrweb/replay@2.1.0':
+    dependencies:
+      '@rrweb/types': 2.1.0
+      rrweb: 2.1.0
+
   '@rrweb/types@2.1.0': {}
 
   '@rrweb/utils@2.1.0': {}
@@ -7544,7 +7569,7 @@ snapshots:
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@babel/runtime': 7.29.2
+      '@babel/runtime': 7.29.7
       '@types/aria-query': 5.0.4
       aria-query: 5.3.0
       dom-accessibility-api: 0.5.16
@@ -8910,6 +8935,8 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.4
 
+  fflate@0.4.8: {}
+
   fill-range@7.1.1:
     dependencies:
       to-regex-range: 5.0.1
@@ -10055,10 +10082,11 @@ snapshots:
     dependencies:
       rrweb-snapshot: 2.1.0
 
-  rrweb-player@1.0.0-alpha.4:
+  rrweb-player@2.1.0:
     dependencies:
+      '@rrweb/packer': 2.1.0
+      '@rrweb/replay': 2.1.0
       '@tsconfig/svelte': 1.0.13
-      rrweb: 2.1.0
 
   rrweb-snapshot@2.1.0:
     dependencies:
@@ -10450,7 +10478,7 @@ snapshots:
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       terser: 5.47.1
-      webpack: 5.107.2
+      webpack: 5.107.2(webpack-cli@5.1.4)
 
   terser@5.47.1:
     dependencies:
@@ -10990,45 +11018,6 @@ snapshots:
   webpack-sources@3.5.0: {}
 
   webpack-virtual-modules@0.6.2: {}
-
-  webpack@5.107.2:
-    dependencies:
-      '@types/estree': 1.0.9
-      '@types/json-schema': 7.0.15
-      '@webassemblyjs/ast': 1.14.1
-      '@webassemblyjs/wasm-edit': 1.14.1
-      '@webassemblyjs/wasm-parser': 1.14.1
-      acorn: 8.16.0
-      acorn-import-phases: 1.0.4(acorn@8.16.0)
-      browserslist: 4.28.2
-      chrome-trace-event: 1.0.4
-      enhanced-resolve: 5.22.2
-      es-module-lexer: 2.1.0
-      eslint-scope: 5.1.1
-      events: 3.3.0
-      glob-to-regexp: 0.4.1
-      graceful-fs: 4.2.11
-      loader-runner: 4.3.2
-      mime-db: 1.54.0
-      neo-async: 2.6.2
-      schema-utils: 4.3.3
-      tapable: 2.3.3
-      terser-webpack-plugin: 5.6.0(webpack@5.107.2)
-      watchpack: 2.5.1
-      webpack-sources: 3.5.0
-    transitivePeerDependencies:
-      - '@minify-html/node'
-      - '@swc/core'
-      - '@swc/css'
-      - '@swc/html'
-      - clean-css
-      - cssnano
-      - csso
-      - esbuild
-      - html-minifier-terser
-      - lightningcss
-      - postcss
-      - uglify-js
 
   webpack@5.107.2(postcss@8.5.14)(webpack-cli@5.1.4):
     dependencies:
