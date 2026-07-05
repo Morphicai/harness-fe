@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/core",
-    "version": "4.4.0",
+    "version": "4.5.0",
     "description": "Harness-FE core: transport-agnostic capability API + event store + browser-control bridge + identity/canSee/consent. A pure library with no HTTP/WS server — the gateway owns the front door and drives core via the CoreClient interface.",
     "type": "module",
     "license": "MIT",
