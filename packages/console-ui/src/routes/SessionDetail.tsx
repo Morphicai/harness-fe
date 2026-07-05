@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
     ConsoleEntry,
     ErrorEntry,
@@ -50,15 +50,28 @@ export function SessionDetail() {
             return next;
         });
     }, []);
+    const [query, setQuery] = useState('');
+    const [debouncedQuery, setDebouncedQuery] = useState('');
+    useEffect(() => {
+        const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
+        return () => window.clearTimeout(timer);
+    }, [query]);
     const typeQuery = useMemo(
         () =>
             selectedTypes.size < ALL_TYPES.length
-                ? `?type=${[...selectedTypes].join(',')}`
+                ? `type=${[...selectedTypes].join(',')}`
                 : '',
         [selectedTypes],
     );
+    const searchQuery = useMemo(
+        () => (debouncedQuery ? `q=${encodeURIComponent(debouncedQuery)}` : ''),
+        [debouncedQuery],
+    );
+    const queryString = [typeQuery, searchQuery].filter(Boolean).join('&');
     const { data, error, loading, refetch } = useApi<SessionDetailShape>(
-        sessionId ? `/console/api/sessions/${encodeURIComponent(sessionId)}${typeQuery}` : null,
+        sessionId
+            ? `/console/api/sessions/${encodeURIComponent(sessionId)}${queryString ? `?${queryString}` : ''}`
+            : null,
     );
 
     useLiveBridge(
@@ -109,6 +122,8 @@ export function SessionDetail() {
                             detail={data}
                             selectedTypes={selectedTypes}
                             onToggleType={toggleType}
+                            query={query}
+                            onQueryChange={setQuery}
                         />
                         <ExportsSection detail={data} />
                     </>
@@ -357,10 +372,14 @@ function TimelineSection({
     detail,
     selectedTypes,
     onToggleType,
+    query,
+    onQueryChange,
 }: {
     detail: SessionDetailShape;
     selectedTypes: Set<string>;
     onToggleType: (t: string) => void;
+    query: string;
+    onQueryChange: (q: string) => void;
 }) {
     const { timeline } = detail;
     const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -374,6 +393,15 @@ function TimelineSection({
     };
     return (
         <Section title={`Timeline (last ${timeline.length})`}>
+            <div className="px-4 py-2.5 border-b border-surface-border">
+                <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => onQueryChange(e.target.value)}
+                    placeholder="Search this session's events…"
+                    className="w-full px-3 py-1.5 rounded-md bg-surface-sunken border border-surface-border text-ink-primary text-xs font-mono placeholder:text-ink-muted focus:outline-none focus:border-accent-indigo/50 transition-colors"
+                />
+            </div>
             <div className="px-4 py-2.5 flex flex-wrap gap-1.5 border-b border-surface-border">
                 {ALL_TYPES.map((t) => (
                     <button
