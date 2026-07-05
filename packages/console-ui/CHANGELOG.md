@@ -1,5 +1,13 @@
 # @harness-fe/console-ui
 
+## 4.5.0
+
+### Minor Changes
+
+- 2ec9fe1: feat(console-ui): keyword search box on the Session Detail timeline
+
+  #179 added a type filter to Session Detail's timeline but no way to search by content. Adds a debounced (300ms) search input above the type-filter chips, wired to the gateway's new `?q=` param — composes with the active type filter (AND semantics). Distinct from #178 (finding a _session_ in the project list) — this searches _inside_ one session's already-open timeline.
+
 ## 4.4.0
 
 ### Minor Changes

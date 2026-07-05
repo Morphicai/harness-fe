@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/gateway",
-    "version": "4.4.0",
+    "version": "4.5.0",
     "description": "Harness-FE gateway: the only front door. Embeds @harness-fe/core in-process and exposes /mcp (agent MCP, RBAC + scoped manifest + audit), /ws (runtime WS, write scope), and /console (data + governance API). Policy: Open (solo loopback) | Governed (team tokens). Zero native deps (JSON store + node:crypto scrypt).",
     "type": "module",
     "license": "MIT",
