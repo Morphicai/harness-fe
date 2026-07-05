@@ -67,6 +67,29 @@ describe('gateway /console', () => {
         expect(missing.status).toBe(404);
     });
 
+    it('filters session timeline by ?type= (comma-separated)', async () => {
+        await boot();
+        const store = core.bridge.store!;
+        store.upsertProject('demo', { displayName: 'Demo', createdBy: 'local' });
+        store.upsertSession('sess-1', {
+            tabId: 'tab-1',
+            startedAt: Date.now(),
+            url: 'http://localhost/app',
+            participants: [{ projectId: 'demo', joinedAt: Date.now() }],
+        });
+        store.appendEvent('sess-1', { ts: 1000, t: 'console', tab: 'tab-1', d: { level: 'log', args: ['hi'] } });
+        store.appendEvent('sess-1', { ts: 2000, t: 'error', tab: 'tab-1', d: { message: 'boom' } });
+        store.appendEvent('sess-1', { ts: 3000, t: 'network', tab: 'tab-1', d: { phase: 'req', method: 'GET', url: '/x' } });
+        await store.flush();
+
+        const filtered = await (await fetch(`${base}/console/api/sessions/sess-1?type=console,error`)).json();
+        expect(filtered.timeline.length).toBe(2);
+        expect(filtered.timeline.every((e: any) => e.t === 'console' || e.t === 'error')).toBe(true);
+
+        const unfiltered = await (await fetch(`${base}/console/api/sessions/sess-1`)).json();
+        expect(unfiltered.timeline.length).toBe(3);
+    });
+
     it('serves a placeholder SPA when no consoleDir is configured', async () => {
         await boot();
         const r = await fetch(`${base}/console`);

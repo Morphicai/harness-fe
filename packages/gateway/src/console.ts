@@ -274,8 +274,10 @@ export function createConsoleHandler(
                 const session = owning;
                 const summary = store.summary(sessionId);
                 const chunks = store.listRecordings(sessionId);
+                const typeParam = url.searchParams.get('type');
                 const timeline = store.tail(sessionId, {
                     n: parseIntOr(url.searchParams.get('timeline'), TIMELINE_DEFAULT_TAIL),
+                    type: typeParam ? typeParam.split(',').filter(Boolean) : undefined,
                 });
                 const projectId = session.participants[0]?.projectId ?? '';
                 const exports = projectId
