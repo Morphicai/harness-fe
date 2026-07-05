@@ -21,15 +21,12 @@ export function captureInitiator(framesToTrim = DEFAULT_FRAMES_TO_TRIM): Initiat
         const raw = err.stack;
         if (!raw) return {};
 
-        const lines = raw.split('\n');
-        if (lines.length <= framesToTrim + 1) return { stack: raw };
-
-        const header = lines[0]?.startsWith('Error') ? lines[0] : '';
-        const callerFrames = lines.slice(framesToTrim + 1);
-        const trimmed = header
-            ? [header, ...callerFrames].join('\n')
-            : callerFrames.join('\n');
-        return { stack: trimmed };
+        // `new Error().stack` always starts with the literal "Error" header
+        // line, regardless of outcome — it is never meaningful here (this is
+        // a call-site capture, not a real error), so it is always dropped.
+        const lines = raw.split('\n').slice(1);
+        const callerFrames = lines.length <= framesToTrim ? lines : lines.slice(framesToTrim);
+        return { stack: callerFrames.join('\n') };
     } catch {
         return {};
     }
