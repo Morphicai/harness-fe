@@ -275,10 +275,17 @@ export function createConsoleHandler(
                 const summary = store.summary(sessionId);
                 const chunks = store.listRecordings(sessionId);
                 const typeParam = url.searchParams.get('type');
-                const timeline = store.tail(sessionId, {
-                    n: parseIntOr(url.searchParams.get('timeline'), TIMELINE_DEFAULT_TAIL),
-                    type: typeParam ? typeParam.split(',').filter(Boolean) : undefined,
-                });
+                const type = typeParam ? typeParam.split(',').filter(Boolean) : undefined;
+                const n = parseIntOr(url.searchParams.get('timeline'), TIMELINE_DEFAULT_TAIL);
+                const q = url.searchParams.get('q')?.trim() || undefined;
+                // search() streams forward and stops at its first `limit` matches —
+                // the oldest ones for a long session. Ask for a generous limit, then
+                // slice(-n) to bias the returned page toward the most recent matches,
+                // mirroring tail()'s "last N" convention without touching search()'s
+                // own streaming/ordering (shared with the `session.search` MCP tool).
+                const timeline = q
+                    ? store.search(sessionId, q, { type, limit: 500 }).slice(-n)
+                    : store.tail(sessionId, { n, type });
                 const projectId = session.participants[0]?.projectId ?? '';
                 const exports = projectId
                     ? store.listExports(projectId, 50).filter((e) => e.sessionId === sessionId)

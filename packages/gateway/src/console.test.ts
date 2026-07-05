@@ -90,6 +90,41 @@ describe('gateway /console', () => {
         expect(unfiltered.timeline.length).toBe(3);
     });
 
+    it('filters session timeline by ?q= keyword search, composable with ?type=', async () => {
+        await boot();
+        const store = core.bridge.store!;
+        store.upsertProject('demo', { displayName: 'Demo', createdBy: 'local' });
+        store.upsertSession('sess-1', {
+            tabId: 'tab-1',
+            startedAt: Date.now(),
+            url: 'http://localhost/app',
+            participants: [{ projectId: 'demo', joinedAt: Date.now() }],
+        });
+        store.appendEvent('sess-1', { ts: 1000, t: 'console', tab: 'tab-1', d: { level: 'log', args: ['zqmarker'] } });
+        store.appendEvent('sess-1', { ts: 2000, t: 'error', tab: 'tab-1', d: { message: 'connection reset' } });
+        store.appendEvent('sess-1', { ts: 3000, t: 'network', tab: 'tab-1', d: { phase: 'req', method: 'GET', url: '/x' } });
+        await store.flush();
+
+        // q alone: only the event whose raw content contains "reset"
+        const byQuery = await (await fetch(`${base}/console/api/sessions/sess-1?q=reset`)).json();
+        expect(byQuery.timeline.length).toBe(1);
+        expect(byQuery.timeline[0].t).toBe('error');
+
+        // no match
+        const noMatch = await (await fetch(`${base}/console/api/sessions/sess-1?q=nope-not-here`)).json();
+        expect(noMatch.timeline.length).toBe(0);
+
+        // q + type combine with AND semantics — "zqmarker" only appears in the
+        // console event, but restricting type to error should exclude it even
+        // though the console event matches the keyword.
+        const combined = await (await fetch(`${base}/console/api/sessions/sess-1?q=zqmarker&type=error`)).json();
+        expect(combined.timeline.length).toBe(0);
+
+        const combinedMatch = await (await fetch(`${base}/console/api/sessions/sess-1?q=zqmarker&type=console`)).json();
+        expect(combinedMatch.timeline.length).toBe(1);
+        expect(combinedMatch.timeline[0].t).toBe('console');
+    });
+
     it('serves a placeholder SPA when no consoleDir is configured', async () => {
         await boot();
         const r = await fetch(`${base}/console`);
