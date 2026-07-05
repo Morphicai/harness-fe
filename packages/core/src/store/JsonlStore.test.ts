@@ -691,18 +691,29 @@ describe('JsonlStore', () => {
 
     it('returns a session summary with counts', async () => {
         const { sessionId } = openSession(store, 'proj');
-        store.appendEvent(sessionId, { ts: 1000, t: 'log', d: {} });
-        store.appendEvent(sessionId, { ts: 2000, t: 'log', d: {} });
-        store.appendEvent(sessionId, { ts: 3000, t: 'err', d: { message: 'boom' } });
+        store.appendEvent(sessionId, { ts: 1000, t: 'console', d: {} });
+        store.appendEvent(sessionId, { ts: 2000, t: 'console', d: {} });
+        store.appendEvent(sessionId, { ts: 3000, t: 'error', d: { message: 'boom' } });
         store.appendEvent(sessionId, { ts: 4000, t: 'cmd', d: {} });
 
         await store.flush();
         const s = store.summary(sessionId);
-        expect(s.counts['log']).toBe(2);
-        expect(s.counts['err']).toBe(1);
+        expect(s.counts['console']).toBe(2);
+        expect(s.counts['error']).toBe(1);
         expect(s.counts['cmd']).toBe(1);
-        expect(s.lastError?.t).toBe('err');
+        expect(s.lastError?.t).toBe('error');
         expect(s.lastActivity).toBe(4000);
+    });
+
+    it('lastError is populated for real-world error events (t: "error", not the stale "err")', async () => {
+        const { sessionId } = openSession(store, 'proj');
+        store.appendEvent(sessionId, { ts: 1000, t: 'console', d: {} });
+        store.appendEvent(sessionId, { ts: 2000, t: 'error', d: { message: 'boom' } });
+
+        await store.flush();
+        const s = store.summary(sessionId);
+        expect(s.lastError).toBeDefined();
+        expect(s.lastError?.d).toMatchObject({ message: 'boom' });
     });
 
     // ── Notes ────────────────────────────────────────────────────────────

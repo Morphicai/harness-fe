@@ -28,10 +28,9 @@ import type { Task, VisitorEnv } from '@harness-fe/protocol';
 
 /** Short type codes used in JSONL lines to keep files compact. */
 export type EventType =
-    | 'log'          // browser console
-    | 'err'          // browser JS error
-    | 'req'          // network request (start)
-    | 'res'          // network response (end)
+    | 'console'      // browser console (runtime-client capture.ts sends 'console', not 'log')
+    | 'error'        // browser JS error (runtime-client capture.ts sends 'error', not 'err')
+    | 'network'      // fetch/xhr request+response, direction distinguished by d.phase ('req'|'res')
     | 'cmd'          // MCP command sent to runtime/plugin
     | 'resp'         // MCP command response
     | 'hmr'          // HMR update from build plugin
@@ -39,6 +38,7 @@ export type EventType =
     | 'task:claim'   // annotation task claimed by agent
     | 'task:resolve' // annotation task resolved by agent
     | 'rrweb'        // rrweb recording chunk
+    | 'rrweb:marker' // rrweb baseline/eviction marker derived from a frame
     | 'node:log'     // Node.js stdout from build plugin
     | 'node:err'     // Node.js stderr from build plugin
     | 'note'         // project-level note written by agent/user

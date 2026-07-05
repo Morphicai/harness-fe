@@ -1291,7 +1291,7 @@ export class JsonlStore implements IStore {
             const event = parseEvent(line);
             if (!event) return;
             counts[event.t] = (counts[event.t] ?? 0) + 1;
-            if (event.t === 'err') lastError = event;
+            if (event.t === 'error') lastError = event;
             if (!lastActivity || event.ts > lastActivity) lastActivity = event.ts;
         });
 
