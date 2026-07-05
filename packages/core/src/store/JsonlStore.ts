@@ -1133,10 +1133,22 @@ export class JsonlStore implements IStore {
         // Stream across chunk files — timeline can exceed V8's string cap
         // (harness-fe#166); never read whole. Stop once we have `limit` matches.
         forEachLineInFiles(this.timelineFiles(sessionId), (line) => {
+            // Cheap pre-filter on the raw line before paying for JSON.parse —
+            // valid because if the whole line doesn't contain the query, the
+            // event's own content (a subset of the line) definitely doesn't
+            // either. This does NOT mean the line is a real match: envelope
+            // fields (projectId/buildId/tab/visitorId) are constant across
+            // every event in a session, so a query matching e.g. a project
+            // named "react-demo" would otherwise "match" every single event
+            // regardless of its actual content.
             if (!line.toLowerCase().includes(lowerQuery)) return;
             const event = parseEvent(line);
             if (!event) return;
             if (!matchesType(event, opts.type)) return;
+            // Real match check: only the event's type + payload, never the
+            // session-constant envelope fields above.
+            const haystack = `${event.t} ${JSON.stringify(event.d ?? '')}`.toLowerCase();
+            if (!haystack.includes(lowerQuery)) return;
             results.push(event);
             if (results.length >= limit) return false;
         });

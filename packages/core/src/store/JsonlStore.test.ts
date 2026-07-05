@@ -687,6 +687,32 @@ describe('JsonlStore', () => {
         expect(results[0].t).toBe('err');
     });
 
+    it('does not match on session-constant envelope fields (projectId/buildId/tab/visitorId) — only event type + payload', async () => {
+        // Regression: every event in a session carries the same projectId on
+        // its raw JSONL line. Searching a substring of the project name (e.g.
+        // "react" for a project called "react-demo") used to match every
+        // event in the session regardless of content, since the old
+        // implementation matched the whole raw line.
+        const { sessionId } = openSession(store, 'react-demo');
+        store.appendEvent(sessionId, {
+            ts: 1000,
+            t: 'rrweb',
+            projectId: 'react-demo',
+            d: { chunkId: 'rrc_1', startTs: 1000, endTs: 2000, eventCount: 5 },
+        });
+        store.appendEvent(sessionId, {
+            ts: 2000,
+            t: 'console',
+            projectId: 'react-demo',
+            d: { level: 'log', args: ['react hooks warning'] },
+        });
+
+        await store.flush();
+        const results = store.search(sessionId, 'react');
+        expect(results).toHaveLength(1);
+        expect(results[0].t).toBe('console');
+    });
+
     // ── Summary ──────────────────────────────────────────────────────────
 
     it('returns a session summary with counts', async () => {
