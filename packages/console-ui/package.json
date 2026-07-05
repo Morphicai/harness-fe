@@ -30,6 +30,7 @@
         "test": "vitest run --passWithNoTests"
     },
     "dependencies": {
+        "@harness-fe/protocol": "workspace:*",
         "react": "^18.3.0",
         "react-dom": "^18.3.0",
         "react-router-dom": "^6.28.0"

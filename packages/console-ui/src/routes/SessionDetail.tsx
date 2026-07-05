@@ -1,17 +1,64 @@
 import { Link, useParams } from 'react-router-dom';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import type {
+    ConsoleEntry,
+    ErrorEntry,
+    NetworkEntry,
+} from '@harness-fe/protocol';
 import { apiPost, useApi } from '../hooks/useApi';
 import { useLiveBridge } from '../hooks/useLiveBridge';
 import { Header } from '../components/Header';
 import { TagBadge } from '../components/TagBadge';
+import { JsonTree } from '../components/JsonTree';
 import { fmtBytes, fmtDur, fmtRelative, fmtTs } from '../lib/fmt';
-import type { ReplayCreateResult, SessionDetail as SessionDetailShape } from '../lib/types';
+import type { ReplayCreateResult, SessionDetail as SessionDetailShape, StoreEvent } from '../lib/types';
+
+/** Real, wire-verified event types (see lib/types.ts StoreEventType) — the
+ * filter chip row and per-type renderers below are keyed on these. */
+const ALL_TYPES = [
+    'network',
+    'console',
+    'error',
+    'storage',
+    'ws',
+    'navigation',
+    'globals',
+    'indexeddb',
+    'load',
+    'rrweb',
+    'cmd',
+    'resp',
+    'app-log',
+    'hmr',
+    'node:log',
+    'node:err',
+] as const;
 
 export function SessionDetail() {
     const { id } = useParams<{ id: string }>();
     const sessionId = id ?? '';
+    const [selectedTypes, setSelectedTypes] = useState<Set<string>>(() => new Set(ALL_TYPES));
+    const toggleType = useCallback((t: string) => {
+        setSelectedTypes((prev) => {
+            const next = new Set(prev);
+            if (next.has(t)) {
+                if (next.size === 1) return prev; // keep at least one type selected
+                next.delete(t);
+            } else {
+                next.add(t);
+            }
+            return next;
+        });
+    }, []);
+    const typeQuery = useMemo(
+        () =>
+            selectedTypes.size < ALL_TYPES.length
+                ? `?type=${[...selectedTypes].join(',')}`
+                : '',
+        [selectedTypes],
+    );
     const { data, error, loading, refetch } = useApi<SessionDetailShape>(
-        sessionId ? `/console/api/sessions/${encodeURIComponent(sessionId)}` : null,
+        sessionId ? `/console/api/sessions/${encodeURIComponent(sessionId)}${typeQuery}` : null,
     );
 
     useLiveBridge(
@@ -58,7 +105,11 @@ export function SessionDetail() {
                         <SessionHeaderCard detail={data} />
                         <TabsSection detail={data} onReplayCreated={refetch} />
                         <RecordingsSection detail={data} />
-                        <TimelineSection detail={data} />
+                        <TimelineSection
+                            detail={data}
+                            selectedTypes={selectedTypes}
+                            onToggleType={toggleType}
+                        />
                         <ExportsSection detail={data} />
                     </>
                 ) : null}
@@ -302,29 +353,79 @@ function RecordingsSection({ detail }: { detail: SessionDetailShape }) {
     );
 }
 
-function TimelineSection({ detail }: { detail: SessionDetailShape }) {
+function TimelineSection({
+    detail,
+    selectedTypes,
+    onToggleType,
+}: {
+    detail: SessionDetailShape;
+    selectedTypes: Set<string>;
+    onToggleType: (t: string) => void;
+}) {
     const { timeline } = detail;
+    const [expanded, setExpanded] = useState<Set<number>>(new Set());
+    const toggleExpanded = (i: number) => {
+        setExpanded((prev) => {
+            const next = new Set(prev);
+            if (next.has(i)) next.delete(i);
+            else next.add(i);
+            return next;
+        });
+    };
     return (
         <Section title={`Timeline (last ${timeline.length})`}>
+            <div className="px-4 py-2.5 flex flex-wrap gap-1.5 border-b border-surface-border">
+                {ALL_TYPES.map((t) => (
+                    <button
+                        key={t}
+                        type="button"
+                        onClick={() => onToggleType(t)}
+                        className={`transition-opacity ${selectedTypes.has(t) ? '' : 'opacity-30'}`}
+                    >
+                        <TagBadge tag={t} />
+                    </button>
+                ))}
+            </div>
             {timeline.length === 0 ? (
                 <Empty>Timeline is empty.</Empty>
             ) : (
                 <ul className="divide-y divide-surface-border max-h-[480px] overflow-y-auto scrollbar-thin">
                     {[...timeline].reverse().map((ev, i) => (
-                        <li key={i} className="px-4 py-2 flex items-start gap-3 text-sm transition-colors hover:bg-surface-sunken">
-                            <TagBadge tag={ev.t} />
-                            <span className="text-ink-muted text-xs whitespace-nowrap font-mono">
-                                {fmtTs(ev.ts)}
-                            </span>
-                            <pre className="flex-1 text-ink-secondary text-[11px] font-mono whitespace-pre-wrap break-all overflow-hidden">
-                                {digest(ev.d)}
-                            </pre>
+                        <li key={i} className="transition-colors hover:bg-surface-sunken">
+                            <button
+                                type="button"
+                                onClick={() => toggleExpanded(i)}
+                                className="w-full px-4 py-2 flex items-start gap-3 text-sm text-left"
+                            >
+                                <TagBadge tag={ev.t} />
+                                <span className="text-ink-muted text-xs whitespace-nowrap font-mono">
+                                    {fmtTs(ev.ts)}
+                                </span>
+                                <span className="flex-1 text-ink-secondary text-[11px] font-mono whitespace-pre-wrap break-all overflow-hidden">
+                                    {summarize(ev)}
+                                </span>
+                            </button>
+                            {expanded.has(i) ? (
+                                <div className="px-4 pb-3 pl-[4.5rem]">
+                                    <ExpandedDetail ev={ev} />
+                                </div>
+                            ) : null}
                         </li>
                     ))}
                 </ul>
             )}
         </Section>
     );
+}
+
+/** Strip the always-present, never-meaningful "Error" header line that
+ * `captureInitiator()` used to prepend (sandbox/src/initiator.ts). Applied
+ * on render too — not just fixed at the source — since already-persisted
+ * sessions have the bad prefix baked into stored JSONL forever. */
+function stripErrorHeader(stack: string): string {
+    const lines = stack.split('\n');
+    if (lines[0]?.trim() === 'Error') return lines.slice(1).join('\n');
+    return stack;
 }
 
 function digest(d: unknown): string {
@@ -335,6 +436,128 @@ function digest(d: unknown): string {
     } catch {
         return String(d);
     }
+}
+
+function formatConsoleArgs(args: unknown): string {
+    if (!Array.isArray(args)) return '';
+    return args
+        .map((a) => (typeof a === 'string' ? a : digest(a)))
+        .join(' ');
+}
+
+function summarize(ev: StoreEvent): string {
+    const d = ev.d as Record<string, unknown> | undefined;
+    switch (ev.t) {
+        case 'network': {
+            const n = d as unknown as NetworkEntry | undefined;
+            if (!n) return '';
+            if (n.phase === 'res') {
+                const timing = n.durationMs != null ? ` (${n.durationMs}ms)` : '';
+                return `${n.method ?? '?'} ${n.url ?? ''} → ${n.status ?? '?'}${timing}`;
+            }
+            return `${n?.method ?? '?'} ${n?.url ?? ''}`;
+        }
+        case 'console': {
+            const c = d as unknown as ConsoleEntry | undefined;
+            return `[${c?.level ?? 'log'}] ${formatConsoleArgs(c?.args)}`;
+        }
+        case 'error': {
+            const e = d as unknown as ErrorEntry | undefined;
+            return e?.message ?? 'error';
+        }
+        case 'storage':
+            return `${d?.op ?? '?'} ${d?.which ?? ''}.${d?.key ?? ''}`;
+        case 'ws':
+            return `${d?.phase ?? '?'} ${d?.url ?? ''}`;
+        case 'navigation':
+            return `${d?.kind ?? '?'} ${d?.url ?? ''}`;
+        case 'globals':
+            return `${d?.op ?? '?'} window.${d?.key ?? ''}`;
+        case 'indexeddb':
+            return `${d?.op ?? '?'} ${d?.db ?? ''}${d?.store ? `.${d.store}` : ''}`;
+        default:
+            return digest(d);
+    }
+}
+
+function ExpandedDetail({ ev }: { ev: StoreEvent }) {
+    const d = ev.d as Record<string, unknown> | undefined;
+    switch (ev.t) {
+        case 'network':
+            return <NetworkDetail entry={d as unknown as NetworkEntry} />;
+        case 'console': {
+            const c = d as unknown as ConsoleEntry | undefined;
+            return <JsonTree value={c?.args} />;
+        }
+        case 'error': {
+            const e = d as unknown as ErrorEntry | undefined;
+            return (
+                <div className="space-y-2">
+                    {e?.source ? (
+                        <div className="text-ink-muted text-[11px] font-mono">{e.source}</div>
+                    ) : null}
+                    {e?.stack ? (
+                        <pre className="text-[11px] font-mono text-ink-secondary whitespace-pre-wrap break-all">
+                            {stripErrorHeader(e.stack)}
+                        </pre>
+                    ) : null}
+                </div>
+            );
+        }
+        default:
+            return <JsonTree value={ev.d} />;
+    }
+}
+
+function NetworkDetail({ entry }: { entry: NetworkEntry | undefined }) {
+    if (!entry) return null;
+    const initiatorStack = entry.initiator?.stack;
+    return (
+        <div className="space-y-3">
+            {initiatorStack ? (
+                <pre className="text-[11px] font-mono text-ink-muted whitespace-pre-wrap break-all">
+                    {stripErrorHeader(initiatorStack)}
+                </pre>
+            ) : null}
+            {entry.phase === 'req' ? (
+                <DetailField label="Request">
+                    {entry.requestHeaders ? <JsonTree value={entry.requestHeaders} /> : null}
+                    {entry.requestBody !== undefined ? (
+                        <JsonTree value={entry.requestBody} />
+                    ) : null}
+                    {entry.requestBodyTruncated ? (
+                        <div className="text-ink-muted text-[10px]">(body truncated)</div>
+                    ) : null}
+                </DetailField>
+            ) : (
+                <DetailField
+                    label={`Response${entry.status != null ? ` — ${entry.status}` : ''}${
+                        entry.durationMs != null ? ` (${entry.durationMs}ms)` : ''
+                    }`}
+                >
+                    {entry.error ? (
+                        <div className="text-rose-400 text-[11px] font-mono">{entry.error}</div>
+                    ) : null}
+                    {entry.responseHeaders ? <JsonTree value={entry.responseHeaders} /> : null}
+                    {entry.responseBody !== undefined ? (
+                        <JsonTree value={entry.responseBody} />
+                    ) : null}
+                    {entry.responseBodyTruncated ? (
+                        <div className="text-ink-muted text-[10px]">(body truncated)</div>
+                    ) : null}
+                </DetailField>
+            )}
+        </div>
+    );
+}
+
+function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div>
+            <div className="text-ink-muted uppercase tracking-wide text-[10px] mb-1">{label}</div>
+            {children}
+        </div>
+    );
 }
 
 function ExportsSection({ detail }: { detail: SessionDetailShape }) {

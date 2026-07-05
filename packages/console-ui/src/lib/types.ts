@@ -59,15 +59,27 @@ export interface ReplayExportMeta {
 }
 
 export type StoreEventType =
-    | 'log'
-    | 'err'
-    | 'net'
-    | 'cmd'
-    | 'resp'
+    | 'network'
+    | 'console'
+    | 'error'
+    | 'storage'
+    | 'ws'
+    | 'navigation'
+    | 'globals'
+    | 'indexeddb'
     | 'load'
     | 'rrweb'
-    | 'applog'
-    | 'pageinfo'
+    | 'rrweb:marker'
+    | 'cmd'
+    | 'resp'
+    | 'app-log'
+    | 'hmr'
+    | 'node:log'
+    | 'node:err'
+    | 'task'
+    | 'task:claim'
+    | 'task:resolve'
+    | 'note'
     | string;
 
 export interface StoreEvent {
