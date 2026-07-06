@@ -1,0 +1,7 @@
+[
+  {"type": "tool_use", "input": {"file": "src/App.tsx", "action": "read"}},
+  {"type": "tool_use", "input": {"selector": {"component": "WrongGuess"}, "action": "dom_query"}},
+  {"type": "tool_use", "input": {"file": "src/App.tsx", "edit": "unrelated change"}},
+  {"type": "tool_use", "input": {"file": "src/main.tsx", "edit": "gave up and guessed again"}},
+  {"type": "result", "total_cost_usd": 0.0810, "session_id": "stub-unfixed-1"}
+]

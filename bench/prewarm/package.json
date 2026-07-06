@@ -1,0 +1,12 @@
+{
+  "name": "harness-bench-prewarm",
+  "private": true,
+  "type": "module",
+  "description": "Condition-A-only browser prewarm: pre-starts the shared harness-fe gateway daemon and a headless tab pointed at the dev server, so the runtime SDK is already connected before Claude Code starts investigating. See harness-bench-tech-design.md §3.4.",
+  "scripts": {
+    "prewarm": "node harness_prewarm.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}

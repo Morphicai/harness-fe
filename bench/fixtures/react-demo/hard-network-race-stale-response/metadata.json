@@ -1,0 +1,18 @@
+{
+  "id": "react-demo/hard-network-race-stale-response",
+  "app": "react-demo",
+  "app_dev_route": "network",
+  "tier": "hard",
+  "category": "logic",
+  "tier_rationale": "Only reproducible by firing two requests in a specific order and racing them — per harness-bench-tech-design.md this is where Chrome DevTools MCP's console/network reset per navigation loses the trail, while harness-fe's session.tail/session.summary should retain the full interleaved timeline of both requests even if the agent reloads the page mid-investigation.",
+  "source": "hand-authored (no matching historical fix commit found in react-demo git log — see BUG_WORKLIST.md). Models a realistic mistake: a stale-response guard was added but the guard variable is written right before the read instead of synchronously when the request starts, so the check can never actually fire and the guard is a no-op. IMPORTANT for anyone re-verifying this fixture: unpatched HEAD is NOT a valid 'already fixed' reference — the real react-demo NetworkPage never had a stale-response guard at all, so HEAD fails the oracle exactly like the patched/buggy state does. Verified instead against a hand-written correctly-ordered guard (activeUrlRef.current = url set synchronously before the fetch, not after) — see the verification note in BUG_WORKLIST.md.",
+  "problem_statement": "On the Network page, if I click \"Fetch slow (2s)\" and then immediately click \"Fetch JSON\", the JSON result shows up first like it should — but then a couple seconds later the display flips back to the slow request's result, even though that's not what I clicked last. The panel should always reflect whichever fetch I triggered most recently, not whichever one happens to finish last.",
+  "ground_truth_location": { "file": "src/pages/NetworkPage.tsx", "line": 37 },
+  "fail_to_pass": "Firing \"Fetch slow\" then immediately \"Fetch JSON\" ends up displaying the JSON result even after the slow response arrives later.",
+  "pass_to_pass": [
+    "A single \"Fetch JSON\" click on its own still displays the JSON result correctly (agent must not \"fix\" the race by breaking the normal single-request path).",
+    "A single \"Fetch 404\" click still displays a 404 status correctly."
+  ],
+  "oracle": "oracle.mjs",
+  "oracle_kind": "browser"
+}

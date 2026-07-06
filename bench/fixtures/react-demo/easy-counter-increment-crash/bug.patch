@@ -1,0 +1,17 @@
+--- a/src/pages/CounterPage.tsx
++++ b/src/pages/CounterPage.tsx
+@@ -39,13 +39,13 @@
+                     <button
+                         type="button"
+                         aria-label="increment counter"
+                         data-morphix-comp="IncrementBtn"
+                         style={btnStyle('#16a34a')}
+                         onClick={() => {
+-                            const next = count + 1;
++                            const next = count.push(1);
+                             setCount(next);
+                             console.log('[demo] incremented to', next);
+                         }}
+                     >
+                         + Increment
+                     </button>

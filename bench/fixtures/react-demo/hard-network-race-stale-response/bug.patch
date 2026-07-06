@@ -1,0 +1,28 @@
+--- a/src/pages/NetworkPage.tsx
++++ b/src/pages/NetworkPage.tsx
+@@ -1,4 +1,4 @@
+-import { useState } from 'react';
++import { useState, useRef } from 'react';
+
+ interface FetchResult {
+     url: string;
+@@ -22,9 +22,10 @@
+
+ export function NetworkPage() {
+     const [result, setResult] = useState<FetchResult | null>(null);
++    const activeUrlRef = useRef<string | null>(null);
+
+     const doFetch = async (url: string, label: string) => {
+         setResult({ url, status: null, body: '', loading: true });
+         try {
+             const res = await fetch(url);
+             let body = '';
+@@ -33,6 +34,8 @@
+                 body = text.slice(0, 300);
+             } catch {
+                 body = '(could not read body)';
+             }
++            activeUrlRef.current = url;
++            if (activeUrlRef.current !== url) return;
+             setResult({ url, status: res.status, body });
+             console.log(`[demo] fetch ${label} → ${res.status}`);

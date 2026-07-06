@@ -1,0 +1,18 @@
+{
+  "id": "react-demo/easy-counter-increment-crash",
+  "app": "react-demo",
+  "app_dev_route": "counter",
+  "tier": "easy",
+  "category": "logic",
+  "tier_rationale": "Clean crash with a stack trace pointing straight at the faulty line — per harness-bench-tech-design.md this tier is expected to be roughly a wash between harness-fe and Chrome DevTools MCP (both resolve source location fine from a thrown error). Included as a sanity check, not expected to favor harness-fe.",
+  "source": "hand-authored (no matching historical fix commit found in react-demo git log — see BUG_WORKLIST.md)",
+  "problem_statement": "On the Counter page, clicking \"+ Increment\" crashes the page — it goes blank and there's an error in the browser console. Please look into it and fix it.",
+  "ground_truth_location": { "file": "src/pages/CounterPage.tsx", "line": 45 },
+  "fail_to_pass": "Clicking \"+ Increment\" does not throw and the counter reads \"1\" afterwards.",
+  "pass_to_pass": [
+    "Decrement still decreases the count (agent must not \"fix\" the crash by disabling Increment entirely).",
+    "Reset still sets the count back to 0."
+  ],
+  "oracle": "oracle.mjs",
+  "oracle_kind": "browser"
+}

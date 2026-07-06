@@ -1,0 +1,18 @@
+{
+  "id": "react-demo/medium-counter-decrement-silent",
+  "app": "react-demo",
+  "app_dev_route": "counter",
+  "tier": "medium",
+  "category": "logic",
+  "tier_rationale": "Silent logic bug, no thrown error, no stack trace — per harness-bench-tech-design.md this is where Chrome DevTools MCP has nothing to anchor on (no error to resolve a location from), while harness-fe's project.where_is/data-morphix-loc can locate the component straight from the DOM without needing a crash first.",
+  "source": "hand-authored (no matching historical fix commit found in react-demo git log — see BUG_WORKLIST.md)",
+  "problem_statement": "On the Counter page, the \"− Decrement\" button doesn't decrease the count — it goes up instead. Nothing shows in an error dialog or anything, it just does the wrong thing. Can you fix it?",
+  "ground_truth_location": { "file": "src/pages/CounterPage.tsx", "line": 59 },
+  "fail_to_pass": "Increment then Decrement nets back to \"0\".",
+  "pass_to_pass": [
+    "Increment still increases the count (agent must not \"fix\" this by making both buttons no-ops).",
+    "Reset still sets the count back to 0."
+  ],
+  "oracle": "oracle.mjs",
+  "oracle_kind": "browser"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "harness-bench-oracles",
+  "private": true,
+  "type": "module",
+  "description": "Runtime deps for oracle.mjs scripts (bench/fixtures/**/oracle.mjs, bench/fixtures/_lib/browserOracle.mjs). Node resolves their bare `vite`/`playwright`/`@vitejs/plugin-react` imports by walking up from the importing file to the nearest ancestor node_modules — this package.json/install is that ancestor, it's not meant to be run as its own app.",
+  "dependencies": {
+    "playwright": "^1.60.0",
+    "vite": "^7.1.0",
+    "@vitejs/plugin-react": "^4.3.0"
+  }
+}

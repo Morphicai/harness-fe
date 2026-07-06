@@ -1,0 +1,10 @@
+{
+  "_comment": "Condition B — real competitor baseline (see harness-bench-analysis.md). {{APP_URL}} is substituted by solver.py with the dev server URL for this sample. --headless keeps it consistent with the harness-fe condition (also headless). Verify exact CLI flags against the installed chrome-devtools-mcp version before running for real — flags below are current as of the version checked during the tech-design research pass and may drift.",
+  "mcpServers": {
+    "chrome-devtools": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest", "--headless", "--isolated"]
+    }
+  }
+}

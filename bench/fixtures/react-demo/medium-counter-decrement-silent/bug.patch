@@ -1,0 +1,12 @@
+--- a/src/pages/CounterPage.tsx
++++ b/src/pages/CounterPage.tsx
+@@ -55,8 +55,8 @@
+                         aria-label="decrement counter"
+                         data-morphix-comp="DecrementBtn"
+                         style={btnStyle('#dc2626')}
+                         onClick={() => {
+-                            const next = count - 1;
++                            const next = count + 1;
+                             setCount(next);
+                             console.log('[demo] decremented to', next);
+                         }}

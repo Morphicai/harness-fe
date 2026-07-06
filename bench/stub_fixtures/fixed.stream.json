@@ -1,0 +1,6 @@
+[
+  {"type": "tool_use", "input": {"file": "src/pages/CounterPage.tsx", "action": "read"}},
+  {"type": "tool_use", "input": {"file": "src/pages/CounterPage.tsx", "line": 45, "action": "read_around_line"}},
+  {"type": "tool_use", "input": {"file": "src/pages/CounterPage.tsx", "edit": "replace buggy expression"}},
+  {"type": "result", "total_cost_usd": 0.0421, "session_id": "stub-fixed-1"}
+]
