@@ -1,0 +1,11 @@
+--- a/src/pages/StylesPage.tsx
++++ b/src/pages/StylesPage.tsx
+@@ -61,7 +61,7 @@
+                         data-morphix-comp="StyleTargetBtn"
+                         style={{
+                             background: '#e94560',
+-                            color: '#fff',
++                            color: '#e94560',
+                             border: 'none',
+                             borderRadius: 6,
+                             padding: '10px 20px',

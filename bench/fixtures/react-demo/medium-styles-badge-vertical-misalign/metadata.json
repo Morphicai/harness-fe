@@ -1,0 +1,18 @@
+{
+  "id": "react-demo/medium-styles-badge-vertical-misalign",
+  "app": "react-demo",
+  "app_dev_route": "styles",
+  "tier": "medium",
+  "category": "ui",
+  "tier_rationale": "Deliberately not decidable from a static read alone, unlike the earlier fixtures (which each had one objectively-wrong token). This bug changes two individually-plausible CSS values in the same row — alignItems: 'center' -> 'flex-end' AND the badge's padding: '2px 8px' -> '14px 20px' — neither of which is a type error or an obviously invalid value on its own. The row only visibly misaligns because the enlarged badge creates cross-axis slack that flex-end then exposes; verified empirically (offset ~0px on HEAD, ~13px with both changes applied). A model has no way to be confident a proposed fix is correct without rendering and measuring — this directly probes harness-bench-analysis.md's core thesis about runtime signal value.",
+  "source": "hand-authored (StylesPage.tsx is a harness-fe MCP-tool demo page with no historical bugfix commit to revert — see BUG_WORKLIST.md).",
+  "problem_statement": "On the Styles page, the small 'TARGET' badge and the 'id=\"style-target\"' text next to it used to line up nicely — now the text sits noticeably lower than the middle of the badge. Please look into it and fix it.",
+  "ground_truth_location": { "file": "src/pages/StylesPage.tsx", "line": 22 },
+  "fail_to_pass": "The 'id=\"style-target\"' code text is vertically centered relative to the TARGET badge in their shared row (within a few pixels), not sunk toward the bottom.",
+  "pass_to_pass": [
+    "The TARGET badge still renders its 'TARGET' label text.",
+    "The second badge row further down the page (next to 'id=\"html-target\"') stays correctly aligned — agent must not fix this by changing shared/global styles that affect both rows."
+  ],
+  "oracle": "oracle.mjs",
+  "oracle_kind": "browser"
+}

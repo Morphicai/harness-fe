@@ -267,6 +267,7 @@ def invoke_claude(prompt: str, mcp_config_path: Path, cwd: Path, sample_id: str)
         [
             "claude", "-p", prompt,
             "--output-format", "stream-json",
+            "--verbose",  # required by the CLI whenever --print is combined with stream-json output
             "--mcp-config", str(mcp_config_path),
             "--strict-mcp-config",
             "--allowedTools", CLAUDE_ALLOWED_TOOLS,
@@ -278,7 +279,14 @@ def invoke_claude(prompt: str, mcp_config_path: Path, cwd: Path, sample_id: str)
         timeout=900,
     )
     wall_clock = time.monotonic() - started
+    if result.returncode != 0:
+        raise SampleError(
+            f"claude -p exited {result.returncode} for {sample_id}: "
+            f"stderr={result.stderr.strip()[:2000]!r} stdout={result.stdout.strip()[:500]!r}"
+        )
     events = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+    if not events:
+        raise SampleError(f"claude -p produced no stream-json events for {sample_id} (stderr={result.stderr.strip()[:2000]!r})")
     return {"events": events, "wall_clock_seconds": wall_clock, "returncode": result.returncode}
 
 
@@ -308,8 +316,21 @@ def run_oracle(bug, app_dir: Path) -> tuple[bool, str]:
 
 
 def extract_metrics(claude_result: dict, ground_truth_location: dict) -> dict:
+    """Real transcripts nest tool calls as `message.content[]` items with
+    `type: "tool_use"` on `type: "assistant"` events — NOT a top-level
+    `tool_use` key or a top-level `type: "tool_use"` event. The original
+    shape-match here was written against the tech-design doc's description
+    without a real transcript to check against (flagged as an open risk in
+    that doc and in bench/README.md's "known simplifications"); verified
+    against a real (paid) run on 2026-07-08 and fixed."""
     events = claude_result["events"]
-    tool_uses = [e for e in events if e.get("type") == "tool_use" or (e.get("type") == "assistant" and e.get("tool_use"))]
+    tool_uses = []
+    for e in events:
+        if e.get("type") != "assistant":
+            continue
+        for item in (e.get("message") or {}).get("content") or []:
+            if isinstance(item, dict) and item.get("type") == "tool_use":
+                tool_uses.append(item)
     steps = len(tool_uses)
 
     total_cost_usd = None
@@ -319,13 +340,13 @@ def extract_metrics(claude_result: dict, ground_truth_location: dict) -> dict:
 
     precise_first_location = None
     gt_file = ground_truth_location.get("file")
-    for e in tool_uses:
-        input_ = e.get("input") or e.get("tool_input") or {}
+    for item in tool_uses:
+        input_ = item.get("input") or {}
         candidate = json.dumps(input_)
         if gt_file and gt_file in candidate:
             precise_first_location = True
             break
-        if any(k in input_ for k in ("file", "loc", "selector", "path")):
+        if any(k in input_ for k in ("file_path", "file", "loc", "selector", "path")):
             precise_first_location = False
             break
 

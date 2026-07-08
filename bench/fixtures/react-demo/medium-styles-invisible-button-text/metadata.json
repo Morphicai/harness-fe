@@ -1,0 +1,18 @@
+{
+  "id": "react-demo/medium-styles-invisible-button-text",
+  "app": "react-demo",
+  "app_dev_route": "styles",
+  "tier": "medium",
+  "category": "ui",
+  "tier_rationale": "Silent visual regression — no thrown error, no console warning, nothing in a stack trace to anchor on. Chrome DevTools MCP has no signal to start from beyond 'go look at the page'; harness-fe's project.where_is/data-morphix-comp lets an agent jump straight to the StyleTargetBtn node without guessing. Matches the 'medium: no stack trace' tier in harness-bench-tech-design.md.",
+  "source": "hand-authored (StylesPage.tsx is a harness-fe MCP-tool demo page added whole in ecd2844, no historical bugfix commit exists to revert — see BUG_WORKLIST.md for why hand-authoring is the fallback for demo-only files).",
+  "problem_statement": "On the Styles page, the pink 'Colored Button' inside the target card looks broken — the button is there but its label text has effectively disappeared. Please look into it and fix it.",
+  "ground_truth_location": { "file": "src/pages/StylesPage.tsx", "line": 64 },
+  "fail_to_pass": "The 'Colored Button' label text is visible again — its computed text color no longer matches the button's own background color.",
+  "pass_to_pass": [
+    "The button's background color is unchanged (#e94560 / rgb(233, 69, 96)) — agent must not \"fix\" this by also changing the background instead of the text color.",
+    "Sibling elements in the same card (the 'Style Target Card' title and its description paragraph) keep their original text colors — agent must not blanket-restyle the whole card."
+  ],
+  "oracle": "oracle.mjs",
+  "oracle_kind": "browser"
+}

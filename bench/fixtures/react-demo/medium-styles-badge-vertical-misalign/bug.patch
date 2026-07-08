@@ -1,0 +1,20 @@
+--- a/src/pages/StylesPage.tsx
++++ b/src/pages/StylesPage.tsx
+@@ -19,7 +19,7 @@
+                 <div
+                     style={{
+                         display: 'flex',
+-                        alignItems: 'center',
++                        alignItems: 'flex-end',
+                         gap: 8,
+                         marginBottom: 12,
+                     }}
+@@ -30,7 +30,7 @@
+                             color: '#fff',
+                             fontSize: 11,
+                             fontWeight: 700,
+-                            padding: '2px 8px',
++                            padding: '14px 20px',
+                             borderRadius: 4,
+                             letterSpacing: 1,
+                         }}

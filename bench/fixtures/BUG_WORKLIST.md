@@ -1,6 +1,6 @@
-# bug 数据集清单 — 已完成 3 个，剩余 12-17 个待补
+# bug 数据集清单 — 已完成 5 个，剩余 10-15 个待补
 
-按 `harness-bench-tech-design.md` §4，目标是 15-20 个 bug，3 档难度 × 2 种性质（UI / 逻辑）。本轮只完整实现了 3 个（全部在 `react-demo`，全部是 `category: logic`），因为这是唯一一个在本次实施里源码被完整读过、能对每一行 diff 负责的 demo app。**没有臆造对 vue-demo / iframe-demo 或 react-demo 里 StylesPage/FormsPage/ErrorsPage/SandboxPage 源码的补丁**——在真正动手写那些 patch 之前，必须先像 `easy-counter-increment-crash` 这三个一样把目标文件完整读一遍，否则行号/上下文对不上，`patch -p1` 会失败或者更糟——悄悄 apply 到错误位置。
+按 `harness-bench-tech-design.md` §4，目标是 15-20 个 bug，3 档难度 × 2 种性质（UI / 逻辑）。本轮完整实现了 5 个（全部在 `react-demo`），因为这是唯一一个在本次实施里源码被完整读过、能对每一行 diff 负责的 demo app。**没有臆造对 vue-demo / iframe-demo 或 react-demo 里 FormsPage/ErrorsPage/SandboxPage 源码的补丁**——在真正动手写那些 patch 之前，必须先像下面几个一样把目标文件完整读一遍，否则行号/上下文对不上，`patch -p1` 会失败或者更糟——悄悄 apply 到错误位置。
 
 ## 已完成
 
@@ -8,21 +8,24 @@
 |---|---|---|---|
 | `react-demo/easy-counter-increment-crash` | react-demo | easy | logic |
 | `react-demo/medium-counter-decrement-silent` | react-demo | medium | logic |
+| `react-demo/medium-styles-invisible-button-text` | react-demo | medium | ui |
+| `react-demo/medium-styles-badge-vertical-misalign` | react-demo | medium | ui |
 | `react-demo/hard-network-race-stale-response` | react-demo | hard | logic |
 
-**已知缺口：目前 3 个全是 `logic`，一个 `ui` 类都没有。** 下一步优先补 UI 类，不能让最终 15-20 个 bug 里 UI 类占比过低——这正是 `harness-bench-tech-design.md` §4 明确要求避免的片面结论来源。
+**⚠️ 2026-07-08/09 真实跑分暴露的核心问题（比"UI 类太少"更重要）：** 上面前 4 个 bug 真实跑了一轮 harness-fe / chrome-devtools-mcp / 纯代码三档，**12/12 全部修复成功，三档毫无差异**——包括本该拉开差距的 hard 档竞态。根因不是"bug 不够难"，是这几个 bug 光读源码就能 100% 确信改对了（`count.push(1)` 是客观类型错误，没有第二种解读）。`medium-styles-badge-vertical-misalign` 是第一个按新原则设计的 bug：用两个**各自单独看都合法、不报错**的 CSS 值（`alignItems: 'flex-end'` + 放大后的 `padding`）组合出一个只有渲染出来量出坐标才能确认对错的视觉偏移（HEAD offset≈0px，注入 bug 后≈13px，用 `boundingBox()` 断言，不是猜出来的）——**新 bug 设计的核心原则是"能不能仅凭读代码就 100% 确信修对了"，不是"bug 描述听起来复不复杂"**。后续补 bug（尤其是竞态类）要按这个原则设计：至少让两个独立看似合理的改动组合才会出问题，或者让根因和症状不在同一处，逼迫非运行时工具的档位只能靠猜。
 
 ## 待补清单（目标分布：每档 5-7 个，UI/逻辑各半）
 
 ### easy（崩溃 + 清晰报错栈，预期两个工具打平，主要做健全性检查）
-- [ ] react-demo / ui / `StylesPage.tsx` 或 `FormsPage.tsx` 里一个渲染时崩溃的 bug（比如把某个必然为 `undefined` 的字段直接 `.toUpperCase()`）——**先读这两个文件**再写 patch
+- [ ] react-demo / ui / `FormsPage.tsx` 里一个渲染时崩溃的 bug（比如把某个必然为 `undefined` 的字段直接 `.toUpperCase()`）——**先读这个文件**再写 patch
 - [ ] react-demo / logic / `SandboxPage.tsx` 或 `ErrorsPage.tsx`（这两个页面本来就是"测试报错"用的，可能已有可以直接借用的崩溃入口，需要先读源码确认是不是"预期内"的崩溃演示而非真 bug）
 - [ ] vue-demo / ui or logic / 先读 `examples/vue-demo/src` 结构，找一个等价于 CounterPage 的组件
 - [ ] iframe-demo / ui or logic / 先读 `examples/iframe-demo/src` 结构，注意这个 demo 的特殊性是父子 iframe，埋雷时要想清楚 bug 应该埋在父页面还是子页面，两者对 harness-fe 的 `parentProjectId` 追踪能力是不同的测试点
 
 ### medium（静默逻辑错误 / 视觉回归，无报错栈）
-- [ ] react-demo / ui / `StylesPage.tsx` 里一个纯 CSS/布局回归（比如某个元素在特定状态下被错误的样式遮挡或错位）——这是本清单里最典型的"视觉类" bug，优先补
-- [ ] react-demo / logic / `FormsPage.tsx` 里一个校验逻辑写反的 bug（比如必填校验判断条件取反）
+- [x] react-demo / ui / `StylesPage.tsx` — `medium-styles-invisible-button-text`：Colored Button 的文字色被改成和背景色一样，文字视觉上消失，无报错、无 console 输出
+- [x] react-demo / ui / `StylesPage.tsx` — `medium-styles-badge-vertical-misalign`：TARGET 徽标行的 `alignItems` + `padding` 两个各自合法的值组合出视觉偏移，光读代码看不出对错，得渲染量坐标才能确认（第一个按"不能仅凭读代码判断对错"原则设计的 bug）
+- [ ] react-demo / logic / `FormsPage.tsx` 里一个校验逻辑写反的 bug（比如必填校验判断条件取反）——同样要按新原则设计，避免又是"一眼假"的类型错误
 - [ ] vue-demo / ui / 等价的视觉回归
 - [ ] vue-demo 或 iframe-demo / logic / 静默状态计算错误
 
