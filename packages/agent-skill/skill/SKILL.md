@@ -147,7 +147,7 @@ flag the team-mode differences with **[team]**.)
 
 | Tool | Purpose |
 |---|---|
-| `tab_list` | What browser tabs are connected RIGHT NOW |
+| `tab_list` | What browser tabs are connected RIGHT NOW — `url`/`title` stay live (refreshed on reload + SPA route changes, not frozen at connect time), plus `isIframe` (this tab's JS context runs inside an iframe — disambiguates rows that share a tabId with their same-origin parent) and `referrer` (a cross-origin iframe's only legitimate signal of what embeds it) |
 | `project_list` | All projects the daemon has ever seen |
 | `project_get(projectId)` | One project's metadata (displayName, parentProjectId, tags) |
 | `project_tree(rootId?)` | Forest assembled from parent links — **start here for micro-frontend setups** |
@@ -171,10 +171,11 @@ flag the team-mode differences with **[team]**.)
 | `page_check({ selector, checked })` | selector + bool | Set a checkbox/radio state |
 | `page_upload({ selector, files })` | selector + `[{name, content(base64), mimeType?}]` | Set files on `<input type=file>` |
 | `page_dom_query({ selector })` | selector | Read DOM state (outerHTML, attrs, text) |
+| `page_snapshot({ limit? })` | — | Compact index of visible `<a>`/`<button>` elements, each with a short-lived `ref` ("e1", "e2", …). Pass `{selector: {ref}}` to `page_click`/`page_type` to act on one without writing a selector — **refs invalidate on the next `page_snapshot` call**, so re-snapshot after any DOM change before reusing one |
 | `page_evaluate({ expr })` | JS expr | Run arbitrary JS in page context (returns JSON-serializable result) |
-| `page_wait_for({ predicate, timeoutMs? })` | `"network.idle"` \| `"dom.ready"` \| JS expr | **Block until a condition is truthy — use before acting on async/late-rendered UI** |
+| `page_wait_for({ predicate, timeoutMs?, idleMs? })` | `"network.idle"` \| `"dom.ready"` \| JS expr | **Block until a condition is truthy — use before acting on async/late-rendered UI.** `"network.idle"` tracks real in-flight fetch/XHR requests (zero for `idleMs`, default 500ms) — not a fixed sleep |
 | `page_set_dialog_handler({ type, value })` | `alert`\|`confirm`\|`prompt` + return value | Pre-arm the answer to the next native dialog so it doesn't block your action |
-| `page_screenshot` | — | Visual checkpoint |
+| `page_screenshot` | — | Visual checkpoint. DOM-to-canvas capture, not a real compositor screenshot — check `response.notCaptured` for any `<canvas>`/`<video>`/cross-origin `<iframe>` in the shot that couldn't be rendered before treating a blank region as genuinely empty |
 | `page_scroll` / `page_reload` / `page_set_html` / `page_set_style` | — | Auxiliary |
 
 Every page action takes an optional `tabId` (from `tab_list`); omit it to target
@@ -187,7 +188,7 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 | Tool | What you get | Narrows |
 |---|---|---|
 | `console_tail` | console.log / .info / .warn / .error / .debug | `level` |
-| `network_tail` | fetch + XHR req/res entries with `initiator.stack` (who issued the call), keyed by `id` | `urlContains`, `method`, `statusCode` |
+| `network_tail` | fetch + XHR req/res entries with `initiator.stack` (who issued the call), keyed by `id`. `text/event-stream` (SSE) responses also produce `phase: 'frame'` entries (`sseEvent`/`sseData`/`sseId`) as each frame streams in — no need to rely on the app's own debug logging to assert stream content | `urlContains`, `method`, `statusCode` |
 | `ws_tail` | WebSocket frames: open / send / recv / close, with `initiator.stack` on send + binary payload size markers | `phase` |
 | `storage_tail` | localStorage / sessionStorage / cookie mutations with `initiator.stack` and `crossTab` flag | `which` (local/session/cookie), `op` (set/remove/clear), `key` |
 | `navigation_tail` | history.pushState / replaceState / popstate / hashchange / location.assign etc. | `kind` (push/replace/pop/hash/assign) |
@@ -203,7 +204,7 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 | Tool | Use case |
 |---|---|
 | `session_tail({ sessionId, type?, n?, since?, until? })` | Last-N events from the full session timeline. `type` filters one or many event types (`'err'`, `['ws','storage']`, …) |
-| `session_search({ sessionId, query, type?, limit? })` | Substring search across a session's events |
+| `session_search({ sessionId, query, type?, limit?, maxPayloadChars? })` | Substring search across a session's events. `limit` bounds match *count*; `maxPayloadChars` (default 2000) bounds each match's *size* — a single huge console.log object or network body gets truncated (`dTruncated: true`) rather than blowing past the tool-call output limit on its own |
 | `session_summary({ sessionId })` | Per-type event counts for a session |
 
 ### Targeted fetch / single entry
@@ -217,9 +218,9 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 
 | Tool | Use case |
 |---|---|
-| `page_wait_for({ predicate, timeoutMs? })` | Block until `predicate` is truthy. Built-ins `"network.idle"` / `"dom.ready"`, else any JS expression (e.g. `"document.querySelector('[data-testid=done]')"`) |
+| `page_wait_for({ predicate, timeoutMs?, idleMs? })` | Block until `predicate` is truthy. Built-ins `"network.idle"` (real in-flight-request tracking, not a fixed sleep) / `"dom.ready"`, else any JS expression (e.g. `"document.querySelector('[data-testid=done]')"`) |
 | `network_wait_for({ urlContains?, urlRegex?, method?, statusCode?, timeoutMs? })` | Block until a matching request happens. **Anchored on call-time** — a request that already fired does NOT satisfy it. |
-| `network_wait_for_idle({ idleMs, timeoutMs })` | Block until `idleMs` elapses with no new network entry — analogous to Playwright `networkidle` |
+| `network_wait_for_idle({ idleMs, timeoutMs })` | Block until in-flight fetch/XHR requests have been at zero for `idleMs` (default 500) — analogous to Playwright `networkidle` |
 
 ### Replay & forensics
 
@@ -278,6 +279,7 @@ bare string). Provide one or more fields; pick the most robust available:
 
 | Field | Targets by | When to use |
 |---|---|---|
+| `ref` | a ref from a prior `page_snapshot` call (e.g. `"e3"`) | fastest path for a visible `<a>`/`<button>` — no selector to write. Invalidates on the next `page_snapshot` |
 | `component` | React component name (`data-morphix-comp`) | refactor-proof; first choice |
 | `file` + `line` | source location (`data-morphix-loc`) | pin one specific instance in code |
 | `text` | visible text content | buttons / links with stable copy |
@@ -302,6 +304,11 @@ page_click({ selector: { component: 'SubmitButton' } })
 page_click({ selector: { text: 'Pay now' } })
 page_dom_query({ selector: { file: 'src/components/Form.tsx', line: 42 } })
 page_click({ selector: { component: 'TodoItem', nth: 2 } })   // 3rd TodoItem
+
+// page_snapshot → ref, when you just want "click the thing labeled X" fast:
+const { elements } = await page_snapshot({})
+const saveBtn = elements.find(e => e.text.includes('Save'))
+page_click({ selector: { ref: saveBtn.ref } })
 ```
 
 **Prefer `component` / `text` / `role` over `css`** — they survive refactors that
@@ -358,9 +365,12 @@ deterministic instead of fragile.
 ### Flow 3: Micro-frontend bug ("the iframe child app errored")
 
 1. `project_tree` → confirm parent/child relationship.
-2. `tab_list` → tabId.
-3. Note: parent + child share `tabId` AND `sessionId` (runtime inheritance).
-4. `console_tail` / `errors_tail` will surface events from BOTH apps in the
+2. `tab_list` → tabId. Same-origin parent + child share `tabId` AND `sessionId`
+   (runtime inheritance), so you'll see two rows with the same `tabId` —
+   `isIframe: true` tells you which row is the embedded child. A **cross-origin**
+   child can't inherit anything (browser same-origin policy) and gets its own
+   `tabId`; its `referrer` is the only signal linking it back to the parent's `url`.
+3. `console_tail` / `errors_tail` will surface events from BOTH apps in the
    same timeline — distinguish by the `projectId` tag on each event.
 
 ### Flow 4: "What happened just before the crash"
@@ -438,7 +448,7 @@ If you can't reproduce or decide not to fix, still resolve with the reason so th
 
 | Symptom | Likely cause | Do this |
 |---|---|---|
-| element not found | selector too specific, or element not rendered yet | `page_dom_query` to confirm it exists; if async, `page_wait_for` first |
+| element not found | selector too specific, or element not rendered yet | `page_dom_query` to confirm it exists; if async, `page_wait_for` first. Not sure what to target at all? `page_snapshot` lists every visible `<a>`/`<button>` with a ref you can click directly |
 | matched the wrong one | ambiguous selector | add `nth`, or switch to `component` / `text` / `file`+`line` |
 | action ran, nothing happened | the handler errored | `errors_tail` + `console_tail`; check the expected `network_tail` entry fired |
 | `network_wait_for` times out | the request fired BEFORE the wait — it only sees requests after the call | call `network_wait_for` first, THEN trigger the action |
