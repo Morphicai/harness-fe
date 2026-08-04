@@ -83,6 +83,35 @@ function dispatchClickSequence(target: HTMLElement, button: 'left' | 'right' | '
     target.dispatchEvent(new MouseEvent('click', shared));
 }
 
+/**
+ * Real network-idle detection: polls the capture store's live in-flight
+ * fetch/xhr count (incremented on request start, decremented on
+ * response/error — see CaptureStore.inFlightCount) until it has been zero
+ * for `idleMs`, instead of a fixed sleep or "no new entries pushed"
+ * heuristic (harness-fe#206 — both were racy: too short for a page whose
+ * slow request starts just after the window, too long for a page that's
+ * already idle, and the entries-pushed heuristic falsely reports idle the
+ * moment a request starts, before its response arrives).
+ */
+async function waitForNetworkIdle(
+    capture: CaptureStore,
+    idleMs: number,
+    deadline: number,
+): Promise<{ ok: true; idleFor: number; after: number }> {
+    let stableSince = capture.inFlightCount() === 0 ? Date.now() : undefined;
+    while (Date.now() < deadline) {
+        if (capture.inFlightCount() === 0) {
+            stableSince ??= Date.now();
+            const idleFor = Date.now() - stableSince;
+            if (idleFor >= idleMs) return { ok: true, idleFor, after: Date.now() };
+        } else {
+            stableSince = undefined;
+        }
+        await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error(`network never quiet for ${idleMs}ms within timeout`);
+}
+
 export const commandHandlers: Record<string, CommandHandler> = {
     [COMMAND.PAGE_CLICK]: async (raw) => {
         const args = raw as ClickArgs;
@@ -216,11 +245,20 @@ export const commandHandlers: Record<string, CommandHandler> = {
         return { value: safeJson(value) };
     },
 
-    [COMMAND.PAGE_WAIT_FOR]: async (raw) => {
+    [COMMAND.PAGE_WAIT_FOR]: async (raw, ctx) => {
         const args = raw as WaitForArgs;
         const timeoutMs = args.timeoutMs ?? 10_000;
         const deadline = Date.now() + timeoutMs;
-        const isBuiltin = args.predicate === 'network.idle' || args.predicate === 'dom.ready';
+
+        if (args.predicate === 'network.idle') {
+            try {
+                return await waitForNetworkIdle(ctx.capture, args.idleMs ?? 500, deadline);
+            } catch {
+                throw new Error(`page.wait_for: network never went idle within ${timeoutMs}ms`);
+            }
+        }
+
+        const isBuiltin = args.predicate === 'dom.ready';
         // eslint-disable-next-line no-new-func
         const probe = !isBuiltin
             ? (new Function(`return Boolean(${args.predicate})`) as () => boolean)
@@ -228,11 +266,6 @@ export const commandHandlers: Record<string, CommandHandler> = {
 
         while (Date.now() < deadline) {
             if (args.predicate === 'dom.ready' && document.readyState === 'complete') {
-                return { ok: true, after: Date.now() };
-            }
-            if (args.predicate === 'network.idle') {
-                // Crude heuristic — we don't have a real idle tracker yet.
-                await new Promise((r) => setTimeout(r, 200));
                 return { ok: true, after: Date.now() };
             }
             if (probe && probe()) return { ok: true, after: Date.now() };
@@ -493,19 +526,11 @@ export const commandHandlers: Record<string, CommandHandler> = {
         const idleMs = args.idleMs ?? 500;
         const timeoutMs = args.timeoutMs ?? 10_000;
         const deadline = Date.now() + timeoutMs;
-        let lastSize = ctx.capture.network.size();
-        let stableSince = Date.now();
-        while (Date.now() < deadline) {
-            const currentSize = ctx.capture.network.size();
-            if (currentSize !== lastSize) {
-                lastSize = currentSize;
-                stableSince = Date.now();
-            } else if (Date.now() - stableSince >= idleMs) {
-                return { ok: true, idleFor: Date.now() - stableSince, after: Date.now() };
-            }
-            await new Promise((r) => setTimeout(r, 50));
+        try {
+            return await waitForNetworkIdle(ctx.capture, idleMs, deadline);
+        } catch {
+            throw new Error(`network.wait_for_idle: never quiet for ${idleMs}ms within ${timeoutMs}ms`);
         }
-        throw new Error(`network.wait_for_idle: never quiet for ${idleMs}ms within ${timeoutMs}ms`);
     },
 
     [COMMAND.NETWORK_GET]: async (raw, ctx) => {

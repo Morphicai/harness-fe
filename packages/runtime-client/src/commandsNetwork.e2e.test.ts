@@ -75,14 +75,16 @@ describe('NETWORK_WAIT_FOR', () => {
 });
 
 describe('NETWORK_WAIT_FOR_IDLE', () => {
-    it('resolves once no new entries arrive for idleMs', async () => {
+    it('resolves once in-flight requests complete and stay idle for idleMs', async () => {
         const cap = makeCapture();
         cap.network.push({ ts: Date.now(), id: 'a', phase: 'req', method: 'GET', url: '/a' });
         const promise = commandHandlers[COMMAND.NETWORK_WAIT_FOR_IDLE](
             { idleMs: 150, timeoutMs: 2000 },
             { capture: cap },
         );
+        setTimeout(() => cap.network.push({ ts: Date.now(), id: 'a', phase: 'res', method: 'GET', url: '/a', status: 200 }), 30);
         setTimeout(() => cap.network.push({ ts: Date.now(), id: 'b', phase: 'req', method: 'GET', url: '/b' }), 50);
+        setTimeout(() => cap.network.push({ ts: Date.now(), id: 'b', phase: 'res', method: 'GET', url: '/b', status: 200 }), 70);
         const out = (await promise) as { ok: boolean; idleFor: number };
         expect(out.ok).toBe(true);
         expect(out.idleFor).toBeGreaterThanOrEqual(150);
@@ -99,6 +101,47 @@ describe('NETWORK_WAIT_FOR_IDLE', () => {
         }, 50);
         await expect(promise).rejects.toThrow(/never quiet/);
         clearInterval(handle);
+    });
+
+    // Regression for harness-fe#206: the old heuristic ("no new entries pushed
+    // for idleMs") falsely reported idle the moment a request's 'req' entry
+    // stopped triggering new pushes — even though its 'res' never arrived,
+    // i.e. the request was still genuinely in flight.
+    it('does NOT report idle while a request has started but never completed', async () => {
+        const cap = makeCapture();
+        cap.network.push({ ts: Date.now(), id: 'stuck', phase: 'req', method: 'GET', url: '/never-resolves' });
+        const promise = commandHandlers[COMMAND.NETWORK_WAIT_FOR_IDLE](
+            { idleMs: 100, timeoutMs: 300 },
+            { capture: cap },
+        );
+        await expect(promise).rejects.toThrow(/never quiet/);
+    });
+});
+
+describe('PAGE_WAIT_FOR — predicate: "network.idle"', () => {
+    it('resolves once in-flight requests complete and stay idle for idleMs', async () => {
+        const cap = makeCapture();
+        cap.network.push({ ts: Date.now(), id: 'a', phase: 'req', method: 'GET', url: '/a' });
+        const promise = commandHandlers[COMMAND.PAGE_WAIT_FOR](
+            { predicate: 'network.idle', idleMs: 100, timeoutMs: 2000 },
+            { capture: cap },
+        );
+        setTimeout(() => cap.network.push({ ts: Date.now(), id: 'a', phase: 'res', method: 'GET', url: '/a', status: 200 }), 30);
+        const out = (await promise) as { ok: boolean; idleFor: number };
+        expect(out.ok).toBe(true);
+        expect(out.idleFor).toBeGreaterThanOrEqual(100);
+    });
+
+    // Regression for harness-fe#206: previously a fixed ~200ms sleep that
+    // resolved unconditionally, regardless of whether requests were still in flight.
+    it('does not resolve while a request has started but never completed', async () => {
+        const cap = makeCapture();
+        cap.network.push({ ts: Date.now(), id: 'stuck', phase: 'req', method: 'GET', url: '/never-resolves' });
+        const promise = commandHandlers[COMMAND.PAGE_WAIT_FOR](
+            { predicate: 'network.idle', idleMs: 100, timeoutMs: 300 },
+            { capture: cap },
+        );
+        await expect(promise).rejects.toThrow(/network never went idle/);
     });
 });
 

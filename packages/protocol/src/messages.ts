@@ -699,6 +699,8 @@ export const waitForArgsSchema = z.object({
     /** A predicate name (e.g. 'network.idle', 'dom.visible') or arbitrary JS expr returning truthy. */
     predicate: z.string(),
     timeoutMs: z.number().int().positive().optional(),
+    /** For predicate: 'network.idle' — quiet window with zero in-flight requests before resolving. Default 500ms. */
+    idleMs: z.number().int().positive().optional(),
 });
 export type WaitForArgs = z.infer<typeof waitForArgsSchema>;
 

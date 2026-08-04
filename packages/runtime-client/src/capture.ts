@@ -61,6 +61,22 @@ export class CaptureStore {
     readonly globals = new RingBuffer<GlobalsEntry>(GLOBALS_CAP);
     readonly indexeddb = new RingBuffer<IndexedDbEntry>(INDEXEDDB_CAP);
 
+    /**
+     * Number of fetch/xhr requests that have a 'req' NetworkEntry in the
+     * buffer with no matching 'res' yet — i.e. genuinely still in flight.
+     * Derived from the buffer itself (not a separately-maintained counter)
+     * so it stays correct regardless of how entries were pushed.
+     */
+    inFlightCount(): number {
+        const pending = new Set<string>();
+        for (const e of this.network.tail(NETWORK_CAP)) {
+            if (!e.id) continue;
+            if (e.phase === 'req') pending.add(e.id);
+            else pending.delete(e.id);
+        }
+        return pending.size;
+    }
+
     private handle?: SandboxHandle;
 
     /**
