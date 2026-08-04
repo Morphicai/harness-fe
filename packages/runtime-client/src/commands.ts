@@ -48,6 +48,41 @@ function describeNoMatch(selector: Selector): string {
     return `no element matched selector: ${fields}`;
 }
 
+/**
+ * Dispatch the full pointerdown → mousedown → pointerup → mouseup → click
+ * sequence a real click gesture produces, instead of a single bare 'click'.
+ * Portal-based menus (Radix UI Popover/DropdownMenu and similar) gate their
+ * open logic on 'pointerdown', so a lone 'click' event never triggers them.
+ * These are still script-dispatched (isTrusted: false) — browsers refuse to
+ * mark synthetic events as trusted — but matching the real event sequence
+ * satisfies listeners that key off event type rather than trust.
+ */
+function dispatchClickSequence(target: HTMLElement, button: 'left' | 'right' | 'middle' | undefined): void {
+    const buttonNum = button === 'right' ? 2 : button === 'middle' ? 1 : 0;
+    const rect = target.getBoundingClientRect();
+    const clientX = rect.left + rect.width / 2;
+    const clientY = rect.top + rect.height / 2;
+    const shared = {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        button: buttonNum,
+        buttons: 1,
+        clientX,
+        clientY,
+    };
+
+    target.dispatchEvent(
+        new PointerEvent('pointerdown', { ...shared, pointerId: 1, pointerType: 'mouse', isPrimary: true }),
+    );
+    target.dispatchEvent(new MouseEvent('mousedown', shared));
+    target.dispatchEvent(
+        new PointerEvent('pointerup', { ...shared, pointerId: 1, pointerType: 'mouse', isPrimary: true }),
+    );
+    target.dispatchEvent(new MouseEvent('mouseup', shared));
+    target.dispatchEvent(new MouseEvent('click', shared));
+}
+
 export const commandHandlers: Record<string, CommandHandler> = {
     [COMMAND.PAGE_CLICK]: async (raw) => {
         const args = raw as ClickArgs;
@@ -65,17 +100,7 @@ export const commandHandlers: Record<string, CommandHandler> = {
             if (anchor) clickTarget = anchor as HTMLElement;
         }
 
-        // Dispatch a proper MouseEvent instead of calling .click() so that
-        // framework routers (React Router, Vue Router) receive a bubbling event
-        // with the correct button/modifier state they check before navigating.
-        clickTarget.dispatchEvent(
-            new MouseEvent('click', {
-                bubbles: true,
-                cancelable: true,
-                view: window,
-                button: args.button === 'right' ? 2 : args.button === 'middle' ? 1 : 0,
-            }),
-        );
+        dispatchClickSequence(clickTarget, args.button);
         return { via: result.via, tag: clickTarget.tagName.toLowerCase() };
     },
 
