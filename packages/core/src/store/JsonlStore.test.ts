@@ -713,6 +713,33 @@ describe('JsonlStore', () => {
         expect(results[0].t).toBe('console');
     });
 
+    // harness-fe#199: `limit` bounds the number of matches, but a single
+    // match's payload (e.g. a huge console.log object) can still blow past a
+    // tool-call's output limit on its own.
+    it('truncates an oversized match payload and stamps dTruncated', async () => {
+        const { sessionId } = openSession(store, 'proj');
+        const huge = 'x'.repeat(5000);
+        store.appendEvent(sessionId, { ts: 1000, t: 'log', d: { args: [`needle ${huge}`] } });
+
+        await store.flush();
+        const results = store.search(sessionId, 'needle', { maxPayloadChars: 100 });
+        expect(results).toHaveLength(1);
+        expect(results[0].dTruncated).toBe(true);
+        expect(typeof results[0].d).toBe('string');
+        expect((results[0].d as string).length).toBeLessThan(200);
+    });
+
+    it('does not truncate or stamp dTruncated when the payload is within budget', async () => {
+        const { sessionId } = openSession(store, 'proj');
+        store.appendEvent(sessionId, { ts: 1000, t: 'log', d: { args: ['needle small'] } });
+
+        await store.flush();
+        const results = store.search(sessionId, 'needle', { maxPayloadChars: 2000 });
+        expect(results).toHaveLength(1);
+        expect(results[0].dTruncated).toBeUndefined();
+        expect(results[0].d).toEqual({ args: ['needle small'] });
+    });
+
     // ── Summary ──────────────────────────────────────────────────────────
 
     it('returns a session summary with counts', async () => {

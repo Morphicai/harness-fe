@@ -400,9 +400,9 @@ function registerReadTools(caps: CoreCapabilities, principal: Principal, gated: 
     }, ({ sessionId, n, type, projectId, since, until }) => caps.sessionTail(principal, sessionId as string, { n: n as number | undefined, type: type as string | string[] | undefined, projectId: projectId as string | undefined, since: since as number | undefined, until: until as number | undefined }));
 
     R('session.search', {
-        description: 'Search events in a session timeline by substring match.',
-        inputSchema: { sessionId: z.string(), query: z.string(), type: z.union([z.string(), z.array(z.string())]).optional(), limit: z.number().int().positive().default(50).optional() },
-    }, ({ sessionId, query, type, limit }) => caps.sessionSearch(principal, sessionId as string, query as string, { type: type as string | string[] | undefined, limit: limit as number | undefined }));
+        description: 'Search events in a session timeline by substring match. Each match\'s payload is capped at maxPayloadChars (default 2000, set dTruncated on overflow) so a few matches with huge payloads (e.g. large console.log objects or network bodies) can\'t blow past the tool-call output limit on their own.',
+        inputSchema: { sessionId: z.string(), query: z.string(), type: z.union([z.string(), z.array(z.string())]).optional(), limit: z.number().int().positive().default(50).optional(), maxPayloadChars: z.number().int().positive().optional() },
+    }, ({ sessionId, query, type, limit, maxPayloadChars }) => caps.sessionSearch(principal, sessionId as string, query as string, { type: type as string | string[] | undefined, limit: limit as number | undefined, maxPayloadChars: maxPayloadChars as number | undefined }));
 
     R('project.sessions', { description: 'List all visible projects with their most recent session info.', inputSchema: {} },
         () => caps.projectSessions(principal));

@@ -249,13 +249,17 @@ export class CoreCapabilities {
         principal: Principal,
         sessionId: string,
         query: string,
-        opts: { type?: string | string[]; limit?: number } = {},
+        opts: { type?: string | string[]; limit?: number; maxPayloadChars?: number } = {},
     ) {
         assertScope(principal, 'read');
         const store = this.requireStore();
         const session = store.getSession(sessionId);
         if (!session) return { error: 'session not found', sessionId };
-        return store.search(sessionId, query, { type: opts.type, limit: opts.limit ?? 50 });
+        return store.search(sessionId, query, {
+            type: opts.type,
+            limit: opts.limit ?? 50,
+            maxPayloadChars: opts.maxPayloadChars,
+        });
     }
 
     /** List projects (with recent sessions) the caller may see. */

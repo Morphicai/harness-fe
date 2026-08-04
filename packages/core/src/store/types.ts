@@ -89,6 +89,8 @@ export interface StoreEvent {
     visitorId?: string;
     /** Event payload — structure depends on `t`. */
     d?: unknown;
+    /** Set by `search()` when `d` was too large and got truncated to a bounded string. */
+    dTruncated?: boolean;
 }
 
 // ─── Metadata shapes ─────────────────────────────────────────────────────────
@@ -224,6 +226,15 @@ export interface SearchOptions {
     type?: EventType | EventType[];
     /** Max results. Default 50. */
     limit?: number;
+    /**
+     * Max serialized size (chars) of each result's `d` payload before it's
+     * truncated (with `dTruncated: true` stamped on the event). Default 2000.
+     * `limit` alone bounds the match *count*, not each match's size — a
+     * console.log of a huge object or a large network body could each blow
+     * past a single tool-call's output limit on their own (harness-fe#199).
+     * Pass `Infinity` to disable.
+     */
+    maxPayloadChars?: number;
 }
 
 export interface RecordingChunkSummary {

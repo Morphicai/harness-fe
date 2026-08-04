@@ -403,6 +403,19 @@ function enforceExtensionBudget(meta: { tags?: unknown; metadata?: unknown }, la
     }
 }
 
+/**
+ * Bound a search result's payload size (harness-fe#199): `limit` caps the
+ * number of matches, but a single console.log of a huge object or a large
+ * network body can blow past a tool-call's output limit on its own. Returns
+ * the event unchanged when it's already within budget.
+ */
+function truncateEventPayload(event: StoreEvent, maxPayloadChars: number): StoreEvent {
+    if (event.d === undefined || !Number.isFinite(maxPayloadChars)) return event;
+    const serialized = JSON.stringify(event.d);
+    if (!serialized || serialized.length <= maxPayloadChars) return event;
+    return { ...event, d: `${serialized.slice(0, maxPayloadChars)}…`, dTruncated: true };
+}
+
 function matchesType(event: StoreEvent, type: string | string[] | undefined): boolean {
     if (!type) return true;
     if (Array.isArray(type)) return type.includes(event.t);
@@ -1127,6 +1140,7 @@ export class JsonlStore implements IStore {
         if (!this.getSession(sessionId)) return [];
 
         const limit = opts.limit ?? 50;
+        const maxPayloadChars = opts.maxPayloadChars ?? 2000;
         const lowerQuery = query.toLowerCase();
         const results: StoreEvent[] = [];
 
@@ -1149,7 +1163,7 @@ export class JsonlStore implements IStore {
             // session-constant envelope fields above.
             const haystack = `${event.t} ${JSON.stringify(event.d ?? '')}`.toLowerCase();
             if (!haystack.includes(lowerQuery)) return;
-            results.push(event);
+            results.push(truncateEventPayload(event, maxPayloadChars));
             if (results.length >= limit) return false;
         });
 
