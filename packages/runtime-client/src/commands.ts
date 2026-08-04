@@ -58,6 +58,54 @@ function describeNoMatch(selector: Selector): string {
  * mark synthetic events as trusted — but matching the real event sequence
  * satisfies listeners that key off event type rather than trust.
  */
+/**
+ * snapdom (the DOM→canvas library page.screenshot uses) walks the DOM tree,
+ * so it can't represent content that isn't part of that tree the same way a
+ * real compositor capture would: a tainted <canvas> (cross-origin-drawn
+ * pixels), a <video> frame, or a cross-origin <iframe>'s own document. It
+ * fails silently on all three (internal try/catch, console.warn only) — a
+ * blank region in the result looks identical to "this area is genuinely
+ * empty," which is a correctness trap for an agent (harness-fe#205). Scan the
+ * capture target beforehand so the response can say what it couldn't get.
+ */
+function findUncapturableElements(target: Element): Array<{ tag: 'canvas' | 'video' | 'iframe'; selector?: string }> {
+    const notCaptured: Array<{ tag: 'canvas' | 'video' | 'iframe'; selector?: string }> = [];
+    const describe = (el: Element): string | undefined => (el.id ? `#${el.id}` : undefined);
+
+    for (const canvas of target.querySelectorAll('canvas')) {
+        try {
+            (canvas as HTMLCanvasElement).toDataURL();
+        } catch {
+            notCaptured.push({ tag: 'canvas', selector: describe(canvas) });
+        }
+    }
+    for (const video of target.querySelectorAll('video')) {
+        const v = video as HTMLVideoElement;
+        if (v.readyState < 2) {
+            notCaptured.push({ tag: 'video', selector: describe(v) });
+            continue;
+        }
+        try {
+            const probe = document.createElement('canvas');
+            probe.getContext('2d')?.drawImage(v, 0, 0, 1, 1);
+            probe.toDataURL();
+        } catch {
+            notCaptured.push({ tag: 'video', selector: describe(v) });
+        }
+    }
+    for (const iframe of target.querySelectorAll('iframe')) {
+        const f = iframe as HTMLIFrameElement;
+        let sameOrigin = false;
+        try {
+            sameOrigin = !!(f.contentDocument || f.contentWindow?.document);
+        } catch {
+            sameOrigin = false;
+        }
+        if (!sameOrigin) notCaptured.push({ tag: 'iframe', selector: describe(f) });
+    }
+    return notCaptured;
+}
+
 function dispatchClickSequence(target: HTMLElement, button: 'left' | 'right' | 'middle' | undefined): void {
     const buttonNum = button === 'right' ? 2 : button === 'middle' ? 1 : 0;
     const rect = target.getBoundingClientRect();
@@ -310,6 +358,7 @@ export const commandHandlers: Record<string, CommandHandler> = {
         if (overlayHost) overlayHost.style.visibility = 'hidden';
 
         try {
+            const notCaptured = findUncapturableElements(target);
             const result = await snapdom(target as HTMLElement, {
                 fast: true,
                 width,
@@ -325,6 +374,7 @@ export const commandHandlers: Record<string, CommandHandler> = {
                 width: canvas.width,
                 height: canvas.height,
                 dataUrl,
+                notCaptured,
             };
         } finally {
             if (overlayHost) overlayHost.style.visibility = prevVisibility;

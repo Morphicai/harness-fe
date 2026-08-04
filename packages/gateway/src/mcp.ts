@@ -193,7 +193,7 @@ function registerCommandTools(command: CommandReg): void {
     }, ({ predicate, timeoutMs, tabId }) => ({ args: waitForArgsSchema.parse({ predicate, timeoutMs }), opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.PAGE_SCREENSHOT, {
-        description: 'Take a screenshot. Without `selector`, the full viewport is captured.',
+        description: 'Take a screenshot. Without `selector`, the full viewport is captured. This is a DOM-to-canvas capture, not a real compositor screenshot: response.notCaptured lists any <canvas>/<video>/cross-origin <iframe> inside the captured area whose content could not be rendered (check it before treating a blank region as genuinely empty).',
         inputSchema: { selector: selectorSchema.optional(), format: z.enum(['png', 'webp', 'jpeg']).optional(), maxWidth: z.number().int().positive().optional(), tabId: tabIdParam },
     }, ({ selector, format, maxWidth, tabId }) => ({ args: screenshotArgsSchema.parse({ selector, format, maxWidth }), opts: { tabId: tabId as string | undefined } }));
 
