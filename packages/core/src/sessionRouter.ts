@@ -29,7 +29,7 @@ export interface PeerSession {
     /** Opaque identifier for the underlying connection. */
     connectionId: string;
     lastActive: number;
-    page?: { url?: string; title?: string; userAgent?: string };
+    page?: { url?: string; title?: string; userAgent?: string; isIframe?: boolean; referrer?: string };
 }
 
 export class SessionRouter {
@@ -131,6 +131,8 @@ export class SessionRouter {
                 url: p.page?.url,
                 title: p.page?.title,
                 userAgent: p.page?.userAgent,
+                isIframe: p.page?.isIframe,
+                referrer: p.page?.referrer,
                 connectedAt: p.lastActive,
             }));
     }

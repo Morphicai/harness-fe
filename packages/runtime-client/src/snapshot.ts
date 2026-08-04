@@ -99,6 +99,7 @@ export function collectPageLoadSnapshot(sessionId: string): PageLoadPayload {
             title: typeof document !== 'undefined' ? document.title : undefined,
             referrer: typeof document !== 'undefined' ? document.referrer : undefined,
             userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+            isIframe: typeof window !== 'undefined' ? window.top !== window.self : undefined,
         },
         viewport: readViewport(),
         storage: {

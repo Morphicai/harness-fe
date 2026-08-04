@@ -5,17 +5,24 @@
  */
 
 import type { Selector } from '@harness-fe/protocol';
+import { resolveRef } from './refs.js';
 
 export interface ResolveResult {
     element: Element | null;
     /** Index used when multiple matched (for diagnostics). */
     index: number;
     /** How we found it (for diagnostics). */
-    via: 'css' | 'aria' | 'role-text' | 'component-attr' | 'file' | 'none';
+    via: 'ref' | 'css' | 'aria' | 'role-text' | 'component-attr' | 'file' | 'none';
 }
 
 export function resolveSelector(selector: Selector): ResolveResult {
     const nth = selector.nth ?? 0;
+
+    if (selector.ref) {
+        const el = resolveRef(selector.ref);
+        if (el) return { element: el, index: 0, via: 'ref' };
+        return { element: null, index: -1, via: 'none' };
+    }
 
     if (selector.css) {
         const list = document.querySelectorAll(selector.css);

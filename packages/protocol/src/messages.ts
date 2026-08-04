@@ -98,6 +98,16 @@ export const helloFrameSchema = z.object({
             url: z.string().optional(),
             title: z.string().optional(),
             userAgent: z.string().optional(),
+            /** `window.top !== window.self` — this JS context is running inside an iframe. */
+            isIframe: z.boolean().optional(),
+            /**
+             * `document.referrer`. For a cross-origin iframe this is the only
+             * legitimate signal of "what embeds me" — the browser's same-origin
+             * policy blocks reading anything else off `window.parent`. Same-origin
+             * iframes don't need this: they already share their parent's tabId
+             * (see parent-inherit.ts) so parent + child collapse into one tab.
+             */
+            referrer: z.string().optional(),
         })
         .optional(),
 });
@@ -349,6 +359,7 @@ export const COMMAND = {
     PAGE_WAIT_FOR: 'page.wait_for',
     PAGE_SCREENSHOT: 'page.screenshot',
     PAGE_DOM_QUERY: 'page.dom_query',
+    PAGE_SNAPSHOT: 'page.snapshot',
     PAGE_PICK_ELEMENT: 'page.pick_element',
     PAGE_SELECT_REGION: 'page.select_region',
     CONSOLE_TAIL: 'console.tail',
@@ -459,6 +470,8 @@ export const pageLoadPayloadSchema = z.object({
         title: z.string().optional(),
         referrer: z.string().optional(),
         userAgent: z.string().optional(),
+        /** `window.top !== window.self` — this JS context is running inside an iframe. */
+        isIframe: z.boolean().optional(),
     }),
     viewport: z
         .object({
@@ -703,6 +716,12 @@ export const waitForArgsSchema = z.object({
     idleMs: z.number().int().positive().optional(),
 });
 export type WaitForArgs = z.infer<typeof waitForArgsSchema>;
+
+export const snapshotArgsSchema = z.object({
+    /** Max elements to include. Default 50. */
+    limit: z.number().int().positive().optional(),
+});
+export type SnapshotArgs = z.infer<typeof snapshotArgsSchema>;
 
 export const screenshotArgsSchema = z.object({
     selector: selectorSchema.optional(),

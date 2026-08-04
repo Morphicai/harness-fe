@@ -179,6 +179,39 @@ export const tabInfoSchema = z.object({
     url: z.string().optional(),
     title: z.string().optional(),
     userAgent: z.string().optional(),
+    /** `window.top !== window.self` at last report — this tab's JS context runs inside an iframe. */
+    isIframe: z.boolean().optional(),
+    /**
+     * `document.referrer` at last report. For a cross-origin iframe this is
+     * the best-effort signal for "which page embeds this tab" — match it
+     * against another tab's `url` to infer nesting. Same-origin iframes
+     * already share their parent's tabId, so no separate row exists for them.
+     */
+    referrer: z.string().optional(),
     connectedAt: z.number(),
 });
 export type TabInfo = z.infer<typeof tabInfoSchema>;
+
+// ─── page.snapshot ──────────────────────────────────────────────────
+// A compact, token-bounded index of clickable elements (harness-fe#202) —
+// only <a> and <button>. Each gets a short-lived `ref` usable as
+// `{selector: {ref}}` in page.click/page.type; refs invalidate on the next
+// snapshot. Deliberately narrower than a full accessibility tree.
+export const snapshotElementSchema = z.object({
+    ref: z.string(),
+    tag: z.enum(['a', 'button']),
+    text: z.string(),
+    href: z.string().optional(),
+    ariaLabel: z.string().optional(),
+    disabled: z.boolean().optional(),
+});
+export type SnapshotElement = z.infer<typeof snapshotElementSchema>;
+
+export const pageSnapshotResultSchema = z.object({
+    url: z.string().optional(),
+    elements: z.array(snapshotElementSchema),
+    /** True when more matching elements existed than `limit` allowed through. */
+    truncated: z.boolean(),
+    total: z.number().int().nonnegative(),
+});
+export type PageSnapshotResult = z.infer<typeof pageSnapshotResultSchema>;

@@ -12,6 +12,8 @@ import { z } from 'zod';
  */
 export const selectorSchema = z
     .object({
+        /** Ref from a prior page.snapshot call (e.g. "e3"). Invalidated by the next snapshot. */
+        ref: z.string().optional(),
         css: z.string().optional(),
         role: z.string().optional(),
         text: z.string().optional(),
@@ -26,6 +28,7 @@ export const selectorSchema = z
     .refine(
         (s) =>
             !!(
+                s.ref ||
                 s.css ||
                 s.role ||
                 s.text ||
@@ -33,7 +36,7 @@ export const selectorSchema = z
                 s.component ||
                 s.file
             ),
-        { message: 'selector requires at least one of: css/role/text/ariaLabel/component/file' },
+        { message: 'selector requires at least one of: ref/css/role/text/ariaLabel/component/file' },
     );
 
 export type Selector = z.infer<typeof selectorSchema>;

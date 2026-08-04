@@ -25,6 +25,7 @@ import {
     PROTOCOL_VERSION,
     type ConsentPolicy,
     pageLoadPayloadSchema,
+    navigationEntrySchema,
     rrwebChunkPayloadSchema,
     taskSubmitPayloadSchema,
     type CommandFrame,
@@ -1051,6 +1052,29 @@ export class Bridge {
                 if (!peer) return;
                 if (frame.name === EVENT_NAME.TASK_SUBMIT) {
                     this.recordTask(frame, peer);
+                }
+                // Keep the live tab_list view fresh. `hello.page` only captures
+                // page state once at connect time, and client-side route changes
+                // (SPA routers) never reconnect — so both PAGE_LOAD (full
+                // reload) and 'navigation' (pushState/replaceState/pop/hash)
+                // events patch `peer.page` here, independent of persisted
+                // storage below (harness-fe#202).
+                if (frame.name === EVENT_NAME.PAGE_LOAD) {
+                    const parsed = pageLoadPayloadSchema.safeParse(frame.payload);
+                    if (parsed.success) {
+                        peer.page = {
+                            url: parsed.data.page.url ?? peer.page?.url,
+                            title: parsed.data.page.title ?? peer.page?.title,
+                            userAgent: parsed.data.page.userAgent ?? peer.page?.userAgent,
+                            isIframe: parsed.data.page.isIframe ?? peer.page?.isIframe,
+                            referrer: parsed.data.page.referrer ?? peer.page?.referrer,
+                        };
+                    }
+                } else if (frame.name === 'navigation') {
+                    const parsed = navigationEntrySchema.safeParse(frame.payload);
+                    if (parsed.success && parsed.data.url) {
+                        peer.page = { ...peer.page, url: parsed.data.url };
+                    }
                 }
                 if (this.store) {
                     const storeId = this.connToStoreId.get(connectionId);

@@ -18,7 +18,14 @@ function newBridge(opts: Partial<ConstructorParameters<typeof Bridge>[0]> = {}):
 function connect(
     bridge: Bridge,
     role: 'runtime-client' | 'vite-plugin' | 'webpack-plugin' | 'node-runtime' | 'dashboard-client',
-    opts: { tabId?: string; projectId?: string; sessionId?: string; visitorId?: string; buildId?: string } = {},
+    opts: {
+        tabId?: string;
+        projectId?: string;
+        sessionId?: string;
+        visitorId?: string;
+        buildId?: string;
+        page?: { url?: string; title?: string; isIframe?: boolean };
+    } = {},
     principal = LOCAL_PRINCIPAL,
 ): FakePeerSocket {
     const sock = new FakePeerSocket();
@@ -28,7 +35,7 @@ function connect(
         id: 'h1',
         role,
         projectId: opts.projectId ?? 'demo',
-        page: { url: 'http://localhost:5173/', title: 'Demo' },
+        page: opts.page ?? { url: 'http://localhost:5173/', title: 'Demo' },
     };
     if (role === 'runtime-client') {
         hello.tabId = opts.tabId ?? 'tab-1';
@@ -181,6 +188,50 @@ describe('Bridge — handshake + commands', () => {
         connect(bridge, 'runtime-client', { tabId: 'tab-2', sessionId: 'sess-2' });
         const tabs = await bridge.listTabs();
         expect(tabs.map((t) => t.tabId).sort()).toEqual(['tab-1', 'tab-2']);
+    });
+
+    // harness-fe#202: tab_list should report isIframe and stay fresh across
+    // both full page loads and client-side (SPA) navigation, not just the
+    // one-time snapshot captured in hello.
+    it('reports isIframe from hello.page', async () => {
+        connect(bridge, 'runtime-client', {
+            tabId: 'tab-iframe',
+            page: { url: 'http://localhost:5173/embed', isIframe: true },
+        });
+        const tabs = await bridge.listTabs();
+        expect(tabs.find((t) => t.tabId === 'tab-iframe')?.isIframe).toBe(true);
+    });
+
+    it('refreshes url/isIframe on a page.load event, not just at hello time', async () => {
+        const sock = connect(bridge, 'runtime-client', { tabId: 'tab-1', page: { url: 'http://localhost:5173/' } });
+        sock.receive({
+            type: 'event',
+            id: 'e1',
+            name: EVENT_NAME.PAGE_LOAD,
+            ts: Date.now(),
+            payload: {
+                sessionId: 'sess-1',
+                page: { url: 'http://localhost:5173/reloaded', isIframe: true },
+                storage: {},
+            },
+        });
+        const tabs = await bridge.listTabs();
+        const tab = tabs.find((t) => t.tabId === 'tab-1');
+        expect(tab?.url).toBe('http://localhost:5173/reloaded');
+        expect(tab?.isIframe).toBe(true);
+    });
+
+    it('refreshes url on a client-side navigation event (no reconnect)', async () => {
+        const sock = connect(bridge, 'runtime-client', { tabId: 'tab-1', page: { url: 'http://localhost:5173/' } });
+        sock.receive({
+            type: 'event',
+            id: 'e1',
+            name: 'navigation',
+            ts: Date.now(),
+            payload: { ts: Date.now(), kind: 'push', url: 'http://localhost:5173/settings' },
+        });
+        const tabs = await bridge.listTabs();
+        expect(tabs.find((t) => t.tabId === 'tab-1')?.url).toBe('http://localhost:5173/settings');
     });
 
     it('drops the peer + pending state on socket close', async () => {

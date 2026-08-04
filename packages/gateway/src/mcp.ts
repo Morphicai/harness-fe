@@ -28,6 +28,7 @@ import {
     setHtmlArgsSchema,
     setStyleArgsSchema,
     selectorSchema,
+    snapshotArgsSchema,
     typeArgsSchema,
     uploadArgsSchema,
     waitForArgsSchema,
@@ -200,6 +201,11 @@ function registerCommandTools(command: CommandReg): void {
         description: 'Return outerHTML of the matched element(s). Text-first inspection tool.',
         inputSchema: { selector: selectorSchema, limit: z.number().int().positive().optional(), tabId: tabIdParam },
     }, ({ selector, limit, tabId }) => ({ args: { selector, limit }, opts: { tabId: tabId as string | undefined } }));
+
+    command(COMMAND.PAGE_SNAPSHOT, {
+        description: 'Compact index of visible clickable elements (<a>, <button> only) with short-lived refs. Pass {selector: {ref}} to page.click/page.type to act on one without writing a selector — refs invalidate on the next snapshot.',
+        inputSchema: { limit: z.number().int().positive().optional(), tabId: tabIdParam },
+    }, ({ limit, tabId }) => ({ args: snapshotArgsSchema.parse({ limit }), opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.PAGE_SCROLL, {
         description: 'Scroll the page or a specific element. Omit selector to scroll the whole page.',

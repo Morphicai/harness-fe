@@ -24,6 +24,7 @@ import {
 } from '@harness-fe/protocol';
 import { snapdom } from '@zumer/snapdom';
 import { resolveSelector } from './selectors.js';
+import { resetRefs, assignRef } from './refs.js';
 import type { CaptureStore } from './capture.js';
 
 export interface CommandContext {
@@ -356,6 +357,55 @@ export const commandHandlers: Record<string, CommandHandler> = {
             }
         }
         return { matches };
+    },
+
+    // Compact, token-bounded index of clickable elements (harness-fe#202) —
+    // deliberately narrow (only <a>/<button>) rather than a full accessibility
+    // tree. Each element gets a short-lived `ref` (e1, e2, ...) usable via
+    // `{selector: {ref}}` in page.click/page.type; refs invalidate on the next
+    // snapshot call, same as agent-browser's Snapshot+Refs.
+    [COMMAND.PAGE_SNAPSHOT]: async (raw) => {
+        const args = raw as { limit?: number };
+        const limit = args.limit ?? 50;
+
+        resetRefs();
+        const candidates = Array.from(document.querySelectorAll<HTMLElement>('a, button'));
+        const visible = candidates.filter((el) => {
+            if (el.hidden) return false;
+            const style = getComputedStyle(el);
+            return style.display !== 'none' && style.visibility !== 'hidden';
+        });
+
+        const elements: Array<{
+            ref: string;
+            tag: 'a' | 'button';
+            text: string;
+            href?: string;
+            ariaLabel?: string;
+            disabled?: boolean;
+        }> = [];
+        for (const el of visible.slice(0, limit)) {
+            const tag = el.tagName.toLowerCase() as 'a' | 'button';
+            const ref = assignRef(el);
+            const text = truncate((el.textContent ?? '').trim().replace(/\s+/g, ' '), 80);
+            const entry: (typeof elements)[number] = { ref, tag, text };
+            const ariaLabel = el.getAttribute('aria-label');
+            if (ariaLabel) entry.ariaLabel = ariaLabel;
+            if (tag === 'a') {
+                const href = (el as HTMLAnchorElement).getAttribute('href');
+                if (href) entry.href = href;
+            } else if ((el as HTMLButtonElement).disabled) {
+                entry.disabled = true;
+            }
+            elements.push(entry);
+        }
+
+        return {
+            url: location.href,
+            elements,
+            truncated: visible.length > limit,
+            total: visible.length,
+        };
     },
 
     [COMMAND.PAGE_SCROLL]: async (raw) => {

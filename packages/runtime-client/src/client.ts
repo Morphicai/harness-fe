@@ -382,6 +382,8 @@ export class RuntimeClient {
                 url: location.href,
                 title: document.title,
                 userAgent: navigator.userAgent,
+                isIframe: window.top !== window.self,
+                referrer: document.referrer || undefined,
             },
         };
         this.send(hello);
