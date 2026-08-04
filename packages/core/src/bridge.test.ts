@@ -129,7 +129,7 @@ describe('Bridge — handshake + commands', () => {
         expect(ack.type).toBe('hello.ack');
         expect(ack.tabId).toBe('tab-1');
         expect(ack.serverVersion).toBe(PROTOCOL_VERSION);
-        expect(ack.consent).toEqual({ mode: 'deny' });
+        expect(ack.consent).toEqual({ mode: 'off' });
     });
 
     it('pushes consent policy from options into the ack', () => {

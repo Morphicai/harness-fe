@@ -228,7 +228,7 @@ async function main(): Promise<void> {
 
     const coreClient = createCoreClient({
         dataDir: cfg.coreDataDir,
-        consent: cfg.governed ? { mode: 'session' } : { mode: 'deny' },
+        consent: cfg.governed ? { mode: 'session' } : { mode: 'off' },
         autoPurge: {
             intervalMs: cfg.purgeIntervalMs,
             policy: {

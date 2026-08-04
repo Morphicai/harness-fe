@@ -223,7 +223,7 @@ export class Bridge {
         this.attachDataDir = opts.attachmentsDataDir ?? dataDir;
         // Consent defaults to off (solo / unrestricted). The gateway forces
         // `session` for governed deployments.
-        this.consentPolicy = opts.consent ?? { mode: 'deny' };
+        this.consentPolicy = opts.consent ?? { mode: 'off' };
         this.viewerBaseUrl = opts.viewerBaseUrl;
         // Default auto-purge ON. CI / tests pass `enabled: false` (or set
         // env HARNESS_FE_PURGE_DISABLED=1) to opt out.
