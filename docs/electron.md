@@ -7,6 +7,13 @@ browser context — the build plugin + runtime client work as-is.
 This page documents the **one piece** that needs host-side cooperation:
 multi-window sessionId sharing.
 
+> **Haven't wired up the seed contract yet (or debugging a third-party app
+> that hasn't)?** Each window is still its own independent session in that
+> case, but `visitor_timeline({visitorId, types: [...]})` gives you a merged,
+> causally-ordered view across all of them anyway — no per-window
+> `session.tail` + manual timestamp cross-referencing needed. See the
+> harness-fe skill's "Cross-tab bug" flow.
+
 ## The seed contract
 
 `@harness-fe/runtime` reads two globals synchronously at boot:

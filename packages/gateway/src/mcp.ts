@@ -324,7 +324,7 @@ function registerReadTools(caps: CoreCapabilities, principal: Principal, gated: 
     const R = (name: string, config: ToolConfig, handler: (a: Record<string, unknown>) => unknown) =>
         gated('read', name, config, async (a: Record<string, unknown>) => ok(await handler(a)));
 
-    R(COMMAND.TAB_LIST, { description: 'List all currently connected browser tabs.', inputSchema: {} },
+    R(COMMAND.TAB_LIST, { description: 'List all currently connected browser tabs. For reconstructing what happened ACROSS multiple tabs/windows in causal order (e.g. debugging a multi-window Electron app), use visitor.timeline instead of tailing console/network per-tab and cross-referencing timestamps by hand.', inputSchema: {} },
         () => caps.listTabs(principal));
 
     gated('read', COMMAND.SET_DIALOG_HANDLER, {
@@ -435,7 +435,7 @@ function registerReadTools(caps: CoreCapabilities, principal: Principal, gated: 
         ({ visitorId, limit }) => caps.visitorJourney(principal, visitorId as string, limit as number | undefined));
 
     R('visitor.timeline', {
-        description: 'Merged cross-session event timeline for one visitor (ascending by ts).',
+        description: 'Merged cross-session, cross-tab event timeline for one visitor, in true chronological order (ascending by ts). This is the tool for cross-window/cross-tab causality — e.g. "which tab fired the request that the other tab reacted to" — instead of manually tailing console/network per-tab and cross-referencing timestamps.',
         inputSchema: { visitorId: z.string(), since: z.number().optional(), until: z.number().optional(), types: z.union([z.string(), z.array(z.string())]).optional(), tabIds: z.array(z.string()).optional(), sessionIds: z.array(z.string()).optional(), limit: z.number().int().positive().optional() },
     }, ({ visitorId, since, until, types, tabIds, sessionIds, limit }) => caps.visitorTimeline(principal, visitorId as string, { since: since as number | undefined, until: until as number | undefined, types: types as string | string[] | undefined, tabIds: tabIds as string[] | undefined, sessionIds: sessionIds as string[] | undefined, limit: limit as number | undefined }));
 

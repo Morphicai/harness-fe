@@ -102,6 +102,10 @@ Key invariants you can rely on:
   pageload was open".
 - The runtime auto-disables in production builds — anything you see here is
   dev-time only.
+- **Multiple tabs/windows involved (Electron multi-window, opening tab B
+  affects tab A, etc.)?** Don't manually tail console/network per-tab and
+  cross-reference timestamps by hand — go straight to `visitor_timeline`
+  (Flow 6 below) for one merged, causally-ordered view across every tab.
 
 ## Solo vs Team mode
 
