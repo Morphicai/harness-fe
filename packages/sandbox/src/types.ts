@@ -75,6 +75,21 @@ export interface FetchResObservation {
 export interface XhrReqObservation extends FetchReqObservation {}
 export interface XhrResObservation extends FetchResObservation {}
 
+/**
+ * One parsed Server-Sent Events frame, tee'd off a `text/event-stream`
+ * response body as it streams in (id here is the *request* id, correlating
+ * back to the FetchReqObservation/FetchResObservation — see sseId for the
+ * frame's own `id:` field per the SSE spec).
+ */
+export interface FetchSseFrameObservation {
+    id: string;
+    method: string;
+    url: string;
+    event?: string;
+    data: string;
+    sseId?: string;
+}
+
 export interface WsObservation {
     id: string;
     phase: 'open' | 'send' | 'recv' | 'close';
@@ -194,7 +209,7 @@ export interface IndexedDbObservation {
 // ───────────────────────────────────────────────────────────────────
 
 export type SandboxEvent =
-    | { ts: number; source: 'fetch'; kind: 'req' | 'res'; data: FetchReqObservation | FetchResObservation; initiator?: Initiator; moduleId?: string }
+    | { ts: number; source: 'fetch'; kind: 'req' | 'res' | 'sse-frame'; data: FetchReqObservation | FetchResObservation | FetchSseFrameObservation; initiator?: Initiator; moduleId?: string }
     | { ts: number; source: 'xhr'; kind: 'req' | 'res'; data: XhrReqObservation | XhrResObservation; initiator?: Initiator; moduleId?: string }
     | { ts: number; source: 'ws'; kind: WsObservation['phase']; data: WsObservation; initiator?: Initiator; moduleId?: string }
     | { ts: number; source: 'storage'; kind: StorageObservation['op']; data: StorageObservation; initiator?: Initiator; moduleId?: string }

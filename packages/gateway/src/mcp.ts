@@ -247,7 +247,7 @@ function registerCommandTools(command: CommandReg): void {
     }, ({ n: nn, filter, match, level, tabId }) => ({ args: { n: (nn as number) ?? 20, filter, match, level }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.NETWORK_TAIL, {
-        description: 'Return the last N network requests (phase=req|res). `filter`/`urlContains`/`method`/`statusCode`.',
+        description: 'Return the last N network requests (phase=req|res|frame — frame entries are individual Server-Sent Events frames tee\'d off a text/event-stream response, with sseEvent/sseData/sseId). `filter`/`urlContains`/`method`/`statusCode`.',
         inputSchema: { n, includeBody: z.boolean().optional(), filter: filterParam, match: matchParam, urlContains: z.string().optional(), method: z.string().optional(), statusCode: z.number().int().optional(), tabId: tabIdParam },
     }, ({ n: nn, includeBody, filter, match, urlContains, method, statusCode, tabId }) => ({ args: { n: (nn as number) ?? 20, includeBody: includeBody ?? false, filter, match, urlContains, method, statusCode }, opts: { tabId: tabId as string | undefined } }));
 
@@ -272,7 +272,7 @@ function registerCommandTools(command: CommandReg): void {
     }, ({ idleMs, timeoutMs, tabId }) => ({ args: { idleMs, timeoutMs }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.NETWORK_GET, {
-        description: 'Return all entries (req + res) for a single network request id.',
+        description: 'Return all entries (req + res, plus any SSE frames) for a single network request id.',
         inputSchema: { reqId: z.string(), tabId: tabIdParam },
     }, ({ reqId, tabId }) => ({ args: { reqId }, opts: { tabId: tabId as string | undefined } }));
 

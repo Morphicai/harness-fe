@@ -175,6 +175,56 @@ describe('fetch interceptor', () => {
         // Original init still passed through untouched to the native fetch.
         expect(capturedInit).toBeDefined();
     });
+
+    // harness-fe#204: text/event-stream responses only surfaced {status,
+    // durationMs} — no visibility into individual SSE frames as they arrive.
+    describe('SSE frame tee', () => {
+        function sseResponse(chunks: string[]): Response {
+            const stream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+                    controller.close();
+                },
+            });
+            return new Response(stream, { headers: { 'content-type': 'text/event-stream' } });
+        }
+
+        it('emits a fetch.sse-frame event per SSE frame', async () => {
+            stubFetch(async () => sseResponse(['event: ping\ndata: 1\n\n', 'data: 2\n\n']));
+            const seen: Array<{ event?: string; data: string }> = [];
+            handle = installSandbox({
+                onEvent: (e) => {
+                    if (e.source === 'fetch' && e.kind === 'sse-frame') {
+                        const d = e.data as { event?: string; data: string };
+                        seen.push({ event: d.event, data: d.data });
+                    }
+                },
+            });
+            await window.fetch('https://api.test/stream');
+            // The tee reads in the background — wait a tick for it to drain.
+            await new Promise((r) => setTimeout(r, 0));
+            expect(seen).toEqual([{ event: 'ping', data: '1' }, { event: undefined, data: '2' }]);
+        });
+
+        it("does not disturb the app's own reading of the response body", async () => {
+            stubFetch(async () => sseResponse(['data: hello\n\n']));
+            handle = installSandbox();
+            const res = await window.fetch('https://api.test/stream');
+            const text = await res.text();
+            expect(text).toBe('data: hello\n\n');
+        });
+
+        it('does not tee a plain JSON response (no content-type match)', async () => {
+            stubFetch(async () => new Response('{}', { headers: { 'content-type': 'application/json' } }));
+            let sseFrameSeen = false;
+            handle = installSandbox({
+                onEvent: (e) => { if (e.source === 'fetch' && e.kind === 'sse-frame') sseFrameSeen = true; },
+            });
+            await window.fetch('https://api.test/');
+            await new Promise((r) => setTimeout(r, 0));
+            expect(sseFrameSeen).toBe(false);
+        });
+    });
 });
 
 // ────────────────────────────────────────────────────────────────────

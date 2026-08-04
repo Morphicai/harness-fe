@@ -66,10 +66,10 @@ export type ConsoleEntry = z.infer<typeof consoleEntrySchema>;
 
 export const networkEntrySchema = z.object({
     ts: z.number(),
-    /** Correlates a `req` event with its matching `res` event. */
+    /** Correlates a `req`/`frame` event with its matching `res` event. */
     id: z.string().optional(),
     /** Direction marker; absent records carry both req+resp metadata for back-compat. */
-    phase: z.enum(['req', 'res']).optional(),
+    phase: z.enum(['req', 'res', 'frame']).optional(),
     method: z.string(),
     url: z.string(),
     status: z.number().int().optional(),
@@ -81,6 +81,15 @@ export const networkEntrySchema = z.object({
     requestBodyTruncated: z.boolean().optional(),
     responseBodyTruncated: z.boolean().optional(),
     error: z.string().optional(),
+    /**
+     * `phase: 'frame'` only — one parsed Server-Sent Events frame from a
+     * `text/event-stream` response, tee'd off the response body as it
+     * streams in (the app's own consumption of the response is untouched).
+     */
+    sseEvent: z.string().optional(),
+    sseData: z.string().optional(),
+    /** The SSE frame's own `id:` field, per spec — distinct from the request `id` above. */
+    sseId: z.string().optional(),
     /**
      * Caller stack at request initiation. Best-effort: captured via
      * `new Error().stack` in the runtime-client fetch/XHR/WebSocket patches,

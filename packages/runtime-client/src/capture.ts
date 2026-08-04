@@ -32,6 +32,7 @@ import {
     type SandboxHandle,
     type FetchReqObservation,
     type FetchResObservation,
+    type FetchSseFrameObservation,
     type WsObservation,
     type StorageObservation,
     type ConsoleObservation,
@@ -211,7 +212,7 @@ export function getCaptureStore(): CaptureStore {
 // ────────────────────────────────────────────────────────────────────
 
 function adaptFetchLike(e: SandboxEvent & { source: 'fetch' | 'xhr' }): NetworkEntry {
-    const d = e.data as FetchReqObservation | FetchResObservation;
+    const d = e.data as FetchReqObservation | FetchResObservation | FetchSseFrameObservation;
     if (e.kind === 'req') {
         const r = d as FetchReqObservation;
         return {
@@ -223,6 +224,20 @@ function adaptFetchLike(e: SandboxEvent & { source: 'fetch' | 'xhr' }): NetworkE
             requestHeaders: r.headers,
             requestBody: r.body,
             requestBodyTruncated: r.bodyTruncated || undefined,
+            initiator: e.initiator,
+        };
+    }
+    if (e.kind === 'sse-frame') {
+        const r = d as FetchSseFrameObservation;
+        return {
+            ts: e.ts,
+            id: r.id,
+            phase: 'frame',
+            method: r.method,
+            url: r.url,
+            sseEvent: r.event,
+            sseData: r.data,
+            sseId: r.sseId,
             initiator: e.initiator,
         };
     }

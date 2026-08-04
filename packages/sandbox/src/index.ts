@@ -17,6 +17,7 @@ export type {
     // Channel-specific observations
     FetchReqObservation,
     FetchResObservation,
+    FetchSseFrameObservation,
     XhrReqObservation,
     XhrResObservation,
     WsObservation,

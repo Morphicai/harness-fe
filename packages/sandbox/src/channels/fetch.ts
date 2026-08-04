@@ -16,6 +16,7 @@ import type {
 } from '../types.js';
 import { captureInitiator } from '../initiator.js';
 import { emit, enterSandbox, exitSandbox, getChain, isInSandbox, registerPatch } from '../chain.js';
+import { SseStreamParser } from '../sse.js';
 
 const DEFAULT_BODY_CAP = 256 * 1024;
 const PATCHED_FLAG = '__hfeSandboxFetchPatched__';
@@ -90,6 +91,53 @@ async function runResponseChain(
         } catch { /* skip */ }
     }
     return current;
+}
+
+/**
+ * Tee an SSE response body so its frames become visible to network_tail/
+ * network_get, without disturbing the app's own consumption of the stream
+ * (harness-fe#204). Reads a *clone* of the body in the background — the
+ * `Response` returned to the caller is untouched and can still be read
+ * exactly once, in whatever order the app wants.
+ */
+function teeSseFrames(
+    res: Response,
+    id: string,
+    method: string,
+    url: string,
+    initiator: ReturnType<typeof captureInitiator>,
+): void {
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!contentType.includes('text/event-stream') || !res.body) return;
+    let clone: Response;
+    try {
+        clone = res.clone();
+    } catch {
+        return; // body already consumed/disturbed by an onResponse hook — nothing to tee.
+    }
+    void (async () => {
+        const reader = clone.body!.getReader();
+        const decoder = new TextDecoder();
+        const parser = new SseStreamParser();
+        try {
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                for (const frame of parser.push(decoder.decode(value, { stream: true }))) {
+                    emit('fetch', {
+                        ts: Date.now(),
+                        source: 'fetch',
+                        kind: 'sse-frame',
+                        data: { id, method, url, event: frame.event, data: frame.data, sseId: frame.id },
+                        initiator,
+                    });
+                }
+            }
+        } catch {
+            // Stream aborted/errored — the 'res' observation already recorded
+            // the response; a partial SSE tail isn't worth surfacing as an error.
+        }
+    })();
 }
 
 function installFetchPatch(): () => void {
@@ -178,6 +226,8 @@ function installFetchPatch(): () => void {
             },
             initiator,
         });
+
+        teeSseFrames(finalRes, id, meta.method, meta.url, initiator);
 
         return finalRes;
         } finally {
