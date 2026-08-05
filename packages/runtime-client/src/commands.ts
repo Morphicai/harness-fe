@@ -436,6 +436,7 @@ export const commandHandlers: Record<string, CommandHandler> = {
             text: string;
             href?: string;
             ariaLabel?: string;
+            title?: string;
             disabled?: boolean;
         }> = [];
         for (const el of visible.slice(0, limit)) {
@@ -445,6 +446,11 @@ export const commandHandlers: Record<string, CommandHandler> = {
             const entry: (typeof elements)[number] = { ref, tag, text };
             const ariaLabel = el.getAttribute('aria-label');
             if (ariaLabel) entry.ariaLabel = ariaLabel;
+            // Icon-only buttons are common in real UIs and often carry their
+            // only human-readable name in `title`. Without it the snapshot
+            // reports a wall of `text: ""` entries that nothing can pick from.
+            const title = el.getAttribute('title');
+            if (title) entry.title = title;
             if (tag === 'a') {
                 const href = (el as HTMLAnchorElement).getAttribute('href');
                 if (href) entry.href = href;
