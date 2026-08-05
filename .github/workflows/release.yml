@@ -75,8 +75,13 @@ jobs:
               # npm ≥ 11.5 properly negotiates trusted publishing when no
               # token is in the env; older npm in pass A would emit
               # provenance fine but couldn't auth without a token.
+              #
+              # Pinned to the npm 11 line, NOT `@latest`: npm 12 requires
+              # Node ^22.22.2 || ^24.15.0 || >=26, which broke this step
+              # outright (EBADENGINE) against the node-version: '20' pinned
+              # above. npm 11.x only needs Node ^20.17.0 || >=22.9.0.
               run: |
-                  npm install -g npm@latest
+                  npm install -g npm@11
                   npm --version
 
             - name: Install dependencies
