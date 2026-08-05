@@ -67,30 +67,46 @@ function escapeCss(value: string): string {
 
 function matchByRoleText(role?: string, text?: string): Element[] {
     const all = Array.from(document.querySelectorAll<HTMLElement>('*'));
-    return all.filter((el) => {
-        if (role) {
-            const elRole = el.getAttribute('role') ?? implicitRole(el);
-            if (elRole !== role) return false;
+    const roleOk = (el: HTMLElement): boolean => {
+        if (!role) return true;
+        const elRole = el.getAttribute('role') ?? implicitRole(el);
+        return elRole === role;
+    };
+    if (!text) return all.filter(roleOk);
+
+    const directTextOf = (el: HTMLElement): string =>
+        Array.from(el.childNodes)
+            .filter((n) => n.nodeType === Node.TEXT_NODE)
+            .map((n) => n.textContent ?? '')
+            .join('')
+            .trim();
+
+    // Rank by how specifically the element itself owns the text. Ancestors of a
+    // match trivially "contain" the string via textContent, so an unranked
+    // document-order scan resolves {text:'Save'} to <html> — every ancestor up
+    // to the root qualifies and the root comes first. Tiering + dropping
+    // ancestors of same-or-better matches is what makes the deepest real target
+    // win, which is what a caller writing {text:'Save'} means.
+    const tiers: HTMLElement[][] = [[], [], []];
+    for (const el of all) {
+        if (!roleOk(el)) continue;
+        const directText = directTextOf(el);
+        const fullText = (el.textContent ?? '').trim();
+        if (directText === text) tiers[0].push(el);
+        else if (fullText === text) tiers[1].push(el);
+        else if (directText.includes(text) || fullText.includes(text)) tiers[2].push(el);
+    }
+
+    const out: Element[] = [];
+    for (const tier of tiers) {
+        // Within a tier, an element that contains another match is the outer
+        // wrapper — the inner one is the better answer.
+        for (const el of tier) {
+            if (tier.some((other) => other !== el && el.contains(other))) continue;
+            out.push(el);
         }
-        if (text) {
-            // Use the element's own direct text (child text nodes only) for an
-            // exact match first, then fall back to full textContent for a
-            // contains-match. This prevents parent elements (e.g. <nav>,
-            // <ul>) from being returned ahead of the actual target element
-            // just because their textContent happens to include the search
-            // string via a descendant.
-            const directText = Array.from(el.childNodes)
-                .filter((n) => n.nodeType === Node.TEXT_NODE)
-                .map((n) => n.textContent ?? '')
-                .join('')
-                .trim();
-            const fullText = (el.textContent ?? '').trim();
-            const exactMatch = directText === text || fullText === text;
-            const containsMatch = directText.includes(text) || fullText.includes(text);
-            if (!exactMatch && !containsMatch) return false;
-        }
-        return true;
-    });
+    }
+    return out;
 }
 
 function implicitRole(el: HTMLElement): string | undefined {

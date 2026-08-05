@@ -385,26 +385,30 @@ export const commandHandlers: Record<string, CommandHandler> = {
         const args = raw as { selector: Selector; limit?: number };
         const limit = args.limit ?? 5;
         const matches: Array<{ html: string; tag: string; via: string }> = [];
+        // Dedupe by element identity: the css sweep and the resolveSelector
+        // fallback below routinely land on the SAME node, and reporting it twice
+        // makes `matches.length` useless as a count (an agent asserting "one
+        // textarea" saw two). Track what we've emitted, not just how many.
+        const seen = new Set<Element>();
+        const push = (el: Element, via: string) => {
+            if (seen.has(el) || matches.length >= limit) return;
+            seen.add(el);
+            matches.push({
+                html: truncate(el.outerHTML, HTML_TRUNCATE),
+                tag: el.tagName.toLowerCase(),
+                via,
+            });
+        };
         // Try each selector field independently — we want all matches up to limit.
         if (args.selector.css) {
             const list = document.querySelectorAll(args.selector.css);
             for (let i = 0; i < list.length && matches.length < limit; i++) {
-                matches.push({
-                    html: truncate((list[i] as Element).outerHTML, HTML_TRUNCATE),
-                    tag: (list[i] as Element).tagName.toLowerCase(),
-                    via: 'css',
-                });
+                push(list[i] as Element, 'css');
             }
         }
         if (matches.length < limit) {
             const result = resolveSelector(args.selector);
-            if (result.element) {
-                matches.push({
-                    html: truncate(result.element.outerHTML, HTML_TRUNCATE),
-                    tag: result.element.tagName.toLowerCase(),
-                    via: result.via,
-                });
-            }
+            if (result.element) push(result.element, result.via);
         }
         return { matches };
     },
