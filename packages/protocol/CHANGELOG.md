@@ -1,5 +1,23 @@
 # @harness-fe/protocol
 
+## 4.5.1
+
+### Patch Changes
+
+- b92e4ce: fix(runtime-client): make network.idle track real in-flight requests
+
+  `page.wait_for({predicate: 'network.idle'})` was a fixed ~200ms sleep that resolved unconditionally, and `network.wait_for_idle` resolved once the network ring buffer stopped growing — which falsely reports idle the instant a request's `req` entry stops triggering new pushes, even if its `res` never arrives. Both now poll a real in-flight fetch/XHR count (derived from the buffer's req/res pairing) until it's been zero for `idleMs` (default 500). `page.wait_for` gained an `idleMs` param to match.
+
+- b92e4ce: feat(sandbox): tee Server-Sent Events frames into network_tail/network_get
+
+  A `text/event-stream` response previously only surfaced `{status, durationMs}` — no visibility into individual SSE frames as they streamed in. The fetch interceptor now tees the body (`.clone()`, background read — the app's own consumption is untouched) when content-type matches, parses frames, and emits them as `phase: 'frame'` network entries (`sseEvent`/`sseData`/`sseId`) alongside the existing req/res entries for the same request id. Verified end-to-end against a real streaming endpoint in a real browser (harness-fe#204). XHR-based SSE is not covered (rare in practice).
+
+- b92e4ce: feat(tab_list, page.snapshot): richer tab metadata + compact clickable-element index
+
+  `tab_list` gains `isIframe` (`window.top !== window.self`, disambiguates rows sharing a tabId with their same-origin parent) and `referrer` (a cross-origin iframe's only legitimate signal of what embeds it). `url`/`title`/`isIframe` now refresh live on both full page loads and client-side (SPA) navigation instead of freezing at connect time.
+
+  Adds `page.snapshot` (harness-fe#202): a token-bounded, Snapshot+Refs-style index of visible `<a>`/`<button>` elements, each with a short-lived `ref` usable as `{selector: {ref}}` in `page.click`/`page.type` — no selector to write, refs invalidate on the next snapshot call.
+
 ## 4.0.0
 
 ### Minor Changes
@@ -12,7 +30,7 @@
     (exposed). Override via `createDaemon({ consent: { mode } })`.
   - Control commands (`page.click/type/scroll/navigate/reload/set_html/
 set_style/evaluate/wait_for`) are gated; read-only commands (screenshot,
-    dom_query, _\_tail, project._) are not. `page.evaluate` always prompts.
+    dom*query, *\_tail, project.\_) are not. `page.evaluate` always prompts.
   - The runtime client gates `handleCommand`: in `session` mode the first
     control command prompts and the rest of the pageload runs once granted;
     `always` prompts every time; `off` never prompts. No prompter registered ⇒

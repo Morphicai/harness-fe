@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/webpack",
-    "version": "4.5.0",
+    "version": "4.5.1",
     "description": "Native webpack plugin for Harness-FE: source-aware transforms, runtime injection, and MCP bridge. thread-loader compatible.",
     "type": "module",
     "license": "MIT",

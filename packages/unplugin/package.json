@@ -1,6 +1,6 @@
 {
     "name": "@harness-fe/unplugin",
-    "version": "4.5.0",
+    "version": "4.5.1",
     "description": "Unified build plugin for Harness-FE. Supports Vite, Rspack, esbuild, and Rollup via unplugin. Webpack users should use @harness-fe/webpack (native plugin) instead.",
     "type": "module",
     "license": "MIT",

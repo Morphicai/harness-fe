@@ -1,5 +1,41 @@
 # @harness-fe/gateway
 
+## 4.5.1
+
+### Patch Changes
+
+- b92e4ce: fix(runtime-client): page.screenshot reports elements it silently couldn't capture
+
+  snapdom (the DOM-to-canvas library `page.screenshot` uses) can't represent a tainted `<canvas>`, an unready/cross-origin `<video>` frame, or a cross-origin `<iframe>`'s own document — it fails on all three internally, so a blank region in the result looked identical to "this area is genuinely empty." The response now includes `notCaptured: [{tag, selector}]` for anything it detected it couldn't render, verified against a real cross-origin iframe and a real drawn canvas (harness-fe#205).
+
+- b92e4ce: fix(core): bound session.search match payload size
+
+  `limit` only capped the number of matches, not each match's size — a single console.log of a large object or a large network body could each exceed a tool-call's output limit on their own, forcing a write-to-file-then-read workaround. `session.search` gains `maxPayloadChars` (default 2000): a match whose `d` payload serializes past that cap is truncated with `dTruncated: true` stamped on it (harness-fe#199).
+
+- b92e4ce: docs(skill,gateway): surface visitor_timeline earlier + document this session's tool changes
+
+  `visitor_timeline` already existed and was documented but a real multi-window Electron debugging session defaulted to manually tailing console/network per-tab before remembering it existed — a discoverability problem. Surfaced at the three places an agent looks first: `tab_list`/`visitor_timeline`'s own tool descriptions, the skill's "Mental model" section, and `docs/electron.md`'s opening (harness-fe#199).
+
+  Also documents `page.snapshot`, the new `ref` selector field, `tab_list`'s `isIframe`/`referrer`, `network_tail`'s SSE `phase: 'frame'` entries, and `session.search`'s `maxPayloadChars` in the agent skill's tool catalog.
+
+- b92e4ce: feat(sandbox): tee Server-Sent Events frames into network_tail/network_get
+
+  A `text/event-stream` response previously only surfaced `{status, durationMs}` — no visibility into individual SSE frames as they streamed in. The fetch interceptor now tees the body (`.clone()`, background read — the app's own consumption is untouched) when content-type matches, parses frames, and emits them as `phase: 'frame'` network entries (`sseEvent`/`sseData`/`sseId`) alongside the existing req/res entries for the same request id. Verified end-to-end against a real streaming endpoint in a real browser (harness-fe#204). XHR-based SSE is not covered (rare in practice).
+
+- b92e4ce: feat(tab_list, page.snapshot): richer tab metadata + compact clickable-element index
+
+  `tab_list` gains `isIframe` (`window.top !== window.self`, disambiguates rows sharing a tabId with their same-origin parent) and `referrer` (a cross-origin iframe's only legitimate signal of what embeds it). `url`/`title`/`isIframe` now refresh live on both full page loads and client-side (SPA) navigation instead of freezing at connect time.
+
+  Adds `page.snapshot` (harness-fe#202): a token-bounded, Snapshot+Refs-style index of visible `<a>`/`<button>` elements, each with a short-lived `ref` usable as `{selector: {ref}}` in `page.click`/`page.type` — no selector to write, refs invalidate on the next snapshot call.
+
+- Updated dependencies [b92e4ce]
+- Updated dependencies [b92e4ce]
+- Updated dependencies [b92e4ce]
+- Updated dependencies [b92e4ce]
+- Updated dependencies [b92e4ce]
+  - @harness-fe/protocol@4.5.1
+  - @harness-fe/core@4.5.1
+
 ## 4.5.0
 
 ### Patch Changes
