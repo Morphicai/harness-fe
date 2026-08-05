@@ -1,5 +1,28 @@
 # @harness-fe/core
 
+## 4.5.1
+
+### Patch Changes
+
+- b92e4ce: fix(core): bound session.search match payload size
+
+  `limit` only capped the number of matches, not each match's size — a single console.log of a large object or a large network body could each exceed a tool-call's output limit on their own, forcing a write-to-file-then-read workaround. `session.search` gains `maxPayloadChars` (default 2000): a match whose `d` payload serializes past that cap is truncated with `dTruncated: true` stamped on it (harness-fe#199).
+
+- b92e4ce: fix(core,cli): solo mode should default control-command consent to open
+
+  Both Bridge's default consent policy and the CLI's non-governed branch set consent to `{ mode: 'deny' }`, silently rejecting `page.click`/`page.type`/every other control command for every solo user unless they separately granted consent through the browser overlay — contradicting the codebase's own stated intent that solo/unrestricted deployments default to `off`. Now defaults to `{ mode: 'off' }` for solo; governed deployments are unaffected (still `session`).
+
+- b92e4ce: feat(tab_list, page.snapshot): richer tab metadata + compact clickable-element index
+
+  `tab_list` gains `isIframe` (`window.top !== window.self`, disambiguates rows sharing a tabId with their same-origin parent) and `referrer` (a cross-origin iframe's only legitimate signal of what embeds it). `url`/`title`/`isIframe` now refresh live on both full page loads and client-side (SPA) navigation instead of freezing at connect time.
+
+  Adds `page.snapshot` (harness-fe#202): a token-bounded, Snapshot+Refs-style index of visible `<a>`/`<button>` elements, each with a short-lived `ref` usable as `{selector: {ref}}` in `page.click`/`page.type` — no selector to write, refs invalidate on the next snapshot call.
+
+- Updated dependencies [b92e4ce]
+- Updated dependencies [b92e4ce]
+- Updated dependencies [b92e4ce]
+  - @harness-fe/protocol@4.5.1
+
 ## 4.5.0
 
 ### Patch Changes

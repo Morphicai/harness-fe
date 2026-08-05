@@ -1,5 +1,14 @@
 # @harness-fe/node-runtime
 
+## 4.5.1
+
+### Patch Changes
+
+- Updated dependencies [b92e4ce]
+- Updated dependencies [b92e4ce]
+- Updated dependencies [b92e4ce]
+  - @harness-fe/protocol@4.5.1
+
 ## 4.0.0
 
 ### Minor Changes
