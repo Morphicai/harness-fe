@@ -43,6 +43,9 @@ async function run() {
             role: 'runtime-client',
             projectId: 'react-demo',
             tabId: 'sim-tab-1',
+            // Required since the bridge started attributing every event to a
+            // page load — a hello without it is rejected outright.
+            sessionId: 'sim-session-1',
             page: { url: 'http://localhost:5173/', title: 'demo' },
         }),
     );

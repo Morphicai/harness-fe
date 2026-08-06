@@ -170,7 +170,7 @@ flag the team-mode differences with **[team]**.)
 | `page_select({ selector, value })` | selector + value | Choose a `<select>` option, fires change/input |
 | `page_check({ selector, checked })` | selector + bool | Set a checkbox/radio state |
 | `page_upload({ selector, files })` | selector + `[{name, content(base64), mimeType?}]` | Set files on `<input type=file>` |
-| `page_dom_query({ selector })` | selector | Read DOM state (outerHTML, attrs, text) |
+| `page_dom_query({ selector, limit? })` | selector | Read DOM state (outerHTML, attrs, text). Assert counts on `total` (every match in the document), not `matches.length` — that one is clipped by `limit` (default 5) and says so with `truncated: true` |
 | `page_snapshot({ limit? })` | — | Compact index of visible `<a>`/`<button>` elements, each with a short-lived `ref` ("e1", "e2", …). Pass `{selector: {ref}}` to `page_click`/`page_type` to act on one without writing a selector — **refs invalidate on the next `page_snapshot` call**, so re-snapshot after any DOM change before reusing one |
 | `page_evaluate({ expr })` | JS expr | Run arbitrary JS in page context (returns JSON-serializable result) |
 | `page_wait_for({ predicate, timeoutMs?, idleMs? })` | `"network.idle"` \| `"dom.ready"` \| JS expr | **Block until a condition is truthy — use before acting on async/late-rendered UI.** `"network.idle"` tracks real in-flight fetch/XHR requests (zero for `idleMs`, default 500ms) — not a fixed sleep |
@@ -183,12 +183,14 @@ the most-recent active tab. See **Selectors** below for the selector object shap
 
 ### Telemetry tail
 
-Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: number` for the last-N pagination, plus channel-specific narrows. Buffers are in-memory per page-load — for cross-navigate history use `session_tail({ sessionId, type: 'X' })`.
+Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: number` (alias: `limit`) for the last-N pagination, plus channel-specific narrows. Buffers are in-memory per page-load — for cross-navigate history use `session_tail({ sessionId, type: 'X' })`.
+
+`filter` matches against a JSON-serialized view of each entry, so quotes inside payloads are escaped (`{\"i\":7}`) — prefer an unquoted fragment. Narrows apply to the **whole buffer**, then the newest `n` matches come back — so a rare event stays findable no matter how much noise came after it. Every tail reply carries `matched` (total matches before `n`), sets `truncated: true` when older matches exist, and reports `dropped`/`bufferCap` once the ring has started evicting — so you can always tell "nothing else happened" from "you're looking at a window".
 
 | Tool | What you get | Narrows |
 |---|---|---|
 | `console_tail` | console.log / .info / .warn / .error / .debug | `level` |
-| `network_tail` | fetch + XHR req/res entries with `initiator.stack` (who issued the call), keyed by `id`. `text/event-stream` (SSE) responses also produce `phase: 'frame'` entries (`sseEvent`/`sseData`/`sseId`) as each frame streams in — no need to rely on the app's own debug logging to assert stream content | `urlContains`, `method`, `statusCode` |
+| `network_tail` | fetch + XHR req/res entries with `initiator.stack` (who issued the call), keyed by `id`. `text/event-stream` (SSE) responses also produce `phase: 'frame'` entries (`sseEvent`/`sseData`/`sseId`) as each frame streams in — no need to rely on the app's own debug logging to assert stream content. Frames are kept in their own deep ring, so a stream emitting a frame per token never evicts the req/res entries (or the sparse `sub_agent_end`-style lifecycle frames you actually want): narrow with `phase: 'frame'` + `filter` | `phase` (req/res/frame), `urlContains`, `method`, `statusCode` |
 | `ws_tail` | WebSocket frames: open / send / recv / close, with `initiator.stack` on send + binary payload size markers | `phase` |
 | `storage_tail` | localStorage / sessionStorage / cookie mutations with `initiator.stack` and `crossTab` flag | `which` (local/session/cookie), `op` (set/remove/clear), `key` |
 | `navigation_tail` | history.pushState / replaceState / popstate / hashchange / location.assign etc. | `kind` (push/replace/pop/hash/assign) |
@@ -211,7 +213,7 @@ Every `*_tail` accepts `filter` (substring) + `match: contains | regex` + `n: nu
 
 | Tool | Use case |
 |---|---|
-| `network_get({ reqId })` | Pull a single request's full body when `network_tail` truncated it |
+| `network_get({ reqId, maxFrames? })` | Pull a single request's full body when `network_tail` truncated it — and, for a long-lived SSE request, every retained frame in order (`total` = full count; `maxFrames` keeps the newest N and sets `truncated`) |
 | `ws_get({ wsId })` | All frames (open/send/recv/close) for one WebSocket id |
 
 ### Wait for the page to do something

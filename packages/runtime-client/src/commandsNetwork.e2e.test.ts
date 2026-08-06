@@ -187,3 +187,36 @@ describe('WS_GET', () => {
         expect(out.entries.every((e) => e.id === id)).toBe(true);
     });
 });
+
+/**
+ * harness-fe#204 follow-up: SSE frames are captured into their own ring, so a
+ * streaming response neither evicts req/res entries nor is mistaken for the
+ * response that ends it.
+ */
+describe('SSE frames vs. in-flight accounting', () => {
+    it('a streaming response stays in flight while its frames arrive', () => {
+        const cap = makeCapture();
+        cap.network.push({ ts: 1, id: 's1', phase: 'req', method: 'POST', url: '/chat' });
+        expect(cap.inFlightCount()).toBe(1);
+        for (let i = 0; i < 5; i++) {
+            cap.networkFrames.push({ ts: 2 + i, id: 's1', phase: 'frame', method: 'POST', url: '/chat', sseEvent: 'tick' });
+        }
+        // Frames must not be read as "the request finished".
+        expect(cap.inFlightCount()).toBe(1);
+        cap.network.push({ ts: 99, id: 's1', phase: 'res', method: 'POST', url: '/chat', status: 200 });
+        expect(cap.inFlightCount()).toBe(0);
+    });
+
+    it('a chatty stream cannot evict req/res entries', () => {
+        const cap = makeCapture();
+        cap.network.push({ ts: 1, id: 's1', phase: 'req', method: 'POST', url: '/chat' });
+        for (let i = 0; i < 1000; i++) {
+            cap.networkFrames.push({ ts: 2 + i, id: 's1', phase: 'frame', method: 'POST', url: '/chat', sseEvent: 'tick' });
+        }
+        expect(cap.network.all().some((e) => e.phase === 'req' && e.id === 's1')).toBe(true);
+        expect(cap.networkAll()).toHaveLength(1001);
+        // networkAll() is chronological across both rings.
+        const ts = cap.networkAll().map((e) => e.ts);
+        expect(ts).toEqual([...ts].sort((a, b) => a - b));
+    });
+});

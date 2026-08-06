@@ -390,9 +390,15 @@ export const commandHandlers: Record<string, CommandHandler> = {
         // makes `matches.length` useless as a count (an agent asserting "one
         // textarea" saw two). Track what we've emitted, not just how many.
         const seen = new Set<Element>();
+        // `total` counts every distinct match in the document, so an agent can
+        // assert on a count ("exactly one composer") without having to raise
+        // `limit` past the number it is trying to verify.
+        let total = 0;
         const push = (el: Element, via: string) => {
-            if (seen.has(el) || matches.length >= limit) return;
+            if (seen.has(el)) return;
             seen.add(el);
+            total++;
+            if (matches.length >= limit) return;
             matches.push({
                 html: truncate(el.outerHTML, HTML_TRUNCATE),
                 tag: el.tagName.toLowerCase(),
@@ -402,7 +408,7 @@ export const commandHandlers: Record<string, CommandHandler> = {
         // Try each selector field independently — we want all matches up to limit.
         if (args.selector.css) {
             const list = document.querySelectorAll(args.selector.css);
-            for (let i = 0; i < list.length && matches.length < limit; i++) {
+            for (let i = 0; i < list.length; i++) {
                 push(list[i] as Element, 'css');
             }
         }
@@ -410,7 +416,7 @@ export const commandHandlers: Record<string, CommandHandler> = {
             const result = resolveSelector(args.selector);
             if (result.element) push(result.element, result.via);
         }
-        return { matches };
+        return { matches, total, ...(total > matches.length ? { truncated: true } : {}) };
     },
 
     // Compact, token-bounded index of clickable elements (harness-fe#202) —
@@ -563,11 +569,11 @@ export const commandHandlers: Record<string, CommandHandler> = {
 
     [COMMAND.CONSOLE_TAIL]: async (raw, ctx) => {
         const args = raw as TailArgs & { level?: string };
-        const all = ctx.capture.console.tail(args.n ?? 20);
-        return { entries: filterTail(all, args, (e) => {
+        const buf = ctx.capture.console;
+        return tailResult(buf.all(), args, { dropped: buf.dropped(), cap: buf.cap() }, (e) => {
             if (args.level && e.level !== args.level) return undefined;
             return JSON.stringify({ level: e.level, args: e.args });
-        }) };
+        });
     },
 
     [COMMAND.NETWORK_TAIL]: async (raw, ctx) => {
@@ -575,31 +581,57 @@ export const commandHandlers: Record<string, CommandHandler> = {
             urlContains?: string;
             method?: string;
             statusCode?: number;
+            phase?: 'req' | 'res' | 'frame';
         };
-        const all = ctx.capture.network.tail(args.n ?? 20);
-        return { entries: filterTail(all, args, (e) => {
+        const reqres = ctx.capture.network;
+        const frames = ctx.capture.networkFrames;
+        // SSE frames live in their own ring; only pay the merge when they can match.
+        const items = args.phase === 'frame'
+            ? frames.all()
+            : args.phase
+                ? reqres.all()
+                : ctx.capture.networkAll();
+        const dropped = args.phase === 'frame'
+            ? frames.dropped()
+            : args.phase
+                ? reqres.dropped()
+                : reqres.dropped() + frames.dropped();
+        const cap = args.phase === 'frame'
+            ? frames.cap()
+            : args.phase
+                ? reqres.cap()
+                : reqres.cap() + frames.cap();
+        return tailResult(items, args, { dropped, cap }, (e) => {
+            if (args.phase && e.phase !== args.phase) return undefined;
             if (args.urlContains && !e.url.includes(args.urlContains)) return undefined;
             if (args.method && e.method.toUpperCase() !== args.method.toUpperCase()) return undefined;
             if (args.statusCode !== undefined && e.status !== args.statusCode) return undefined;
-            return JSON.stringify({ url: e.url, method: e.method, requestBody: e.requestBody, responseBody: e.responseBody });
-        }) };
+            return JSON.stringify({
+                url: e.url,
+                method: e.method,
+                requestBody: e.requestBody,
+                responseBody: e.responseBody,
+                sseEvent: e.sseEvent,
+                sseData: e.sseData,
+            });
+        });
     },
 
     [COMMAND.ERRORS_TAIL]: async (raw, ctx) => {
         const args = raw as TailArgs;
-        const all = ctx.capture.errors.tail(args.n ?? 20);
-        return { entries: filterTail(all, args, (e) =>
+        const buf = ctx.capture.errors;
+        return tailResult(buf.all(), args, { dropped: buf.dropped(), cap: buf.cap() }, (e) =>
             JSON.stringify({ message: e.message, stack: e.stack, source: e.source }),
-        ) };
+        );
     },
 
     [COMMAND.WS_TAIL]: async (raw, ctx) => {
         const args = raw as TailArgs & { phase?: string };
-        const all = ctx.capture.ws.tail(args.n ?? 20);
-        return { entries: filterTail(all, args, (e) => {
+        const buf = ctx.capture.ws;
+        return tailResult(buf.all(), args, { dropped: buf.dropped(), cap: buf.cap() }, (e) => {
             if (args.phase && e.phase !== args.phase) return undefined;
             return JSON.stringify({ url: e.url, payload: e.payload, reason: e.reason });
-        }) };
+        });
     },
 
     [COMMAND.NETWORK_WAIT_FOR]: async (raw, ctx) => {
@@ -644,18 +676,33 @@ export const commandHandlers: Record<string, CommandHandler> = {
     },
 
     [COMMAND.NETWORK_GET]: async (raw, ctx) => {
-        const args = raw as { reqId: string };
-        // Return both req + res entries for this id (one or both may exist).
-        const all = ctx.capture.network.tail(200);
-        const matches = all.filter((e) => e.id === args.reqId);
-        return { entries: matches, found: matches.length > 0 };
+        const args = raw as { reqId: string; maxFrames?: number };
+        // Return req + res + every retained SSE frame for this id, in order.
+        const all = ctx.capture.networkAll();
+        let matches = all.filter((e) => e.id === args.reqId);
+        const total = matches.length;
+        const maxFrames = args.maxFrames;
+        let truncated = false;
+        if (maxFrames !== undefined && total > maxFrames) {
+            // Keep req/res plus the NEWEST `maxFrames` frames.
+            const frames = matches.filter((e) => e.phase === 'frame');
+            const keep = new Set(frames.slice(Math.max(0, frames.length - maxFrames)));
+            matches = matches.filter((e) => e.phase !== 'frame' || keep.has(e));
+            truncated = matches.length < total;
+        }
+        return {
+            entries: matches,
+            found: total > 0,
+            total,
+            ...(truncated ? { truncated } : {}),
+        };
     },
 
     [COMMAND.WS_GET]: async (raw, ctx) => {
         const args = raw as { wsId: string };
-        const all = ctx.capture.ws.tail(200);
+        const all = ctx.capture.ws.all();
         const matches = all.filter((e) => e.id === args.wsId);
-        return { entries: matches, found: matches.length > 0 };
+        return { entries: matches, found: matches.length > 0, total: matches.length };
     },
 
     [COMMAND.STORAGE_TAIL]: async (raw, ctx) => {
@@ -664,43 +711,43 @@ export const commandHandlers: Record<string, CommandHandler> = {
             op?: string;
             key?: string;
         };
-        const all = ctx.capture.storage.tail(args.n ?? 20);
-        return { entries: filterTail(all, args, (e) => {
+        const buf = ctx.capture.storage;
+        return tailResult(buf.all(), args, { dropped: buf.dropped(), cap: buf.cap() }, (e) => {
             if (args.which && e.which !== args.which) return undefined;
             if (args.op && e.op !== args.op) return undefined;
             if (args.key && e.key !== args.key) return undefined;
             return JSON.stringify({ op: e.op, which: e.which, key: e.key, value: e.value });
-        }) };
+        });
     },
 
     [COMMAND.NAVIGATION_TAIL]: async (raw, ctx) => {
         const args = raw as TailArgs & { kind?: string };
-        const all = ctx.capture.navigation.tail(args.n ?? 20);
-        return { entries: filterTail(all, args, (e) => {
+        const buf = ctx.capture.navigation;
+        return tailResult(buf.all(), args, { dropped: buf.dropped(), cap: buf.cap() }, (e) => {
             if (args.kind && e.kind !== args.kind) return undefined;
             return JSON.stringify({ kind: e.kind, url: e.url, replace: e.replace });
-        }) };
+        });
     },
 
     [COMMAND.GLOBALS_TAIL]: async (raw, ctx) => {
         const args = raw as TailArgs & { op?: string; key?: string };
-        const all = ctx.capture.globals.tail(args.n ?? 20);
-        return { entries: filterTail(all, args, (e) => {
+        const buf = ctx.capture.globals;
+        return tailResult(buf.all(), args, { dropped: buf.dropped(), cap: buf.cap() }, (e) => {
             if (args.op && e.op !== args.op) return undefined;
             if (args.key && e.key !== args.key) return undefined;
             return JSON.stringify({ op: e.op, key: e.key, value: e.value });
-        }) };
+        });
     },
 
     [COMMAND.INDEXEDDB_TAIL]: async (raw, ctx) => {
         const args = raw as TailArgs & { op?: string; store?: string; db?: string };
-        const all = ctx.capture.indexeddb.tail(args.n ?? 20);
-        return { entries: filterTail(all, args, (e) => {
+        const buf = ctx.capture.indexeddb;
+        return tailResult(buf.all(), args, { dropped: buf.dropped(), cap: buf.cap() }, (e) => {
             if (args.op && e.op !== args.op) return undefined;
             if (args.store && e.store !== args.store) return undefined;
             if (args.db && e.db !== args.db) return undefined;
             return JSON.stringify({ op: e.op, store: e.store, key: e.key });
-        }) };
+        });
     },
 };
 
@@ -708,6 +755,46 @@ interface TailArgs {
     n?: number;
     filter?: string;
     match?: 'contains' | 'regex';
+}
+
+interface TailBufferMeta {
+    /** Items evicted by capacity since page load. */
+    dropped: number;
+    /** Ring capacity, so a caller can see how big the window is. */
+    cap: number;
+}
+
+interface TailResult<T> {
+    entries: T[];
+    /** Total entries matching the filter, before `n` was applied. */
+    matched: number;
+    /** True when `matched > entries.length` — older matches exist. */
+    truncated?: boolean;
+    /** Present when the ring has evicted entries: what you see is a window. */
+    dropped?: number;
+    bufferCap?: number;
+}
+
+/**
+ * Shared shape for every `*.tail` command: filter the full buffer, keep the
+ * newest `n` matches, and say so when there was more to see.
+ */
+function tailResult<T>(
+    items: T[],
+    args: TailArgs,
+    meta: TailBufferMeta,
+    pickHaystack: (item: T) => string | undefined,
+): TailResult<T> {
+    const matches = filterTail(items, args, pickHaystack);
+    const n = args.n ?? 20;
+    const entries = matches.slice(Math.max(0, matches.length - n));
+    const out: TailResult<T> = { entries, matched: matches.length };
+    if (matches.length > entries.length) out.truncated = true;
+    if (meta.dropped > 0) {
+        out.dropped = meta.dropped;
+        out.bufferCap = meta.cap;
+    }
+    return out;
 }
 
 /**
@@ -724,6 +811,12 @@ function safeRegex(source: string): RegExp | undefined {
     }
 }
 
+/**
+ * Filter the WHOLE buffer, then keep the last `n` matches — not the other way
+ * round. Slicing first meant `{n: 20, filter: 'x'}` searched only the newest 20
+ * entries and returned however few of those matched, so a narrow filter over a
+ * busy buffer looked like "it never happened" (harness-fe#204 follow-up).
+ */
 function filterTail<T>(
     items: T[],
     args: TailArgs,

@@ -7,10 +7,11 @@
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
-        "e2e": "tsx e2e/bridge.e2e.ts && tsx e2e/inject.e2e.ts && tsx e2e/source-aware.e2e.ts && tsx e2e/closed-loop.e2e.ts && tsx e2e/sandbox.e2e.ts",
+        "e2e": "tsx e2e/bridge.e2e.ts && tsx e2e/inject.e2e.ts && tsx e2e/source-aware.e2e.ts && tsx e2e/closed-loop.e2e.ts && tsx e2e/sandbox.e2e.ts && tsx e2e/radix-dropdown.e2e.ts && tsx e2e/sse-frames.e2e.ts",
         "e2e:loop": "tsx e2e/closed-loop.e2e.ts",
         "e2e:sandbox": "tsx e2e/sandbox.e2e.ts",
-        "e2e:radix": "tsx e2e/radix-dropdown.e2e.ts"
+        "e2e:radix": "tsx e2e/radix-dropdown.e2e.ts",
+        "e2e:sse": "tsx e2e/sse-frames.e2e.ts"
     },
     "dependencies": {
         "@harness-fe/sandbox": "workspace:*",

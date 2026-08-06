@@ -48,8 +48,8 @@ npx @harness-fe/skill install
 | 工具 | 说明 |
 |------|-------------|
 | `console.tail` | 最近 N 条 console 日志(log/warn/error) |
-| `network.tail` | 最近 N 个网络请求 |
-| `network.get` | 单个请求按 ID 取完整详情 |
+| `network.tail` | 最近 N 条网络记录。`phase: req\|res\|frame`（frame 是从 `text/event-stream` 响应体 tee 出来的 SSE 帧，存放在独立的深 ring 里）。过滤条件作用于整个 buffer，再取最新 N 条匹配；返回里带 `matched` / `truncated` / `dropped` |
+| `network.get` | 单个请求按 ID 取完整详情 —— 包含该请求保留的全部 SSE 帧（按顺序，`maxFrames` 可限量） |
 | `ws.tail` | 最近 N 个 WebSocket 帧 |
 | `ws.get` | 单个 WS 帧的完整详情 |
 | `errors.tail` | 最近 N 个未处理错误 |

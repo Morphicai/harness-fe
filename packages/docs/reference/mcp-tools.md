@@ -52,8 +52,8 @@ This drops a `SKILL.md` into your agent project with the complete tool catalog, 
 | Tool | Description |
 |------|-------------|
 | `console.tail` | Last N console log entries (log/warn/error) |
-| `network.tail` | Last N network requests |
-| `network.get` | Full details of a single request by ID |
+| `network.tail` | Last N network entries. `phase: req\|res\|frame` (frames are SSE frames tee'd off a `text/event-stream` body, kept in their own deep ring). Narrows apply to the whole buffer, then the newest N matches return; reply carries `matched` / `truncated` / `dropped` |
+| `network.get` | Full details of a single request by ID — including every retained SSE frame in order (`maxFrames` caps them) |
 | `ws.tail` | Last N WebSocket frames |
 | `ws.get` | Full details of a single WS frame |
 | `errors.tail` | Last N unhandled errors |

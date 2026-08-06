@@ -21,6 +21,8 @@ function setupDom(): void {
 
 interface DomQueryResult {
     matches: Array<{ html: string; tag: string; via: string }>;
+    total: number;
+    truncated?: boolean;
 }
 
 describe('PAGE_DOM_QUERY', () => {
@@ -75,5 +77,36 @@ describe('PAGE_DOM_QUERY', () => {
         expect(result.matches).toHaveLength(1);
         expect(result.matches[0].via).not.toBe('css');
         expect(result.matches[0].tag).toBe('button');
+    });
+});
+
+describe('PAGE_DOM_QUERY — counting past `limit`', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    async function query(args: unknown): Promise<DomQueryResult> {
+        const mod = await import('./commands.js');
+        return (await mod.commandHandlers[COMMAND.PAGE_DOM_QUERY](args, { capture: {} } as never)) as DomQueryResult;
+    }
+
+    it('reports the full match count even when `limit` clips the payload', async () => {
+        setupDom();
+        document.body.innerHTML = Array.from({ length: 14 }, (_, i) => `<button>b${i}</button>`).join('');
+
+        const result = await query({ selector: { css: 'button' } });
+        expect(result.matches).toHaveLength(5);   // default limit
+        expect(result.total).toBe(14);            // what the assertion needs
+        expect(result.truncated).toBe(true);
+    });
+
+    it('does not flag truncation when everything fits', async () => {
+        setupDom();
+        document.body.innerHTML = `<textarea></textarea>`;
+
+        const result = await query({ selector: { css: 'textarea' } });
+        expect(result.total).toBe(1);
+        expect(result.matches).toHaveLength(1);
+        expect(result.truncated).toBeUndefined();
     });
 });

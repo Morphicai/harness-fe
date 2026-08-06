@@ -26,7 +26,9 @@ console.log('------------------------');
 const expectations = [
     '__HARNESS_FE__',
     '"projectId":"react-demo-test"',
-    "import '@harness-fe/runtime'",
+    // The plugin injects the virtual module (unplugin core), not a bare
+    // package specifier — the specifier is resolved inside the virtual module.
+    "import 'virtual:harness-fe/runtime'",
 ];
 for (const e of expectations) {
     if (!transformed.includes(e)) {
