@@ -1,5 +1,11 @@
 # @harness-fe/webpack
 
+## 4.5.2
+
+### Patch Changes
+
+- @harness-fe/unplugin@4.5.2
+
 ## 4.5.1
 
 ### Patch Changes
