@@ -304,7 +304,7 @@ import './app';  // everything else loads under the sandbox
                                    │
                                    ▼ (any consumer)
    ┌───────────────────────┐    ┌──────────────────┐    ┌────────┐
-   │ @harness-fe/runtime   │    │ Tanka MF runtime │    │ custom │
+   │ @harness-fe/runtime   │    │ Micro-FE runtime │    │ custom │
    │ (adapts to protocol + │    │ (audit / logging)│    │ ...    │
    │  ships to daemon)     │    │                  │    │        │
    └───────────────────────┘    └──────────────────┘    └────────┘

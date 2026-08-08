@@ -127,7 +127,7 @@ Phase 1-4 完成后,跑这套 76 测试 + 现有所有测试,**必须全部转�
 ## 当下不动
 
 - ❌ Build plugin(`@harness-fe/sandbox-plugin-vite|webpack`) — 当 module attribution 真有需求再做
-- ❌ Tanka MF / MorphixAI 基座实际接入 — lib 发布后由消费方做
+- ❌ 下游微前端基座 / MorphixAI 基座实际接入 — lib 发布后由消费方做
 - ❌ Worker / 跨源 iframe / ServiceWorker 沙箱传播
 
 ---

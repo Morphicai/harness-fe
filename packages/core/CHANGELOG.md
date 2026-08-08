@@ -222,7 +222,7 @@ verificationSessionId, verifiedAt }` (`TaskResolution` / `TaskResolutionType`
   The gateway/console work only touched some packages, so changesets left the linked
   group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
   prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
-  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  (no code change) so consumers (morphix, downstream apps) can install ONE consistent
   4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
 
 - 2453e70: **consent `deny` mode + 1 GiB storage cap**
@@ -272,7 +272,7 @@ verificationSessionId, verifiedAt }` (`TaskResolution` / `TaskResolutionType`
   The gateway/console work only touched some packages, so changesets left the linked
   group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
   prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
-  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  (no code change) so consumers (morphix, downstream apps) can install ONE consistent
   4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
 
 - Updated dependencies [46775be]
