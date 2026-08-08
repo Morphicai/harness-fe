@@ -128,7 +128,7 @@ The principle is encoded in [`docs/architecture/sandbox-lib-phase-notes.md`](./s
 | Consumer | Status (as of 3.2.0) | How it uses sandbox |
 |---|---|---|
 | `@harness-fe/runtime` | ✅ in-tree, see [runtime CHANGELOG](../../packages/runtime-client/CHANGELOG.md) 3.2.0 | Single `installSandbox({ selfUrls: [daemonUrl], onEvent: adaptToProtocol })`. Adapts `SandboxEvent` → `NetworkEntry` / `WsEntry` / etc. and ships via existing bridge |
-| Tanka MF runtime | Planned | Per-remote interceptor chain to track which remote wrote to globals / IDB |
+| Micro-frontend host runtime | Planned | Per-remote interceptor chain to track which remote wrote to globals / IDB |
 | MorphixAI base | Planned | Audit + selective override of fetch / storage for embedded mini-apps |
 | Custom debug overlay | Possible | Observer-only mode; show recent network / errors / writes in a dev panel |
 

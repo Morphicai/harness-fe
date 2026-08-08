@@ -82,7 +82,7 @@
   The gateway/console work only touched some packages, so changesets left the linked
   group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
   prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
-  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  (no code change) so consumers (morphix, downstream apps) can install ONE consistent
   4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
 
 - Updated dependencies [704fb71]
@@ -127,7 +127,7 @@
   The gateway/console work only touched some packages, so changesets left the linked
   group split — `log`/`react-jsx` were still 3.x, `next`/`node-runtime` on older 4.0
   prereleases, while gateway/runtime/etc were at next.5. This is a version-only bump
-  (no code change) so consumers (morphix, tanka) can install ONE consistent
+  (no code change) so consumers (morphix, downstream apps) can install ONE consistent
   4.0.0-next.x set without mixing `@harness-fe/protocol` majors.
 
 - Updated dependencies [46775be]
@@ -177,7 +177,7 @@
 
   ## New package: `@harness-fe/sandbox`
 
-  A reusable browser sandbox / interceptor framework. Used internally by `@harness-fe/runtime`, but standalone-usable in any project (Tanka MF, custom MorphixAI base, etc.).
+  A reusable browser sandbox / interceptor framework. Used internally by `@harness-fe/runtime`, but standalone-usable in any project (micro-frontend hosts, custom MorphixAI base, etc.).
 
   ### 9 channels
 
