@@ -12,7 +12,7 @@
     },
     "devDependencies": {
         "@harness-fe/vite": "workspace:*",
-        "@types/node": "^22.0.0",
+        "@types/node": "^22.20.1",
         "concurrently": "^9.1.0",
         "electron": "^33.0.0",
         "typescript": "^5.6.0",
