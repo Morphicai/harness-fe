@@ -383,7 +383,7 @@ deterministic instead of fragile.
 
 Every captured event carries an `initiator.stack` — a trimmed JS stack at the call site. Use it to attribute the action to a source file.
 
-1. `storage_tail({ op: 'remove', key: 'Tanka_tokenInfo' })` → see when the token was removed and the calling stack.
+1. `storage_tail({ op: 'remove', key: 'App_tokenInfo' })` → see when the token was removed and the calling stack.
 2. The stack's first user-code frame names the file + line. `project_source({ file })` to read the offender.
 3. Same approach works for `network_tail` (who issued the request) and `ws_tail` (who opened / sent).
 

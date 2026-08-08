@@ -38,9 +38,10 @@ verified dev scenario**, and (c) demonstrate genuine technical depth. Hollow
     "architecturally inferior" to backend integration, and that DevTools-MCP-vs-Playwright
     is cleanly "observe vs act".
 - **Real scenario (verified).** Mine **Morphix** (personal, nameable) frontend
-  code under `/Users/admin/www/morphix/apps/morphicai-web`, or anonymize a
-  **Tanka** scenario (`/Users/admin/www/tanka-2b-web_memo/` etc. — genericize, no
-  names/packages). **Every code detail you cite must be verified real** (open the
+  code under `apps/morphicai-web` in the Morphix monorepo, or anonymize a
+  scenario from a private work project (genericize — no employer name, no
+  product name, no package names, no paths).
+  **Every code detail you cite must be verified real** (open the
   file, confirm the symbol/line). Never invent code, and don't trust a research
   agent's *causal* claim about a bug without re-reading the code yourself.
 - Verify harness-fe tool names against the installed skill
@@ -50,11 +51,12 @@ verified dev scenario**, and (c) demonstrate genuine technical depth. Hollow
 
 ## 3. COMPLIANCE — hard red lines (must pass before writing)
 
-- **Tanka is a COMPANY project.** NEVER put real Tanka bugs/code/architecture/
-  package names (`@tanka/*`) or internal GitLab details into the public blog.
-  If a Tanka-derived scenario is useful, **anonymize it into a generic case**
-  (e.g. "an Electron multi-window SSO app") — unidentifiable, no name, no code.
-  Violating this is RED-01/RED-10.
+- **Work projects are confidential.** NEVER put real bugs, code, architecture,
+  internal package names, or private Git host details from any employer project
+  into the public blog. If such a scenario is useful, **anonymize it into a
+  generic case** (e.g. "an Electron multi-window SSO app") — unidentifiable, no
+  employer name, no product name, no code. This is a hard rule, not a preference:
+  publishing it would breach the data-handling policy the author is bound by.
 - **Morphix** (Morphicai org, user's personal project) **may be named** and its
   real scenarios used — but keep cited code truthful and at scenario level, don't
   over-expose private line-by-line implementation.

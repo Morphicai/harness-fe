@@ -219,15 +219,15 @@ describe('RuntimeClient E2E — patched WebSocket flows to bridge', () => {
 describe('RuntimeClient E2E — patched storage flows to bridge', () => {
     it('localStorage.setItem / removeItem reaches the store as t=storage', async () => {
         const e = env!;
-        localStorage.setItem('Tanka_tokenInfo', 'abc');
-        localStorage.removeItem('Tanka_tokenInfo');
+        localStorage.setItem('App_tokenInfo', 'abc');
+        localStorage.removeItem('App_tokenInfo');
 
         const rows = await readTypedEvents(e.store, e.sessionId, 'storage', 2);
         const ops = rows.map((r) => (r.d as StorageEntry).op);
         expect(ops).toContain('set');
         expect(ops).toContain('remove');
         const removeRow = rows.find((r) => (r.d as StorageEntry).op === 'remove')!;
-        expect((removeRow.d as StorageEntry).key).toBe('Tanka_tokenInfo');
+        expect((removeRow.d as StorageEntry).key).toBe('App_tokenInfo');
         // initiator stack survives the round-trip.
         expect((removeRow.d as StorageEntry).initiator?.stack).toBeDefined();
     });
