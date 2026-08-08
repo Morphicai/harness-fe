@@ -39,7 +39,7 @@ jobs:
                   echo "ok: no .changeset/pre.json on main"
 
             - name: Setup pnpm
-              uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+              uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
               with:
                   version: 9.15.0
                   run_install: false
