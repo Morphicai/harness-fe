@@ -225,7 +225,7 @@ Integration test (`bridge.test.ts`) seeds 10 sessions on a real `JsonlStore`, fi
 
 ### Added — Narrative refactor: parent project + iframe identity + buildId
 
-Foundation for micro-frontend debugging. Detailed plan in `/Users/admin/.claude/plans/delegated-seeking-tiger.md`.
+Foundation for micro-frontend debugging.
 
 - **Project tree as a first-class concept.** `ProjectMeta` extended with `parentProjectId`, `displayName`, `tags`, `metadata`. Bridge upserts these on every `HelloFrame`. Cycle detection at write time.
 - **`BuildMeta`** — new persisted record (`{projectId}/builds/{buildId}/meta.json`) identifying a source-code snapshot. Captures `gitSha`, `gitDirty`, `bundler`, `nodeVersion`, `sourceDigest`. Plugin computes a stable `buildId` per dev-server start (git sha → CI env → config-file hash fallback).
