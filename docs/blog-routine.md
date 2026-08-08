@@ -100,5 +100,6 @@ verified dev scenario**, and (c) demonstrate genuine technical depth. Hollow
 
 - Cadence is **one per week**. If run more often, that's fine — just consume the
   next backlog topic.
-- The north star and persona live in the global CLAUDE.md "使命与人设" section and
-  the `project_evangelism_mission` memory — re-read if you need the voice.
+- The north star and voice live in this project's `project_evangelism_mission`
+  memory — re-read it if you need the framing. (It is project-scoped and local;
+  do not quote it into this repo.)
