@@ -47,4 +47,47 @@ describe('resolveSelector', () => {
         expect(r.element).toBeNull();
         expect(r.via).toBe('none');
     });
+
+    // Text-only selectors used to resolve to <html>: every ancestor of the real
+    // target "contains" the string via textContent and the root sorts first in
+    // document order, so page.click({text:'…'}) clicked the whole document.
+    // Found while driving a real app with 4.5.1.
+    describe('text-only selectors resolve the deepest owner, not an ancestor', () => {
+        it('picks the element that owns the text, not <html>/<body>', () => {
+            const r = resolveSelector({ text: 'Submit' });
+            expect(r.via).toBe('role-text');
+            expect((r.element as HTMLElement).tagName.toLowerCase()).toBe('button');
+        });
+
+        it('prefers the innermost element when matches are nested', () => {
+            document.body.innerHTML = `
+              <div id="outer"><div id="mid"><span id="inner">Save changes</span></div></div>
+            `;
+            const r = resolveSelector({ text: 'Save changes' });
+            expect((r.element as HTMLElement).id).toBe('inner');
+        });
+
+        it('prefers an exact text owner over a substring container', () => {
+            document.body.innerHTML = `
+              <div id="wrap">Please press Go now</div>
+              <button id="go">Go</button>
+            `;
+            const r = resolveSelector({ text: 'Go' });
+            expect((r.element as HTMLElement).id).toBe('go');
+        });
+
+        it('still supports substring matching when nothing matches exactly', () => {
+            document.body.innerHTML = `<p id="p">a long sentence with needle inside</p>`;
+            const r = resolveSelector({ text: 'needle' });
+            expect((r.element as HTMLElement).id).toBe('p');
+        });
+
+        it('nth still indexes among sibling matches', () => {
+            document.body.innerHTML = `
+              <button id="b1">Open</button><button id="b2">Open</button>
+            `;
+            const r = resolveSelector({ text: 'Open', nth: 1 });
+            expect((r.element as HTMLElement).id).toBe('b2');
+        });
+    });
 });

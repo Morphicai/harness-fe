@@ -45,6 +45,14 @@ import { RingBuffer } from './buffer.js';
 
 const CONSOLE_CAP = 500;
 const NETWORK_CAP = 200;
+/**
+ * SSE frames get their own, much deeper ring. A single streaming response can
+ * emit hundreds of frames (one per token), which would evict every req/res
+ * entry — and each other — out of the shared 200-slot network buffer long
+ * before an agent could read the sparse lifecycle frames it actually needs
+ * (harness-fe#204 follow-up).
+ */
+const NETWORK_FRAME_CAP = 2000;
 const ERROR_CAP = 200;
 const WS_CAP = 200;
 const STORAGE_CAP = 200;
@@ -55,6 +63,8 @@ const INDEXEDDB_CAP = 200;
 export class CaptureStore {
     readonly console = new RingBuffer<ConsoleEntry>(CONSOLE_CAP);
     readonly network = new RingBuffer<NetworkEntry>(NETWORK_CAP);
+    /** `phase: 'frame'` entries only — see {@link NETWORK_FRAME_CAP}. */
+    readonly networkFrames = new RingBuffer<NetworkEntry>(NETWORK_FRAME_CAP);
     readonly errors = new RingBuffer<ErrorEntry>(ERROR_CAP);
     readonly ws = new RingBuffer<WsEntry>(WS_CAP);
     readonly storage = new RingBuffer<StorageEntry>(STORAGE_CAP);
@@ -76,6 +86,28 @@ export class CaptureStore {
             else pending.delete(e.id);
         }
         return pending.size;
+    }
+
+    /**
+     * req/res entries merged with SSE frames in chronological order — the view
+     * `network.tail` / `network.get` present, now that frames are retained in a
+     * separate, deeper ring. Both rings are already sorted by `ts`, so this is
+     * a linear merge.
+     */
+    networkAll(includeFrames = true): NetworkEntry[] {
+        const base = this.network.all();
+        if (!includeFrames || this.networkFrames.size() === 0) return base;
+        const frames = this.networkFrames.all();
+        const out: NetworkEntry[] = [];
+        let i = 0;
+        let j = 0;
+        while (i < base.length && j < frames.length) {
+            if (base[i]!.ts <= frames[j]!.ts) out.push(base[i++]!);
+            else out.push(frames[j++]!);
+        }
+        while (i < base.length) out.push(base[i++]!);
+        while (j < frames.length) out.push(frames[j++]!);
+        return out;
     }
 
     private handle?: SandboxHandle;
@@ -149,7 +181,10 @@ export class CaptureStore {
             case 'fetch':
             case 'xhr': {
                 const entry = adaptFetchLike(e);
-                this.network.push(entry);
+                // Frames live in their own deep ring so a chatty SSE stream
+                // can't evict the req/res entries (and vice versa).
+                if (entry.phase === 'frame') this.networkFrames.push(entry);
+                else this.network.push(entry);
                 onEvent('network', entry);
                 return;
             }

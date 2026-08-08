@@ -103,4 +103,22 @@ describe('PAGE_SNAPSHOT', () => {
         await handlers[COMMAND.PAGE_SNAPSHOT]({}, fakeCtx());
         await expect(handlers[COMMAND.PAGE_CLICK]({ selector: { ref } }, fakeCtx())).rejects.toThrow();
     });
+
+    it('surfaces title as a name for icon-only buttons', async () => {
+        setupDom();
+        const handlers = await loadHandlers();
+        document.body.innerHTML = `
+            <button id="attach" title="附件"><svg></svg></button>
+            <button id="labelled" aria-label="Send"><svg></svg></button>
+        `;
+
+        const result = (await handlers[COMMAND.PAGE_SNAPSHOT]({}, fakeCtx())) as {
+            elements: Array<{ text: string; title?: string; ariaLabel?: string }>;
+        };
+
+        const withTitle = result.elements.find((e) => e.title === '附件');
+        expect(withTitle).toBeDefined();
+        expect(withTitle?.text).toBe('');
+        expect(result.elements.find((e) => e.ariaLabel === 'Send')).toBeDefined();
+    });
 });

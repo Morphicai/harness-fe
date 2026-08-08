@@ -101,7 +101,9 @@ async function run() {
 
     browser = await chromium.launch({ headless: true });
     page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle' });
+    // The counter widgets live on their own route since the demo grew a nav —
+    // loading `/` lands on HomePage, where none of the selectors below exist.
+    await page.goto(`${url}counter`, { waitUntil: 'networkidle' });
 
     // 1) The injection actually fired in the real browser. Wait briefly for
     // HMR's hot-reload acquisition to settle so the page context is stable
@@ -150,20 +152,30 @@ async function run() {
     assert(html.includes('>3<'), `counter value should be 3, got HTML: ${html}`);
     console.log(`[closed-loop] click×3 → counter=3 (via ${counterQuery.matches[0].via}) ✓`);
 
-    // 5) page.type into echo input
+    // 5) page.type into a real form field (the Forms route) — the old
+    // Echo* widgets were replaced when the demo was split into pages.
+    // Navigate in-SPA (a full reload would start a new page load and reset the
+    // per-load tail buffers that step 7 asserts on).
+    await page.click('a[href="/forms"]');
+    await sleep(200);
     await bridge.sendCommand(
         COMMAND.PAGE_TYPE,
-        { selector: { component: 'EchoInput' }, value: 'hello-morphix' },
+        { selector: { component: 'NameInput' }, value: 'hello-morphix' },
         { tabId },
     );
-    await sleep(50);
+    await bridge.sendCommand(
+        COMMAND.PAGE_CLICK,
+        { selector: { component: 'SubmitBtn' } },
+        { tabId },
+    );
+    await sleep(100);
     const echoQuery = (await bridge.sendCommand(
         COMMAND.PAGE_DOM_QUERY,
-        { selector: { component: 'EchoDisplay' }, limit: 1 },
+        { selector: { component: 'SubmittedValue-name' }, limit: 1 },
         { tabId },
     )) as { matches: Array<{ html: string }> };
-    assert(echoQuery.matches[0]?.html.includes('hello-morphix'), `echo display should contain typed value, got: ${echoQuery.matches[0]?.html}`);
-    console.log('[closed-loop] page.type → echo display updated ✓');
+    assert(echoQuery.matches[0]?.html.includes('hello-morphix'), `submitted value should contain the typed value, got: ${echoQuery.matches[0]?.html}`);
+    console.log('[closed-loop] page.type + submit → value echoed back ✓');
 
     // 6) page.evaluate runs in page context
     const evalResult = (await bridge.sendCommand(
@@ -198,7 +210,22 @@ async function run() {
     assert(whereIs.locations[0]?.file === 'src/App.tsx', `App should be in src/App.tsx, got ${whereIs.locations[0]?.file}`);
     console.log(`[closed-loop] project.where_is App → ${whereIs.locations[0].file}:${whereIs.locations[0].line} ✓`);
 
-    // 9) page.evaluate again to assert reset works (just to round out the test)
+    // 9) back to the counter route to round out the test with reset. The page
+    // remounts with count=0, so increment once first — otherwise "after reset
+    // it is 0" would pass without the reset doing anything.
+    await page.click('a[href="/counter"]');
+    await sleep(200);
+    await bridge.sendCommand(
+        COMMAND.PAGE_CLICK,
+        { selector: { component: 'IncrementBtn' } },
+        { tabId },
+    );
+    const beforeReset = (await bridge.sendCommand(
+        COMMAND.PAGE_DOM_QUERY,
+        { selector: { component: 'CounterValue' }, limit: 1 },
+        { tabId },
+    )) as { matches: Array<{ html: string }> };
+    assert(beforeReset.matches[0]?.html.includes('>1<'), `counter should be 1 before reset, got ${beforeReset.matches[0]?.html}`);
     await bridge.sendCommand(
         COMMAND.PAGE_CLICK,
         { selector: { component: 'ResetBtn' } },

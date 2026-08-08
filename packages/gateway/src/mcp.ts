@@ -198,7 +198,7 @@ function registerCommandTools(command: CommandReg): void {
     }, ({ selector, format, maxWidth, tabId }) => ({ args: screenshotArgsSchema.parse({ selector, format, maxWidth }), opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.PAGE_DOM_QUERY, {
-        description: 'Return outerHTML of the matched element(s). Text-first inspection tool.',
+        description: 'Return outerHTML of the matched element(s). Text-first inspection tool. `total` is the full match count in the document (assert on that, not `matches.length`, which `limit` clips — `truncated: true` says it did).',
         inputSchema: { selector: selectorSchema, limit: z.number().int().positive().optional(), tabId: tabIdParam },
     }, ({ selector, limit, tabId }) => ({ args: { selector, limit }, opts: { tabId: tabId as string | undefined } }));
 
@@ -239,27 +239,31 @@ function registerCommandTools(command: CommandReg): void {
 
     const filterParam = z.string().optional().describe('Substring or regex (see `match`) against the serialized payload.');
     const matchParam = z.enum(['contains', 'regex']).optional().describe('How to interpret `filter`. Default contains (case-insensitive).');
-    const n = z.number().int().positive().default(20).optional();
+    const n = z.number().int().positive().default(20).optional().describe('Max entries to return (newest last). `limit` is accepted as an alias.');
+    // Half the toolset (dom_query, snapshot, session.*, visitor.*) names this
+    // `limit`; the tails named it `n`. Passing the wrong one used to be silently
+    // ignored and you got the default 20 back. Accept both.
+    const limitAlias = z.number().int().positive().optional().describe('Alias for `n`.');
 
     command(COMMAND.CONSOLE_TAIL, {
         description: 'Return the last N console entries. `filter`/`match`/`level`. Buffer cleared on navigate.',
-        inputSchema: { n, filter: filterParam, match: matchParam, level: z.enum(['log', 'info', 'warn', 'error', 'debug']).optional(), tabId: tabIdParam },
-    }, ({ n: nn, filter, match, level, tabId }) => ({ args: { n: (nn as number) ?? 20, filter, match, level }, opts: { tabId: tabId as string | undefined } }));
+        inputSchema: { n, limit: limitAlias, filter: filterParam, match: matchParam, level: z.enum(['log', 'info', 'warn', 'error', 'debug']).optional(), tabId: tabIdParam },
+    }, ({ n: nn, limit, filter, match, level, tabId }) => ({ args: { n: (nn as number) ?? (limit as number) ?? 20, filter, match, level }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.NETWORK_TAIL, {
-        description: 'Return the last N network requests (phase=req|res|frame — frame entries are individual Server-Sent Events frames tee\'d off a text/event-stream response, with sseEvent/sseData/sseId). `filter`/`urlContains`/`method`/`statusCode`.',
-        inputSchema: { n, includeBody: z.boolean().optional(), filter: filterParam, match: matchParam, urlContains: z.string().optional(), method: z.string().optional(), statusCode: z.number().int().optional(), tabId: tabIdParam },
-    }, ({ n: nn, includeBody, filter, match, urlContains, method, statusCode, tabId }) => ({ args: { n: (nn as number) ?? 20, includeBody: includeBody ?? false, filter, match, urlContains, method, statusCode }, opts: { tabId: tabId as string | undefined } }));
+        description: 'Return the last N network entries (phase=req|res|frame — frame entries are individual Server-Sent Events frames tee\'d off a text/event-stream response, with sseEvent/sseData/sseId). Filters (`phase`/`filter`/`urlContains`/`method`/`statusCode`) apply to the WHOLE buffer, then the newest N matches are returned; the reply carries `matched` (total matches) and, when the ring has evicted entries, `dropped`/`bufferCap`. SSE frames have their own deep ring, so a chatty stream never evicts req/res entries — use `phase: "frame"` to page through a long stream.',
+        inputSchema: { n, limit: limitAlias, includeBody: z.boolean().optional(), filter: filterParam, match: matchParam, urlContains: z.string().optional(), method: z.string().optional(), statusCode: z.number().int().optional(), phase: z.enum(['req', 'res', 'frame']).optional(), tabId: tabIdParam },
+    }, ({ n: nn, limit, includeBody, filter, match, urlContains, method, statusCode, phase, tabId }) => ({ args: { n: (nn as number) ?? (limit as number) ?? 20, includeBody: includeBody ?? false, filter, match, urlContains, method, statusCode, phase }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.ERRORS_TAIL, {
         description: 'Return the last N JavaScript errors. `filter`/`match` against {message, stack, source}.',
-        inputSchema: { n, filter: filterParam, match: matchParam, tabId: tabIdParam },
-    }, ({ n: nn, filter, match, tabId }) => ({ args: { n: (nn as number) ?? 20, filter, match }, opts: { tabId: tabId as string | undefined } }));
+        inputSchema: { n, limit: limitAlias, filter: filterParam, match: matchParam, tabId: tabIdParam },
+    }, ({ n: nn, limit, filter, match, tabId }) => ({ args: { n: (nn as number) ?? (limit as number) ?? 20, filter, match }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.WS_TAIL, {
         description: 'Return the last N WebSocket frames (phase=open|send|recv|close). `filter`/`phase`.',
-        inputSchema: { n, filter: filterParam, match: matchParam, phase: z.enum(['open', 'send', 'recv', 'close']).optional(), tabId: tabIdParam },
-    }, ({ n: nn, filter, match, phase, tabId }) => ({ args: { n: (nn as number) ?? 20, filter, match, phase }, opts: { tabId: tabId as string | undefined } }));
+        inputSchema: { n, limit: limitAlias, filter: filterParam, match: matchParam, phase: z.enum(['open', 'send', 'recv', 'close']).optional(), tabId: tabIdParam },
+    }, ({ n: nn, limit, filter, match, phase, tabId }) => ({ args: { n: (nn as number) ?? (limit as number) ?? 20, filter, match, phase }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.NETWORK_WAIT_FOR, {
         description: 'Resolve when a matching network request happens (or reject on timeout). Considers requests AFTER this call.',
@@ -272,9 +276,9 @@ function registerCommandTools(command: CommandReg): void {
     }, ({ idleMs, timeoutMs, tabId }) => ({ args: { idleMs, timeoutMs }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.NETWORK_GET, {
-        description: 'Return all entries (req + res, plus any SSE frames) for a single network request id.',
-        inputSchema: { reqId: z.string(), tabId: tabIdParam },
-    }, ({ reqId, tabId }) => ({ args: { reqId }, opts: { tabId: tabId as string | undefined } }));
+        description: 'Return all entries (req + res, plus every retained SSE frame) for a single network request id — the natural place to read a long-lived stream end to end. `maxFrames` caps the frames returned (newest kept, `truncated: true` when it bites); `total` always reports the full count.',
+        inputSchema: { reqId: z.string(), maxFrames: z.number().int().positive().optional(), tabId: tabIdParam },
+    }, ({ reqId, maxFrames, tabId }) => ({ args: { reqId, maxFrames }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.WS_GET, {
         description: 'Return all frames for a single WebSocket id.',
@@ -283,23 +287,23 @@ function registerCommandTools(command: CommandReg): void {
 
     command(COMMAND.STORAGE_TAIL, {
         description: 'Return the last N storage mutations (op=set|remove|clear, which=local|session|cookie).',
-        inputSchema: { n, filter: filterParam, match: matchParam, which: z.enum(['local', 'session', 'cookie']).optional(), op: z.enum(['set', 'remove', 'clear']).optional(), key: z.string().optional(), tabId: tabIdParam },
-    }, ({ n: nn, filter, match, which, op, key, tabId }) => ({ args: { n: (nn as number) ?? 20, filter, match, which, op, key }, opts: { tabId: tabId as string | undefined } }));
+        inputSchema: { n, limit: limitAlias, filter: filterParam, match: matchParam, which: z.enum(['local', 'session', 'cookie']).optional(), op: z.enum(['set', 'remove', 'clear']).optional(), key: z.string().optional(), tabId: tabIdParam },
+    }, ({ n: nn, limit, filter, match, which, op, key, tabId }) => ({ args: { n: (nn as number) ?? (limit as number) ?? 20, filter, match, which, op, key }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.NAVIGATION_TAIL, {
         description: 'Return the last N navigation events (push/replace/pop/hash/assign).',
-        inputSchema: { n, filter: filterParam, match: matchParam, kind: z.enum(['push', 'replace', 'pop', 'hash', 'assign']).optional(), tabId: tabIdParam },
-    }, ({ n: nn, filter, match, kind, tabId }) => ({ args: { n: (nn as number) ?? 20, filter, match, kind }, opts: { tabId: tabId as string | undefined } }));
+        inputSchema: { n, limit: limitAlias, filter: filterParam, match: matchParam, kind: z.enum(['push', 'replace', 'pop', 'hash', 'assign']).optional(), tabId: tabIdParam },
+    }, ({ n: nn, limit, filter, match, kind, tabId }) => ({ args: { n: (nn as number) ?? (limit as number) ?? 20, filter, match, kind }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.GLOBALS_TAIL, {
         description: 'Return the last N read/writes to watched window globals (op=get|set|delete).',
-        inputSchema: { n, filter: filterParam, match: matchParam, op: z.enum(['get', 'set', 'delete']).optional(), key: z.string().optional(), tabId: tabIdParam },
-    }, ({ n: nn, filter, match, op, key, tabId }) => ({ args: { n: (nn as number) ?? 20, filter, match, op, key }, opts: { tabId: tabId as string | undefined } }));
+        inputSchema: { n, limit: limitAlias, filter: filterParam, match: matchParam, op: z.enum(['get', 'set', 'delete']).optional(), key: z.string().optional(), tabId: tabIdParam },
+    }, ({ n: nn, limit, filter, match, op, key, tabId }) => ({ args: { n: (nn as number) ?? (limit as number) ?? 20, filter, match, op, key }, opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.INDEXEDDB_TAIL, {
         description: 'Return the last N IndexedDB operations (open/put/add/get/getAll/delete/clear/cursor).',
-        inputSchema: { n, filter: filterParam, match: matchParam, op: z.enum(['open', 'put', 'add', 'get', 'getAll', 'delete', 'clear', 'cursor']).optional(), store: z.string().optional(), db: z.string().optional(), tabId: tabIdParam },
-    }, ({ n: nn, filter, match, op, store, db, tabId }) => ({ args: { n: (nn as number) ?? 20, filter, match, op, store, db }, opts: { tabId: tabId as string | undefined } }));
+        inputSchema: { n, limit: limitAlias, filter: filterParam, match: matchParam, op: z.enum(['open', 'put', 'add', 'get', 'getAll', 'delete', 'clear', 'cursor']).optional(), store: z.string().optional(), db: z.string().optional(), tabId: tabIdParam },
+    }, ({ n: nn, limit, filter, match, op, store, db, tabId }) => ({ args: { n: (nn as number) ?? (limit as number) ?? 20, filter, match, op, store, db }, opts: { tabId: tabId as string | undefined } }));
 
     // project.* target the vite-plugin
     command(COMMAND.PROJECT_SOURCE, {
