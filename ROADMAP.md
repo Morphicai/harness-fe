@@ -15,7 +15,7 @@ There are **two axes** to this roadmap:
 | **3.x** | `main-3x-stable` (archived) | **Personal dev tool — superseded by 4.0** | Was the single-developer product. Archived on 4.0 graduation; few users, no active maintenance window committed. |
 | **5.0** | `next` / `@next` (future) | **Production-grade** | High availability + hosted **cloud service**: multi-instance/no-SPOF, shared persistence, remote MCP, observability, SLA. |
 
-4.0 is the current `latest`. 3.x is archived (it had few users, so the graduation wasn't gated on a long backward-compat window). 4.0's identity/isolation work is the foundation 5.0's cloud service builds on. See [docs/operations/release-flow.md](./docs/operations/release-flow.md).
+The 4.x line is the current `latest` (see the 4.0 section below — it has graduated). 3.x is archived (it had few users, so the graduation wasn't gated on a long backward-compat window). 4.0's identity/isolation work is the foundation 5.0's cloud service builds on. See [docs/operations/release-flow.md](./docs/operations/release-flow.md).
 
 ---
 
@@ -46,13 +46,13 @@ The foundation that the mission rests on. All directions need this.
 
 ---
 
-## 3.x — Personal dev tool (`main`, ongoing)
+## Dev-experience line (`main`, ongoing)
 
-Keep the single-developer experience unbreakable; ship dev-experience polish and bug fixes. Mostly **Direction 1**.
+Keep the single-developer experience unbreakable; ship dev-experience polish and bug fixes. Mostly **Direction 1**. Started as the 3.x track and carried forward onto the 4.x line after graduation — these items are not tied to a version line.
 
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)
 - [ ] **Multi-bundler reach** — Rspack + esbuild + Rollup adapters via unplugin
-- [ ] **Documentation site** (VitePress) — public docs: problem statement, architecture, quickstarts, agent setup, framework guides, roadmap
+- [x] **Documentation site** (VitePress) — live at [harness-fe.com](https://harness-fe.com/) ([`/zh/`](https://harness-fe.com/zh/) for Simplified Chinese): problem statement, architecture, quickstarts, agent setup, framework guides, roadmap, blog
 - [ ] **Official issue-tracker plugin example** — Jira first, building on the overlay plugin API. _A documented Jira example + proxy contract already ships in [docs/overlay-plugins.md](./docs/overlay-plugins.md); a published, batteries-included package is still pending._
 - [ ] Ongoing bug fixes + small enhancements
 
@@ -78,7 +78,7 @@ Anchored to the gaps surfaced in the multi-tenant readiness review — **all shi
 - [x] **Runtime opt-in + default policy** — the end-user can allow/block in-page agent control from the overlay; the runtime persists the choice to `localStorage` (`__hfe_runtime_control__`) and it **overrides** the app default. The app-level default is the existing `consent` plugin option — we did NOT add a redundant `runtimeControl.defaultPolicy` (see [per-app-control-policy design](docs/design/per-app-control-policy.md)). Extends Browser Consent (P2). A future `runtimeControl: { scopes }` can add a capability-subset dimension `consent` can't express.
 - [x] **Project visibility default-deny** — a scoped token (`token` / `forwarded`) with no explicit project grants now sees zero projects; `projectList` / `projectGet` / `projectTree` filter by visibility (were unfiltered) and unowned data is no longer enumerable by an unbound token. `local` / `host` unaffected.
 
-Remaining toward **stable 4.0**: graduate `@next` → `latest` (`changeset pre exit`). The two security gates above have landed; 3.x has few users, so we're not blocking the graduation on a long backward-compat / migration window.
+**Graduated.** The two security gates above landed, `changeset pre exit` ran, and the 4.x line is now published under `latest` (currently `4.5.x`). `@next` is dormant until 5.0 work opens it again. 3.x had few users, so the graduation wasn't gated on a long backward-compat / migration window.
 
 ---
 
