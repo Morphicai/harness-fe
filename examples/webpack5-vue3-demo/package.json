@@ -11,18 +11,18 @@
         "e2e:runtime": "tsx e2e/runtime.e2e.ts"
     },
     "dependencies": {
-        "vue": "^3.5.40"
+        "vue": "^3.5.42"
     },
     "devDependencies": {
         "@harness-fe/webpack": "workspace:*",
         "@types/node": "^22.20.1",
-        "css-loader": "^7.1.0",
+        "css-loader": "^7.1.5",
         "playwright": "^1.62.1",
-        "tsx": "^4.23.6",
+        "tsx": "^4.23.12",
         "html-webpack-plugin": "^5.6.8",
         "style-loader": "^4.0.0",
         "vue-loader": "^17.4.0",
-        "webpack": "^5.109.2",
+        "webpack": "^5.110.1",
         "webpack-cli": "^5.1.4",
         "webpack-dev-server": "^5.0.0"
     }

@@ -37,7 +37,7 @@
     "dependencies": {
         "@harness-fe/protocol": "workspace:*",
         "@harness-fe/sandbox": "workspace:^",
-        "@zumer/snapdom": "^2.23.2",
+        "@zumer/snapdom": "^2.24.12",
         "rrweb": "2.1.1"
     },
     "devDependencies": {

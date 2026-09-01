@@ -55,8 +55,8 @@
         "@babel/traverse": "^7.29.7",
         "@babel/types": "^7.29.7",
         "@harness-fe/protocol": "workspace:*",
-        "@vue/compiler-dom": "^3.5.40",
-        "@vue/compiler-sfc": "^3.5.40",
+        "@vue/compiler-dom": "^3.5.42",
+        "@vue/compiler-sfc": "^3.5.42",
         "magic-string": "^0.30.21",
         "unplugin": "^2.3.2",
         "ws": "^8.21.2"
