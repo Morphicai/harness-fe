@@ -33,10 +33,10 @@
         "@harness-fe/protocol": "workspace:*",
         "react": "^18.3.0",
         "react-dom": "^18.3.0",
-        "react-router-dom": "^6.30.4"
+        "react-router-dom": "^6.30.6"
     },
     "devDependencies": {
-        "@testing-library/react": "^16.1.0",
+        "@testing-library/react": "^16.3.3",
         "happy-dom": "^15.11.0",
         "@types/react": "^18.3.0",
         "@types/react-dom": "^18.3.0",
