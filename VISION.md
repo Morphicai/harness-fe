@@ -42,7 +42,7 @@ The directions above are *who reports to whom*. Orthogonal to that is *how far i
 - **4.0 — team-usable (experimental, `@next`).** One shared daemon a team self-hosts; identity + isolation + routing so members don't collide and each sees only their own. The trusted-team step toward Direction 2.
 - **5.0 — production-grade.** High availability + a hosted **cloud service**: multi-instance, shared persistence, remote MCP, observability, SLA. Built on 4.0's isolation.
 
-3.x keeps shipping (fixes + dev polish) while 4.0 develops in parallel. See [ROADMAP.md](./ROADMAP.md).
+3.x keeps shipping (fixes + dev polish) while 4.0 develops in parallel. See [ROADMAP.md](ROADMAP.md).
 
 ### Direction 1 — Product feedback loop
 
@@ -50,7 +50,7 @@ Users of a shipped product hit "Report a problem" in the in-page overlay; the an
 
 **Status (May 2026):** functionally complete locally — overlay, tasks, MCP tools, source-aware navigation all work. Gap is **deployment**: today's daemon assumes a developer running it on `localhost`. Productionising means daemon-in-product (embedded in the host web app) or daemon-as-service (hosted, authenticated, multi-tenant).
 
-**Where this sits on the maturity trajectory:** the **3.x** line is used **only in the development environment** of the host apps that consume it — end users never see the harness (`process.env.NODE_ENV === 'development'` guards every instrumentation path), and that stays true for 3.x. The productionising work (shared team daemon, then hosted cloud service) is no longer "someday" — it's the explicit **4.0** (team-usable) and **5.0** (production cloud) lines, developed in parallel with 3.x. See [ROADMAP.md](./ROADMAP.md).
+**Where this sits on the maturity trajectory:** the **3.x** line is used **only in the development environment** of the host apps that consume it — end users never see the harness (`process.env.NODE_ENV === 'development'` guards every instrumentation path), and that stays true for 3.x. The productionising work (shared team daemon, then hosted cloud service) is no longer "someday" — it's the explicit **4.0** (team-usable) and **5.0** (production cloud) lines, developed in parallel with 3.x. See [ROADMAP.md](ROADMAP.md).
 
 ### Direction 2 — Multi-tenant: AI-generated apps reporting to their generating agent
 
@@ -111,7 +111,7 @@ The work that actually moves us forward toward the mission falls into three buck
 4. **Generalize the runtime adapter model** — Web first, then React Native / Expo, then Flutter. WeChat Mini Program support is explicitly deferred.
 5. **Make the overlay extensible** — the built-in overlay is the default experience, but developers must be able to add their own panels and actions, such as creating a Jira issue linked to a Harness task.
 
-See [ROADMAP.md](./ROADMAP.md) for the milestone-level breakdown.
+See [ROADMAP.md](ROADMAP.md) for the milestone-level breakdown.
 
 ## Non-goals
 

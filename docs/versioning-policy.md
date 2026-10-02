@@ -2,7 +2,7 @@
 
 > This doc is about **what bump to choose**. For the operational pipeline (how a
 > merged PR reaches npm, the dual 3.x/4.0 lines, and the `BLOCKED` gotcha) see
-> [operations/release-flow.md](./operations/release-flow.md).
+> [operations/release-flow.md](operations/release-flow.md).
 
 This repo is a monorepo with **linked** versions across the core packages
 (see `.changeset/config.json` — `linked: [...]`). One package's bump

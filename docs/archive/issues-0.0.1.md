@@ -1,15 +1,15 @@
 # Harness-FE Bug Report
 
-**版本**: 0.0.1  
-**测试日期**: 2026-05-14  
-**测试环境**: macOS, Node.js, Kiro IDE (MCP follower 模式)  
+**版本**: 0.0.1
+**测试日期**: 2026-05-14
+**测试环境**: macOS, Node.js, Kiro IDE (MCP follower 模式)
 **测试项目**: `examples/react-demo` (Vite + React + React Router)
 
 ---
 
 ## Bug #1 — 多标签页命令超时（WebSocket 端口不一致）
 
-**严重程度**: 🔴 高  
+**严重程度**: 🔴 高
 **状态**: ✅ 已修复（2026-05-18）
 
 ### 修复结果
@@ -94,7 +94,7 @@ const mcpUrl = options.mcpUrl
 
 ## Bug #2 — Follower 模式下 Store 工具完全不可用
 
-**严重程度**: 🟠 中  
+**严重程度**: 🟠 中
 **状态**: 根因已确认
 
 ### 现象
@@ -113,7 +113,7 @@ if (store != null) {
     registerStoreTools(server, store, memoryStore);
 }
 ```
-`RemoteBridge` 没有 `.store` 属性，`(bridge as Bridge).store` 返回 `undefined`。  
+`RemoteBridge` 没有 `.store` 属性，`(bridge as Bridge).store` 返回 `undefined`。
 JavaScript 中 `undefined != null` 为 `false`（宽松不等），所以 `registerStoreTools` **永远不被调用**。
 
 **第二层 — RemoteBridge 不支持 store 操作**（`remoteBridge.ts`）：
@@ -164,7 +164,7 @@ export const mcpMethodSchema = z.enum([
 
 ## Bug #3 — 5 个页面工具在 Kiro 中不可见
 
-**严重程度**: 🟡 低  
+**严重程度**: 🟡 低
 **状态**: 根因已确认
 
 ### 现象
@@ -215,7 +215,7 @@ Kiro 的 MCP 集成在工具发现阶段会过滤 `autoApprove` 列表，`"*"` �
 
 ## Bug #4 — `text` 选择器点击无法触发 React Router 导航
 
-**严重程度**: 🟡 低  
+**严重程度**: 🟡 低
 **状态**: 根因已确认
 
 ### 现象
@@ -325,7 +325,7 @@ clickTarget.dispatchEvent(new MouseEvent('click', {
 
 ## Bug #5 — `naturalHeight` 变量声明但未使用
 
-**严重程度**: ⚪ 极低（代码质量）  
+**严重程度**: ⚪ 极低（代码质量）
 **状态**: 根因已确认
 
 ### 现象

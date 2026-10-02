@@ -20,7 +20,7 @@ harnessFE({ projectId: 'my-app', consent: 'session' })   // 每次加载问一�
 
 `page.evaluate`(任意 JS)**始终**提示,无论什么模式。
 
-在治理[团队模式](./team-mode.md)中,网关对其 peer 强制 `session`,所以共享部署绝不会静默允许控制。
+在治理[团队模式](team-mode.md)中,网关对其 peer 强制 `session`,所以共享部署绝不会静默允许控制。
 
 ## 运行时 opt-in(用户的最终决定权)
 

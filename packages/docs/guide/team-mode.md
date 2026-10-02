@@ -5,7 +5,7 @@ stdio and sees everything. Perfect for one person on one app. A **team** sharing
 one gateway needs more: who sees which project, who may drive the browser, and an
 audit trail. That's **governed mode**.
 
-> New here? Start with the [Quickstart](./quickstart.md) (solo path). This page is
+> New here? Start with the [Quickstart](quickstart.md) (solo path). This page is
 > the team / shared path, added in 4.0.
 
 ## How it works
@@ -65,7 +65,7 @@ withHarness({ /* …config… */ }, { mcpUrl: 'ws://127.0.0.1:47950/ws', token: 
 
 - **`write`** — event reporting by the browser runtime; **never** granted to agents.
 - **`read`** — telemetry, sessions, recordings, source, tasks.
-- **`control`** — drive the browser (`page.*`), gated by [Consent & runtime control](./consent.md).
+- **`control`** — drive the browser (`page.*`), gated by [Consent & runtime control](consent.md).
 
 `read + control` = a full agent token. The gateway **filters `tools/list` by scope**
 (a `read`-only token never even sees `page.*`) and **denies out-of-scope
@@ -103,4 +103,4 @@ Manage tokens and view the audit log in the admin panel at `http://<gateway>/adm
 - You need project-level isolation or an audit trail.
 
 Otherwise stay solo — loopback, zero config, no token. See the
-[Quickstart](./quickstart.md).
+[Quickstart](quickstart.md).

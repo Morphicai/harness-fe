@@ -25,7 +25,7 @@ harnessFE({ projectId: 'my-app', consent: 'session' })   // ask once per load
 
 `page.evaluate` (arbitrary JS) **always** prompts, regardless of mode.
 
-In governed [team mode](./team-mode.md), the gateway forces `session` for its
+In governed [team mode](team-mode.md), the gateway forces `session` for its
 peers, so a shared deployment never silently allows control.
 
 ## Runtime opt-in (the user's final say)

@@ -1,6 +1,6 @@
 # Research: 前端 UI 任务评测基准 —— 行业格局与技术空白点
 
-> 状态：**调研 / 定位素材**，配合 [`harness-bench-analysis.md`](./harness-bench-analysis.md) 使用。本文档不涉及实现，只回答"这个赛道里已经有什么、判定原理是什么、harness-fe 能补哪块空白"，供 README/blog/issue 讨论引用。
+> 状态：**调研 / 定位素材**，配合 [`harness-bench-analysis.md`](harness-bench-analysis.md) 使用。本文档不涉及实现，只回答"这个赛道里已经有什么、判定原理是什么、harness-fe 能补哪块空白"，供 README/blog/issue 讨论引用。
 >
 > 方法：多 agent 并行检索 + 逐条断言 3 票对抗式验证（108 个子 agent，验证 12 条核心断言，推翻 1 条）。引用均为一手来源（论文/项目主页/官方仓库），置信度标注见文末。
 
@@ -50,7 +50,7 @@ WebArena 之后这条赛道没有停在原地，值得留意三个新方向：
 1. **更细粒度的自动判定**：判断 agent 修复过程中是否触发了预期的网络请求、是否消除了 JS 报错、DOM 变更是否符合预期——比单一视觉相似度或单测通过率更贴近"这个 bug 真的被修好了"
 2. **替代/增强 LLM-as-judge**：给 judge 喂运行时 timeline 而不是单张截图，理论上能缓解 BrowserArena 实证的一致性问题（这一点目前是推断，未经实测验证）
 
-这与 [`harness-bench-analysis.md`](./harness-bench-analysis.md) 里"harness-fe vs Chrome DevTools MCP"的定位是同一个论点的两个层面：**前者是"agent 拿到运行时上下文能不能修得更好"，本文档是"评测本身能不能用运行时上下文判得更准"**——后者是一个目前行业里没人做、值得单独作为传播点的空白。
+这与 [`harness-bench-analysis.md`](harness-bench-analysis.md) 里"harness-fe vs Chrome DevTools MCP"的定位是同一个论点的两个层面：**前者是"agent 拿到运行时上下文能不能修得更好"，本文档是"评测本身能不能用运行时上下文判得更准"**——后者是一个目前行业里没人做、值得单独作为传播点的空白。
 
 ## 未验证到的缺口（留给下一步调研）
 

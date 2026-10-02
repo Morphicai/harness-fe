@@ -18,7 +18,7 @@ morphixai/harness-fe:<version>
 morphixai/harness-fe:latest
 ```
 
-由 [`.github/workflows/docker.yml`](../.github/workflows/docker.yml) 在 `@harness-fe/mcp-server` 每次 npm 发布成功后发布。多架构(`linux/amd64` + `linux/arm64`)。
+由 [`.github/workflows/docker.yml`](../../../../.github/workflows/docker.yml) 在 `@harness-fe/mcp-server` 每次 npm 发布成功后发布。多架构(`linux/amd64` + `linux/arm64`)。
 
 ## 快速开始
 
@@ -41,7 +41,7 @@ docker run --rm -p 47729:47729 \
 
 ## docker-compose
 
-参考的 compose 文件在 [`examples/docker/docker-compose.example.yml`](../examples/docker/docker-compose.example.yml)。复制一份并放上 `.env`:
+参考的 compose 文件在 [`examples/docker/docker-compose.example.yml`](../../../../examples/docker/docker-compose.example.yml)。复制一份并放上 `.env`:
 
 ```bash
 cd examples/docker

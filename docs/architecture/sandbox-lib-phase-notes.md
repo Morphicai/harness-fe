@@ -29,7 +29,7 @@
 ## Phase notes
 
 ### Phase 0(已完成)
-- 76 测试 / 7 red / 53 todo / 16 pass — 见 [phase0-redlist.md](./sandbox-lib-phase0-redlist.md)
+- 76 测试 / 7 red / 53 todo / 16 pass — 见 [phase0-redlist.md](sandbox-lib-phase0-redlist.md)
 - 已提交 PR #75
 
 ### Phase 1 — bootstrap `packages/sandbox/`(完成)

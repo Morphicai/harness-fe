@@ -6,7 +6,7 @@ Source-aware transform + runtime injection + MCP bridge for Webpack projects. Ta
 
 > **Status:** stable for React + Vue 2/3 on Webpack 5. **thread-loader compatible** as of this release.
 
-> **Note:** This package is now a hand-written webpack plugin, not a wrapper around `unplugin.webpack`. The change is invisible to users — same import, same options — but unblocks projects that put `thread-loader` anywhere in their loader chain (typical Vue 2 + TypeScript SFC builds). See [`.changeset/webpack-native-plugin.md`](../../.changeset/webpack-native-plugin.md) for the why.
+> **Note:** This package is now a hand-written webpack plugin, not a wrapper around `unplugin.webpack`. The change is invisible to users — same import, same options — but unblocks projects that put `thread-loader` anywhere in their loader chain (typical Vue 2 + TypeScript SFC builds). See [`.changeset/webpack-native-plugin.md`](../../docs/operations/release-flow.md) for the why.
 
 ## Install
 

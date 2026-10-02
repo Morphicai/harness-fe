@@ -142,7 +142,7 @@ syntax; the plugin skips those files instead of producing broken
 output. Run `HARNESS_FE_DRY_RUN=1 pnpm build` to see the coverage
 report on stderr — you'll get a list of which files are missing
 attributes and why. Full guide:
-[docs/vue2-compat.md](./vue2-compat.md).
+[docs/vue2-compat.md](vue2-compat.md).
 
 ## 12. WebRTC / real-time apps (Agora, LiveKit, Twilio) — calls break
 

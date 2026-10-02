@@ -62,7 +62,7 @@ Loopback is fully trusted — **no token**.
 }
 ```
 
-Agents connect to a shared `harness --governed` gateway, which enforces scope (RBAC) + project→agent binding + audit. Full guide: **[gateway-team-mode.md](./gateway-team-mode.md)**.
+Agents connect to a shared `harness --governed` gateway, which enforces scope (RBAC) + project→agent binding + audit. Full guide: **[gateway-team-mode.md](gateway-team-mode.md)**.
 
 ---
 
@@ -78,6 +78,6 @@ The agent can only see an app that loaded the runtime. Add the build plugin (`@h
 |---|---|
 | Agent: *"no runtime-client connected"* | The dev page isn't open, or its `mcpUrl` / token doesn't match the gateway you're querying. |
 | Tools missing from the agent | Skill not installed, or `.mcp.json` not picked up — restart the IDE / reload MCP. |
-| Team mode: agent sees no sessions | Its token isn't bound to that project — see [project→agent binding](./gateway-team-mode.md#project-agent-binding). |
+| Team mode: agent sees no sessions | Its token isn't bound to that project — see [project→agent binding](gateway-team-mode.md). |
 
-More: [docs/troubleshooting.md](./troubleshooting.md).
+More: [docs/troubleshooting.md](troubleshooting.md).

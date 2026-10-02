@@ -164,7 +164,7 @@ here as a parallelism claim.
 ## Adding a new bug
 
 See the process at the bottom of
-[`fixtures/BUG_WORKLIST.md`](./fixtures/BUG_WORKLIST.md) — in short: read the
+[`fixtures/BUG_WORKLIST.md`](fixtures/BUG_WORKLIST.md) — in short: read the
 target file in full before writing a patch, verify the patch applies cleanly
 with `patch -p1 --dry-run` against a fresh copy before committing it, write
 the oracle using `fixtures/_lib/browserOracle.mjs`'s `withApp()` helper, and

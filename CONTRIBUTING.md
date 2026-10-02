@@ -89,7 +89,7 @@ Keep the subject ≤ 72 chars. Use the body to explain *why*, not *what*.
 
 ## Releasing (maintainers)
 
-See [`docs/release.md`](./docs/release.md) — short version:
+See [`docs/release.md`](./docs/operations/release-flow.md) — short version:
 
 ```bash
 # bump versions, regenerate CHANGELOG
@@ -113,4 +113,4 @@ File on [GitHub issues](https://github.com/Morphicai/harness-fe/issues). Include
 
 ## License
 
-By contributing you agree your work is licensed under [MIT](./LICENSE).
+By contributing you agree your work is licensed under [MIT](LICENSE).

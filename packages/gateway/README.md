@@ -17,7 +17,7 @@ Agents reach a shared daemon **only** through the gateway, which:
 - **audits** every call (append-only)
 - serves an HTML **admin panel** (servers / tokens / audit)
 
-The gateway never implements tools or holds data — that's the [daemon](../daemon).
+The gateway never implements tools or holds data — that's the [daemon](../core).
 
 ## Run
 

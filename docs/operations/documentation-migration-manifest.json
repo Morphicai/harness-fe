@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-02",
+  "files": [
+    {
+      "source_repo": "harness",
+      "source": "docs/archive/README.md",
+      "owner": "harness",
+      "destination": "docs/archive/index-history/archive-index-before-governance.md",
+      "status": "historical",
+      "reason": "Preserve original index text and archive rationale before replacing navigation",
+      "original_sha256": "389198c55669e253a60ad52a3af2c719d48558e4691d4955a608a0872a35c6f2",
+      "original_date": "historical",
+      "original_commit": "b82b6a70778f41d4f6be131f2e2c440575d3859f",
+      "final_sha256": "8ab8051c6f0bf292c9cbfe854a43b7dbe1063faf6cdf6f5ea8248fd129a95f10"
+    }
+  ]
+}
