@@ -1,4 +1,6 @@
 <p align="center">
+
+[本仓文档入口](./docs/README.md) · [本地工程约定](./docs/engineering.md)
   <img src="branding/logo.svg" alt="Harness-FE" width="200" />
 </p>
 
@@ -13,7 +15,7 @@
 </p>
 
 <p align="center">
-  <em>Every AI-coded app should ship with the runtime that keeps it bonded to the agent that built it.</em> — see <a href="./VISION.md">VISION.md</a>
+  <em>Every AI-coded app should ship with the runtime that keeps it bonded to the agent that built it.</em> — see <a href="VISION.md">VISION.md</a>
 </p>
 
 <p align="center">
@@ -23,8 +25,8 @@
   <a href="https://www.npmjs.com/package/@harness-fe/next"><img src="https://img.shields.io/npm/v/@harness-fe/next?label=next&color=fb7185" alt="npm @harness-fe/next" /></a>
   <a href="https://www.npmjs.com/package/@harness-fe/cli"><img src="https://img.shields.io/npm/dm/@harness-fe/cli?label=downloads&color=64748b" alt="npm downloads" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%E2%89%A520-3c873a" alt="Node ≥ 20" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
-  <a href="./CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-fbbf24" alt="PRs welcome" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-fbbf24" alt="PRs welcome" /></a>
   <a href="https://deepwiki.com/Morphicai/harness-fe"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" /></a>
 </p>
 
@@ -34,7 +36,7 @@
 
 - **Source-Aware Instrumentation** — Injects `data-morphix-loc` and `data-morphix-comp` attributes into JSX / Vue elements (via build plugin OR `@harness-fe/react-jsx` `jsxImportSource`), giving AI agents precise file:line:column references for every UI element.
 - **MCP Gateway** — Connects AI agents (Claude, Cursor, Kiro) to browser + server runtimes via WebSocket / HTTP. Solo mode auto-spawns a shared loopback gateway; team mode (`harness --governed`) adds RBAC tokens, project→agent binding, and audit. Bidirectional command/event communication with a unified timeline per page-load.
-- **Browser Runtime + Overlay** — A lightweight browser SDK that captures console / network / errors / DOM (rrweb), exposes an in-page "H" overlay so users can file annotated screenshots (arrow + text on a snapdom-captured PNG), and surfaces a "My reports" view to manage their submissions. The overlay is **extensible** — add custom action buttons via `registerOverlayPlugin` to send the current scene/logs to your own system (issue tracker, Slack, webhook). See [docs/overlay-plugins.md](./docs/overlay-plugins.md).
+- **Browser Runtime + Overlay** — A lightweight browser SDK that captures console / network / errors / DOM (rrweb), exposes an in-page "H" overlay so users can file annotated screenshots (arrow + text on a snapdom-captured PNG), and surfaces a "My reports" view to manage their submissions. The overlay is **extensible** — add custom action buttons via `registerOverlayPlugin` to send the current scene/logs to your own system (issue tracker, Slack, webhook). See [docs/overlay-plugins.md](docs/overlay-plugins.md).
 - **Server-Side Capture (Next.js)** — `@harness-fe/node-runtime` collects Server Component errors, Route Handler / Server Action durations, and uncaught Node exceptions. `<HarnessScript>` is a Server Component that uses React `cache()` to bind the **same sessionId** across SSR and the client runtime — one refresh = one `sessions/{id}/timeline.jsonl`.
 - **Edge Runtime Compatible** — When Next emits an Edge worker bundle the SDK auto-switches to an HTTP-batch transport (`POST /events` on the gateway) so Cloudflare Workers / Vercel Edge routes flow into the same gateway as Node routes.
 - **Visitor Identity** — Anonymous, stable per-browser identifier (`localStorage`) + optional `userId` from the app's auth layer. Lets agents build a real user journey across refreshes, tabs, and same-origin iframes.
@@ -79,7 +81,7 @@ graph LR
 
 ## Getting Started
 
-> **In a hurry?** Jump to the 90-second [Quickstart](./docs/quickstart.md).
+> **In a hurry?** Jump to the 90-second [Quickstart](docs/quickstart.md).
 
 ### Prerequisites
 
@@ -108,9 +110,9 @@ yarn add -D @harness-fe/vite @harness-fe/runtime
 | You are… | Use | Auth | Setup |
 |---|---|---|---|
 | **Solo dev** — one app, local | `@harness-fe/cli mcp` over stdio (auto-spawns shared gateway) | none (loopback trusted) | Quick start below + `npx @harness-fe/skill install` |
-| **A team** — many apps sharing one gateway | `harness --governed` (token + RBAC + project→agent binding) | scoped token per agent | [Team / governed mode](./docs/gateway-team-mode.md) |
+| **A team** — many apps sharing one gateway | `harness --governed` (token + RBAC + project→agent binding) | scoped token per agent | [Team / governed mode](docs/gateway-team-mode.md) |
 
-Whichever path: **install the skill first** (`npx @harness-fe/skill install`) so your agent knows how to use harness-fe without you spelling out each tool. See [docs/agent-setup.md](./docs/agent-setup.md).
+Whichever path: **install the skill first** (`npx @harness-fe/skill install`) so your agent knows how to use harness-fe without you spelling out each tool. See [docs/agent-setup.md](docs/agent-setup.md).
 
 ### Quick start — Vite + React (6 steps)
 
@@ -145,7 +147,7 @@ Whichever path: **install the skill first** (`npx @harness-fe/skill install`) so
      }
    }
    ```
-   `harness mcp` auto-spawns a shared gateway on `127.0.0.1:47729` and proxies MCP traffic to it. Multiple IDE windows share the same gateway automatically. Sharing across a team? Use **[governed mode](./docs/gateway-team-mode.md)** instead. Phone / second-machine debugging: [docs/lan-mode.md](docs/lan-mode.md).
+   `harness mcp` auto-spawns a shared gateway on `127.0.0.1:47729` and proxies MCP traffic to it. Multiple IDE windows share the same gateway automatically. Sharing across a team? Use **[governed mode](docs/gateway-team-mode.md)** instead. Phone / second-machine debugging: [docs/lan-mode.md](docs/lan-mode.md).
 
 5. **Start your dev server** — `pnpm dev`.
 
@@ -217,7 +219,7 @@ log.scope('checkout').warn('Stripe latency high', { ms: latency });
 log.error('Webhook failed', err);
 ```
 
-Agents can ask "show me all `log.warn(...)` in this session" because `log` events are tagged `app-log` — distinct from auto-captured `server-log` / browser `console`. See [`packages/log/README.md`](./packages/log/README.md) for details.
+Agents can ask "show me all `log.warn(...)` in this session" because `log` events are tagged `app-log` — distinct from auto-captured `server-log` / browser `console`. See [`packages/log/README.md`](packages/log/README.md) for details.
 
 ### User feedback (in-page overlay)
 
@@ -231,33 +233,33 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 
 | Package | Description |
 |---------|-------------|
-| [`@harness-fe/protocol`](./packages/protocol) | Shared types, Zod schemas, message + wire definitions |
-| [`@harness-fe/core`](./packages/core) | **Core library** — WS bridge, event store, recording/replay, caller identity + per-project tenant isolation. No HTTP server; gateway owns all transports. |
-| [`@harness-fe/gateway`](./packages/gateway) | **Gateway** — MCP (stdio + HTTP, per-session), `/ws` for browser runtime, `/console` back-office, `/admin` for governed mode. Embeds `core` in-process. |
-| [`@harness-fe/cli`](./packages/cli) | **`harness` CLI** — solo (`harness mcp`: auto-spawn shared gateway + stdio proxy), serve (headless shared gateway), governed (`harness --governed`: RBAC + tokens + audit) |
-| [`@harness-fe/console-ui`](./packages/console-ui) | React SPA served at `/console` — session browser, replay viewer, governance panel (tokens / servers / audit) |
-| [`@harness-fe/sandbox`](./packages/sandbox) | Standalone browser sandbox + interceptor lib (`fetch` / `xhr` / `ws` / `storage` / `navigation` / `globals` / `indexeddb` / `console` / `errors`). Used by `@harness-fe/runtime`; also consumable directly |
-| [`@harness-fe/runtime`](./packages/runtime-client) | Browser SDK — capture(via `@harness-fe/sandbox`), rrweb, overlay, "Report a problem", "My reports" |
-| [`@harness-fe/node-runtime`](./packages/node-runtime) | Node SDK — Server Component / Route Handler / uncaught error capture. Dual transport: WS in Node runtime, HTTP-batch in Edge runtime |
-| [`@harness-fe/next`](./packages/next) | Next.js integration — `<HarnessScript>` server component, `withHarness()` next-config wrapper |
-| [`@harness-fe/log`](./packages/log) | Isomorphic structured logger — same `log.info/warn/error` works in Server Components, Route Handlers, and Client Components; same `sessionId` everywhere |
-| [`@harness-fe/react-jsx`](./packages/react-jsx) | `jsxImportSource` runtime — source-aware tagging for ANY React toolchain, no bundler plugin needed |
-| [`@harness-fe/vite`](./packages/vite-plugin) | Vite plugin |
-| [`@harness-fe/webpack`](./packages/webpack-plugin) | Webpack plugin |
-| [`@harness-fe/unplugin`](./packages/unplugin) | Core unplugin (shared by all bundler plugins) |
-| [`@harness-fe/skill`](./packages/agent-skill) | ⭐ **Start here** — curated agent playbook; `npx @harness-fe/skill install` into Claude Code / Cursor / Kiro so the agent knows how to use harness-fe without you spelling out each tool |
+| [`@harness-fe/protocol`](packages/protocol) | Shared types, Zod schemas, message + wire definitions |
+| [`@harness-fe/core`](packages/core) | **Core library** — WS bridge, event store, recording/replay, caller identity + per-project tenant isolation. No HTTP server; gateway owns all transports. |
+| [`@harness-fe/gateway`](packages/gateway) | **Gateway** — MCP (stdio + HTTP, per-session), `/ws` for browser runtime, `/console` back-office, `/admin` for governed mode. Embeds `core` in-process. |
+| [`@harness-fe/cli`](packages/cli) | **`harness` CLI** — solo (`harness mcp`: auto-spawn shared gateway + stdio proxy), serve (headless shared gateway), governed (`harness --governed`: RBAC + tokens + audit) |
+| [`@harness-fe/console-ui`](packages/console-ui) | React SPA served at `/console` — session browser, replay viewer, governance panel (tokens / servers / audit) |
+| [`@harness-fe/sandbox`](packages/sandbox) | Standalone browser sandbox + interceptor lib (`fetch` / `xhr` / `ws` / `storage` / `navigation` / `globals` / `indexeddb` / `console` / `errors`). Used by `@harness-fe/runtime`; also consumable directly |
+| [`@harness-fe/runtime`](packages/runtime-client) | Browser SDK — capture(via `@harness-fe/sandbox`), rrweb, overlay, "Report a problem", "My reports" |
+| [`@harness-fe/node-runtime`](packages/node-runtime) | Node SDK — Server Component / Route Handler / uncaught error capture. Dual transport: WS in Node runtime, HTTP-batch in Edge runtime |
+| [`@harness-fe/next`](packages/next) | Next.js integration — `<HarnessScript>` server component, `withHarness()` next-config wrapper |
+| [`@harness-fe/log`](packages/log) | Isomorphic structured logger — same `log.info/warn/error` works in Server Components, Route Handlers, and Client Components; same `sessionId` everywhere |
+| [`@harness-fe/react-jsx`](packages/react-jsx) | `jsxImportSource` runtime — source-aware tagging for ANY React toolchain, no bundler plugin needed |
+| [`@harness-fe/vite`](packages/vite-plugin) | Vite plugin |
+| [`@harness-fe/webpack`](packages/webpack-plugin) | Webpack plugin |
+| [`@harness-fe/unplugin`](packages/unplugin) | Core unplugin (shared by all bundler plugins) |
+| [`@harness-fe/skill`](packages/agent-skill) | ⭐ **Start here** — curated agent playbook; `npx @harness-fe/skill install` into Claude Code / Cursor / Kiro so the agent knows how to use harness-fe without you spelling out each tool |
 
 ## Documentation
 
-- [**VISION.md**](./VISION.md) — Why this project exists; the three deployment directions that drive the roadmap
-- [**docs/agent-setup.md**](./docs/agent-setup.md) — ⭐ Connect your agent: install the skill first, then wire `.mcp.json` (solo or governed)
-- [**docs/gateway-team-mode.md**](./docs/gateway-team-mode.md) — Share one gateway across a team: governed mode, scope RBAC, project→agent binding, audit
-- [**ARCHITECTURE.md**](./ARCHITECTURE.md) — Package responsibilities, data flow diagrams, sessionId resolution chain, and protocol reference
-- [**docs/architecture/sandbox.md**](./docs/architecture/sandbox.md) — The `@harness-fe/sandbox` lib (browser API patching + interceptor middleware) — design + safety contract + 9-channel matrix
-- [**ROADMAP.md**](./ROADMAP.md) — Milestones, organised by mission direction
-- [**docs/troubleshooting.md**](./docs/troubleshooting.md) — Events not showing? sessionId mismatch? Where do timeline files live? Start here
-- [**CONTRIBUTING.md**](./CONTRIBUTING.md) — Development setup, commit conventions, and PR process
+- [**VISION.md**](VISION.md) — Why this project exists; the three deployment directions that drive the roadmap
+- [**docs/agent-setup.md**](docs/agent-setup.md) — ⭐ Connect your agent: install the skill first, then wire `.mcp.json` (solo or governed)
+- [**docs/gateway-team-mode.md**](docs/gateway-team-mode.md) — Share one gateway across a team: governed mode, scope RBAC, project→agent binding, audit
+- [**ARCHITECTURE.md**](ARCHITECTURE.md) — Package responsibilities, data flow diagrams, sessionId resolution chain, and protocol reference
+- [**docs/architecture/sandbox.md**](docs/architecture/sandbox.md) — The `@harness-fe/sandbox` lib (browser API patching + interceptor middleware) — design + safety contract + 9-channel matrix
+- [**ROADMAP.md**](ROADMAP.md) — Milestones, organised by mission direction
+- [**docs/troubleshooting.md**](docs/troubleshooting.md) — Events not showing? sessionId mismatch? Where do timeline files live? Start here
+- [**CONTRIBUTING.md**](CONTRIBUTING.md) — Development setup, commit conventions, and PR process
 
 ## License
 
-[MIT](./LICENSE) © 2026 MorphixAI
+[MIT](LICENSE) © 2026 MorphixAI

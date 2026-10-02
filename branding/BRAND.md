@@ -7,10 +7,10 @@ emerald → rose — wrapped around a near-black inset that displays a
 geometric "H". The ring represents three sides of the harness: build
 tooling, browser runtime, and the agents that drive them.
 
-- **Primary logo:** [`logo.svg`](./logo.svg) — 128×128 viewBox, vector-scalable
-- **Mark:** [`logo-mark.svg`](./logo-mark.svg) — 32×32, simplified for
+- **Primary logo:** [`logo.svg`](logo.svg) — 128×128 viewBox, vector-scalable
+- **Mark:** [`logo-mark.svg`](logo-mark.svg) — 32×32, simplified for
   favicons and navbar avatars
-- **Raster:** [`logo-128.png`](./logo-128.png) — 128×128 PNG export of
+- **Raster:** [`logo-128.png`](logo-128.png) — 128×128 PNG export of
   the primary logo, for surfaces that don't render SVG (npm avatar,
   GitHub social preview)
 

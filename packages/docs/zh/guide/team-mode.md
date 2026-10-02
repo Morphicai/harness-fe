@@ -2,7 +2,7 @@
 
 单人开发跑一个 loopback 网关、无 token——agent 经 stdio 自动拉起它并看到一切。一个人一个 app 时完美。但**团队**共享一个网关需要更多:谁能看哪个项目、谁能驱动浏览器、以及审计轨迹。这就是**治理模式**。
 
-> 新手?先看[快速开始](./quickstart.md)(单人路径)。本页是 4.0 新增的团队 / 共享路径。
+> 新手?先看[快速开始](quickstart.md)(单人路径)。本页是 4.0 新增的团队 / 共享路径。
 
 ## 工作原理
 
@@ -57,7 +57,7 @@ withHarness({ /* …config… */ }, { mcpUrl: 'ws://127.0.0.1:47950/ws', token: 
 
 - **`write`** —— 浏览器 runtime 上报事件;**绝不**授予 agent。
 - **`read`** —— 遥测、会话、录制、源码、任务。
-- **`control`** —— 驱动浏览器(`page.*`),受 [Consent 与运行时控制](./consent.md) 门控。
+- **`control`** —— 驱动浏览器(`page.*`),受 [Consent 与运行时控制](consent.md) 门控。
 
 `read + control` = 完整的 agent token。网关**按 scope 过滤 `tools/list`**(read-only token 根本看不到 `page.*`),并**拒绝越权的 `tools/call`**(`-32001 scope denied`)。
 
@@ -86,4 +86,4 @@ harness --governed --issue-token name=agentA,scopes=read+control,projects=my-app
 - 共享开发 VM 或公开开发环境。
 - 需要项目级隔离或审计轨迹。
 
-否则保持单人——loopback、零配置、无 token。见[快速开始](./quickstart.md)。
+否则保持单人——loopback、零配置、无 token。见[快速开始](quickstart.md)。

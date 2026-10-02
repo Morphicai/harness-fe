@@ -2,7 +2,7 @@
 
 The 90-second path from "I have a frontend project" to "an AI agent can drive
 it in my browser." Pick the section matching your stack; the rest of the
-project's docs live in [`docs/`](./) and the [README](../README.md).
+project's docs live in [`docs/`](.) and the [README](../README.md).
 
 ## Prerequisites
 
@@ -113,7 +113,7 @@ Then register the MCP server (`.mcp.json` or in-app settings). Solo / local — 
 
 `harness mcp` auto-spawns a shared gateway on `127.0.0.1:47729` (once) and proxies the agent's MCP traffic to it. Multiple IDE windows reuse the same gateway automatically.
 
-The agent now sees `session_*`, `page_*`, `project_*`, `tasks_*` and friends. Sharing one gateway across a team? Use governed mode instead — see [gateway-team-mode.md](./gateway-team-mode.md). Full setup: [agent-setup.md](./agent-setup.md).
+The agent now sees `session_*`, `page_*`, `project_*`, `tasks_*` and friends. Sharing one gateway across a team? Use governed mode instead — see [gateway-team-mode.md](gateway-team-mode.md). Full setup: [agent-setup.md](agent-setup.md).
 
 ---
 
@@ -125,13 +125,13 @@ Open the console at <http://localhost:47729/console> — you should see:
 - A live session as soon as the dev page loads
 - Network / console / errors streaming in real time
 
-If the console is empty, check [docs/troubleshooting.md](./troubleshooting.md).
+If the console is empty, check [docs/troubleshooting.md](troubleshooting.md).
 
 ---
 
 ## Next steps
 
-- [Self-debug mode](./self-debug.md) — let an agent drive the Harness console itself
-- [LAN mode](./lan-mode.md) — phone or second-machine debugging
-- [Electron / multi-window](./electron.md) — unified session across renderers
-- [Versioning policy](./versioning-policy.md) — what semver promises mean here
+- [Self-debug mode](self-debug.md) — let an agent drive the Harness console itself
+- [LAN mode](lan-mode.md) — phone or second-machine debugging
+- [Electron / multi-window](electron.md) — unified session across renderers
+- [Versioning policy](versioning-policy.md) — what semver promises mean here

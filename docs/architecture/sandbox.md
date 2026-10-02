@@ -112,7 +112,7 @@ Every patch step is wrapped in `try / catch`. If the engine refuses
 2. Reports `handle.enabled[channel] === false`
 3. **Never throws an error to business code**
 
-The principle is encoded in [`docs/architecture/sandbox-lib-phase-notes.md`](./sandbox-lib-phase-notes.md#%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99%E8%B4%AF%E7%A9%BF%E6%89%80%E6%9C%89-channel) as the project rule "fail-safe".
+The principle is encoded in [`docs/architecture/sandbox-lib-phase-notes.md`](sandbox-lib-phase-notes.md#%E8%AE%BE%E8%AE%A1%E5%8E%9F%E5%88%99%E8%B4%AF%E7%A9%BF%E6%89%80%E6%9C%89-channel) as the project rule "fail-safe".
 
 ## What's deliberately NOT in the runtime lib
 
@@ -171,5 +171,5 @@ packages/sandbox/
 ## See also
 
 - [`packages/sandbox/README.md`](../../packages/sandbox/README.md) — usage & API
-- [`docs/architecture/sandbox-lib-phase-notes.md`](./sandbox-lib-phase-notes.md) — execution log + design decisions during the lib's first release
-- [`docs/architecture/sandbox-lib-phase0-redlist.md`](./sandbox-lib-phase0-redlist.md) — the 7-item red list that drove the refactor (now all green)
+- [`docs/architecture/sandbox-lib-phase-notes.md`](sandbox-lib-phase-notes.md) — execution log + design decisions during the lib's first release
+- [`docs/architecture/sandbox-lib-phase0-redlist.md`](sandbox-lib-phase0-redlist.md) — the 7-item red list that drove the refactor (now all green)

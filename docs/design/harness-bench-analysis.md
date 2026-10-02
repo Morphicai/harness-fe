@@ -55,7 +55,7 @@ Chrome DevTools MCP 在工具数量上更广（heap snapshot、性能 trace、Li
 
 **仓库现状核查：** `packages/harness-fe/scripts/` 目前只有 `demo.sh` 和 `release-publish.sh`——本仓库里没有任何评测/跑分基建。不管最终建什么，runner 本身都是从零开始。
 
-**工具名纠正（发布任何引用本文的内容前必须先改）：** issue 里提出的工具名并不存在。按 [`packages/docs/reference/mcp-tools.md`](../reference/mcp-tools.md)，实际的工具是：
+**工具名纠正（发布任何引用本文的内容前必须先改）：** issue 里提出的工具名并不存在。按 [`packages/docs/reference/mcp-tools.md`](../../packages/docs/reference/mcp-tools.md)，实际的工具是：
 
 | issue 里写的 | 实际工具 |
 |---|---|
@@ -115,7 +115,7 @@ v1 每个 bug 在每个档位（A/B/C）各跑一次——对应 issue 自己提
 - **Chrome DevTools MCP 是个还在变化的目标，而且比 harness-fe 广得多**（heap snapshot、Lighthouse、性能 trace、扩展）——跑分必须严格限定在"修 bug"这个任务上，不能演变成"harness-fe vs Chrome DevTools MCP 全能力对比"，那样 harness-fe 光靠广度就会输。
 - **跑 Chrome DevTools MCP 每次都需要一个真实的、受 CDP 控制的 Chrome 实例**——这会给 runner 增加基建重量（每个 bug × 档位都要管理一次 headless Chrome 生命周期），这一点在 runner 设计时要如实纳入考量，不能一笔带过。
 
-> 后续技术方案（数据源核实、Inspect AI 复用、三档怎么自动跑起来、指标怎么算）见 [`harness-bench-tech-design.md`](./harness-bench-tech-design.md)。
+> 后续技术方案（数据源核实、Inspect AI 复用、三档怎么自动跑起来、指标怎么算）见 [`harness-bench-tech-design.md`](harness-bench-tech-design.md)。
 
 ## 下一步任务清单（替代 issue 原本的 checklist）
 

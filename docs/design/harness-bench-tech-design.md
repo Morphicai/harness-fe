@@ -1,6 +1,6 @@
 # Design: harness-bench —— 技术方案（如何把对比真正跑起来）
 
-> 状态：**技术方案 / 待评审**，承接 [`harness-bench-analysis.md`](./harness-bench-analysis.md) 的结论（对比对象是 harness-fe vs Chrome DevTools MCP vs 纯代码，被测 agent 仅 Claude Code）。本文档回答四个具体问题：数据从哪来、有没有现成数据集能直接用、怎么让三档对比自动跑起来、怎么把结果变成分数。仍然只是方案，不在本文档里跑真实调用（跑 Claude Code 会真花钱，见文末"需要拍板的点"）。
+> 状态：**技术方案 / 待评审**，承接 [`harness-bench-analysis.md`](harness-bench-analysis.md) 的结论（对比对象是 harness-fe vs Chrome DevTools MCP vs 纯代码，被测 agent 仅 Claude Code）。本文档回答四个具体问题：数据从哪来、有没有现成数据集能直接用、怎么让三档对比自动跑起来、怎么把结果变成分数。仍然只是方案，不在本文档里跑真实调用（跑 Claude Code 会真花钱，见文末"需要拍板的点"）。
 
 ## 1. 数据源：有没有现成开源数据能直接用？
 

@@ -4,7 +4,7 @@ Public, rough, and subject to change. File a GitHub issue if you want to push so
 
 There are **two axes** to this roadmap:
 
-- **Direction (who reports to whom)** — the three nested rings in [VISION.md](./VISION.md): (1) product feedback loop, (2) multi-tenant routing, (3) foundation-default for agent-built apps.
+- **Direction (who reports to whom)** — the three nested rings in [VISION.md](VISION.md): (1) product feedback loop, (2) multi-tenant routing, (3) foundation-default for agent-built apps.
 - **Maturity (how far it's deployed)** — the release lines below. This is the primary planning frame today.
 
 ## Release lines (maturity trajectory)
@@ -15,7 +15,7 @@ There are **two axes** to this roadmap:
 | **3.x** | `main-3x-stable` (archived) | **Personal dev tool — superseded by 4.0** | Was the single-developer product. Archived on 4.0 graduation; few users, no active maintenance window committed. |
 | **5.0** | `next` / `@next` (future) | **Production-grade** | High availability + hosted **cloud service**: multi-instance/no-SPOF, shared persistence, remote MCP, observability, SLA. |
 
-The 4.x line is the current `latest` (see the 4.0 section below — it has graduated). 3.x is archived (it had few users, so the graduation wasn't gated on a long backward-compat window). 4.0's identity/isolation work is the foundation 5.0's cloud service builds on. See [docs/operations/release-flow.md](./docs/operations/release-flow.md).
+The 4.x line is the current `latest` (see the 4.0 section below — it has graduated). 3.x is archived (it had few users, so the graduation wasn't gated on a long backward-compat window). 4.0's identity/isolation work is the foundation 5.0's cloud service builds on. See [docs/operations/release-flow.md](docs/operations/release-flow.md).
 
 ---
 
@@ -31,7 +31,7 @@ The foundation that the mission rests on. All directions need this.
 - [x] `Last-Event-ID` SSE reconnection — survives transient disconnects (pluggable `eventStore`)
 - [x] Auth on the daemon boundary — single check across HTTP MCP / WS / dashboard; `token` or host-supplied `authorize(req)`
 - [x] Runtime client — console / network / errors / rrweb + in-page "H" overlay + annotated tasks
-- [x] Overlay plugin API — `registerOverlayPlugin` custom action buttons + typed, redaction-aware context. See [docs/overlay-plugins.md](./docs/overlay-plugins.md)
+- [x] Overlay plugin API — `registerOverlayPlugin` custom action buttons + typed, redaction-aware context. See [docs/overlay-plugins.md](docs/overlay-plugins.md)
 - [x] Vite / Webpack — React + Vue 3, all stable
 - [x] First-class Next.js (App + Pages Router, webpack + Turbopack, Node + Edge)
 - [x] `@harness-fe/node-runtime` — ALS + DI sessionId, dual transport
@@ -53,7 +53,7 @@ Keep the single-developer experience unbreakable; ship dev-experience polish and
 - [ ] **Streaming phase 4** — child-agent `spawn` → stream mode (execution visible in real time)
 - [ ] **Multi-bundler reach** — Rspack + esbuild + Rollup adapters via unplugin
 - [x] **Documentation site** (VitePress) — live at [harness-fe.com](https://harness-fe.com/) ([`/zh/`](https://harness-fe.com/zh/) for Simplified Chinese): problem statement, architecture, quickstarts, agent setup, framework guides, roadmap, blog
-- [ ] **Official issue-tracker plugin example** — Jira first, building on the overlay plugin API. _A documented Jira example + proxy contract already ships in [docs/overlay-plugins.md](./docs/overlay-plugins.md); a published, batteries-included package is still pending._
+- [ ] **Official issue-tracker plugin example** — Jira first, building on the overlay plugin API. _A documented Jira example + proxy contract already ships in [docs/overlay-plugins.md](docs/overlay-plugins.md); a published, batteries-included package is still pending._
 - [ ] Ongoing bug fixes + small enhancements
 
 ---

@@ -1,10 +1,7 @@
-# Archived docs
+# 历史与归档
 
-Historical documents kept for context. **Do not treat as current.**
+历史内容保留来源与范围，不是当前工程要求或待执行任务。当前规范/实现入口见 [docs index](../README.md)。
 
-| File | What it was | Why archived |
-|---|---|---|
-| `issues-0.0.1.md` | Bug report from the 0.0.1 round of testing (2026-05-14) | All bugs fixed; superseded by the GitHub issue tracker |
-| `next-integration-plan.md` | Long-term design plan for the Next.js SWC-plugin path | Plan dropped — we shipped the simpler `jsxImportSource` + `<HarnessScript>` Server Component path instead. Kept as a record of design decisions. |
-
-For current behavior, see [ARCHITECTURE.md](../../ARCHITECTURE.md) and the per-package READMEs under `packages/*/README.md`.
+| 文件 | 原位置 | 原日期 | 归档原因 |
+| --- | --- | --- | --- |
+| 本仓既有历史 | 保留原目录 | 见 Git | 不改写独特原文 |

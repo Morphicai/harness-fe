@@ -26,7 +26,7 @@ morphixai/harness-fe:<version>
 morphixai/harness-fe:latest
 ```
 
-Published from [`.github/workflows/docker.yml`](../.github/workflows/docker.yml)
+Published from [`.github/workflows/docker.yml`](../../../.github/workflows/docker.yml)
 on every successful npm release of `@harness-fe/mcp-server`. Multi-arch
 (`linux/amd64` + `linux/arm64`).
 
@@ -53,7 +53,7 @@ on a non-loopback bind without one.
 ## docker-compose
 
 A reference compose file lives at
-[`examples/docker/docker-compose.example.yml`](../examples/docker/docker-compose.example.yml).
+[`examples/docker/docker-compose.example.yml`](../../../examples/docker/docker-compose.example.yml).
 Copy it next to a `.env`:
 
 ```bash
