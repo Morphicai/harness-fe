@@ -4,7 +4,7 @@
 
 - 文档有 owner、状态与边界；当前实现以源码核对，目标放 plans/change，历史放 archive。
 - 任务全勾选不是完成的充分证据；未完成的登录态/部署/客户端生命周期验收保留开放。Diagnostic 不等于 end-to-end，不用冻结数据成绩冒充当前线上质量。
-- 稳定需求在 openspec/specs；完整实施 change 在 changes；仅想法/未采纳方案进入 _drafts；已完成 scoped 工作归档到日期目录。
+- 稳定需求在 openspec/specs；完整实施 change 在 changes；仅想法/未采纳方案进入 openspec/drafts；已完成 scoped 工作归档到日期目录。
 - 迁移先记录原提交和 SHA-256，核对副本，再修链接/索引，不留第二份权威。正文唯一；重复或无意义产物可删除，但独特决策与证据保留。
 - 必读相对链接不得越出仓根；跨仓背景用 canonical URL。不要引用个人绝对路径作为团队依赖。
 - 环境变量只按 key 名检查，值编辑与进程注入走 morphix-env；不读/打印 .env*、token 或个人语料。
