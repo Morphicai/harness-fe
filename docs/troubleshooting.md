@@ -93,7 +93,7 @@ For App Router Server Components, `<HarnessScript>` does this for you via the Ne
 
 They shouldn't. Each tab refresh = a new `sessionId`. If you see this:
 - Check that you didn't override `tabId` or `sessionId` manually
-- Check `~/.harness/data/sessions/<sid>/meta.json` — `participants` should be a single tab. If multiple, you have an iframe inheriting parent identity (see ARCHITECTURE.md → "Same-origin iframe identity inheritance"), which is intentional.
+- Check `~/.harness/data/sessions/<sid>/meta.json` — `participants` should be a single tab. If multiple, you have an iframe inheriting parent identity (see the current architecture guide → "Same-origin iframe identity inheritance"), which is intentional.
 
 ## 8. Disk filling up
 
@@ -142,7 +142,7 @@ syntax; the plugin skips those files instead of producing broken
 output. Run `HARNESS_FE_DRY_RUN=1 pnpm build` to see the coverage
 report on stderr — you'll get a list of which files are missing
 attributes and why. Full guide:
-[docs/vue2-compat.md](vue2-compat.md).
+[Vue compatibility](../packages/docs/integrations/vue2.md).
 
 ## 12. WebRTC / real-time apps (Agora, LiveKit, Twilio) — calls break
 

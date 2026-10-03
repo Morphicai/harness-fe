@@ -91,7 +91,7 @@ export const POST = withHarnessTracing(async (req: Request) => {
 
 不应该发生。每次 tab 刷新 = 一个新 `sessionId`。如果看到:
 - 检查没手动覆盖过 `tabId` 或 `sessionId`
-- 检查 `~/.harness/data/sessions/<sid>/meta.json` —— `participants` 应该是单个 tab。如果有多个,你有一个 iframe 在继承父级身份(见 ARCHITECTURE.md → "Same-origin iframe identity inheritance"),这是有意为之。
+- 检查 `~/.harness/data/sessions/<sid>/meta.json` —— `participants` 应该是单个 tab。如果有多个,你有一个 iframe 在继承父级身份(见 the current architecture guide → "Same-origin iframe identity inheritance"),这是有意为之。
 
 ## 8. daemon 磁盘塞满
 

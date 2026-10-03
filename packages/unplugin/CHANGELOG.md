@@ -504,7 +504,7 @@
 
   - New READMEs for `packages/log`, `packages/next`, `packages/node-runtime`.
   - New `VISION.md` (three nested mission directions) and `docs/troubleshooting.md`.
-  - `ARCHITECTURE.md` — new section explaining server-side sessionId resolution chain (ALS → adapter provider → orphan).
+  - `docs/archive/architecture/legacy-architecture-through-4x.md` — new section explaining server-side sessionId resolution chain (ALS → adapter provider → orphan).
   - `ROADMAP.md` reframed around the three mission directions.
 
 - Updated dependencies [74be490]

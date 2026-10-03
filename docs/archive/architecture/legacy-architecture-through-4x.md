@@ -39,7 +39,7 @@ graph LR
 | JSX Runtime | `@harness-fe/react-jsx` | `jsxImportSource` adapter that tags every React element with `data-morphix-loc` / `data-morphix-comp` — works in any React 17+ toolchain without a bundler plugin |
 | Agent Playbook | `@harness-fe/skill` | Standalone npm — drops a `SKILL.md` into agent projects teaching them how to use the Harness MCP toolset |
 
-The **daemon** is a global process — not tied to any single project; multiple projects share one. In **solo** dev the agent reaches it directly (loopback, stdio via `dev-cli`, fully trusted). In **team** mode the optional **gateway** turns the trust boundary into *who*: it verifies a scoped token, enforces RBAC + **project→agent binding**, and injects the verified caller so the daemon shows each agent only the projects it's bound to. See [docs/gateway-team-mode.md](docs/gateway-team-mode.md).
+The **daemon** is a global process — not tied to any single project; multiple projects share one. In **solo** dev the agent reaches it directly (loopback, stdio via `dev-cli`, fully trusted). In **team** mode the optional **gateway** turns the trust boundary into *who*: it verifies a scoped token, enforces RBAC + **project→agent binding**, and injects the verified caller so the daemon shows each agent only the projects it's bound to. See [docs/gateway-team-mode.md](../../gateway-team-mode.md).
 
 ---
 

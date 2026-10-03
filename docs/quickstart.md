@@ -131,7 +131,7 @@ If the console is empty, check [docs/troubleshooting.md](troubleshooting.md).
 
 ## Next steps
 
-- [Self-debug mode](self-debug.md) — let an agent drive the Harness console itself
+- [Self-debug mode](archive/self-debug-3x.md) — let an agent drive the Harness console itself
 - [LAN mode](lan-mode.md) — phone or second-machine debugging
 - [Electron / multi-window](electron.md) — unified session across renderers
 - [Versioning policy](versioning-policy.md) — what semver promises mean here
