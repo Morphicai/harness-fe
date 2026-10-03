@@ -1,129 +1,19 @@
-# Self-debug: drive the dashboard with itself
+# Developing and inspecting the console
 
-Sometimes the thing you want to debug is the dashboard itself —
-a layout bug, a chart that won't render, a WS subscriber that
-stops re-fetching. The harness can drive the dashboard the same
-way it drives any other host app: this guide turns that on.
-
-## One-liner
+Current sources: packages/console-ui/vite.config.ts and packages/cli/src/cli.ts. The console is a React/Vite app served under /console by the gateway; local Vite development uses port 5175.
 
 ```bash
-pnpm dev:self-debug
+pnpm --filter @harness-fe/console-ui dev
 ```
 
-That starts two processes:
+Start or select the intended gateway separately using its normal CLI/configuration. Its user/project policy, API target and backing stores must match the intended development scenario. Use [the architecture guide](architecture.md) and the package's actual connection/route code when correlating UI requests.
 
-| Process | What it does | Port |
-|---------|--------------|------|
-| mcp-server | Dedicated daemon for self-debug. Stores in `~/.harness-dev` so it doesn't touch your normal session history | **47730** |
-| dashboard-ui (vite) | Dev server with `HARNESS_FE_SELF_DEBUG=1` — injects `@harness-fe/runtime` so the FAB shows up on the dashboard page | **5174** |
+## What this command proves
 
-Open: `http://127.0.0.1:5174/dashboard/?token=dev`
+The current console Vite config includes the React plugin. It does not install Harness instrumentation or automatically add a recorder/FAB to the console itself. Therefore starting console development is not proof that an Agent can drive or record that page via Harness.
 
-Connect your agent to the dev daemon (separate from any user-project
-daemon on the default 47729):
+If console self-instrumentation is desired, treat it as a separate runtime integration with explicit plugin/runtime configuration and acceptance evidence. Do not run the absent pnpm dev:self-debug script or install a removed dashboard-ui/mcp-server package to follow the old recipe.
 
-```jsonc
-// claude_desktop_config.json / .cursor/mcp.json
-{
-  "mcpServers": {
-    "harness-fe-dev": {
-      "command": "npx",
-      "args": ["-y", "@harness-fe/mcp-server"],
-      "env": {
-        "HARNESS_FE_PORT": "47730",
-        "HARNESS_FE_TOKEN": "dev"
-      }
-    }
-  }
-}
-```
+Use existing UI/debug tools against the development gateway and scope; retain only necessary, sanitized reproduction evidence. This documentation pass did not start a server, record a session or change user data.
 
-Now the agent's `page.click` / `page.screenshot` / `project.where_is`
-tools target the dashboard SPA. `project.where_is "SessionDetail"` will
-jump straight to `packages/dashboard-ui/src/routes/SessionDetail.tsx`.
-
-## Why a separate port
-
-Your user-project daemon (the one running for your day-to-day app
-dev) sits on **47729**. The self-debug daemon sits on **47730**. They
-don't conflict; you can restart either without disturbing the other.
-Sessions captured in each are stored in separate data dirs:
-
-```
-~/.harness       — your user-project daemon (default)
-~/.harness-dev   — self-debug daemon
-```
-
-If you want different paths, override at launch:
-
-```bash
-HARNESS_FE_PORT=47731 HARNESS_FE_DATA_DIR=/tmp/harness-dev pnpm dev:self-debug
-```
-
-## Why no circular dependency
-
-The dependency graph stays a DAG:
-
-```
-mcp-server  ──→  dashboard-ui  ──→  vite (devDep)  ──→  runtime
-     │                                                     │
-     └──→  protocol  ←──────────────────────────────────── ┘
-```
-
-`mcp-server` does NOT depend on `runtime` (runtime is browser-only,
-daemon is Node-only). `dashboard-ui` only pulls `@harness-fe/vite`
-as a **devDependency**, so the published `@harness-fe/dashboard-ui`
-tarball that mcp-server serves has zero runtime code in it. Self-debug
-mode lives entirely in the dev-server pipeline.
-
-## Behavior loop
-
-The dashboard now records itself. That's intentional — the agent can
-see what the user saw. Two things keep it from getting weird:
-
-1. Every page navigation closes the old session and opens a new one,
-   so sessions don't grow without bound.
-2. The dashboard's project list shows the self-debug session under
-   `projectId: '@harness-fe/dashboard'`. You can recognize and
-   filter it visually.
-
-If you want the agent's clicks to NOT be recorded into your dashboard's
-own session, just don't connect the agent at all — the dev mcp-server
-also serves the dashboard SPA so you can use it as a plain UI.
-
-## Disabling
-
-Production builds (`pnpm build` → `dist/`) **never** include the
-runtime, regardless of env vars — the vite config short-circuits on
-`command === 'build'`. The published `@harness-fe/dashboard-ui` is
-plain React. There is no way for a published dashboard to accidentally
-become self-debug; you have to be running the local source tree.
-
-## Common workflows
-
-**Iterating on a dashboard UI change while an agent watches:**
-```bash
-pnpm dev:self-debug
-# edit src/routes/SessionDetail.tsx
-# vite HMR reloads
-# ask agent: "click the 'Create replay' button on the first session row"
-```
-
-**Inspecting why a re-fetch didn't happen:**
-```bash
-# in dev shell:
-pnpm dev:self-debug
-# in agent:
-> page.evaluate { expr: "Array.from(document.querySelectorAll('[data-live]')).length" }
-> errors.tail { n: 20 }
-```
-
-**Recording a repro of a layout bug for a teammate:**
-```bash
-pnpm dev:self-debug
-# open browser, reproduce
-# click the FAB → "Open dashboard"
-# in the new tab, click the bugged session → Create replay
-# share the /replay/<exportId> link
-```
+The full [3.x self-debug recipe](https://github.com/Morphicai/harness-fe/blob/main/docs/archive/self-debug-3x.md) remains historical evidence. Its ports, auto-injection and storage promises are not current instructions.

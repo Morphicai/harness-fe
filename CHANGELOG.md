@@ -253,7 +253,7 @@ Foundation for micro-frontend debugging.
 
 ### Docs
 
-- `ARCHITECTURE.md` rewritten to reflect the v0.2 narrative model (project tree, builds, sessions, iframe inheritance, URL config, IStore migration path).
+- `docs/archive/architecture/legacy-architecture-through-4x.md` rewritten to reflect the v0.2 narrative model (project tree, builds, sessions, iframe inheritance, URL config, IStore migration path).
 - Each example demo (`react-demo`, `vue-demo`, `webpack-demo`, `webpack5-vue3-demo`) ships a brief README explaining what it shows, how to run it, and how to verify via e2e.
 
 ### Known limitations (deferred to a follow-up minor)

@@ -13,10 +13,10 @@
 - [lan-mode.md](./lan-mode.md)
 - [overlay-plugins.md](./overlay-plugins.md)
 - [quickstart.md](./quickstart.md)
-- [self-debug.md](./self-debug.md)
+- [self-debug.md](archive/self-debug-3x.md)
 - [troubleshooting.md](./troubleshooting.md)
 - [versioning-policy.md](./versioning-policy.md)
-- [vue2-compat.md](./vue2-compat.md)
+- [Vue compatibility](../packages/docs/integrations/vue2.md)
 
 ## architecture
 

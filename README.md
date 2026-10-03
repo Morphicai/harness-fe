@@ -153,7 +153,7 @@ Whichever path: **install the skill first** (`npx @harness-fe/skill install`) so
 
 6. **Describe a problem to your agent** — *"the increment button does nothing"* — and it uses the skill + tools to inspect console/network, locate the source (`file:line`), fix, and verify. The agent that built it never leaves.
 
-> **Adopting in legacy Vue projects?** See [docs/vue2-compat.md](docs/vue2-compat.md)
+> **Adopting in legacy Vue projects?** See [Vue compatibility](packages/docs/integrations/vue2.md)
 > — the plugin will never break your build, but you may want to dry-run
 > first to see which files miss out on source-aware tagging.
 
@@ -254,7 +254,7 @@ When the runtime loads in dev a discreet "H" mark appears bottom-right. Clicking
 - [**VISION.md**](VISION.md) — Why this project exists; the three deployment directions that drive the roadmap
 - [**docs/agent-setup.md**](docs/agent-setup.md) — ⭐ Connect your agent: install the skill first, then wire `.mcp.json` (solo or governed)
 - [**docs/gateway-team-mode.md**](docs/gateway-team-mode.md) — Share one gateway across a team: governed mode, scope RBAC, project→agent binding, audit
-- [**ARCHITECTURE.md**](ARCHITECTURE.md) — Package responsibilities, data flow diagrams, sessionId resolution chain, and protocol reference
+- [**Architecture**](packages/docs/guide/architecture.md) — Package responsibilities, data flow diagrams, sessionId resolution chain, and protocol reference
 - [**docs/architecture/sandbox.md**](docs/architecture/sandbox.md) — The `@harness-fe/sandbox` lib (browser API patching + interceptor middleware) — design + safety contract + 9-channel matrix
 - [**ROADMAP.md**](ROADMAP.md) — Milestones, organised by mission direction
 - [**docs/troubleshooting.md**](docs/troubleshooting.md) — Events not showing? sessionId mismatch? Where do timeline files live? Start here
