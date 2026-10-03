@@ -9,7 +9,12 @@
       "blob_oid": "09a6d451aa8caaeef6b38a380649701d40521fe7",
       "sha256": "8ab8051c6f0bf292c9cbfe854a43b7dbe1063faf6cdf6f5ea8248fd129a95f10",
       "reason": "Superseded navigation/maintenance index snapshot; current owner indexes and provenance replace the working-tree copy.",
-      "replacement": "Preserve original archive reasons in deletion provenance; update migration retention; point surviving historical links to fixed Git commits.",
+      "replacement": {
+        "kind": "local",
+        "paths": [
+          "docs/archive/README.md"
+        ]
+      },
       "date": "2026-10-03",
       "historical_archive_notes": [
         [
