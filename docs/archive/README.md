@@ -10,3 +10,5 @@
 ## 2026-10-03 精简
 
 过期默认流程、重复副本和日期过程材料已退出当前入口。来源、原始 hash、保留去向和当前替代记录在 [本仓精简记录](../operations/documentation-simplification-20261003.json)；剩余验收与未实施任务不因移位关闭。
+
+旧导航快照和无独立价值的材料已退出工作树，恢复定位与历史说明见 [删除记录](../operations/documentation-deletions.json)。现役入口只维护当前正文；历史原文按固定 Git 提交读取。

@@ -11,7 +11,14 @@
       "original_sha256": "389198c55669e253a60ad52a3af2c719d48558e4691d4955a608a0872a35c6f2",
       "original_date": "historical",
       "original_commit": "b82b6a70778f41d4f6be131f2e2c440575d3859f",
-      "final_sha256": "8ab8051c6f0bf292c9cbfe854a43b7dbe1063faf6cdf6f5ea8248fd129a95f10"
+      "final_sha256": "8ab8051c6f0bf292c9cbfe854a43b7dbe1063faf6cdf6f5ea8248fd129a95f10",
+      "retention": {
+        "mode": "git-history",
+        "commit": "565213cd80c3db4abdad939d7cbf2f081e6071b9",
+        "path": "docs/archive/index-history/archive-index-before-governance.md",
+        "blob_oid": "09a6d451aa8caaeef6b38a380649701d40521fe7",
+        "sha256": "8ab8051c6f0bf292c9cbfe854a43b7dbe1063faf6cdf6f5ea8248fd129a95f10"
+      }
     }
   ]
 }
