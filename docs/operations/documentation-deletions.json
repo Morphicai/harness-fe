@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-03",
+  "files": [
+    {
+      "repo": "harness",
+      "path": "docs/archive/index-history/archive-index-before-governance.md",
+      "kind": "retired",
+      "source_commit": "565213cd80c3db4abdad939d7cbf2f081e6071b9",
+      "blob_oid": "09a6d451aa8caaeef6b38a380649701d40521fe7",
+      "sha256": "8ab8051c6f0bf292c9cbfe854a43b7dbe1063faf6cdf6f5ea8248fd129a95f10",
+      "reason": "Superseded navigation/maintenance index snapshot; current owner indexes and provenance replace the working-tree copy.",
+      "replacement": "Preserve original archive reasons in deletion provenance; update migration retention; point surviving historical links to fixed Git commits.",
+      "date": "2026-10-03",
+      "historical_archive_notes": [
+        [
+          "File",
+          "What it was",
+          "Why archived"
+        ],
+        [
+          "`issues-0.0.1.md`",
+          "Bug report from the 0.0.1 round of testing (2026-05-14)",
+          "All bugs fixed; superseded by the GitHub issue tracker"
+        ],
+        [
+          "`next-integration-plan.md`",
+          "Long-term design plan for the Next.js SWC-plugin path",
+          "Plan dropped — we shipped the simpler `jsxImportSource` + `<HarnessScript>` Server Component path instead. Kept as a record of design decisions."
+        ]
+      ]
+    }
+  ],
+  "updated_at": "2026-10-03"
+}

@@ -10,3 +10,5 @@
 - 环境变量只按 key 名检查，值编辑与进程注入走 morphix-env；不读/打印 .env*、token 或个人语料。
 - 代码改动在独立分支验证后走 PR；不无审查 push main，不删测试换绿。文档治理不自动授权产品部署、数据写入或密钥改动。
 - 提示词保持短、按需；不复制包版本/工具数量/用户数据。项目 Skill 只放团队需要的工作流，客户端共享一份正文；MCP 机器专属凭据留本地，不入 Git。
+
+普通实现任务先查现役 source/docs/spec 和相关 active change；archive、历史 reports、大型审计 JSON 和未启用的 prompts_bak 按明确调查目的读取。删除的旧正文按本仓 documentation-deletions.json 的固定 commit/path/hash 恢复，不依赖父仓归档。
