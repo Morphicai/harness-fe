@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "type": "stdio",
+      "command": "chrome-devtools-mcp",
+      "args": ["--headless", "--isolated"]
+    }
+  }
+}

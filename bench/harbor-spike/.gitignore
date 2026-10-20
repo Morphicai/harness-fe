@@ -2,7 +2,7 @@
 tasks/*/environment/app/
 tasks/*/environment/bug.patch
 tasks/easy-counter-increment-crash/solution/fix.patch
-tasks/easy-counter-increment-crash-cond-a/environment/oracle/
+tasks/*/environment/oracle/
 # harbor run 输出
 jobs/
 # Python

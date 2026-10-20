@@ -1,0 +1,3 @@
+On the Network page, if I click "Fetch slow (2s)" and then immediately click "Fetch JSON", the JSON result shows up first like it should — but then a couple seconds later the display flips back to the slow request's result, even though that's not what I clicked last. The panel should always reflect whichever fetch I triggered most recently, not whichever one happens to finish last.
+
+The app is a Vite + React demo at /app (dependencies already installed). A dev server can be started with `npm run dev` (it listens on http://localhost:5173/). Fix the source so the panel always reflects the most recently triggered fetch; single-request behavior must keep working.

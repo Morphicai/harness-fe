@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "harness-fe": {
+      "type": "stdio",
+      "command": "harness",
+      "args": ["mcp"]
+    }
+  }
+}

@@ -1,19 +1,31 @@
 #!/bin/bash
-# 生成 Harbor 任务的构建材料：react-demo 副本（workspace:* → latest，与
-# bench/bench/runner.py::_make_installable 同一逻辑）+ fixture 的 bug.patch
-# + 共享 oracle。幂等：重复执行先清空再生成。
+# 生成 Harbor 任务的构建材料（幂等）：
+#   1. react-demo 副本 → tasks/<task>/environment/app（workspace:* → latest，
+#      与 bench/bench/runner.py::_make_installable 同一逻辑）
+#   2. fixture 的 bug.patch → environment/（+ 首个任务的 solution/fix.patch）
+#   3. 每个任务的 oracle 目录 = shared-oracle/（package.json + verifier-metrics.mjs）
+#      + 该 fixture 的 oracle.mjs（sed 适配相对导入）+ lib/browserOracle.mjs
+#      （sed 注入 --no-sandbox，容器内 root 运行 Chromium 需要）
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
-FIXTURE="$REPO/bench/fixtures/react-demo/easy-counter-increment-crash"
+FIXTURES="$REPO/bench/fixtures/react-demo"
 
+# task目录名:fixture名
 TASKS=(
-  "$HERE/tasks/easy-counter-increment-crash"
-  "$HERE/tasks/easy-counter-increment-crash-cond-a"
+  "easy-counter-increment-crash:easy-counter-increment-crash"
+  "easy-counter-increment-crash-cond-a:easy-counter-increment-crash"
+  "easy-counter-increment-crash-pilot:easy-counter-increment-crash"
+  "hard-network-race-pilot:hard-network-race-stale-response"
 )
 
-for TASK in "${TASKS[@]}"; do
+for pair in "${TASKS[@]}"; do
+  TASK_NAME="${pair%%:*}"
+  FIXTURE_NAME="${pair##*:}"
+  TASK="$HERE/tasks/$TASK_NAME"
+  FIXTURE="$FIXTURES/$FIXTURE_NAME"
+
   DEST="$TASK/environment/app"
   rm -rf "$DEST"
   mkdir -p "$DEST"
@@ -34,11 +46,21 @@ fs.writeFileSync(p, JSON.stringify(j, null, 4) + "\n");
 ' "$DEST/package.json"
 
   cp "$FIXTURE/bug.patch" "$TASK/environment/bug.patch"
-  echo "prepared: $DEST"
-done
 
-# solution/fix.patch 只有 oracle 任务需要
-cp "$FIXTURE/bug.patch" "${TASKS[0]}/solution/fix.patch"
-# 共享 oracle 同步给 cond-a 任务（内容一致，来源单一）
-rsync -a --delete "${TASKS[0]}/environment/oracle/" "${TASKS[1]}/environment/oracle/"
-echo "oracle synced to cond-a task"
+  # oracle 目录：shared-oracle + fixture oracle（适配导入路径与 --no-sandbox）
+  ORACLE_DIR="$TASK/environment/oracle"
+  rm -rf "$ORACLE_DIR"
+  mkdir -p "$ORACLE_DIR/lib"
+  cp "$HERE/shared-oracle/package.json" "$HERE/shared-oracle/verifier-metrics.mjs" "$ORACLE_DIR/"
+  sed 's|\.\./\.\./_lib/browserOracle\.mjs|./lib/browserOracle.mjs|' \
+    "$FIXTURE/oracle.mjs" > "$ORACLE_DIR/oracle.mjs"
+  sed "s|chromium.launch({ headless: true })|chromium.launch({ headless: true, args: ['--no-sandbox'] })|" \
+    "$FIXTURES/../_lib/browserOracle.mjs" > "$ORACLE_DIR/lib/browserOracle.mjs"
+
+  # solution/fix.patch 只写给有 solution/ 目录的任务
+  if [ -d "$TASK/solution" ]; then
+    cp "$FIXTURE/bug.patch" "$TASK/solution/fix.patch"
+  fi
+
+  echo "prepared: $TASK_NAME (fixture: $FIXTURE_NAME)"
+done
