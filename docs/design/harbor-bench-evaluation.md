@@ -64,10 +64,26 @@ spike 代码在 `bench/harbor-spike/`（分支 `spike/harbor-topology-20261020`�
 
 **负向对照**：不应用修复重跑，oracle 正确抛断言失败、`fixed: 0`——verifier 有判别力，不是恒绿。
 
-实证中发现的两个落地细节：
+实证中发现的落地细节：
 
 1. **vite 7 的 dev server 默认只绑 `localhost`（Node 17+ 解析为 IPv6 `::1`）**，探 `127.0.0.1:5173` 会全部超时。真实迁移时 prewarm/daemon 的目标地址要注意这一点（oracle helper 显式 `host: '127.0.0.1'` 所以不受影响）。
-2. **`harbor run --mcp-config <path>` 是全局 flag**（Claude 风格 .mcp.json，可重复）——MCP 配置注入可能不需要自定义 agent 也能完成，三条件的实现成本比原设计更低；是否等价于现在的 `--strict-mcp-config` 行为（以及 `--allowedTools` 如何传入）待真实跑分阶段核实。
+2. **`harbor run --mcp-config <path>` 是全局 flag**（Claude 风格 .mcp.json，可重复），且已核对 claude-code agent 源码：它把 stdio 型 server 原样写进 `$CLAUDE_CONFIG_DIR/.claude.json`（user scope，无信任弹窗），与我们的 `harness-fe.mcp.json.tmpl` 形状一致——MCP 注入不需要自定义 agent。
+3. **Harbor 会覆盖容器 CMD 为 `sleep infinity`**，Dockerfile 的 CMD/ENTRYPOINT 不会执行——dev server / daemon / prewarm 必须由 agent 在 run() 里拉起（自定义 agent 的真正职责只剩这一个）。
+
+### 条件 A stub 实证（同日第二轮，零模型成本）
+
+自定义 `BaseInstalledAgent` 子类（`bench/harbor-spike/harbor_agents.py`，约 60 行）在容器内完整复现了条件 A 链路，只是最后把 `claude -p` 换成 MCP 层探针：
+
+| 步骤 | 结果 |
+| --- | --- |
+| dev server（harnessFE 插件版 vite config）后台启动 | ✅ |
+| prewarm 拉起 `harness mcp` daemon + headless Chromium tab，runtime SDK 注入确认 | ✅ |
+| MCP 探针（= claude 的 stdio MCP 客户端去掉模型）：initialize → tools/list → tab.list | ✅ `initialized=true, toolCount=63, tabCount=1, firstTabUrl=http://localhost:5173/` |
+| reward.json 双指标 | ✅ `fixed: 0`（stub 不修 bug，正确阴性）+ `mcp_topology: 1` |
+
+至此"能不能改"的最后一个开放机制问题已关闭：**条件 A 特有的 daemon/浏览器/MCP 链路在 Harbor 任务容器内完整成立**，真实跑分只差把探针换回 `claude -p`（以及 `--mcp-config` 或自定义 agent 二选一）。
+
+另一个实测发现：**发布版 @harness-fe/cli v4.5.2 的 MCP 工具名是点分格式**（`tab.list`、`page.click`），与旧文档的下划线格式（`tab_list`）不一致——迁移时所有工具调用名要以发布版为准（已记录在 spike 代码注释）。
 
 ## 数据集结论（2026-10-20 逐个人工核实）
 
@@ -83,12 +99,11 @@ spike 代码在 `bench/harbor-spike/`（分支 `spike/harbor-topology-20261020`�
 
 ## 关键疑虑与待验证
 
-1. ~~浏览器/daemon 拓扑~~ **已实证**（见 Spike 一节，oracle 模式）。待实证的剩余部分：自定义 `BaseInstalledAgent` 子类 + harness-fe daemon/prewarm 链路（条件 A 特有），以及 `--mcp-config` flag 与现有 `--strict-mcp-config` 的等价性。
+1. ~~浏览器/daemon 拓扑~~ **已实证**（oracle 模式 + 条件 A stub 两轮，见上节）。剩余唯一未验证项：真实 `claude -p` 在容器内的行为（`--allowedTools`/permission-mode 通过 `--ak` 的传法、stream-json 落盘位置）。
 2. **数据集仍需自造**：见"数据集结论"一节。
-3. **镜像构建成本**：首次 2m38s（含基础镜像拉取 + 双 npm install），缓存后 21s；批量跑的 base 镜像预装策略可按此数据设计。
+3. **镜像构建成本**：首次 2m38s（含基础镜像拉取 + 双 npm install），缓存后 21–45s；批量跑的 base 镜像预装策略可按此数据设计。
 4. **许可与治理**：框架与各数据集的 license、Hub 发布条款未核实。
 
 ## 下一步建议
 
-1. **条件 A 链路 stub**（零成本）：写自定义 `BaseInstalledAgent` 子类，把 runner.py 的"写 .mcp.json → prewarm（daemon + 浏览器）→ claude -p"搬入容器，stub 模式返回罐装 transcript；或先验证 `--mcp-config` flag 能否直接替代。
-2. **预算确认后**：三条件（harness-fe / chrome-devtools-mcp / none）各跑 1 个真实样本，对比 ATIF 轨迹与现有 stream-json 指标抽取，再决定是否批量迁移 5 个 fixtures。真实跑分调用 `claude -p` 产生真实 API 费用，遵守 bench/README.md 的 money gate。
+**预算确认后**即可做真实跑分 pilot：三条件（harness-fe / chrome-devtools-mcp / none）各跑 1 个真实样本（条件 A 用 stub agent 的 run() 把探针换成 `claude -p`，或 stock claude-code agent + `--mcp-config`），对比 ATIF 轨迹与现有 stream-json 指标抽取，再决定是否批量迁移 5 个 fixtures。真实跑分调用 `claude -p` 产生真实 API 费用，遵守 bench/README.md 的 money gate。
