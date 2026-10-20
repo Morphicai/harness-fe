@@ -1,6 +1,9 @@
 # prepare.sh 的生成物
-tasks/easy-counter-increment-crash/environment/app/
-tasks/easy-counter-increment-crash/environment/bug.patch
+tasks/*/environment/app/
+tasks/*/environment/bug.patch
 tasks/easy-counter-increment-crash/solution/fix.patch
+tasks/easy-counter-increment-crash-cond-a/environment/oracle/
 # harbor run 输出
 jobs/
+# Python
+__pycache__/
