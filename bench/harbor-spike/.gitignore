@@ -1,0 +1,6 @@
+# prepare.sh 的生成物
+tasks/easy-counter-increment-crash/environment/app/
+tasks/easy-counter-increment-crash/environment/bug.patch
+tasks/easy-counter-increment-crash/solution/fix.patch
+# harbor run 输出
+jobs/
