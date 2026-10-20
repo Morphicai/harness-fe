@@ -1,6 +1,6 @@
 # Harbor Framework：harness-bench 跑分基建候选评估
 
-更新：2026-10-20（同日二次核对官方文档后更新结论）。状态：机制层面评估为**可行**，未本地运行、未采纳。
+更新：2026-10-20（同日完成本机 spike 实证）。状态：**拓扑可行性已实证**（零 API 成本），未采纳为实施承诺。
 
 > 本文 2026-10-20 从 morphix root 仓 `research/` 迁入本仓——按 owner 边界规则，harness-bench 的基建选型属于本仓的设计材料，与 [harness-bench-analysis.md](harness-bench-analysis.md)、[harness-bench-tech-design.md](harness-bench-tech-design.md) 并列。
 
@@ -51,13 +51,44 @@ harness-bench（`bench/`，对标 [#174](https://github.com/Morphicai/harness-fe
 3. **轨迹分析**：ATIF 能回答"agent 到底有没有用上 harness-fe 的工具、用得对不对"。
 4. **regrade**：修 oracle 后不用重跑 agent（省钱），现有 Inspect 路线要重跑。
 
+## Spike 实证结果（2026-10-20，本机 Docker + Harbor 0.24.0）
+
+spike 代码在 `bench/harbor-spike/`（分支 `spike/harbor-topology-20261020`）：把 fixture `react-demo/easy-counter-increment-crash` 原样包装成 Harbor 任务，用 oracle agent（只执行 `solution/solve.sh`，**零 API 成本**）跑通全链路。四个验证点全部通过：
+
+| 验证点 | 结果 | 证据 |
+| --- | --- | --- |
+| 任务环境构建（playwright 镜像 + npm install + build 期注入 bug.patch） | ✅ | 首次构建 2m38s，缓存后整轮 21s |
+| agent 阶段能起后台服务（vite dev server）并访问 | ✅ | solve.sh 冒烟：`[solve] background dev server reachable ✓` |
+| `environment_mode = "shared"` 下 verifier 看到 agent 阶段的文件改动 | ✅ | 金标准修复后 oracle 全绿，`fixed: 1` |
+| Playwright oracle 容器内跑通 + 多指标 reward.json | ✅ | `{"fixed": 1, "oracle_duration_s": 5, "multi_metric_proof": 1}`，各指标在 job 汇总表独立成列 |
+
+**负向对照**：不应用修复重跑，oracle 正确抛断言失败、`fixed: 0`——verifier 有判别力，不是恒绿。
+
+实证中发现的两个落地细节：
+
+1. **vite 7 的 dev server 默认只绑 `localhost`（Node 17+ 解析为 IPv6 `::1`）**，探 `127.0.0.1:5173` 会全部超时。真实迁移时 prewarm/daemon 的目标地址要注意这一点（oracle helper 显式 `host: '127.0.0.1'` 所以不受影响）。
+2. **`harbor run --mcp-config <path>` 是全局 flag**（Claude 风格 .mcp.json，可重复）——MCP 配置注入可能不需要自定义 agent 也能完成，三条件的实现成本比原设计更低；是否等价于现在的 `--strict-mcp-config` 行为（以及 `--allowedTools` 如何传入）待真实跑分阶段核实。
+
+## 数据集结论（2026-10-20 逐个人工核实）
+
+注册表 364 个数据集中与 web 相关的只有 3 个，**没有一个覆盖"运行中前端应用的 bug 修复"**：
+
+| 数据集 | 任务数 | 实际内容 | 对我们的用途 |
+| --- | ---: | --- | --- |
+| blobfishai/webbench | 159 | 浏览器内 SaaS 操作（WebArena 家族），Playwright CLI 驱动、无代码仓库 | 无直接用途；其"可执行判定、无 LLM judge"的设计可参考 |
+| webgen-bench/webgen-bench | 101 | 从需求文档生成整个 web 应用，VLM judge | 无——生成赛道 |
+| billxbf/mimo-v26-webdev | 2,093 | 从设计稿建站、截图 VLM 打分（Apache-2.0） | 无——设计还原赛道 |
+
+结论：我们的前端 bug fixtures 仍需自造（与 [harness-bench-analysis.md](harness-bench-analysis.md) 的判断一致），Harbor 提供 runner / 格式 / 生态。若要真实模型冒烟，terminal-bench 或 hello-world 是最便宜的现成任务。
+
 ## 关键疑虑与待验证
 
-1. **文档结论未经实证**：以上全部来自文档核对，`BaseInstalledAgent` 容器内的实际行为（后台进程生命周期、daemon 存活、Chromium sandbox 参数）需要 spike 验证。
-2. **数据集仍需自造**：注册表 364 个数据集几乎全是终端 / SWE 类，没有"活浏览器里的前端 UI bug"这一类；Harbor 解决 runner / 格式 / 生态，不解决数据问题（与 [harness-bench-analysis.md](harness-bench-analysis.md) 对 SWE-bench Multimodal 的结论一致）。
-3. **镜像构建成本**：每个 bug 一个镜像、内含 npm install，批量跑的构建/缓存策略要设计（base 镜像预装依赖可缓解）。
+1. ~~浏览器/daemon 拓扑~~ **已实证**（见 Spike 一节，oracle 模式）。待实证的剩余部分：自定义 `BaseInstalledAgent` 子类 + harness-fe daemon/prewarm 链路（条件 A 特有），以及 `--mcp-config` flag 与现有 `--strict-mcp-config` 的等价性。
+2. **数据集仍需自造**：见"数据集结论"一节。
+3. **镜像构建成本**：首次 2m38s（含基础镜像拉取 + 双 npm install），缓存后 21s；批量跑的 base 镜像预装策略可按此数据设计。
 4. **许可与治理**：框架与各数据集的 license、Hub 发布条款未核实。
 
 ## 下一步建议
 
-一次 stub spike（零 API 成本）：挑 1 个现有 fixture，生成 Harbor 任务目录（Playwright base 镜像 + build 期打 patch + npm install），写自定义 agent 子类（stub 模式返回罐装 transcript），`tests/test.sh` 跑 oracle 写 reward.json，`environment_mode = "shared"`。验收标准：`harbor run` 本地 Docker 跑通单个任务、reward.json 指标齐全、stub 下 oracle 正确报 fixed=False。跑通后再决定立项与三条件真实跑分的预算。
+1. **条件 A 链路 stub**（零成本）：写自定义 `BaseInstalledAgent` 子类，把 runner.py 的"写 .mcp.json → prewarm（daemon + 浏览器）→ claude -p"搬入容器，stub 模式返回罐装 transcript；或先验证 `--mcp-config` flag 能否直接替代。
+2. **预算确认后**：三条件（harness-fe / chrome-devtools-mcp / none）各跑 1 个真实样本，对比 ATIF 轨迹与现有 stream-json 指标抽取，再决定是否批量迁移 5 个 fixtures。真实跑分调用 `claude -p` 产生真实 API 费用，遵守 bench/README.md 的 money gate。
