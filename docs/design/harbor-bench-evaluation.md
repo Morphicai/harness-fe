@@ -1,6 +1,6 @@
 # Harbor Framework：harness-bench 跑分基建候选评估
 
-更新：2026-10-20（同日完成本机 spike 实证）。状态：**拓扑可行性已实证**（零 API 成本），未采纳为实施承诺。
+更新：2026-10-20（同日完成本机 spike + 三条件真实跑分 pilot）。状态：**基建可行性已实证（含真实模型 pilot）**，未采纳为实施承诺；fixture 区分度问题见文末 pilot 结论。
 
 > 本文 2026-10-20 从 morphix root 仓 `research/` 迁入本仓——按 owner 边界规则，harness-bench 的基建选型属于本仓的设计材料，与 [harness-bench-analysis.md](harness-bench-analysis.md)、[harness-bench-tech-design.md](harness-bench-tech-design.md) 并列。
 
@@ -104,6 +104,36 @@ spike 代码在 `bench/harbor-spike/`（分支 `spike/harbor-topology-20261020`�
 3. **镜像构建成本**：首次 2m38s（含基础镜像拉取 + 双 npm install），缓存后 21–45s；批量跑的 base 镜像预装策略可按此数据设计。
 4. **许可与治理**：框架与各数据集的 license、Hub 发布条款未核实。
 
+## 真实跑分 pilot（2026-10-20，用户批准预算，GLM-5.3-flash 经自定义网关）
+
+三条件 pilot 已在 Harbor 上真实跑通（`HarnessBenchPilotAgent`：共享镜像 + 按条件注入 vite config / .mcp.json / prewarm，真实 `claude -p`）。**注意模型：本机 claude 配置走自定义网关，实际服务模型是 `glm-5.3-flash`，不是 Anthropic 模型**——三条件间对比公平，但结论不能外推到 Claude 模型。
+
+### easy-counter-increment-crash（预期打平的 sanity tier）
+
+| 条件 | fixed | steps | cost | MCP 工具使用 |
+| --- | --- | --- | --- | --- |
+| A: harness-fe | 1 | 5 | $0.056 | 无（63 个 `mcp__harness-fe__*` 工具已挂载且 connected，模型未用） |
+| B: chrome-devtools-mcp | 1 | 9 | $0.080 | 1 次 `list_pages`（修完后自查） |
+| C: none | 1 | 7 | $0.057 | — |
+
+### hard-network-race-stale-response（预期 harness-fe 胜出的 tier）——**预期被证伪**
+
+| 条件 | fixed | steps | cost | 解题路径 |
+| --- | --- | --- | --- | --- |
+| A: harness-fe | 1 | 19 | $0.159 | 读码改完后**主动用 harness-fe 工具在真实浏览器复现竞态验证**（page_navigate → page_click ×3 → page_wait_for → page_dom_query ×3） |
+| B: chrome-devtools-mcp | 1 | 7 | $0.081 | 纯静态读码修复（Read → Edit → Bash），未开浏览器 |
+| C: none | 1 | 5 | $0.062 | 纯静态读码修复，最快最便宜 |
+
+**关键发现**：这个"hard"竞态 bug 的缺陷（stale-response 守卫变量赋值顺序错误）在源码里静态可见，GLM 三个条件都靠读码直接修对，根本不需要运行时复现——**fixture 的"hard"分层假设对该模型不成立**。条件 A 多花的 2.5 倍成本买到的是 B/C 都没做的**真实行为验证**（agent 自己选择在浏览器里点一遍确认），但 oracle 只判最终行为，三个 fixed 都是 1，pass 率上无法区分。
+
+**pilot 结论**：
+1. 基建目标完全达成——Harbor 承载三条件真实跑分端到端可用，单样本全流程 1–3 分钟、成本 $0.06–0.16；
+2. "harness-fe 在 hard tier 胜出"的假设**未被支持**（n=1、单模型，不能算证伪价值主张本身，但证伪了该 fixture 的区分度假设）；
+3. 要测出条件差异，需要"静态读码容易修错"的 bug（视觉/布局/时序类，错误修复能骗过读码但骗不过浏览器 oracle），现有 5 个 fixtures 的分层需要按这个标准重新校准；
+4. 每个条件 n=1 无统计意义，正式跑分需要每 bug 每条件多次采样。
+
 ## 下一步建议
 
-**预算确认后**即可做真实跑分 pilot：三条件（harness-fe / chrome-devtools-mcp / none）各跑 1 个真实样本（条件 A 用 stub agent 的 run() 把探针换成 `claude -p`，或 stock claude-code agent + `--mcp-config`），对比 ATIF 轨迹与现有 stream-json 指标抽取，再决定是否批量迁移 5 个 fixtures。真实跑分调用 `claude -p` 产生真实 API 费用，遵守 bench/README.md 的 money gate。
+1. **fixture 校准**：按"静态不可修对"标准审查/新增 fixtures（参考 [harness-bench-industry-landscape.md](harness-bench-industry-landscape.md) 的空白点：样式/交互类 bug 单测和读码都判不准，运行时信号才是判定依据）；
+2. **多次采样**：正式对比每 bug 每条件 ≥5 次（Harbor `--n-attempts` 原生支持）；
+3. 再决定是否把 bench 整体从 Inspect AI 迁到 Harbor——基建已验证可行，迁移的剩余工作主要是 fixtures 的批量打包（prepare.sh 已是生成器雏形）。
