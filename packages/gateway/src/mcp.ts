@@ -11,6 +11,8 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { GATEWAY_PACKAGE_VERSION } from './packageVersion.js';
 import { z } from 'zod';
 import {
     COMMAND,
@@ -89,11 +91,30 @@ type CommandReg = (
     name: string,
     config: ToolConfig,
     build: (a: Record<string, unknown>) => { args: unknown; opts?: { tabId?: string; target?: 'runtime-client' | 'vite-plugin'; projectId?: string } },
+    formatResult?: (value: unknown) => CallToolResult,
 ) => void;
 
 function ok<T>(value: T): { content: Array<{ type: 'text'; text: string }> } {
     return {
         content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }],
+    };
+}
+
+/** Convert runtime image data at the MCP boundary, leaving the WS result intact. */
+function screenshotResult(value: unknown): CallToolResult {
+    if (!value || typeof value !== 'object' || !('dataUrl' in value) || typeof value.dataUrl !== 'string') {
+        throw new Error('page.screenshot: runtime did not return a screenshot data URL');
+    }
+    const { dataUrl, ...metadata } = value;
+    const image = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+    if (!image || image[2].length % 4 !== 0) {
+        throw new Error('page.screenshot: runtime returned invalid or unsupported image data');
+    }
+    return {
+        content: [
+            { type: 'image', mimeType: image[1], data: image[2] },
+            ...ok({ ...metadata, format: image[1].slice('image/'.length) }).content,
+        ],
     };
 }
 
@@ -110,7 +131,7 @@ export function createMcpServer(
     principal: Principal,
     options: McpServerOptions = {},
 ): McpServer {
-    const server = new McpServer({ name: SERVER_NAME, version: PROTOCOL_VERSION });
+    const server = new McpServer({ name: SERVER_NAME, version: GATEWAY_PACKAGE_VERSION });
 
     const reg: RegisterTool = (name, config, handler) => {
         (server.registerTool as any)(name, config, handler);
@@ -123,10 +144,10 @@ export function createMcpServer(
     };
 
     /** A browser/plugin command tool — scope derived from CONTROL_COMMANDS. */
-    const command: CommandReg = (name, config, build) => {
+    const command: CommandReg = (name, config, build, formatResult = ok) => {
         gated(requiredScopeForCommand(name), name, config, async (a: Record<string, unknown>) => {
             const { args, opts } = build(a);
-            return ok(await caps.command(name, args, principal, opts));
+            return formatResult(await caps.command(name, args, principal, opts));
         });
     };
 
@@ -193,9 +214,9 @@ function registerCommandTools(command: CommandReg): void {
     }, ({ predicate, timeoutMs, tabId }) => ({ args: waitForArgsSchema.parse({ predicate, timeoutMs }), opts: { tabId: tabId as string | undefined } }));
 
     command(COMMAND.PAGE_SCREENSHOT, {
-        description: 'Take a screenshot. Without `selector`, the full viewport is captured. This is a DOM-to-canvas capture, not a real compositor screenshot: response.notCaptured lists any <canvas>/<video>/cross-origin <iframe> inside the captured area whose content could not be rendered (check it before treating a blank region as genuinely empty).',
+        description: 'Return a screenshot as a native MCP image plus text metadata (dimensions, format, notCaptured). PNG by default; webp/jpeg are available for smaller images. Without `selector`, captures the document. This is a DOM-to-canvas capture, not a real compositor screenshot: metadata.notCaptured lists any <canvas>/<video>/cross-origin <iframe> whose content could not be rendered. Check it before treating a blank region as genuinely empty.',
         inputSchema: { selector: selectorSchema.optional(), format: z.enum(['png', 'webp', 'jpeg']).optional(), maxWidth: z.number().int().positive().optional(), tabId: tabIdParam },
-    }, ({ selector, format, maxWidth, tabId }) => ({ args: screenshotArgsSchema.parse({ selector, format, maxWidth }), opts: { tabId: tabId as string | undefined } }));
+    }, ({ selector, format, maxWidth, tabId }) => ({ args: screenshotArgsSchema.parse({ selector, format: format ?? 'png', maxWidth }), opts: { tabId: tabId as string | undefined } }), screenshotResult);
 
     command(COMMAND.PAGE_DOM_QUERY, {
         description: 'Return outerHTML of the matched element(s). Text-first inspection tool. `total` is the full match count in the document (assert on that, not `matches.length`, which `limit` clips — `truncated: true` says it did).',

@@ -47,6 +47,30 @@ const gw = createGateway({ store });
 await gw.listen(47950);
 ```
 
+## Screenshot results for vision models
+
+`page.screenshot` returns a native MCP `image` content block and a separate
+`text` block containing capture metadata (`width`, `height`, `format`, `via`,
+and `notCaptured`). PNG is the MCP default; request `webp` or `jpeg` explicitly
+for smaller payloads. The image block's `mimeType` reflects the actual encoded
+data, including a browser fallback to PNG.
+
+Clients should consume the image block directly rather than read a `dataUrl`
+from text. Pixel data is not duplicated in the metadata. Runtime WebSocket
+responses still use the existing data URL shape; conversion happens only at
+the MCP boundary and applies to both HTTP and solo/stdio clients.
+
+Screenshots use DOM-to-canvas capture. Inspect `notCaptured` before interpreting
+blank canvas/video/cross-origin iframe regions. Image delivery requires a
+vision-capable model and a client/provider that forwards image content;
+receiving a text-only base64 string is not visual verification.
+
+`GET /console/api/meta` includes `gatewayVersion`, the running npm package
+version; MCP initialization reports that same package version. These are
+independent of `protocolVersion` and the legacy `daemonVersion`. After an npm
+upgrade, restart the managed gateway and reload MCP to replace any shared older
+process. See the [upgrade instructions](../../docs/agent-setup.md#upgrade-an-existing-machine).
+
 ## License
 
 MIT

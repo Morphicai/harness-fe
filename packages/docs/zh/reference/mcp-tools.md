@@ -35,7 +35,7 @@ npx @harness-fe/skill install
 | `page.click` | 按 selector 点击元素 |
 | `page.type` | 向元素键入文本 |
 | `page.scroll` | 滚动页面或元素 |
-| `page.screenshot` | 截图(返回 base64 PNG) |
+| `page.screenshot` | 返回原生 MCP 图片块（默认 PNG，可选 WebP/JPEG）和文本元数据；检查 `notCaptured` 中的 canvas/video/跨域 iframe 缺失区域。需要支持视觉的模型读取图片块，base64 文本不代表看到了图片 |
 | `page.dom_query` | 查询 DOM 元素并返回其属性 |
 | `page.evaluate` | 在页面上下文中跑任意 JS |
 | `page.wait_for` | 等待元素或条件 |

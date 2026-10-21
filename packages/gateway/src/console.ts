@@ -33,6 +33,7 @@ import {
 import { PROTOCOL_VERSION } from '@harness-fe/protocol';
 import { createReplayHandler } from './replayViewer.js';
 import type { Policy } from './policy.js';
+import { GATEWAY_PACKAGE_VERSION } from './packageVersion.js';
 
 const TIMELINE_DEFAULT_TAIL = 100;
 const SESSIONS_PER_PROJECT = 10;
@@ -148,7 +149,8 @@ export function createConsoleHandler(
     async function handleApi(path: string, url: URL, req: IncomingMessage, res: ServerResponse): Promise<boolean> {
         // Version/mode is public so the shell can render before sign-in.
         if (path === '/console/api/meta') {
-            sendJson(res, 200, { daemonVersion: PROTOCOL_VERSION, protocolVersion: PROTOCOL_VERSION, mode: opts.mode });
+            sendJson(res, 200, { daemonVersion: PROTOCOL_VERSION, protocolVersion: PROTOCOL_VERSION,
+                gatewayVersion: GATEWAY_PACKAGE_VERSION, mode: opts.mode });
             return true;
         }
 

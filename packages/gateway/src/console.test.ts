@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { InProcessCoreClient } from '@harness-fe/core';
 import { createGateway, type GatewayHandle } from './server.js';
 import { Policy } from './policy.js';
+import { GATEWAY_PACKAGE_VERSION } from './packageVersion.js';
 
 describe('gateway /console', () => {
     let core: InProcessCoreClient;
@@ -33,6 +34,7 @@ describe('gateway /console', () => {
         const meta = await (await fetch(`${base}/console/api/meta`)).json();
         expect(meta.mode).toBe('open');
         expect(typeof meta.protocolVersion).toBe('string');
+        expect(meta.gatewayVersion).toBe(GATEWAY_PACKAGE_VERSION);
         const projects = await (await fetch(`${base}/console/api/projects`)).json();
         expect(Array.isArray(projects.projects)).toBe(true);
     });
