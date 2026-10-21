@@ -71,6 +71,21 @@ function attempt(run, plan, state, job) {
     }
     const known = steps.filter(step => Number.isFinite(step.model.costUsd));
     const lastGrade = grades.at(-1);
+    const nextDir = dir && steps.length < job.sample.tasks.length && join(dir, `step-${String(steps.length + 1).padStart(2, '0')}`);
+    const terminalReceipt = nextDir && existsSync(join(nextDir, 'model-receipt.json')) ? json(join(nextDir, 'model-receipt.json')) : null;
+    let terminalOutput = null;
+    if (terminalReceipt && existsSync(join(nextDir, 'model.json'))) {
+        try { terminalOutput = json(join(nextDir, 'model.json')); } catch { /* Retain malformed failed output as raw evidence. */ }
+    }
+    const quotaFailure = terminalReceipt?.isError && (terminalOutput?.api_error_status === 429 || /\b429\b/.test(terminalOutput?.result ?? ''))
+        && /quota|usage limit|额度/i.test(terminalOutput?.result ?? '');
+    const diagnosticPath = nextDir && join(nextDir, 'partial-source-diagnostic/diagnostic.json');
+    const diagnostic = diagnosticPath && existsSync(diagnosticPath) ? json(diagnosticPath) : null;
+    if (diagnostic) {
+        assert.equal(diagnostic.benchmarkAttemptCompleted, false);
+        assert.equal(diagnostic.verifierImage, job.sample.verifierImage);
+        assert.equal(diagnostic.source.sourceHash, json(join(nextDir, 'source-receipt.json')).sourceHash);
+    }
     const phase = current?.state !== 'running' ? current?.state ?? 'pending'
         : chain?.complete ? 'cleanup' : chain?.setupSeconds === undefined ? 'setup'
             : existsSync(join(dir, `step-${String(steps.length + 1).padStart(2, '0')}`, 'model-receipt.json')) ? 'grading' : 'model-execution';
@@ -87,11 +102,23 @@ function attempt(run, plan, state, job) {
         finalFlakyCases: complete ? lastGrade.stats.flaky : null,
         flakyCaseOccurrencesAcrossStages: grades.reduce((n, grade) => n + grade.stats.flaky, 0),
         finalFailures: complete ? lastGrade.cases.filter(c => !['expected', 'flaky'].includes(c.status)) : [],
+        latestGradedStageCases: lastGrade ? { stage: steps.at(-1).stage,
+            ...fraction(lastGrade.cases.filter(c => ['expected', 'flaky'].includes(c.status)).length, lastGrade.totalCases) } : null,
+        ungradedModelReceipt: terminalReceipt,
+        failureCategory: quotaFailure ? 'provider_quota_exhausted' : current?.failure ? 'inspect_original_failure' : null,
+        partialSourceDiagnostic: diagnostic ? { benchmarkAttemptCompleted: false, totalCases: diagnostic.totalCases,
+            stats: diagnostic.stats, currentTaskPassed: diagnostic.currentTaskPassed, passed: diagnostic.passed,
+            sourceHash: diagnostic.source.sourceHash, failures: diagnostic.failures } : null,
         timing: { setupSeconds: chain?.setupSeconds ?? null,
             modelSeconds: steps.reduce((n, step) => n + step.model.seconds, 0),
+            ungradedModelSeconds: terminalReceipt?.seconds ?? 0,
             gradingSeconds: sum(steps, 'verifierSeconds'), wholeAttemptSeconds: complete ? current.seconds : null },
         cost: { cliEstimatedUsdForGradedSteps: known.reduce((n, step) => n + step.model.costUsd, 0),
+            cliEstimatedUsdIncludingUngradedSteps: known.reduce((n, step) => n + step.model.costUsd, 0)
+                + (Number.isFinite(terminalReceipt?.costUsd) ? terminalReceipt.costUsd : 0),
             knownGradedSteps: known.length, unknownGradedSteps: steps.length - known.length,
+            knownUngradedSteps: Number(Number.isFinite(terminalReceipt?.costUsd)),
+            unknownUngradedSteps: Number(Boolean(terminalReceipt) && !Number.isFinite(terminalReceipt.costUsd)),
             ungradedOrPendingSteps: job.sample.tasks.length - steps.length,
             source: 'Claude CLI estimate, not provider invoice; ungraded/unknown usage is not assumed free' },
         tools: toolMetrics(dir ? auditRows(join(dir, 'tools.jsonl'), complete) : []),
@@ -138,7 +165,8 @@ export function createReport(selections) {
         scope: { projects: projects.size, attempts: attempts.length, completedAttempts: attempts.filter(row => row.complete).length,
             completedSteps: sum(attempts, 'completedSteps'), plannedSteps: sum(attempts, 'plannedSteps'),
             inference: 'Correlated sequential project chains, not independent development samples or an official leaderboard submission' },
-        imageEvidence: 'Native MCP image blocks returned to the model; does not establish correct visual reasoning or a causal quality benefit' };
+        imageEvidence: 'Native MCP image blocks returned to the model; does not establish correct visual reasoning or a causal quality benefit',
+        toolEvidence: 'Counters cover recorded broker responses; transport exceptions before recording are not independently enumerated' };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

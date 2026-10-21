@@ -85,3 +85,30 @@ test('rejects plan tampering and cross-condition environment mismatch', () => {
     f.state.planHash = digest(f.plan); save(join(f.root, 'state.json'), f.state);
     assert.throws(() => createReport(f.selections), /Paired environment/);
 });
+
+test('quota interruption retains ungraded cost and diagnostic without becoming a completed score', () => {
+    const f = fixture(), dir = join(f.root, 'job-0/1');
+    const chain = JSON.parse(readFileSync(join(dir, 'chain.json')));
+    chain.steps.pop(); chain.complete = false; save(join(dir, 'chain.json'), chain);
+    f.state.jobs['job-0'].state = 'failed'; f.state.jobs['job-0'].failure = 'Adapter failed';
+    save(join(f.root, 'state.json'), f.state);
+    save(join(dir, 'step-02/model-receipt.json'), { isError: true, seconds: 4, costUsd: 0.7 });
+    save(join(dir, 'step-02/model.json'), { api_error_status: 429, result: 'API 429: five-hour usage limit; quota exhausted' });
+    mkdirSync(join(dir, 'step-02/partial-source-diagnostic'));
+    save(join(dir, 'step-02/partial-source-diagnostic/diagnostic.json'), { benchmarkAttemptCompleted: false,
+        verifierImage: 'verifier', source: { sourceHash: 'source-2' }, totalCases: 1,
+        stats: { expected: 1, unexpected: 0, flaky: 0 }, currentTaskPassed: true, passed: true, failures: [] });
+    const r = createReport(f.selections), a = r.attempts[0];
+    assert.equal(a.failureCategory, 'provider_quota_exhausted');
+    assert.equal(a.cost.knownUngradedSteps, 1); assert.equal(a.cost.unknownUngradedSteps, 0);
+    assert(Math.abs(a.cost.cliEstimatedUsdIncludingUngradedSteps - 0.8) < 1e-9);
+    assert.equal(a.timing.ungradedModelSeconds, 4);
+    assert.equal(a.partialSourceDiagnostic.passed, true);
+    assert.equal(a.latestGradedStageCases.stage, 1);
+    assert.equal(a.finalCases, null); assert.equal(a.score, null);
+    assert.equal(r.complete, false); assert.equal(r.pairs[0].outcome, 'unresolved');
+    writeFileSync(join(dir, 'step-02/model.json'), 'truncated failed CLI output');
+    const malformed = createReport(f.selections).attempts[0];
+    assert.equal(malformed.failureCategory, 'inspect_original_failure');
+    assert.equal(malformed.cost.knownUngradedSteps, 1); assert.equal(malformed.score, null);
+});
