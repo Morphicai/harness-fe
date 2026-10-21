@@ -1,0 +1,26 @@
+{
+  "name": "runtime-diagnostics-pilot",
+  "version": 1,
+  "model": "k3",
+  "conditions": ["harness-fe", "chrome-devtools-mcp"],
+  "timeoutSeconds": 360,
+  "maxToolCalls": 30,
+  "cases": [
+    {
+      "id": "export-stale-error",
+      "intent": "An export briefly failed and retried. The user still sees an error. Determine whether the final export actually failed or the UI is showing an obsolete failure. Find the decisive recovery request ID in the logs and read the current on-screen incident code from a screenshot.",
+      "rootCause": "stale_client_error"
+    },
+    {
+      "id": "stream-cross-talk",
+      "intent": "After switching conversations while a reply was streaming, the active conversation displays unexpected text. Determine whether the server omitted the reply, routed the wrong conversation, or the client displayed an obsolete stream. Find the obsolete stream request ID and read the active conversation's incident code from a screenshot.",
+      "rootCause": "stale_stream_write"
+    },
+    {
+      "id": "cross-tab-session",
+      "intent": "The Overview tab became signed out while the user was refreshing Preferences in another tab. Determine whether the server rejected the session or a browser-side action changed shared state. Identify the initiating tab, affected storage key and operation ID from the logs, and read the Overview incident code from a screenshot.",
+      "rootCause": "shared_storage_cleanup"
+    }
+  ],
+  "boundary": "Self-authored diagnostic pilot, not WebArena, not a Harbor job, not a fix-success benchmark. One attempt per case/condition; all cases have observable logs. Same scenario data per paired condition. Both MCP collectors start before the fault; a transport-only broker preserves each collector session for model calls."
+}

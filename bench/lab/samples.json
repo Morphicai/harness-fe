@@ -1,0 +1,833 @@
+{
+  "schemaVersion": 1,
+  "selectionRevision": "frontend-eligible-v2",
+  "seed": "harness-fe-public-samples-2026-10-21",
+  "createdAt": "2026-10-21T08:57:54.886Z",
+  "acceptance": "Frozen selection only; per-dataset browser, model and official verifier preflight remains required",
+  "sources": [
+    {
+      "name": "fullstack.jsonl",
+      "url": "https://huggingface.co/datasets/luzimu/FullStack-Bench/resolve/d3fe0e7828d121f78d85c5763b3166c1e09ba929/FullStack-Bench.jsonl",
+      "sha256": "cfdd52caf79ed12c9b9da09dbada119f509b2d8edd1286d9ee20f8d3de5a67a0"
+    },
+    {
+      "name": "swe-test.parquet",
+      "url": "https://huggingface.co/datasets/SWE-bench/SWE-bench_Multimodal/resolve/4e6662d51c48e475f7f346e4fa09a6f8b31fcaa5/data/test-00000-of-00001.parquet",
+      "sha256": "ce21141e0b2aadb6b91cf21d27c93e4c159afb1c4c25b7b4ea9222d823dd9da7"
+    },
+    {
+      "name": "vwa-classifieds.json",
+      "url": "https://raw.githubusercontent.com/web-arena-x/visualwebarena/89f5af29305c3d1e9f97ce4421462060a70c9a03/config_files/vwa/test_classifieds.raw.json",
+      "sha256": "5d7322cc3bef21c755abc966624530d15121ad73403f64177d2f06014dbfb14f"
+    },
+    {
+      "name": "vwa-reddit.json",
+      "url": "https://raw.githubusercontent.com/web-arena-x/visualwebarena/89f5af29305c3d1e9f97ce4421462060a70c9a03/config_files/vwa/test_reddit.raw.json",
+      "sha256": "68ea7eaa11b5ec16d71cd4012243a6e956fb7abfefe091c5da6584b9189a8e34"
+    },
+    {
+      "name": "vwa-shopping.json",
+      "url": "https://raw.githubusercontent.com/web-arena-x/visualwebarena/89f5af29305c3d1e9f97ce4421462060a70c9a03/config_files/vwa/test_shopping.raw.json",
+      "sha256": "beb9fc27d90406131f11442cc9518facdefc2c4845b5648f4934921aee4afa90"
+    },
+    {
+      "name": "web-canvas.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/canvas/tasks.jsonl",
+      "sha256": "5bf9151f78f7cc291f9c969fa940d8c423ddcd3a51a9c0d71c6c5effd4a15384"
+    },
+    {
+      "name": "web-chart.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/chart/tasks.yml",
+      "sha256": "ac7fe7aa2a565a9326e5db2a196fc0ba8e91a22012d8cc4802b0b1f5b4ed9a6a"
+    },
+    {
+      "name": "web-expressjs.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/expressjs/tasks.jsonl",
+      "sha256": "5a9a44eb8ce8183105f67c2d4c64a39b6164b1c4044c6746dbff2f264e2f0f5a"
+    },
+    {
+      "name": "web-fastify-react.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/fastify-react/tasks.yml",
+      "sha256": "b5e154c37cb65f73848f2df839ceb5431fb102bc1e766b555b948abddb075526"
+    },
+    {
+      "name": "web-form.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/form/tasks.jsonl",
+      "sha256": "9e6f3fd08744e1282e6fc421f6b75ac72c4b5692ea30ba5e4f5fb388937d7d9e"
+    },
+    {
+      "name": "web-nextjs.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/nextjs/tasks.jsonl",
+      "sha256": "9110b515486960ab9034affc30a9e00532e68635ade963c4368eb1350426e79c"
+    },
+    {
+      "name": "web-nosql.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/nosql/tasks.jsonl",
+      "sha256": "d7837f88ada808fe42827e33680ade7ef79817a865052c05e07ed98e3773a670"
+    },
+    {
+      "name": "web-prisma.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/prisma/tasks.yml",
+      "sha256": "57f837734778be8277562272603651886d584da93490177a785b5f68e84a8d35"
+    },
+    {
+      "name": "web-react.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/react/tasks.jsonl",
+      "sha256": "3d7ba49a0ef42bc136973005b6c93c324e94894d32d929ceb8c331818bada27a"
+    },
+    {
+      "name": "web-tree.json",
+      "url": "https://api.github.com/repos/bytedance/web-bench/git/trees/7b31ca2b786eef120dd49ce63dd03d0c0006046d?recursive=1",
+      "sha256": "cef492548533e8bb77beacc91516fe9a8713102cf638ddb488ab7d4b9c0e0790"
+    },
+    {
+      "name": "web-vue.txt",
+      "url": "https://raw.githubusercontent.com/bytedance/web-bench/7b31ca2b786eef120dd49ce63dd03d0c0006046d/projects/vue/tasks.jsonl",
+      "sha256": "9bfef29ed1d9ebfe595de6b424849af401541757086a325380dda4f750bc2d64"
+    },
+    {
+      "name": "webarena.json",
+      "url": "https://raw.githubusercontent.com/ServiceNow/webarena-verified/6473f72db5dcefc97b5725b59e734504edc28a21/assets/dataset/webarena-verified.json",
+      "sha256": "d65275660814663375028e9017e1f929e3c38321041b125795e2713b52243d30"
+    }
+  ],
+  "suites": [
+    {
+      "id": "web-bench",
+      "revision": "7b31ca2b786eef120dd49ce63dd03d0c0006046d",
+      "unit": "project-chain",
+      "selection": "Five frontend and five integration-oriented projects; all 20 dependent tasks per project, no outcome-based selection",
+      "samples": [
+        {
+          "id": "react",
+          "project": "@web-bench/react",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/react/tasks.jsonl",
+          "recordHash": "3d7ba49a0ef42bc136973005b6c93c324e94894d32d929ceb8c331818bada27a"
+        },
+        {
+          "id": "vue",
+          "project": "@web-bench/vue",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/vue/tasks.jsonl",
+          "recordHash": "9bfef29ed1d9ebfe595de6b424849af401541757086a325380dda4f750bc2d64"
+        },
+        {
+          "id": "form",
+          "project": "@web-bench/form",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/form/tasks.jsonl",
+          "recordHash": "9e6f3fd08744e1282e6fc421f6b75ac72c4b5692ea30ba5e4f5fb388937d7d9e"
+        },
+        {
+          "id": "canvas",
+          "project": "@web-bench/canvas",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/canvas/tasks.jsonl",
+          "recordHash": "5bf9151f78f7cc291f9c969fa940d8c423ddcd3a51a9c0d71c6c5effd4a15384"
+        },
+        {
+          "id": "chart",
+          "project": "@web-bench/chart",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/chart/tasks.yml",
+          "recordHash": "ac7fe7aa2a565a9326e5db2a196fc0ba8e91a22012d8cc4802b0b1f5b4ed9a6a"
+        },
+        {
+          "id": "fastify-react",
+          "project": "@web-bench/fastify-react",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/fastify-react/tasks.yml",
+          "recordHash": "b5e154c37cb65f73848f2df839ceb5431fb102bc1e766b555b948abddb075526"
+        },
+        {
+          "id": "nextjs",
+          "project": "@web-bench/nextjs",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/nextjs/tasks.jsonl",
+          "recordHash": "9110b515486960ab9034affc30a9e00532e68635ade963c4368eb1350426e79c"
+        },
+        {
+          "id": "prisma",
+          "project": "@web-bench/prisma",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/prisma/tasks.yml",
+          "recordHash": "57f837734778be8277562272603651886d584da93490177a785b5f68e84a8d35"
+        },
+        {
+          "id": "expressjs",
+          "project": "@web-bench/expressjs",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/expressjs/tasks.jsonl",
+          "recordHash": "5a9a44eb8ce8183105f67c2d4c64a39b6164b1c4044c6746dbff2f264e2f0f5a"
+        },
+        {
+          "id": "nosql",
+          "project": "@web-bench/nosql",
+          "taskIds": [
+            "task-1",
+            "task-2",
+            "task-3",
+            "task-4",
+            "task-5",
+            "task-6",
+            "task-7",
+            "task-8",
+            "task-9",
+            "task-10",
+            "task-11",
+            "task-12",
+            "task-13",
+            "task-14",
+            "task-15",
+            "task-16",
+            "task-17",
+            "task-18",
+            "task-19",
+            "task-20"
+          ],
+          "taskFile": "projects/nosql/tasks.jsonl",
+          "recordHash": "d7837f88ada808fe42827e33680ade7ef79817a865052c05e07ed98e3773a670"
+        }
+      ]
+    },
+    {
+      "id": "swe-bench-multimodal-v2",
+      "revision": "4e6662d51c48e475f7f346e4fa09a6f8b31fcaa5",
+      "split": "test",
+      "unit": "issue",
+      "selection": "Seeded diversity across the eight browser UI/rendering libraries in the pinned v2 test split; exclude Lighthouse auditing, ESLint and Prettier CLI tasks before any model outcomes; live-repro preflight remains required",
+      "excludedRepositories": [
+        "GoogleChrome/lighthouse",
+        "eslint/eslint",
+        "prettier/prettier"
+      ],
+      "samples": [
+        {
+          "id": "bpmn-io__bpmn-js-1179",
+          "repo": "bpmn-io/bpmn-js",
+          "baseCommit": "c9e9f002c9248c2b6fe2b3b1668447d01a69d054",
+          "instruction": "Sequence Flow Layout Broken After Dropping Element\nDropping any element onto a sequence flow breaks the layout. The docking of the new incoming sequence flow seems to always be the top left corner.\r\n\r\n![23-08-_2019_11-24-32](https://user-images.githubusercontent.com/7633572/63582090-b42c1700-c598-11e9-90fd-aacc18d93bb2.gif)\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/7633572/63582090-b42c1700-c598-11e9-90fd-aacc18d93bb2.gif"
+          ],
+          "recordHash": "0c99fb50e5c34dec9d5cdf33674c0ef055b9b0fb2dd42aa837887dc5750cefe3"
+        },
+        {
+          "id": "PrismJS__prism-2861",
+          "repo": "PrismJS/prism",
+          "baseCommit": "e0ee93f138b7da294a28db50b97c22977fdfc8ed",
+          "instruction": "Typescript: Incorrectly identifying attributes as keywords\n**Information:**\r\n- Prism version: 1.23.0\r\n- Plugins: none\r\n- Environment: Browser\r\n\r\n**Description**\r\nIncorrectly identifying attributes as keywords\r\n\r\n**Example**\r\n\r\nthe \"type\" attribute\r\n\r\nrender by github:\r\n```typescript\r\nexport interface R<T> {\r\n  data: T;\r\n  total: number;\r\n  type?: string;\r\n}\r\n```\r\n\r\nrender by prismjs:\r\n![Screenshot from 2021-04-18 00-33-40](https://user-images.githubusercontent.com/50064165/115120019-c49acc00-9fdd-11eb-81b3-aa0260fcec2d.png)\r\n\r\n\r\n\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/50064165/115120019-c49acc00-9fdd-11eb-81b3-aa0260fcec2d.png"
+          ],
+          "recordHash": "4fe87ad49e93c42aa507d18264da463bf12a890b26dfa124e7ae9a6a9bc00792"
+        },
+        {
+          "id": "openlayers__openlayers-14414",
+          "repo": "openlayers/openlayers",
+          "baseCommit": "8fee4db7a285cdbbd7637e373d6c712ebba40afe",
+          "instruction": "Region Growing using a GeoTIFF\n**Describe the bug**\r\nI'm trying to do a Region Growing using a GeoTIFF file, and the idea was to use the style of the WebGLTileLayer to mark all the pixels which are below the level, then use a RasterOperation to set a new rgb to all the pixels which are directly connected to a clicked one.\r\nWhen I increase the level on the slider, all the pixels which are below the level become white, but when I decrease the level the pixels stop changing. \r\nAlso, if I try to print the R value of a pixel, it is not correct, like in the image\r\n![bug](https://user-images.githubusercontent.com/46652311/209388190-7732c8b2-db84-454d-bbba-f1884af1edea.jpg)\r\n\r\nI don't know if it's a bug or I am missing something.\r\n\r\n**To Reproduce**\r\nHTML: \r\n```\r\n<!DOCTYPE html>\r\n<html lang=\"en\">\r\n\r\n<head>\r\n  <meta charset=\"UTF-8\">\r\n  <title>Flooding tool</title>\r\n  <style>\r\n    @import \"node_modules/ol/ol.css\";\r\n\r\n    .map {\r\n      width: 100%;\r\n      height: 500px;\r\n      cursor: pointer;\r\n    }\r\n    \r\n  </style>\r\n</head>\r\n\r\n<body>\r\n  <div id=\"map\" class=\"map\"></div>\r\n  <div>\r\n    <label>\r\n      Sea level\r\n      <input id=\"level\" type=\"range\" min=\"0\" max=\"20\" value=\".00\" step=\"0.05\" />\r\n      +<span id=\"output\"></span> m\r\n    </label>\r\n  </div>\r\n  \r\n  <script src=\"https://unpkg.com/elm-pep@1.0.6/dist/elm-pep.js\"></script>\r\n  <script type=\"module\" src=\"index.js\"></script>\r\n</body>\r\n\r\n</html>\r\n```\r\n\r\nJS:\r\n```\r\nimport { GeoTIFF } from 'ol/source';\r\nimport RasterSource from 'ol/source/Raster';\r\nimport Map from 'ol/Map';\r\nimport { WebGLTile as TileLayer } from 'ol/layer';\r\nimport ImageLayer from 'ol/layer/Image';\r\nimport View from 'ol/View';\r\nimport proj4 from 'proj4';\r\nimport { register } from 'ol/proj/proj4';\r\nimport OSM from 'ol/source/OSM';\r\nimport filetif from './COPERNICUS_EUDEM_165252.tif'\r\n\r\nconst control = document.getElementById('level');\r\nconst FloodStyle = {\r\n\tvariables: {\r\n\t\tlevel: parseFloat(control.value),\r\n\t},\r\n\tcolor: [\r\n\t\t'case',\r\n\t\t['==', ['band', 2], 0],  //se la banda2 == 0 (indica i nodata)\r\n\t\t'#00000000',             //allora pixel trasparente\r\n\t\t[\"case\", [\"<=\", [\"band\", 1], [\"var\", \"level\"]], \"#ffffffff\", '#00000000']  //se la banda1 è <= livello è blu altrimenti trasparente\r\n\t],\r\n}\r\n\r\n// Register projection definition\r\nproj4.defs(\r\n\t'EPSG:32633', '+proj=utm +zone=33 +ellps=WGS84 +datum=WGS84 +units=m +no_defs'\r\n);\r\nregister(proj4);\r\n\r\n// Functions called inside this operation are visible only if they're provided in \"lib\" option\r\nfunction floodRegion(inputs, data) {\r\n\tconst image = inputs[0];\r\n\tconst inputData = image.data;\r\n\tconst width = image.width;\r\n\tconst height = image.height;\r\n\tlet seed = data.pixel;\r\n\r\n\tif (seed) {\r\n\t\tseed = seed.map(Math.round);\r\n\t\tconst seedIdx = (seed[1] * width + seed[0]) * 4;\r\n\t\tconsole.log(\"Value: \" + inputData[seedIdx]);\r\n\t}\r\n\r\n\treturn { data: image.data, width: width, height: height };\r\n}\r\n\r\nconst elevation = new GeoTIFF({\r\n\tsources: [\r\n\t\t{\r\n\t\t\turl: filetif,\r\n\t\t\tprojection: 'EPSG:32633',\r\n\t\t},\r\n\t],\r\n\tnormalize: false,   //importante\r\n\tinterpolate: false, //importante\r\n})\r\n\r\nconst elevationTile = new TileLayer({\r\n\tsource: elevation,\r\n\tstyle: FloodStyle\r\n})\r\n\r\nconst raster = new RasterSource({\r\n\tsources: [elevationTile],\r\n\toperationType: \"image\",\r\n\toperation: floodRegion\r\n});\r\n\r\nconst dem = new ImageLayer({\r\n\tsource: raster,\r\n\topacity: 1.0,\r\n})\r\n\r\nconst osm = new TileLayer({\r\n\tvisible: true,\r\n\tpreload: Infinity,\r\n\tsource: new OSM({ wrapX: true })\r\n})\r\n\r\nconst map = new Map({\r\n\ttarget: 'map',\r\n\tlayers: [\r\n\t\tosm,\r\n\t\tdem,\r\n\t],\r\n\tview: new View({\r\n\t\tprojection: 'EPSG:32633',\r\n\t\tcenter: [306821.2, 4879578.4],\r\n\t\tzoom: 13,\r\n\t}),\r\n})\r\n\r\nelevation.getView().then((options) => {\r\n\tdem.setExtent(options.extent);\r\n})\r\n\r\nconst outputLevel = document.getElementById('output');\r\ncontrol.addEventListener('input', () => {\r\n\toutputLevel.innerText = control.value;\r\n\televationTile.updateStyleVariables({ level: parseFloat(control.value) });\r\n\t//raster.changed();\r\n})\r\noutputLevel.innerText = control.value;\r\n\r\nlet coordinate = null;\r\n\r\nmap.on('click', (event) => {\r\n\tcoordinate = event.coordinate;\r\n\traster.changed();\r\n})\r\n\r\nraster.on('beforeoperations', function (event) {\r\n\t// the event.data object will be passed to operations\r\n\tconst data = event.data;\r\n\r\n\tif (coordinate) {\r\n\t\tdata.pixel = map.getPixelFromCoordinate(coordinate);\r\n\t}\r\n});\r\n```\r\n\r\nMove the slider to increase the level, then decrease\r\n\r\n[COPERNICUS_EUDEM_165252.zip](https://github.com/openlayers/openlayers/files/10296729/COPERNICUS_EUDEM_165252.zip)\r\n\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/46652311/209388190-7732c8b2-db84-454d-bbba-f1884af1edea.jpg"
+          ],
+          "recordHash": "d9a7fed124540bc787831a5b1273dc1a7e1615f2b294f18c6746491896287403"
+        },
+        {
+          "id": "carbon-design-system__carbon-3918",
+          "repo": "carbon-design-system/carbon",
+          "baseCommit": "45649e812b53f7060e0bab47f0acaf709a5b7707",
+          "instruction": "[DataTable] OverflowMenu doesn't have keyboard accessible styles\n## Detailed description\r\n\r\nWhen using an `OverflowMenu` component inside of a `DataTable` as highlighted [here](https://www.carbondesignsystem.com/components/data-table/usage#inline-actions), the keyboard actions of the `OverflowMenu` do not work. \r\n\r\nOnce the menu is open, the user is not able to use their arrow keys to select an `OverflowMenuItem` option as one would be able to in an `OverflowMenu` that is not inside of a `DataTable` because there are no visual indicators of which option is currently active.\r\n\r\nIt is expected that a user would be able to make a selection inside of an `OveflowMenu` in a `DataTable` just using their keyboard.\r\n\r\n> What version of the Carbon Design System are you using?\r\nVersion 10\r\n\r\n## Steps to reproduce the issue\r\n\r\n1. Go to sandbox https://codesandbox.io/s/carbon-react-datatable-overflowmenu-a11y-bug-c92rz\r\n2. Using the keyboard only, open any overflow menu on the table\r\n3. Use arrow keys to attempt to select an action\r\n4. Notice that there are no visual indicators of which action is active to be selected\r\n\r\n## Additional information\r\n\r\n**Keyboard usage of standalone `OverflowMenu`**\r\n![Kapture 2019-07-11 at 15 36 36](https://user-images.githubusercontent.com/5973294/61083551-b162d180-a3f1-11e9-9963-2bce349fc077.gif)\r\n\r\n**Keyboard usage of `OverflowMenu` inside of a `DataTable`**\r\n![Kapture 2019-07-11 at 15 38 15](https://user-images.githubusercontent.com/5973294/61083652-ee2ec880-a3f1-11e9-890d-ce0ef151f68d.gif)\r\n\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/5973294/61083551-b162d180-a3f1-11e9-9963-2bce349fc077.gif",
+            "https://user-images.githubusercontent.com/5973294/61083652-ee2ec880-a3f1-11e9-890d-ce0ef151f68d.gif"
+          ],
+          "recordHash": "56589ceb5011e495512ed0de79bf7590ef699e40a7e0fb2d113b617d5f4e6a17"
+        },
+        {
+          "id": "highlightjs__highlight.js-3457",
+          "repo": "highlightjs/highlight.js",
+          "baseCommit": "777eb9172f9cabb96acf82d204769059ca2d0030",
+          "instruction": "Very simple fix for bold + italics misrender for markdown\n\r\nThere is currently a bug where if you have bold and italics applied to a piece of text, it causes the rest of the document to render as bold and italics, and ignores the closing bold/italics characters.\r\n\r\nThis resolves that.\r\n\r\nBefore fix\r\n![image](https://user-images.githubusercontent.com/7014528/148438900-4c83c46e-8241-46c2-9360-acca18d4c7d7.png)\r\n\r\nAfter fix\r\n![image](https://user-images.githubusercontent.com/7014528/148438986-f376ba6a-5d26-45b7-a2f0-4e9f313f5712.png)\r\n\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/7014528/148438900-4c83c46e-8241-46c2-9360-acca18d4c7d7.png",
+            "https://user-images.githubusercontent.com/7014528/148438986-f376ba6a-5d26-45b7-a2f0-4e9f313f5712.png"
+          ],
+          "recordHash": "3860ce585b6bf42f718fc07cbd76452b5dd316c426d450856e3eaae5486b06f7"
+        },
+        {
+          "id": "alibaba-fusion__next-4021",
+          "repo": "alibaba-fusion/next",
+          "baseCommit": "a8e07e3816b7c754d420d9072829784aa4b96aa1",
+          "instruction": "[NumberPicker]NumberPicker 期望到达最大值的时候不允许再输入\n### Component \r\nNumberPicker\r\n### Feature Description\r\n目前超出不会抛onChange，在 onBlur 的时候做了自动订正。用户就会发现数据一直在变大，但是价格不变。\r\n![image](https://user-images.githubusercontent.com/5189853/179907510-a553aee1-1ce8-4546-8d2d-7f013341237d.png)\r\n\r\n\r\n\r\n\r\n\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/5189853/179907510-a553aee1-1ce8-4546-8d2d-7f013341237d.png"
+          ],
+          "recordHash": "d3651f4f2b96db17d7ad774c2b9ed13810fcb6fa8902e523855685013b71533e"
+        },
+        {
+          "id": "grommet__grommet-5243",
+          "repo": "grommet/grommet",
+          "baseCommit": "d69a75eadb18d2405bdfab6eede61b08b43d9b22",
+          "instruction": "RadioButtons: check.background.color is being applied to all the radio buttons and not just the checked radio button\n\r\n\r\n### Expected Behavior: When I set a background color for checked radio button, only the currently checked radio button should change the color and other should be default grey. \r\n\r\n\r\n\r\n### Actual Behavior: For the code here: \r\n`radioButton: {    \r\n    check: {\r\n      color: '#fff',\r\n      background:{\r\n        color: '#3b5ed8'\r\n      }\r\n    }\r\n  }`\r\n\r\nall the radio buttons show the blue background color and not just the one checked. \r\n\r\n![Screen Shot 2021-05-05 at 3 33 16 PM](https://user-images.githubusercontent.com/68026503/117218534-30d84680-adb8-11eb-866b-9e3dd5f44097.png)\r\n\r\n\r\n\r\n\r\n### URL, screen shot, or Codepen exhibiting the issue\r\n\r\n\r\n\r\n### Steps to Reproduce\r\n\r\n1. 2. 3.\r\n\r\n### Your Environment\r\n\r\n\r\n\r\n- Grommet version:\r\n- Browser Name and version: Chrome latest\r\n- Operating System and version (desktop or mobile): Desktop Mac\r\n\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/68026503/117218534-30d84680-adb8-11eb-866b-9e3dd5f44097.png"
+          ],
+          "recordHash": "96292afee18f7a1e791930739cf5c6d7864fa653c123c3991f50895ce6202aed"
+        },
+        {
+          "id": "scratchfoundation__scratch-gui-8891",
+          "repo": "scratchfoundation/scratch-gui",
+          "baseCommit": "8c4526d5f1b5f151d6a0acebb2310d10ed76e16b",
+          "instruction": "ENA-231: Make setting switches colorblind friendly\n### The problem\r\nOn setting switches that use buttons with icons, such as the shown/hidden switch or the rotation style setting, each icon's active state is colored in, and each icon's inactive state is grayed out. But looking at it in grayscale, you actually can't tell which one is on. See the following image:\r\n![Image of the shown/hidden switch in color compared to an image of it in grayscale](https://user-images.githubusercontent.com/106490990/196005751-2c5dfdd1-8538-42ce-a5d6-222c73703a76.png)\r\nFor colorblind users, this can be an issue.\r\n\r\n### The solution\r\nWe shouldn't rely on colored-in versus black-and-white to show which option was selected. Instead, we could change the background color when an option is selected, and make it white, not gray, when the option isn't selected, like so:\r\n![The Show button has a blue background, and the Hide button has a white background.](https://user-images.githubusercontent.com/106490990/196005804-8eb0d6ea-98fc-4fd0-a4c7-b46a6f42d1f7.png)\r\nThis difference is easier for colorblind users to see.\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/106490990/196005751-2c5dfdd1-8538-42ce-a5d6-222c73703a76.png",
+            "https://user-images.githubusercontent.com/106490990/196005804-8eb0d6ea-98fc-4fd0-a4c7-b46a6f42d1f7.png"
+          ],
+          "recordHash": "9b04df18836b1f54166dce98f262bad959100f443c93fa1f7b4a8caba70d4245"
+        },
+        {
+          "id": "bpmn-io__bpmn-js-1847",
+          "repo": "bpmn-io/bpmn-js",
+          "baseCommit": "3c90e8ef96b0a315bf78b25b29053abd87b57b27",
+          "instruction": "Append shortcut not working on elements without append menu\n### Describe the Bug\r\n\r\nAs designed the append shortcut `a` can be used independent of the context: \r\n\r\n* Where append is possible `a` triggers append\r\n* Where append is not possible `a` triggers create\r\n\r\nThis does not work in places where append is allowed in principle, but no append actions are given:\r\n\r\n![capture UYATWD_optimized](https://user-images.githubusercontent.com/58601/218044358-8873ccfa-402b-43e1-938c-318a024a9e5b.gif)\r\n\r\n\r\n### Steps to Reproduce\r\n\r\n1. Model event sub-process\r\n2. Press `a`\r\n3. __Observe nothing happens__\r\n\r\nCan be reproduced on [demo.bpmn.io](https://demo.bpmn.io/s/start)\r\n\r\n### Expected Behavior\r\n\r\nAs outlined above `a` should always be an available action (defaulting to create, if append is not applicable.\r\n\r\n### Environment\r\n\r\n - Browser: Any\r\n - OS: Any\r\n - Library version: 11.3.0\r\n\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/58601/218044358-8873ccfa-402b-43e1-938c-318a024a9e5b.gif"
+          ],
+          "recordHash": "cce9f462e340631a49405abb12e486f3955e0571a114fd53adc5b65505e91b75"
+        },
+        {
+          "id": "PrismJS__prism-3442",
+          "repo": "PrismJS/prism",
+          "baseCommit": "0d4b6cb64e72a172fc64423c04aed4ac8b59cd0b",
+          "instruction": "[language-markup] Quotes in HTML attribute values are highlighted\n**Information:**\r\n- Prism version: Latest (reproducible on test.html)\r\n- Plugins: none\r\n- Environment: Browser\r\n\r\nQuotes are highlighted as punctuation inside HTML attributes. E.g. this:\r\n\r\n```html\r\n<google-chart data='[[\"Month\", \"Days\"], [\"Jan\", 31]]'></google-chart>\r\n```\r\n\r\nis highlighted as:\r\n\r\n<img width=\"612\" alt=\"image\" src=\"https://user-images.githubusercontent.com/175836/165538134-ce6efc24-04c1-48c4-b4c9-374dec718e8a.png\">\r\n\r\nWe might decide that this is a feature, not a bug, but figured I'd flag this in case, as it looked wrong to me.\r\n\n",
+          "issueImages": [
+            "https://user-images.githubusercontent.com/175836/165538134-ce6efc24-04c1-48c4-b4c9-374dec718e8a.png"
+          ],
+          "recordHash": "80d44f1e6c8fa346ba6be347b2b01c1ef060b0d76cc9de2751f07cf5b0dc4b66"
+        }
+      ]
+    },
+    {
+      "id": "fullstack-bench",
+      "revision": "d3fe0e7828d121f78d85c5763b3166c1e09ba929",
+      "unit": "application",
+      "selection": "Seeded application-type diversity among tasks with backend and database requirements",
+      "samples": [
+        {
+          "id": "000001",
+          "instruction": "Please implement a website for generating stock reports to provide stock information and analysis. The website should have the functionality to search and summarize stock information, and generate customized stock reports based on user requirements. Users should be able to input stock codes or names, select report formats and content, and the website will automatically generate the corresponding reports. The reports should include basic stock information, market trends, financial data, and more. Set the background color to white and the component color to navy.",
+          "applicationType": "Analytics Platforms/Dashboards",
+          "uiCases": 7,
+          "backendCases": 5,
+          "databaseCases": 2,
+          "recordHash": "63f6a56c66557b4b3dd35bc903af576a70c8d3fb1d6e91dabe231d4c57197db1"
+        },
+        {
+          "id": "000007",
+          "instruction": "Please develop a web-based Texas Hold'em poker game with features such as game lobby, table games, and chat functionality. Users should be able to create or join game rooms, play Texas Hold'em, view game records, and manage their account information. The game lobby should display available game rooms, current game status, and player information. The table game should display player hand cards, community cards, betting information, and action buttons. Implement azure for the page background and midnight blue for the elements.",
+          "applicationType": "Browser-Based Games",
+          "uiCases": 6,
+          "backendCases": 7,
+          "databaseCases": 8,
+          "recordHash": "65d2e10b12136f0888632ef9c234b62ae87abecc68b0fedf042952e410744311"
+        },
+        {
+          "id": "000027",
+          "instruction": "Please implement a community website for sharing promotions and discounts. The website should have functionalities for browsing promotions, sharing promotions, and searching promotions. Users should be able to browse and share promotions, and search for promotions of interest. The website should also have a management backend for managing users, promotions, and website settings. Use ivory for the outer layout and forest green for UI blocks.",
+          "applicationType": "Discussion Forums",
+          "uiCases": 6,
+          "backendCases": 7,
+          "databaseCases": 2,
+          "recordHash": "5b117991bf836d46ad26be98b70706a66a5b40a55b6fe079fdab70cdf5e60429"
+        },
+        {
+          "id": "000073",
+          "instruction": "Please implement a link tree website for displaying and managing links. The website should have functionalities for adding, editing, and deleting links. Users should be able to create and manage their own link tree, including adding new links, editing existing links, deleting unnecessary links, and sharing their link tree with others through link tree's shareable link. Set overall background to papaya whip, then style components with dark orange.",
+          "applicationType": "Personal Portfolio Sites",
+          "uiCases": 7,
+          "backendCases": 7,
+          "databaseCases": 2,
+          "recordHash": "ab5cf721fb088e3f07be678a39cdef4f8d28a00f7d2b54444b2f133ce0c0533a"
+        },
+        {
+          "id": "000023",
+          "instruction": "Please implement a customer relationship management website for managing sales leads and reporting. The website should have functionalities for automated message sending, organizing and categorizing leads, updating lead information and status, updating settings and dropdown menus, and reporting. Users should be able to browse and manage sales leads, view reports, and receive best practice and integration advice. Define background as papaya whip; define components with dark orange.",
+          "applicationType": "CRM Systems",
+          "uiCases": 5,
+          "backendCases": 8,
+          "databaseCases": 4,
+          "recordHash": "bb06e45c1e4fbf994118c56c22e9cd8259991ab0e285ed350f8f10f5efb98dc8"
+        },
+        {
+          "id": "000045",
+          "instruction": "Please implement a paper cup manufacturing system to manage inventory, production, and sales of paper cups. The system should have functionalities for managing raw materials, finished products, inventory, production, and sales. Users should be able to record and track the inventory, usage, and sales of raw materials and finished products, and generate detailed reports. The system should also have customer management capabilities, including recording customer information, sales history, and sales statistics. Assign light goldenrod to the background and olive drab to the UI elements.",
+          "applicationType": "ERP Platforms",
+          "uiCases": 8,
+          "backendCases": 9,
+          "databaseCases": 4,
+          "recordHash": "1724eda60b25dfad53e8da1172ff91958be9aed67e2f4f1b74052544b97191f9"
+        },
+        {
+          "id": "000036",
+          "instruction": "Please implement a website to automatically search and compare product prices across different states. The website should allow users to select specific product categories and parameters. The website should be able to automatically search and compare product prices across different states, including finding the lowest-priced products, and provide detailed product information, including price, quantity, and supplier information. Apply seashell to the canvas background and crimson to all visible components.",
+          "applicationType": "E-commerce Web Applications",
+          "uiCases": 6,
+          "backendCases": 4,
+          "databaseCases": 5,
+          "recordHash": "d055fd00a3171646ee16d21ed3a0dd90a84b368b0dd02f6332670ad0be75c6c1"
+        },
+        {
+          "id": "000053",
+          "instruction": "Please implement an internship portal website that connects students with companies offering internship opportunities. The website should have a student panel and a company panel, where students can browse and apply for internships, and companies can post internship positions. The website should also be optimized for speed, navigation, user interface, and user experience. Choose mint cream for the background; set all component colors to teal.",
+          "applicationType": "Job Search Platforms",
+          "uiCases": 5,
+          "backendCases": 7,
+          "databaseCases": 3,
+          "recordHash": "b3aa58461186beaf5199b275e866841bfca7813e3d6a75991c8235dbaadd1cd5"
+        },
+        {
+          "id": "000087",
+          "instruction": "Please implement an entertainment directory website to display band information and advertisements. The website should have band registration and login functionality, allowing band members to input their bio, provide picture links and audio sample links, and provide direct links to YouTube videos. Additionally, the website should allow advertisers to register, log in, and upload their ad content. Users should be able to browse band information, listen to audio samples, watch videos, and view advertisements. Implement floral white for the page background and dark goldenrod for the elements.",
+          "applicationType": "Publishing/Blogging Platforms",
+          "uiCases": 8,
+          "backendCases": 10,
+          "databaseCases": 4,
+          "recordHash": "89005f8de8608f6e60fab48530a838f5b43381c61772999690ee6d65e752032c"
+        },
+        {
+          "id": "000061",
+          "instruction": "Please develop a children's recycling game website to educate kids on proper waste recycling. The game should include competitive elements such as a leaderboard to keep kids engaged and motivated. The game should use a cartoon-style visual design to make it visually appealing to children. Kids should be able to play the game, receive feedback, learn how to correctly sort waste into the corresponding containers, and receive rewards and recognition through the game. Use seashell for container backgrounds and crimson for component visuals.",
+          "applicationType": "Learning Platforms",
+          "uiCases": 6,
+          "backendCases": 6,
+          "databaseCases": 3,
+          "recordHash": "d2624e75f2f5c90c746708e37985a30087153380abb442f0c9f9cc42f1399f8a"
+        }
+      ]
+    },
+    {
+      "id": "webarena-verified",
+      "revision": "6473f72db5dcefc97b5725b59e734504edc28a21",
+      "unit": "browser-task",
+      "selection": "3 admin, 3 shopping, 2 Reddit, 2 GitLab; seeded task-type diversity; exclude previous six pilot tasks",
+      "samples": [
+        {
+          "id": "501",
+          "taskId": 501,
+          "site": "shopping_admin",
+          "instruction": "Mark all Taurus Elements Shell as out of stock",
+          "startUrls": [
+            "__SHOPPING_ADMIN__"
+          ],
+          "templateId": 287,
+          "recordHash": "3e05f21b7999daa64725a21e8f582c71532519fca32ca5991737c161bbb0e548"
+        },
+        {
+          "id": "196",
+          "taskId": 196,
+          "site": "shopping_admin",
+          "instruction": "Get the payment difference between the last 4 cancelled orders and the last 4 completed orders. Return the value as a number (e.g., 10.99) only, without any additional details.",
+          "startUrls": [
+            "__SHOPPING_ADMIN__"
+          ],
+          "templateId": 367,
+          "recordHash": "67d08185f15e621a6cac6417a10d1ec7951c0f9698ad4fe8d2bf146182f8599d"
+        },
+        {
+          "id": "712",
+          "taskId": 712,
+          "site": "shopping_admin",
+          "instruction": "Show the coupons report from May 1, 2021 to May 15, 2023.",
+          "startUrls": [
+            "__SHOPPING_ADMIN__"
+          ],
+          "templateId": 271,
+          "recordHash": "c007565ab21feb386aadf97729613ff6f11ea65999b6e08a7f09880f0a3f30b9"
+        },
+        {
+          "id": "189",
+          "taskId": 189,
+          "site": "shopping",
+          "instruction": "Get the total cost of my latest order marked as \"pending\". Return the value as a number (e.g., 10.99) only, without any additional details",
+          "startUrls": [
+            "__SHOPPING__"
+          ],
+          "templateId": 214,
+          "recordHash": "2c84266de3a8707bf23efdadac0edbb4b23c4ddeec5e37fb3388719cccf84aeb"
+        },
+        {
+          "id": "436",
+          "taskId": 436,
+          "site": "shopping",
+          "instruction": "I previously ordered a mattress foundation around Feb or March 2023 and later cancelled. Can you reorder it for me?",
+          "startUrls": [
+            "__SHOPPING__"
+          ],
+          "templateId": 156,
+          "recordHash": "273c0d3964fafb8ba8c3bdb11dc521be51787b502e380a8966ad4b05e6bbce69"
+        },
+        {
+          "id": "277",
+          "taskId": 277,
+          "site": "shopping",
+          "instruction": "Open the search results for \"batteries for iphone 13\"",
+          "startUrls": [
+            "__SHOPPING__"
+          ],
+          "templateId": 212,
+          "recordHash": "ddd08be630bb2ce710b0af7f8e807003e5619330a1d64f4631a107a127ae8c5a"
+        },
+        {
+          "id": "618",
+          "taskId": 618,
+          "site": "reddit",
+          "instruction": "Re-post the image of Wife's costume from this forum to funny forum using the image URL and title \"from /f/pics\"",
+          "startUrls": [
+            "__REDDIT__/f/pics"
+          ],
+          "templateId": 11,
+          "recordHash": "256afc8f4fb95fc3f2cbbb013bca5cd07ce2d504e13c2713f3ec0c6ff679dd0e"
+        },
+        {
+          "id": "29",
+          "taskId": 29,
+          "site": "reddit",
+          "instruction": "In the DIY forum, get the username and post title of the most recent post, and count the number of comments on that post that are not from the author and have more downvotes than upvotes. Return a list of objects with keys \"username\", \"post_title\", and \"count\".",
+          "startUrls": [
+            "__REDDIT__"
+          ],
+          "templateId": 33,
+          "recordHash": "586c9fe44708d67c857560b1bb62958c7d9269ce3023398d53447f5a3ae8a323"
+        },
+        {
+          "id": "394",
+          "taskId": 394,
+          "site": "gitlab",
+          "instruction": "Fork 2019-nCov.",
+          "startUrls": [
+            "__GITLAB__"
+          ],
+          "templateId": 352,
+          "recordHash": "433c11d53bdfe6cec717cdf8da204f7690e4b580d89f7de2769448ddcfa4de00"
+        },
+        {
+          "id": "207",
+          "taskId": 207,
+          "site": "gitlab",
+          "instruction": "How many commits did Eric and Kilian make on January 3, 2023 in total for the current project?",
+          "startUrls": [
+            "__GITLAB__/a11yproject/a11yproject.com"
+          ],
+          "templateId": 320,
+          "recordHash": "3ff5e0bffb447c7aea69354b3d10df5f07e73901d461bdef2cab645ebc228633"
+        }
+      ]
+    },
+    {
+      "id": "visualwebarena",
+      "revision": "89f5af29305c3d1e9f97ce4421462060a70c9a03",
+      "unit": "browser-task",
+      "selection": "3 classifieds, 4 shopping, 3 Reddit; seeded balance of reference-image and visual-instruction tasks",
+      "samples": [
+        {
+          "id": "classifieds/4",
+          "site": "classifieds",
+          "taskId": 4,
+          "instruction": "Navigate to my listing of the white car and change the price to $25000. Update the price in the description as well.",
+          "inputImage": null,
+          "evalTypes": [
+            "program_html"
+          ],
+          "recordHash": "fd75524dd917cf8193eebffc334c26246bbb94d669a0701a4f2e8de880b86d8d"
+        },
+        {
+          "id": "classifieds/72",
+          "site": "classifieds",
+          "taskId": 72,
+          "instruction": "I like the products in the image. Can you find the cheapest posting from Delaware where I can buy similar items, if there's one?",
+          "inputImage": "environment_docker/webarena-homepage/static/input_images/classifieds/task_72/input_0.png",
+          "evalTypes": [
+            "url_match"
+          ],
+          "recordHash": "db724f23db61900ad34d3b03b54db53e7408c99ab5b1549821d0d09abbcabaf9"
+        },
+        {
+          "id": "classifieds/95",
+          "site": "classifieds",
+          "taskId": 95,
+          "instruction": "Find the most expensive boat with a listing image showing it on water. Add a 5 star rating with title \"Awesome boat\" and text \"Mine is similar!\".",
+          "inputImage": null,
+          "evalTypes": [
+            "program_html"
+          ],
+          "recordHash": "e11a360bb6cea5cb74081d7c9752641da913423fa32d16237f693a4b294ceb93"
+        },
+        {
+          "id": "shopping/153",
+          "site": "shopping",
+          "taskId": 153,
+          "instruction": "Find me a game console of the same brand as the product in this picture.",
+          "inputImage": "environment_docker/webarena-homepage/static/input_images/shopping/task_153/input_0.png",
+          "evalTypes": [
+            "program_html",
+            "page_image_query"
+          ],
+          "recordHash": "e17822ba7e1e289b78c8344ae6aee6889b62b406369e8214355c4ff858e518fc"
+        },
+        {
+          "id": "shopping/194",
+          "site": "shopping",
+          "taskId": 194,
+          "instruction": "How much is the product with the most plants in the picture on this page?",
+          "evalTypes": [
+            "string_match"
+          ],
+          "recordHash": "5d07c60db2114a78a623f1c9515a5cabd4c761ea15d26bf1a59811b01209011a"
+        },
+        {
+          "id": "shopping/155",
+          "site": "shopping",
+          "taskId": 155,
+          "instruction": "Find me a set of headphones of the same brand as the product in this picture. It needs to be silver colored and have at least 10 reviews with an average rating greater than 4.",
+          "inputImage": "environment_docker/webarena-homepage/static/input_images/shopping/task_155/input_0.png",
+          "evalTypes": [
+            "url_match"
+          ],
+          "recordHash": "36ae3b2278db354edfb161c73669b1e8eae92a7b0eb239aad4749c65e0df53fa"
+        },
+        {
+          "id": "shopping/300",
+          "site": "shopping",
+          "taskId": 300,
+          "instruction": "What size of this item should I buy if my shirt width is 28 and 1/4 inches?",
+          "evalTypes": [
+            "string_match"
+          ],
+          "recordHash": "9832b1867da5c25ed9919b0d624ce64dde036880e7cd22eb958de98f7e7d20db"
+        },
+        {
+          "id": "reddit/202",
+          "site": "reddit",
+          "taskId": 202,
+          "instruction": "Can you message the users who posted art with an animal (including stuffed animals) on this page with 'Animals are so cute, and I really like your work!'?",
+          "evalTypes": [
+            "program_html"
+          ],
+          "recordHash": "beb5c2d6989e366ab445e02e277937ecd64a3dbf64ae994e60921fbf97294cb2"
+        },
+        {
+          "id": "reddit/38",
+          "site": "reddit",
+          "taskId": 38,
+          "instruction": "I'd like to find the subreddit for the city this photo was taken in. Can you navigate to it?",
+          "inputImage": "environment_docker/webarena-homepage/static/input_images/reddit/task_38/input_0.png",
+          "evalTypes": [
+            "url_match"
+          ],
+          "recordHash": "8da46eaa02b5d0077968d873f6efb3a9946a6c6e6ec01faa962f326da814103b"
+        },
+        {
+          "id": "reddit/209",
+          "site": "reddit",
+          "taskId": 209,
+          "instruction": "Can you first make a post in f/pittsburgh (then afterwards in f/Pennsylvania) asking for a comparison between the two products in the shopping tabs? Make sure to include both their SKUs in the title and a picture of the front of the hoodie.",
+          "evalTypes": [
+            "program_html",
+            "page_image_query"
+          ],
+          "recordHash": "87e801f0bc9d64d4e6feb3d7fb54d24eed04f86e2f6dff8130c0c4ac4b1d6e22"
+        }
+      ]
+    }
+  ]
+}
