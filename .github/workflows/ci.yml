@@ -72,6 +72,9 @@ jobs:
             - name: Test
               run: pnpm test
 
+            - name: Test release publishing
+              run: node --test scripts/release-publish.test.mjs
+
     e2e:
         name: E2E (real browser)
         runs-on: ubuntu-latest

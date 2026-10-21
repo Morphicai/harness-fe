@@ -37,6 +37,14 @@ The **human gate is the Version PR** (read the diff, merge to ship) — not a ta
 
 ## Shipping a change, step by step
 
+The publish job uses Node 22 and npm 11.21.1. npm's
+[trusted publishing requirements](https://docs.npmjs.com/trusted-publishers/)
+require Node >=22.14 and npm >=11.5.1. The OIDC pass ignores user npm token
+configuration; the fallback pass uses the repository's managed `NPM_TOKEN`.
+Every package must succeed: a partial publish fails the job and a rerun skips
+versions already present on npm. A signed provenance statement alone does not
+prove that npm accepted the upload; verify the registry versions and tags.
+
 1. In your feature PR: `pnpm changeset`, pick the packages + bump level, commit
    the generated `.changeset/<name>.md`. (Bump level → see
    [versioning-policy.md](../versioning-policy.md).)
