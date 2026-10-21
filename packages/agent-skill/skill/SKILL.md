@@ -175,7 +175,7 @@ flag the team-mode differences with **[team]**.)
 | `page_evaluate({ expr })` | JS expr | Run arbitrary JS in page context (returns JSON-serializable result) |
 | `page_wait_for({ predicate, timeoutMs?, idleMs? })` | `"network.idle"` \| `"dom.ready"` \| JS expr | **Block until a condition is truthy — use before acting on async/late-rendered UI.** `"network.idle"` tracks real in-flight fetch/XHR requests (zero for `idleMs`, default 500ms) — not a fixed sleep |
 | `page_set_dialog_handler({ type, value })` | `alert`\|`confirm`\|`prompt` + return value | Pre-arm the answer to the next native dialog so it doesn't block your action |
-| `page_screenshot` | — | Visual checkpoint. DOM-to-canvas capture, not a real compositor screenshot — check `response.notCaptured` for any `<canvas>`/`<video>`/cross-origin `<iframe>` in the shot that couldn't be rendered before treating a blank region as genuinely empty |
+| `page_screenshot` | — | Visual checkpoint: native MCP image + text metadata, PNG by default (`format: 'webp'`/`'jpeg'` for smaller images). Consume the image block with a vision-capable model; base64 text alone does not prove that you saw the screenshot. DOM-to-canvas capture, not a real compositor screenshot — check metadata `notCaptured` for `<canvas>`/`<video>`/cross-origin `<iframe>` gaps before treating a blank region as genuinely empty |
 | `page_scroll` / `page_reload` / `page_set_html` / `page_set_style` | — | Auxiliary |
 
 Every page action takes an optional `tabId` (from `tab_list`); omit it to target

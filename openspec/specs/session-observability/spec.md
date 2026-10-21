@@ -14,6 +14,19 @@ Harness-FE SHALL capture runtime browser signals from an instrumented page and m
 - **THEN** the system SHALL capture browser console entries, JavaScript errors, and network activity from the page
 - **AND** the agent SHALL be able to request recent captured entries from the active tab
 
+### Requirement: Native screenshot delivery to MCP clients
+
+Harness-FE SHALL expose successful `page.screenshot` captures as native MCP image content, with capture metadata in a separate text content block.
+
+#### Scenario: Consuming a screenshot with a vision-capable agent
+
+- **WHEN** a runtime screenshot is returned to an MCP client
+- **THEN** the response SHALL contain an image block with base64 pixel data and the actual encoded MIME type
+- **AND** the text metadata SHALL retain capture dimensions and any `notCaptured` warnings without duplicating the pixel data as a text data URL
+- **AND** MCP screenshot calls SHALL default to PNG while allowing explicit WebP and JPEG output
+- **AND** malformed or unsupported runtime image data SHALL produce a tool error rather than a successful text-only screenshot
+- **AND** this representation SHALL apply to both direct and proxied MCP clients without changing the runtime WebSocket response shape
+
 ### Requirement: Persistent session history
 
 Harness-FE SHALL persist session history owned by the MCP server so an AI agent can inspect historical runtime behavior after the page refreshes or the connection closes.

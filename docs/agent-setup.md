@@ -12,7 +12,7 @@ harness-fe is driven by an AI agent (Claude Code, Cursor, Kiro). Two things make
 ## 1. Install the skill (recommended first)
 
 ```bash
-npx @harness-fe/skill install        # auto-detects Claude Code / Cursor / Kiro
+npx @harness-fe/skill@latest install # auto-detects Claude Code / Cursor / Kiro
 ```
 
 This drops a curated playbook into your IDE's skill / rules directory:
@@ -39,7 +39,7 @@ Pick the entry that matches your setup.
 ```jsonc
 {
   "mcpServers": {
-    "harness-fe": { "type": "stdio", "command": "npx", "args": ["-y", "@harness-fe/cli", "mcp"] }
+    "harness-fe": { "type": "stdio", "command": "npx", "args": ["-y", "@harness-fe/cli@latest", "mcp"] }
   }
 }
 ```
@@ -73,6 +73,38 @@ The agent can only see an app that loaded the runtime. Add the build plugin (`@h
 ---
 
 ## Troubleshooting
+
+### Upgrade an existing machine
+
+Publishing a new npm version makes it available to new installations; existing
+global installs, project lockfiles and running processes keep their old code.
+
+```bash
+# Inspect the installed package; this does not start a gateway
+npx -y @harness-fe/cli@latest --version
+
+# For an existing global install
+npm install -g @harness-fe/cli@latest
+
+# Install the agent playbook if it is absent
+npx -y @harness-fe/skill@latest install
+```
+
+The skill installer refuses to overwrite an existing playbook. Update an
+existing managed skill through its manager, or back it up and reconcile local
+customizations with the new package's `SKILL.md` before replacing it.
+
+Restart the managed gateway with the upgraded CLI, preserving its existing
+`--core-data-dir`, `--data-dir`, port and policy options, then reload the agent's
+MCP connection. The launcher reuses an existing shared gateway; reloading MCP
+alone does not replace that process. Governed services should use their normal
+service manager restart procedure.
+
+Check `/console/api/meta`'s `gatewayVersion` or MCP initialization's
+`serverInfo.version` to identify the **running** package version. `protocolVersion`
+and the legacy `daemonVersion` identify the wire protocol, not the npm release.
+For reproducible evaluations, pin the verified release in the MCP entry and
+dependency lockfile instead of floating `@latest` during a run.
 
 | Symptom | Likely cause |
 |---|---|

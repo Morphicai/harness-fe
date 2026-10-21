@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { spawn, execSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { spawn, spawnSync, execSync, type ChildProcess } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -68,6 +68,14 @@ afterAll(() => {
 });
 
 d('cli e2e (built dist)', () => {
+    it.each(['--version', '-v'])('prints its installed version and exits for %s', (flag) => {
+        const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+        const result = spawnSync(process.execPath, [distCli, flag], { encoding: 'utf8', timeout: 5000 });
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe(`${pkg.name} ${pkg.version}`);
+        expect(result.stderr).toBe('');
+    });
+
     it('`harness serve` is headless + serves the REAL console + probe endpoint', async () => {
         killPort(SERVE_PORT);
         const dir = mkTmp();
@@ -149,6 +157,8 @@ d('cli e2e (built dist)', () => {
 
         expect(result.result?.protocolVersion).toBeTruthy();
         expect(result.result?.serverInfo?.name).toBeTruthy();
+        const gatewayPkg = JSON.parse(readFileSync(new URL('../../gateway/package.json', import.meta.url), 'utf8'));
+        expect(result.result?.serverInfo?.version).toBe(gatewayPkg.version);
         child.kill();
     }, 20_000);
 });

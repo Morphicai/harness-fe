@@ -106,6 +106,7 @@ Options:
   --issue-token <spec>   Issue a token, printed once (governed). Repeatable.
                          spec: name=agentA,scopes=read+control[,projects=app+other]
   -h, --help
+  -v, --version         Installed CLI package version (does not start a gateway).
 `);
     process.exit(0);
 }
@@ -113,6 +114,13 @@ Options:
 function fail(msg: string): never {
     process.stderr.write(`harness: ${msg}\n`);
     process.exit(2);
+}
+
+function printVersionAndExit(): never {
+    const require = createRequire(import.meta.url);
+    const pkg = require('../package.json') as { name: string; version: string };
+    process.stdout.write(`${pkg.name} ${pkg.version}\n`);
+    process.exit(0);
 }
 
 function parseSpec(raw: string): Record<string, string> {
@@ -186,6 +194,7 @@ function parseArgs(argv: string[]): CliConfig {
         };
         switch (a) {
             case '-h': case '--help': printHelpAndExit(); break;
+            case '-v': case '--version': printVersionAndExit(); break;
             case '--governed': cfg.governed = true; break;
             case '--host': cfg.host = next(); break;
             case '--port':

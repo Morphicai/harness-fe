@@ -85,6 +85,43 @@ describe('gateway e2e — Open policy (solo)', () => {
         const res = await callTool(base, undefined, sid, 'tab.list');
         expect(res.json?.result?.content?.[0]?.text).toBe('[]'); // no tabs connected
     });
+
+    it('delivers a runtime screenshot over WS and HTTP MCP as an image with capture metadata', async () => {
+        const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aNIUAAAAASUVORK5CYII=';
+        const ws = new WebSocket(`${base.replace('http', 'ws')}/ws`);
+        await new Promise<void>((resolve, reject) => {
+            ws.once('open', resolve);
+            ws.once('error', reject);
+        });
+        try {
+            const ack = await new Promise<any>((resolve) => {
+                ws.once('message', (raw) => resolve(JSON.parse(raw.toString())));
+                ws.send(JSON.stringify({ type: 'hello', id: 'image-hello', role: 'runtime-client', projectId: 'demo', tabId: 'image-tab', sessionId: 'image-session', page: {} }));
+            });
+            expect(ack.type).toBe('hello.ack');
+            let captured: any;
+            ws.on('message', (raw) => {
+                const frame = JSON.parse(raw.toString());
+                if (frame.type !== 'command') return;
+                captured = frame;
+                ws.send(JSON.stringify({ type: 'response', id: frame.id, ok: true, result: {
+                    via: 'document', format: 'png', width: 1, height: 1,
+                    dataUrl: `data:image/png;base64,${png}`, notCaptured: [],
+                } }));
+            });
+            const sid = await connect(base);
+            const reply = await callTool(base, undefined, sid, 'page.screenshot', { tabId: 'image-tab', maxWidth: 640 });
+            expect(reply.json?.result?.isError).not.toBe(true);
+            expect(reply.json?.result?.content?.[0]).toEqual({ type: 'image', mimeType: 'image/png', data: png });
+            expect(JSON.parse(reply.json.result.content[1].text)).toEqual({
+                via: 'document', format: 'png', width: 1, height: 1, notCaptured: [],
+            });
+            expect(captured.command).toBe('page.screenshot');
+            expect(captured.args).toEqual({ format: 'png', maxWidth: 640 });
+        } finally {
+            await new Promise<void>((resolve) => { ws.once('close', resolve); ws.close(); });
+        }
+    });
 });
 
 // ── Governed policy ──────────────────────────────────────────────────────────

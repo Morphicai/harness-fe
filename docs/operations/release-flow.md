@@ -1,5 +1,8 @@
 # Release flow
 
+Current source of truth: `release.yml` publishes `main` to `latest`; 4.x has
+already graduated to stable. The parallel 3.x/4.0 section below is historical.
+
 How packages get from a merged PR to npm, and the one gotcha that can wedge the
 pipeline. For **what semver bump to choose**, see
 [versioning-policy.md](../versioning-policy.md); this doc is the operational

@@ -39,7 +39,7 @@ This drops a `SKILL.md` into your agent project with the complete tool catalog, 
 | `page.click` | Click an element by selector |
 | `page.type` | Type text into an element |
 | `page.scroll` | Scroll the page or an element |
-| `page.screenshot` | Capture a screenshot (returns base64 PNG) |
+| `page.screenshot` | Return a native MCP image (PNG by default; WebP/JPEG optional) plus text metadata. Inspect `notCaptured` for canvas/video/cross-origin iframe gaps; consume the image block with a vision-capable model, not base64 text |
 | `page.dom_query` | Query DOM elements and return their properties |
 | `page.evaluate` | Run arbitrary JS in the page context |
 | `page.wait_for` | Wait for an element or condition |
