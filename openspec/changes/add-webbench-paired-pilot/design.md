@@ -29,3 +29,7 @@ Decision-autonomy review (owner-local record; implementation documentation stays
 ## Rollout
 
 Build and accept the new lab, package dataset images, pass controls, freeze the four-attempt plan, then execute and report the paired pilot. Keep old contexts and scores unchanged. Air deployment and the remaining four adapters remain later acceptance scopes.
+
+## Development-policy acceptance correction
+
+An extra reference control observed 90/91 on fullstack development startup because Vite bypassed backend document authorization, while the original verifier passed 91/91. The correction forwards actual backend document policy, not task-specific expected answers. Both corrected development conditions subsequently passed 91/91. The original React worktree/images remain frozen; the corrected fullstack pair uses its own plan/images before its model outcomes, preserving selection and Chrome-first order. See `bench/web-bench/fullstack-policy-note.md` for the replay and operator boundary.

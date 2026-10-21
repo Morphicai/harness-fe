@@ -84,6 +84,8 @@ else if (command === 'preflight') {
     report.complete = true; atomic(join(folder, 'report.json'), report);
     atomic(join(here, '.cache/browser-preflight.json'), { folder, report, agentImage: image(settings.agentImage).Id });
 } else if (command === 'agent-preflight') {
+    assert(!existsSync(join(here, '.cache/pause-model-calls')),
+        'Model acceptance is paused by the operator to preserve single-model concurrency; no model call was made');
     const folder = resolve(option('run', join(here, 'jobs/agent-preflight-' + Date.now())));
     const report = { kind: 'webbench-model-tool-preflight', cases: [], complete: false };
     mkdirSync(folder, { recursive: true, mode: 0o700 });
@@ -91,7 +93,7 @@ else if (command === 'preflight') {
         const dir = join(folder, condition); mkdirSync(dir, { recursive: true });
         let session, broker;
         try {
-            session = await startSession('react', condition, join(dir, 'browser'));
+            session = await startSession(settings.projects[0], condition, join(dir, 'browser'));
             broker = await openBroker(session.name, condition, dir);
             const config = join(dir, 'mcp.json'); atomic(config, { mcpServers: { lab: { type: 'http', url: broker.url } } });
             const marker = 'agent-tools-' + randomUUID();
@@ -130,6 +132,15 @@ else if (command === 'preflight') {
     const declared = plan(sampleManifest, { repeats: Number(option('repeats', 1)), batchSize: 2, model: settings.model,
         image: agent.Id, environmentHash: receipt.sourceHash, agentVersion: execFileSync('claude', ['--version'], { encoding: 'utf8' }).trim() });
     declared.attemptTimeoutMs = settings.attemptTimeoutMs;
+    if (option('first-condition')) {
+        const first = option('first-condition'); assert(['harness-fe', 'chrome-devtools-mcp'].includes(first));
+        for (let i = 0; i < declared.jobs.length; i += 2) {
+            const a = declared.jobs[i], b = declared.jobs[i + 1];
+            const requested = a.repeat % 2 ? first : first === 'harness-fe' ? 'chrome-devtools-mcp' : 'harness-fe';
+            if (a.condition !== requested) [declared.jobs[i], declared.jobs[i + 1]] = [b, a];
+        }
+        declared.firstCondition = first;
+    }
     const file = resolve(option('out', join(here, '.cache/plan.json'))); atomic(file, declared);
     output({ file, jobs: declared.jobs.length, developmentSteps: declared.jobs.reduce((n, j) => n + j.sample.tasks.length, 0) });
 } else if (command === 'run') {
