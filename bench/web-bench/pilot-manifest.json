@@ -1,0 +1,121 @@
+{
+  "status": "frozen-before-project-model-outcomes",
+  "model": "k3",
+  "agentVersion": "2.1.301 (Claude Code)",
+  "upstreamRevision": "7b31ca2b786eef120dd49ce63dd03d0c0006046d",
+  "agentImage": "sha256:d28f4470b5f2623ac807e933bb89c2e869f14f7d6e6c620a39bb3350f612b0a6",
+  "verifierImage": "sha256:1d1e464589d1bf9945b0add21ced4d432bab5b908fac478703149c7de22777d7",
+  "sourceHash": "2b87b4ae86b1e1d37f01f6d4d3801b17f56bc9c353bc7664486ad2515895dca5",
+  "runnerHash": "ed97648f1dc78c57d2011961fc8335e324c70d4edaa94ebb51488ec6af1b2eff",
+  "attempts": [
+    {
+      "project": "react",
+      "condition": "harness-fe",
+      "repeat": 1,
+      "steps": 20
+    },
+    {
+      "project": "react",
+      "condition": "chrome-devtools-mcp",
+      "repeat": 1,
+      "steps": 20
+    },
+    {
+      "project": "fastify-react",
+      "condition": "chrome-devtools-mcp",
+      "repeat": 1,
+      "steps": 20
+    },
+    {
+      "project": "fastify-react",
+      "condition": "harness-fe",
+      "repeat": 1,
+      "steps": 20
+    }
+  ],
+  "verifierControls": [
+    {
+      "project": "react",
+      "mode": "reference",
+      "stage": 20,
+      "passed": true,
+      "totalCases": 59,
+      "stats": {
+        "startTime": "2026-10-21T14:09:14.792Z",
+        "duration": 37650.133,
+        "expected": 58,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 1
+      },
+      "accepted": true
+    },
+    {
+      "project": "react",
+      "mode": "initial",
+      "stage": 1,
+      "passed": false,
+      "totalCases": 4,
+      "stats": {
+        "startTime": "2026-10-21T14:09:53.881Z",
+        "duration": 150503.756,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 4,
+        "flaky": 0
+      },
+      "accepted": true
+    },
+    {
+      "project": "fastify-react",
+      "mode": "reference",
+      "stage": 20,
+      "passed": true,
+      "totalCases": 91,
+      "stats": {
+        "startTime": "2026-10-21T14:12:26.516Z",
+        "duration": 63744.129,
+        "expected": 91,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "accepted": true
+    },
+    {
+      "project": "fastify-react",
+      "mode": "initial",
+      "stage": 1,
+      "passed": false,
+      "totalCases": 2,
+      "stats": {
+        "startTime": "2026-10-21T14:13:31.748Z",
+        "duration": 70611.74100000001,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 2,
+        "flaky": 0
+      },
+      "accepted": true
+    }
+  ],
+  "browserAcceptanceCases": 4,
+  "modelToolAcceptance": [
+    {
+      "condition": "harness-fe",
+      "passed": true,
+      "actualModels": [
+        "k3"
+      ],
+      "images": 1
+    },
+    {
+      "condition": "chrome-devtools-mcp",
+      "passed": true,
+      "actualModels": [
+        "k3"
+      ],
+      "images": 1
+    }
+  ]
+}

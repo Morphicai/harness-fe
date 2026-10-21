@@ -1,0 +1,123 @@
+{
+  "sourceBranch": "fix/mcp-screenshot-image-content",
+  "sourceHead": "9ffc2f6268fd340ba4bc1a6e66fd01942cda11f7",
+  "sourceState": "previously validated uncommitted portable lab; original worktree retained",
+  "files": [
+    {
+      "path": "bench/lab/batch.test.mjs",
+      "sha256": "6ec2cd62090a40458fc053b9503ef97e47325154ac81e02030e2e6cefa4cce20"
+    },
+    {
+      "path": "bench/lab/samples.json",
+      "sha256": "48cdd5f1abf7e5ce62e58a8d887a6cbfe690c0a7ff20df7ac53089687e9154e4"
+    },
+    {
+      "path": "bench/lab/Dockerfile",
+      "sha256": "d16f0c7bd3195adde9035b384f64c9bdd629d848c05a77c7129e1305ec422bca"
+    },
+    {
+      "path": "bench/lab/freeze-samples.mjs",
+      "sha256": "708bb0ed99f6997cf2e187774380533b65ad70d9ad920d8da6610e8d09402595"
+    },
+    {
+      "path": "bench/lab/README.md",
+      "sha256": "f82e6703bac1ee8d7359a8bb91dce57a1da75a9fa491b90a5bad859110545e86"
+    },
+    {
+      "path": "bench/lab/samples.test.mjs",
+      "sha256": "c2da84a646d82bbbc9e1cf4d43c9b24070ee9a9dd7778b7e42ed147f3309a9f1"
+    },
+    {
+      "path": "bench/lab/container.mjs",
+      "sha256": "f73f0d8a663686215f367e35ef2a8aa090889abb9de9430afb8defaec1c70ad1"
+    },
+    {
+      "path": "bench/lab/batch.mjs",
+      "sha256": "80e1b9a48584682d22beec5d9d25c1ad555509539c52716e9e870411b6e0e07f"
+    },
+    {
+      "path": "bench/lab/.gitignore",
+      "sha256": "256713a1281d89a7defafbccf1b288580eda8ebb583cfb6ed7151219f2ab742b"
+    },
+    {
+      "path": "bench/lab/package-lock.json",
+      "sha256": "089bcb95a9355e6de8e44cd4ff2d6738d99e95a13e58fbc3e143bd841f941ef6"
+    },
+    {
+      "path": "bench/lab/package.json",
+      "sha256": "89f336d408dd96ff4c2e40719eb7d0f7e3b2e5b01eb1d8962388cec8d03f4214"
+    },
+    {
+      "path": "bench/lab/lab.mjs",
+      "sha256": "b373622ee34ae037a4ffb46c7a699ca63950eb2c3b392d3193f4de0d2ac6e723"
+    },
+    {
+      "path": "bench/lab/smoke-adapter.mjs",
+      "sha256": "07585a7854fbc40abae227aad7cdd718cf2abeb4c527148e8b8269514d48024e"
+    },
+    {
+      "path": "bench/lab/prepare.mjs",
+      "sha256": "ee7849a2440934dd320f9159d5d0eb2c18b586006fcc878aabf8ddc9ba9ca63d"
+    },
+    {
+      "path": "bench/lab/environment.json",
+      "sha256": "2e27b4900b8911e531c4edaa972f3dd945fe8a98260531b51256f57ff1435238"
+    },
+    {
+      "path": "docs/research/agent-tool-benchmark-shortlist-2026-10-21.md",
+      "sha256": "ce39984b1f6838f9fc82f2c0e6450a124aa9349e930065b5d42d207812c66190"
+    },
+    {
+      "path": "bench/webarena-verified/run.mjs",
+      "sha256": "ddb23344cdbd5958bbb614f4e0f7d549d396af6bd11a3e95eee89bdace562320"
+    },
+    {
+      "path": "bench/webarena-verified/summarize.py",
+      "sha256": "1a51449219b73ca88b47967041cb2b6960b9f9dc2d98f16fc62263ef26020849"
+    },
+    {
+      "path": "bench/webarena-verified/README.md",
+      "sha256": "c2e6d3eb1b92ce229619eafaf354633298e12d1c6cccd9b75b763d3cc7cf78f7"
+    },
+    {
+      "path": "bench/webarena-verified/.gitignore",
+      "sha256": "0120be88fdcc30a5193f28b7113f4a113a99c3c5087654ea0a1801457611a200"
+    },
+    {
+      "path": "bench/webarena-verified/manifest.json",
+      "sha256": "0e1d11b0d913762301ab657962d1487dc0d93ca3136c2a7d2b479ed0684e3f0d"
+    },
+    {
+      "path": "bench/webarena-verified/evaluate.py",
+      "sha256": "084932b70400c923e452d9d50e0ae35af60da0a2521fb0f9c43eb0c44b1b8a92"
+    },
+    {
+      "path": "bench/runtime-diagnostics/run.mjs",
+      "sha256": "92e2cf228a00262734291e3f7151aa34b6719a8c50bf31fcc424b534c61572bd"
+    },
+    {
+      "path": "bench/runtime-diagnostics/scenarios.mjs",
+      "sha256": "31136db4cf44b6f8c3dd9d9a3784c1ebd4e6396d763e83cc7c0d2719dff21fed"
+    },
+    {
+      "path": "bench/runtime-diagnostics/summarize.mjs",
+      "sha256": "653c281b8ae68e3fe9ff490ad343d3b3a935f66a24c420633ad6b99b66a7fcc5"
+    },
+    {
+      "path": "bench/runtime-diagnostics/README.md",
+      "sha256": "984a985f9d9b22d030e29aa3012672caffac56a573ad55987952cbc9e0abd2f9"
+    },
+    {
+      "path": "bench/runtime-diagnostics/.gitignore",
+      "sha256": "94c185ee24a74ba2474b05be22da872b5d784f4f9e51c8a8f5c99ea192fba207"
+    },
+    {
+      "path": "bench/runtime-diagnostics/manifest.json",
+      "sha256": "ad95cf38048646be7318d738658b1518b0887ea70919ad2fa11a765cca2ed6cd"
+    },
+    {
+      "path": "bench/runtime-diagnostics/stdio-relay.mjs",
+      "sha256": "a038ae839dd1961f58d1452ac413219e9972d3dd9c83320f3474ed4fe32f3fee"
+    }
+  ]
+}

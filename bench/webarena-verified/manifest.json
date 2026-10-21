@@ -1,0 +1,15 @@
+{
+  "dataset": "WebArena-Verified",
+  "upstream": "https://github.com/ServiceNow/webarena-verified",
+  "commit": "6473f72db5dcefc97b5725b59e734504edc28a21",
+  "site": "shopping_admin",
+  "image": "am1n3e/webarena-verified-shopping_admin@sha256:d0531dd27ed98d0c459ff9e88118bf2ed8b660b0ed99c38837db46c065a5be13",
+  "siteOrigin": "http://127.0.0.1:7780",
+  "siteUrl": "http://127.0.0.1:7780/admin",
+  "model": "k3",
+  "conditions": ["harness-fe", "chrome-devtools-mcp"],
+  "attempts": 1,
+  "timeoutSeconds": 480,
+  "taskIds": [157, 374, 11, 41, 453, 461],
+  "selection": "Predeclared pilot: two navigation, two retrieval, two mutation tasks on one site; no selection based on agent outcomes. One attempt per task and condition is a compatibility pilot, not a statistically powered ranking."
+}
