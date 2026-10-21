@@ -82,11 +82,13 @@ publish_one() {
     local mode="$2"
     local name version
     { name=$(extract_pkg "$tgz" | head -1); version=$(extract_pkg "$tgz" | tail -1); } 2>/dev/null
-    local env_prefix
+    local -a env_prefix
     if [ "$mode" = "oidc" ]; then
-        env_prefix="env -u NODE_AUTH_TOKEN -u npm_config__authToken"
+        # setup-node writes NODE_AUTH_TOKEN into its userconfig; Changesets
+        # can also create a token-bearing ~/.npmrc. Neither belongs in pass A.
+        env_prefix=(env -u NODE_AUTH_TOKEN -u NPM_TOKEN -u npm_config__authToken NPM_CONFIG_USERCONFIG=/dev/null)
     else
-        env_prefix="env NODE_AUTH_TOKEN=$NPM_TOKEN"
+        env_prefix=(env "NODE_AUTH_TOKEN=$NPM_TOKEN")
     fi
 
     local output rc
@@ -95,9 +97,9 @@ publish_one() {
     # applies. For any other tag (the 4.0 `next` line), publish with --tag and
     # never touch `latest`.
     if [ "$DIST_TAG" = "latest" ]; then
-        output=$($env_prefix npm publish "$tgz" --access public --provenance 2>&1)
+        output=$("${env_prefix[@]}" npm publish "$tgz" --access public --provenance 2>&1)
     else
-        output=$($env_prefix npm publish "$tgz" --access public --provenance --tag="$DIST_TAG" 2>&1)
+        output=$("${env_prefix[@]}" npm publish "$tgz" --access public --provenance --tag="$DIST_TAG" 2>&1)
     fi
     rc=$?
     echo "$output"
@@ -117,7 +119,7 @@ publish_one() {
     if echo "$output" | grep -q "Cannot implicitly apply the \"latest\" tag"; then
         echo "  → 'latest' tag is on a higher version; publishing under staging tag then dist-tag override."
         local staging_tag="staging-$(date +%s)"
-        $env_prefix npm publish "$tgz" --access public --provenance --tag="$staging_tag"
+        "${env_prefix[@]}" npm publish "$tgz" --access public --provenance --tag="$staging_tag"
         rc=$?
         if [ $rc -ne 0 ]; then
             echo "  → staging publish also failed (exit $rc)"
@@ -125,7 +127,7 @@ publish_one() {
         fi
         if [ -n "$name" ] && [ -n "$version" ]; then
             echo "  → moving latest tag to $name@$version"
-            $env_prefix npm dist-tag add "$name@$version" latest
+            "${env_prefix[@]}" npm dist-tag add "$name@$version" latest
             rc=$?
             if [ $rc -ne 0 ]; then
                 echo "  → dist-tag add failed (exit $rc); package is published under $staging_tag only"
@@ -210,11 +212,9 @@ if [ ${#SKIPPED[@]} -gt 0 ]; then
     for n in "${SKIPPED[@]}"; do echo "  ✗ $n"; done
 fi
 
-# Don't fail when nothing got published BUT everything is already at its
-# registry version (docs-only / script-only commits where Changesets
-# correctly produced no version bumps). Fail only when there are real
-# skips AND nothing succeeded.
-if [ ${#PUBLISHED[@]} -eq 0 ] && [ ${#SKIPPED[@]} -gt 0 ]; then
-    echo "::error::no packages published and ${#SKIPPED[@]} skipped"
+# A partial release is a failure too: dependent packages may otherwise point
+# at versions that never became installable. A rerun skips existing versions.
+if [ ${#SKIPPED[@]} -gt 0 ]; then
+    echo "::error::${#SKIPPED[@]} packages failed to publish"
     exit 1
 fi

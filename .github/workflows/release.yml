@@ -66,7 +66,8 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
               with:
-                  node-version: '20'
+                  # npm trusted publishing requires Node >=22.14.
+                  node-version: '22'
                   cache: 'pnpm'
                   registry-url: 'https://registry.npmjs.org'
                   scope: '@harness-fe'
@@ -76,12 +77,10 @@ jobs:
               # token is in the env; older npm in pass A would emit
               # provenance fine but couldn't auth without a token.
               #
-              # Pinned to the npm 11 line, NOT `@latest`: npm 12 requires
-              # Node ^22.22.2 || ^24.15.0 || >=26, which broke this step
-              # outright (EBADENGINE) against the node-version: '20' pinned
-              # above. npm 11.x only needs Node ^20.17.0 || >=22.9.0.
+              # Pin the tested CLI so authentication behavior cannot drift
+              # between a Version PR and its publish run.
               run: |
-                  npm install -g npm@11
+                  npm install -g npm@11.21.1
                   npm --version
 
             - name: Install dependencies
@@ -98,6 +97,9 @@ jobs:
 
             - name: Test
               run: pnpm test
+
+            - name: Test release publishing
+              run: node --test scripts/release-publish.test.mjs
 
             - name: Open Version PR or publish
               id: changesets
