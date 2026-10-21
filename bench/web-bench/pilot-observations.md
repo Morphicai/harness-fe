@@ -168,8 +168,15 @@ excluding model acceptance/smoke calls and not substituting for provider billing
 The original failed attempt has not been replayed. No new Harness-FE project call
 was launched after quota exhaustion. The user requested this summary and deferred
 model switching. Owner task checkboxes remain open for the incomplete paired run.
-The final saved source is being evaluated separately as an offline diagnostic;
-that diagnostic cannot turn the failed attempt into a completed chain or pair win.
+The final saved source was evaluated separately with the same immutable verifier:
+**88/91 cases pass, zero flaky, and all current task-20 checks pass**. Its three
+failures remain the detail quantity selector, administrator-link visibility and
+the payment test's quantity selector. No source repair or further model call was
+used. Source hash:
+`87caa195c2e412736a285b84712708264bb239796ecaaafc4e5ab9b5af03ea59`.
+This offline diagnostic cannot turn the failed attempt into a completed chain or
+pair win; it is retained under `step-20/partial-source-diagnostic/`, separate from
+the chain's committed 19 grades.
 
 The first corrected fullstack current-task failure (DevTools stage 6) also has a
 prompt/test discrepancy: the task requests `.product_quantity`, the submitted
@@ -205,6 +212,37 @@ excluded original coverage, reports partial observations with no final score, an
 computes pair outcomes only for completed pairs. Native-image delivery is separate
 from screenshot requests and from claims about visual reasoning.
 
+The [sanitized report snapshot](pilot-results-2026-10-22.json) includes identities,
+stage source hashes, incomplete coverage, interrupted-step costs and the separate
+diagnostic. It excludes prompts, model streams, tool arguments, credentials and
+machine paths. Raw artifacts remain in the ignored run directories.
+
 The other eight Web-Bench projects, other four dataset adapters, extra repeats and
 Air deployment/model readiness remain unaccepted. This first pilot cannot be
 reported as the entire five-dataset × ten-unit comparison.
+
+## Investigation learnings and next experiment
+
+| Symptom | Initial hypothesis and why it looked plausible | Evidence and root cause | Owner action |
+| --- | --- | --- | --- |
+| Fullstack development reference passes 90/91 | An application authorization defect: one administrator route fails. | Production reference passes 91/91; Vite's HTML fallback bypasses backend document policy. | Fixed in shared `backend-policy.mjs`; real HTTP regression test is included in CI. Frozen original and corrected environments remain distinct. |
+| Payment test ends at registration | A new registration/authentication regression: the last retry's URL is `/register`. | Retry zero reaches completed payment/balance assertions, then fails the quantity selector; the created user persists into retries. | Preserve all retry results and start explanations at retry zero; the verifier lifetime is documented in the README. |
+| Final model call exits near 480 seconds | Controller timeout: elapsed time is close to its frozen cap. | Receipt says `timedOut=false`; CLI result is HTTP 429 five-hour quota exhaustion. | Reporter classifies provider quota failure and retains the interrupted call's cost/source. No Agent replay or replacement score. |
+
+The native-image delivery path is accepted by this pilot; it still needs a task
+where choosing the correct object from pixels determines success. Historical log
+retrieval needs a similarly relevant real debugging task: empty error queries in
+this React chain cannot show that benefit. The frozen SWE multimodal and visual
+web-task samples remain candidates pending their own environment/verifier checks.
+
+For tool efficiency, investigate a scoped development catalog and batched DOM/
+layout checks, measuring result quality and calls in a new frozen condition.
+Keep this run's catalog, prompt and original scores intact. Future audit work can
+record transport starts/exceptions as well as returned responses; the current
+counter boundary is documented rather than presented as a complete attempt trace.
+
+The user paused model execution and deferred model selection. Once a model is
+chosen, validate its tools/images/provider entitlement, then freeze both browser
+conditions with the same model and task budgets in a new run. Keep these Kimi
+artifacts and incomplete coverage as historical evidence. A different model must
+not fill only the missing Kimi Harness-FE row and be interpreted as a tool effect.

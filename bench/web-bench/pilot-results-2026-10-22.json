@@ -1,0 +1,1445 @@
+{
+  "kind": "webbench-explicitly-joined-report",
+  "generatedAt": "2026-10-21T19:02:23.806Z",
+  "complete": false,
+  "runs": [
+    {
+      "project": "react",
+      "runId": "paired-release-4.5.3-1",
+      "planHash": "7f8c31370833b8d6b0e08cc1885d472d9373470db3c632f0983e47f1cce60987",
+      "adapterHash": "54a3c1112b7fd4c039edaacbefd7a4442233248fbfa59869e308cffaed2e2b95"
+    },
+    {
+      "project": "fastify-react",
+      "runId": "paired-fullstack-policy-1",
+      "planHash": "5fc212c6ea06deec791c086f0ad2e3d4baba26dafc4bfb62019a00ccfd0ce4c5",
+      "adapterHash": "91287435e8f9e744430181b2fa82b956527f035125007f01e33ffde49a956ffe"
+    }
+  ],
+  "attempts": [
+    {
+      "project": "react",
+      "condition": "harness-fe",
+      "repeat": 1,
+      "id": "cfe99097d309333508f4027f",
+      "runId": "paired-release-4.5.3-1",
+      "planHash": "7f8c31370833b8d6b0e08cc1885d472d9373470db3c632f0983e47f1cce60987",
+      "attempt": 1,
+      "state": "completed",
+      "phase": "completed",
+      "complete": true,
+      "completedSteps": 20,
+      "plannedSteps": 20,
+      "identity": {
+        "model": "k3",
+        "agentVersion": "2.1.301 (Claude Code)",
+        "agentImage": "sha256:d28f4470b5f2623ac807e933bb89c2e869f14f7d6e6c620a39bb3350f612b0a6",
+        "verifierImage": "sha256:1d1e464589d1bf9945b0add21ced4d432bab5b908fac478703149c7de22777d7",
+        "sourceHash": "2b87b4ae86b1e1d37f01f6d4d3801b17f56bc9c353bc7664486ad2515895dca5",
+        "runnerHash": "ed97648f1dc78c57d2011961fc8335e324c70d4edaa94ebb51488ec6af1b2eff",
+        "testHash": "e3852b32bcb86cbcd67f1e87e0a499280d08f0b2827ec4b9839eed7fda6ca481",
+        "taskRecordHash": "3d7ba49a0ef42bc136973005b6c93c324e94894d32d929ceb8c331818bada27a"
+      },
+      "score": 0.4,
+      "cumulativeStages": {
+        "passed": 8,
+        "total": 20,
+        "fraction": 0.4
+      },
+      "currentTaskStages": {
+        "passed": 18,
+        "total": 20,
+        "fraction": 0.9
+      },
+      "finalCases": {
+        "passed": 57,
+        "total": 59,
+        "fraction": 0.9661016949152542
+      },
+      "finalFlakyCases": 0,
+      "flakyCaseOccurrencesAcrossStages": 0,
+      "finalFailures": [
+        {
+          "file": "task-19.spec.js",
+          "title": "Turn Switched",
+          "status": "unexpected",
+          "expectedStatus": "passed",
+          "results": [
+            "timedOut",
+            "timedOut",
+            "timedOut"
+          ]
+        },
+        {
+          "file": "task-9.spec.js",
+          "title": "Check Edit Form Title Change",
+          "status": "unexpected",
+          "expectedStatus": "passed",
+          "results": [
+            "failed",
+            "failed",
+            "failed"
+          ]
+        }
+      ],
+      "latestGradedStageCases": {
+        "stage": 20,
+        "passed": 57,
+        "total": 59,
+        "fraction": 0.9661016949152542
+      },
+      "ungradedModelReceipt": null,
+      "failureCategory": null,
+      "partialSourceDiagnostic": null,
+      "timing": {
+        "setupSeconds": 6.648,
+        "modelSeconds": 4539.804,
+        "ungradedModelSeconds": 0,
+        "gradingSeconds": 545.477,
+        "wholeAttemptSeconds": 5102.685
+      },
+      "cost": {
+        "cliEstimatedUsdForGradedSteps": 10.7387355,
+        "cliEstimatedUsdIncludingUngradedSteps": 10.7387355,
+        "knownGradedSteps": 20,
+        "unknownGradedSteps": 0,
+        "knownUngradedSteps": 0,
+        "unknownUngradedSteps": 0,
+        "ungradedOrPendingSteps": 0,
+        "source": "Claude CLI estimate, not provider invoice; ungraded/unknown usage is not assumed free"
+      },
+      "tools": {
+        "calls": 595,
+        "workspaceCalls": 259,
+        "browserCalls": 336,
+        "nativeImages": 23,
+        "screenshotCalls": 23,
+        "screenshotCallsWithoutNativeImage": 0,
+        "errors": 4,
+        "logReads": 25,
+        "logReadErrors": 0,
+        "counts": {
+          "workspace_list_files": 21,
+          "workspace_read_file": 143,
+          "workspace_write_file": 63,
+          "page.navigate": 21,
+          "page.evaluate": 90,
+          "page.screenshot": 23,
+          "page.reload": 7,
+          "errors.tail": 21,
+          "page.click": 89,
+          "page.wait_for": 15,
+          "page.dom_query": 30,
+          "workspace_exec": 31,
+          "page.type": 30,
+          "page.snapshot": 3,
+          "tab.list": 3,
+          "console.tail": 4,
+          "workspace_restart_dev": 1
+        }
+      },
+      "stages": [
+        {
+          "stage": 1,
+          "sourceHash": "c68de81eba4f7ad2e704c0040d3ce3fc5ce410eb7e8e83c71aea95e3bf983ebf",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 2,
+          "sourceHash": "a70f6a9f42ed31f8e027b81dfd53d0737b049a33ed5c911f64e77fce8426854a",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 3,
+          "sourceHash": "093ec3105425f08f60a58088324852deb6840975f6d428d509302c09dc473c95",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 4,
+          "sourceHash": "60f24cd087a541213110a1ea2774b9a189af03f63f4221c4efeff8ca49f15664",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 5,
+          "sourceHash": "64e3677510e482c14a800e4041e4b16e28c128c81c88f9500e89452bbcfa436c",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 6,
+          "sourceHash": "6fd4151392c62c5f59f221e4a5d9a14a43ae1230fded2e465f978159c5f20325",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 7,
+          "sourceHash": "898e37c937698eed39c8e59e0a118b5d06af27792d1e72993afa01e282e00a6a",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 8,
+          "sourceHash": "864958e23dc72fdade292bc96d80acd1d99cc9734c1fbb699ab65e14b8e3d1e1",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 9,
+          "sourceHash": "d239d2e7d003116274b2c544493a14dd503008557e5d71ed2ec52e1e5b4a4fad",
+          "cumulativePassed": false,
+          "currentTaskPassed": false,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 10,
+          "sourceHash": "168653cbc4955acb70ff0ab8e0d57b8f693f64dee94bf30fb0b323cc8a9a5cb0",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 11,
+          "sourceHash": "0e16a9a05fd1753d570239e5696e87cc019b10106a6a2ae50e444c88cca6cc6c",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "error_max_turns",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 12,
+          "sourceHash": "abcb72eacb97e0b3ec7fba97a5dcae9b78af240364919fa2a5fcc39eec46b065",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 13,
+          "sourceHash": "905224b6cb8d52e59f4d030e5ca5330ff69df676250b21487aa224e7d6d2101e",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 14,
+          "sourceHash": "5959ab49c0352f4182e6101dc567a07f44633ae950b9b39ffd19100901e8918e",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 15,
+          "sourceHash": "23aa302eff2ace6119458a2644a737ce0a8447df21abc398fbbd12831b2037e4",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 16,
+          "sourceHash": "7226beba431ab5c09e6ae34e13ce1a716cd338bbae90ed183f5638d659a4f20e",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 17,
+          "sourceHash": "25788f75c3cb26e2c36f4c5a11ab20666bafba786d0c18c003f81afcc79fd268",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 18,
+          "sourceHash": "643fc793a6925366e06d32886dfd33e195b1fd5f921b72cecb06370bf27e1c24",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 19,
+          "sourceHash": "f16af85b61981e298f1319cd486f4288ad7ef49009a055bef18c19ecbdb2a3c5",
+          "cumulativePassed": false,
+          "currentTaskPassed": false,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-19.spec.js",
+              "title": "Turn Switched"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 20,
+          "sourceHash": "3d6ead72aa044f64e0bb39c7eaadec72091aeb7359e9c23bb44fe072a8646409",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-19.spec.js",
+              "title": "Turn Switched"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        }
+      ],
+      "failure": null
+    },
+    {
+      "project": "react",
+      "condition": "chrome-devtools-mcp",
+      "repeat": 1,
+      "id": "3be07216cc604cfb90d33b1e",
+      "runId": "paired-release-4.5.3-1",
+      "planHash": "7f8c31370833b8d6b0e08cc1885d472d9373470db3c632f0983e47f1cce60987",
+      "attempt": 1,
+      "state": "completed",
+      "phase": "completed",
+      "complete": true,
+      "completedSteps": 20,
+      "plannedSteps": 20,
+      "identity": {
+        "model": "k3",
+        "agentVersion": "2.1.301 (Claude Code)",
+        "agentImage": "sha256:d28f4470b5f2623ac807e933bb89c2e869f14f7d6e6c620a39bb3350f612b0a6",
+        "verifierImage": "sha256:1d1e464589d1bf9945b0add21ced4d432bab5b908fac478703149c7de22777d7",
+        "sourceHash": "2b87b4ae86b1e1d37f01f6d4d3801b17f56bc9c353bc7664486ad2515895dca5",
+        "runnerHash": "ed97648f1dc78c57d2011961fc8335e324c70d4edaa94ebb51488ec6af1b2eff",
+        "testHash": "e3852b32bcb86cbcd67f1e87e0a499280d08f0b2827ec4b9839eed7fda6ca481",
+        "taskRecordHash": "3d7ba49a0ef42bc136973005b6c93c324e94894d32d929ceb8c331818bada27a"
+      },
+      "score": 0.15,
+      "cumulativeStages": {
+        "passed": 3,
+        "total": 20,
+        "fraction": 0.15
+      },
+      "currentTaskStages": {
+        "passed": 17,
+        "total": 20,
+        "fraction": 0.85
+      },
+      "finalCases": {
+        "passed": 56,
+        "total": 59,
+        "fraction": 0.9491525423728814
+      },
+      "finalFlakyCases": 0,
+      "flakyCaseOccurrencesAcrossStages": 0,
+      "finalFailures": [
+        {
+          "file": "task-11.spec.js",
+          "title": "Check Random Blogs will not stuck pages",
+          "status": "unexpected",
+          "expectedStatus": "passed",
+          "results": [
+            "failed",
+            "failed",
+            "failed"
+          ]
+        },
+        {
+          "file": "task-4.spec.js",
+          "title": "Check Add Blog Modal, Open And Close",
+          "status": "unexpected",
+          "expectedStatus": "passed",
+          "results": [
+            "failed",
+            "failed",
+            "failed"
+          ]
+        },
+        {
+          "file": "task-9.spec.js",
+          "title": "Check Edit Form Title Change",
+          "status": "unexpected",
+          "expectedStatus": "passed",
+          "results": [
+            "failed",
+            "failed",
+            "failed"
+          ]
+        }
+      ],
+      "latestGradedStageCases": {
+        "stage": 20,
+        "passed": 56,
+        "total": 59,
+        "fraction": 0.9491525423728814
+      },
+      "ungradedModelReceipt": null,
+      "failureCategory": null,
+      "partialSourceDiagnostic": null,
+      "timing": {
+        "setupSeconds": 3.183,
+        "modelSeconds": 4252.258,
+        "ungradedModelSeconds": 0,
+        "gradingSeconds": 529.799,
+        "wholeAttemptSeconds": 4789.542
+      },
+      "cost": {
+        "cliEstimatedUsdForGradedSteps": 10.911231,
+        "cliEstimatedUsdIncludingUngradedSteps": 10.911231,
+        "knownGradedSteps": 20,
+        "unknownGradedSteps": 0,
+        "knownUngradedSteps": 0,
+        "unknownUngradedSteps": 0,
+        "ungradedOrPendingSteps": 0,
+        "source": "Claude CLI estimate, not provider invoice; ungraded/unknown usage is not assumed free"
+      },
+      "tools": {
+        "calls": 560,
+        "workspaceCalls": 267,
+        "browserCalls": 293,
+        "nativeImages": 13,
+        "screenshotCalls": 20,
+        "screenshotCallsWithoutNativeImage": 7,
+        "errors": 4,
+        "logReads": 16,
+        "logReadErrors": 0,
+        "counts": {
+          "workspace_list_files": 20,
+          "workspace_read_file": 136,
+          "workspace_write_file": 62,
+          "workspace_restart_dev": 5,
+          "navigate_page": 28,
+          "take_snapshot": 35,
+          "evaluate_script": 47,
+          "list_pages": 14,
+          "take_screenshot": 20,
+          "workspace_exec": 44,
+          "click": 94,
+          "press_key": 6,
+          "list_console_messages": 16,
+          "fill_form": 11,
+          "new_page": 2,
+          "fill": 9,
+          "wait_for": 3,
+          "hover": 8
+        }
+      },
+      "stages": [
+        {
+          "stage": 1,
+          "sourceHash": "a9d0b445472c3c42d5cc0e38f24b8c031f08d727c439daff730fe78151648e42",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 2,
+          "sourceHash": "15f9e309c23034e535c263e7a7f2488a5ac3656d0fe144581ae2ffcd723e09ba",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 3,
+          "sourceHash": "6d4c6c5413c78c26bdcce04cbfb0909b7971358ac206cf71b733d272b0b602f5",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 4,
+          "sourceHash": "a01832475690e9db5d44def81024c85bb9e6ea930570c877ec2ab1a97cf13566",
+          "cumulativePassed": false,
+          "currentTaskPassed": false,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 5,
+          "sourceHash": "c55c81da5236afa0b10413f2add11de708688063ff61c5ac953908ae158673f2",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 6,
+          "sourceHash": "dd1df8adfc9fdaa58d67fbe8dadc3de79d2e49eb8b4087977ea1e53846862769",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 7,
+          "sourceHash": "2a03bd436f6b03044fa8d366e680a2668933eda96a5dac50ed551809f5b8ccd5",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 8,
+          "sourceHash": "8aa67d9ebb68ba359e09368d80851a3517dc61cad68da41bcfe07426c9c3e5d0",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 9,
+          "sourceHash": "0853aafa518dbf23bb79f52a241f96e3289d61b01db1ae6cdb8753929774092f",
+          "cumulativePassed": false,
+          "currentTaskPassed": false,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 10,
+          "sourceHash": "6f50cd8343749361bb31abda738ff5fbe68522ee09966e5204d1503c54344b20",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 11,
+          "sourceHash": "642f741c40aa99c91c45662927688f8d5d134bbfb108aa43fa5dba83fec178bc",
+          "cumulativePassed": false,
+          "currentTaskPassed": false,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 12,
+          "sourceHash": "c6a27293cd8f3ffccf025b914bbe5801c432853b51cef433d0540d7b8aefad46",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 13,
+          "sourceHash": "fa1393e41392ef704fc362ba51a65cbed4f26b035a4729e139a50ddce5965aed",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 14,
+          "sourceHash": "867bb5a99a6b1d2b97d650b869923ea0e75297a04c11416fb9240c54224ebfc3",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "error_max_turns",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 15,
+          "sourceHash": "76f8d53609581274195f43943c7a877694bbdcd090930655f4cf35338c961801",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 16,
+          "sourceHash": "e5aedb90c94768ea349bb117206e39c7c2420d9269ced7f5a3d558da55c51e89",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 17,
+          "sourceHash": "c6a4de9413888a0a9a4516e59d868724fdd1cb51898a9c767523b14d89c5004c",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 18,
+          "sourceHash": "ee3d33ac20c72f3f4733ad0bf8cb192b67b782ac058b5ec1428e45cda3198ac3",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 19,
+          "sourceHash": "4e2cd7cffe9d1da2d95954cfd66c709f2a6be449d26b1bdf9ca5e61b91772a63",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 20,
+          "sourceHash": "eee1c62e05d23798c6ebc83659f1ab3a43f035a3e6a350c166fd4d11082bfdfe",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-11.spec.js",
+              "title": "Check Random Blogs will not stuck pages"
+            },
+            {
+              "file": "task-4.spec.js",
+              "title": "Check Add Blog Modal, Open And Close"
+            },
+            {
+              "file": "task-9.spec.js",
+              "title": "Check Edit Form Title Change"
+            }
+          ],
+          "flakyCases": []
+        }
+      ],
+      "failure": null
+    },
+    {
+      "project": "fastify-react",
+      "condition": "chrome-devtools-mcp",
+      "repeat": 1,
+      "id": "fe695d242f232c0b2949e018",
+      "runId": "paired-fullstack-policy-1",
+      "planHash": "5fc212c6ea06deec791c086f0ad2e3d4baba26dafc4bfb62019a00ccfd0ce4c5",
+      "attempt": 1,
+      "state": "failed",
+      "phase": "failed",
+      "complete": false,
+      "completedSteps": 19,
+      "plannedSteps": 20,
+      "identity": {
+        "model": "k3",
+        "agentVersion": "2.1.301 (Claude Code)",
+        "agentImage": "sha256:a33359684e7d33e1367c5a68c66cc77d5ca1786436cdfb32942a5c36d0c7e71d",
+        "verifierImage": "sha256:7a74fdb0909bf4edc16eabfc1f3bb213302407bd6eee7789a9b85a907483a02b",
+        "sourceHash": "1801e70163bc2f94bff60fb2b70ba965c3629124329c679b279d6daf7604d972",
+        "runnerHash": "3efaa0fffb16b84ed00214d594d34c0e1da5b6c990bee1045bb51adef141ace6",
+        "testHash": "73282ea8e72fbac76d4728e387fc2a73279b5b646e8509b653e87e1e43c67e35",
+        "taskRecordHash": "b5e154c37cb65f73848f2df839ceb5431fb102bc1e766b555b948abddb075526"
+      },
+      "score": null,
+      "cumulativeStages": {
+        "passed": 5,
+        "total": 19,
+        "fraction": 0.2631578947368421
+      },
+      "currentTaskStages": {
+        "passed": 16,
+        "total": 19,
+        "fraction": 0.8421052631578947
+      },
+      "finalCases": null,
+      "finalFlakyCases": null,
+      "flakyCaseOccurrencesAcrossStages": 0,
+      "finalFailures": [],
+      "latestGradedStageCases": {
+        "stage": 19,
+        "passed": 82,
+        "total": 85,
+        "fraction": 0.9647058823529412
+      },
+      "ungradedModelReceipt": {
+        "requestedModel": "k3",
+        "actualModels": [
+          "k3"
+        ],
+        "agentVersion": "2.1.301 (Claude Code)",
+        "verifiedModel": true,
+        "seconds": 478.658,
+        "exit": 1,
+        "timedOut": false,
+        "subtype": "success",
+        "isError": true,
+        "costUsd": 0.7627759999999999,
+        "costSource": "Claude CLI estimate; not a provider invoice",
+        "numTurns": 25
+      },
+      "failureCategory": "provider_quota_exhausted",
+      "partialSourceDiagnostic": {
+        "benchmarkAttemptCompleted": false,
+        "totalCases": 91,
+        "stats": {
+          "startTime": "2026-10-21T18:58:16.174Z",
+          "duration": 183217.194,
+          "expected": 88,
+          "skipped": 0,
+          "unexpected": 3,
+          "flaky": 0
+        },
+        "currentTaskPassed": true,
+        "passed": false,
+        "sourceHash": "87caa195c2e412736a285b84712708264bb239796ecaaafc4e5ab9b5af03ea59",
+        "failures": [
+          {
+            "file": "task-13.spec.js",
+            "title": "Admin Portal visibility",
+            "status": "unexpected",
+            "expectedStatus": "passed",
+            "results": [
+              "failed",
+              "failed",
+              "failed"
+            ]
+          },
+          {
+            "file": "task-17.spec.js",
+            "title": "Test Pay Order",
+            "status": "unexpected",
+            "expectedStatus": "passed",
+            "results": [
+              "failed",
+              "failed",
+              "failed"
+            ]
+          },
+          {
+            "file": "task-6.spec.js",
+            "title": "Check Product Detail Page",
+            "status": "unexpected",
+            "expectedStatus": "passed",
+            "results": [
+              "failed",
+              "failed",
+              "failed"
+            ]
+          }
+        ]
+      },
+      "timing": {
+        "setupSeconds": 2.741,
+        "modelSeconds": 4742.826,
+        "ungradedModelSeconds": 478.658,
+        "gradingSeconds": 1335.055,
+        "wholeAttemptSeconds": null
+      },
+      "cost": {
+        "cliEstimatedUsdForGradedSteps": 11.789401500000002,
+        "cliEstimatedUsdIncludingUngradedSteps": 12.552177500000003,
+        "knownGradedSteps": 19,
+        "unknownGradedSteps": 0,
+        "knownUngradedSteps": 1,
+        "unknownUngradedSteps": 0,
+        "ungradedOrPendingSteps": 1,
+        "source": "Claude CLI estimate, not provider invoice; ungraded/unknown usage is not assumed free"
+      },
+      "tools": {
+        "calls": 648,
+        "workspaceCalls": 370,
+        "browserCalls": 278,
+        "nativeImages": 12,
+        "screenshotCalls": 16,
+        "screenshotCallsWithoutNativeImage": 4,
+        "errors": 4,
+        "logReads": 2,
+        "logReadErrors": 0,
+        "counts": {
+          "workspace_list_files": 20,
+          "workspace_read_file": 174,
+          "workspace_write_file": 79,
+          "new_page": 16,
+          "take_snapshot": 60,
+          "navigate_page": 57,
+          "evaluate_script": 36,
+          "take_screenshot": 16,
+          "select_page": 1,
+          "click": 54,
+          "workspace_exec": 83,
+          "workspace_restart_dev": 14,
+          "list_pages": 5,
+          "list_console_messages": 2,
+          "wait_for": 8,
+          "fill_form": 13,
+          "close_page": 3,
+          "fill": 2,
+          "hover": 5
+        }
+      },
+      "stages": [
+        {
+          "stage": 1,
+          "sourceHash": "645cc0a02a650fb7e8fa5c9039d9aa440491415ca5d5b89d1e4e650ea85bc846",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 2,
+          "sourceHash": "b46744756bbb5a1a7b829690d9a460e390d5711f86c9f81b1ae454a89fc6afe5",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 3,
+          "sourceHash": "0de7eeb86eb445215720e2560aedacd2d8effce1eb6255fd45c5562ec2fe345f",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 4,
+          "sourceHash": "8d1247e7d6ebd47c67dd5d1ab6c7f1dab033e47509adacb1f619d20de9a3b55f",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 5,
+          "sourceHash": "9baeb91a1df1cbac4e507ac47ecd42728ba9ae4ec71670eb7fa6f252beae67cf",
+          "cumulativePassed": true,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [],
+          "flakyCases": []
+        },
+        {
+          "stage": 6,
+          "sourceHash": "cf349a1a6a0edc15f8fc8b5d53dd8d299604e0be6e9ff529f94b37498234ff94",
+          "cumulativePassed": false,
+          "currentTaskPassed": false,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 7,
+          "sourceHash": "e0ce237327427262c4c7815b483c2994c3ab0f4cae01bf2ff0f24d101750f42d",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 8,
+          "sourceHash": "0bb2b385b8108aaea92cc7c5bf3a4c4401bc5c2bd524835c3cd66088fda523d6",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 9,
+          "sourceHash": "b3c3bcbc5b3f65de3c37a3208d3f60cfe2b381f3421a0a9968fe332ef947ef3b",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 10,
+          "sourceHash": "b36846d7b2ca184fb0b3f6c4a8cf67c665c1cc58f44fa8b38c1daf65476ad5a5",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 11,
+          "sourceHash": "01a5078281183d82c40e56386cff05d01c4970f0b166084890e5f10d0d5a572c",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 12,
+          "sourceHash": "134f08a5335781a91c95917b0f782ff4303f7e86d79a459ffae17856bd800ddc",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 13,
+          "sourceHash": "40ab9f976961a03baa537d968c5a34ae04d7bc6c8b17854377ea80eedfb71d72",
+          "cumulativePassed": false,
+          "currentTaskPassed": false,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-13.spec.js",
+              "title": "Admin Portal visibility"
+            },
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 14,
+          "sourceHash": "fa4267496087d25249f04a97c924923bb331e4223f6cd23d9dbe3f010df55064",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-13.spec.js",
+              "title": "Admin Portal visibility"
+            },
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 15,
+          "sourceHash": "42902e309834f2e1a20e860333043e893a835e6b20064be3e10f285a094aac54",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-13.spec.js",
+              "title": "Admin Portal visibility"
+            },
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 16,
+          "sourceHash": "fc974926b47c5e5afd0e47734c091edc3dfa46a6ef23e128faaf87eb9eea4cab",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "error_max_turns",
+          "unexpectedCases": [
+            {
+              "file": "task-13.spec.js",
+              "title": "Admin Portal visibility"
+            },
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 17,
+          "sourceHash": "9454742625a2998a88af66f4039fc1a4d99434dababbcf7f030a3da693e44532",
+          "cumulativePassed": false,
+          "currentTaskPassed": false,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-13.spec.js",
+              "title": "Admin Portal visibility"
+            },
+            {
+              "file": "task-17.spec.js",
+              "title": "Test Pay Order"
+            },
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 18,
+          "sourceHash": "a608aff5cca7207c092ccbe1c439d01742c274884b7b3b6a6a4af23a96cf647e",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "error_max_turns",
+          "unexpectedCases": [
+            {
+              "file": "task-13.spec.js",
+              "title": "Admin Portal visibility"
+            },
+            {
+              "file": "task-17.spec.js",
+              "title": "Test Pay Order"
+            },
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        },
+        {
+          "stage": 19,
+          "sourceHash": "8b60352033f9718b6840f37df1d9427b59d431a681ccdfe57d1706126a9c2cf0",
+          "cumulativePassed": false,
+          "currentTaskPassed": true,
+          "modelSubtype": "success",
+          "unexpectedCases": [
+            {
+              "file": "task-13.spec.js",
+              "title": "Admin Portal visibility"
+            },
+            {
+              "file": "task-17.spec.js",
+              "title": "Test Pay Order"
+            },
+            {
+              "file": "task-6.spec.js",
+              "title": "Check Product Detail Page"
+            }
+          ],
+          "flakyCases": []
+        }
+      ],
+      "failure": "Adapter failed: exit=1, interrupted=false, timedOut=false"
+    },
+    {
+      "project": "fastify-react",
+      "condition": "harness-fe",
+      "repeat": 1,
+      "id": "6e2b9dbdfe1312976a9baf52",
+      "runId": "paired-fullstack-policy-1",
+      "planHash": "5fc212c6ea06deec791c086f0ad2e3d4baba26dafc4bfb62019a00ccfd0ce4c5",
+      "attempt": null,
+      "state": "pending",
+      "phase": "pending",
+      "complete": false,
+      "completedSteps": 0,
+      "plannedSteps": 20,
+      "identity": {
+        "model": "k3",
+        "agentVersion": "2.1.301 (Claude Code)",
+        "agentImage": "sha256:a33359684e7d33e1367c5a68c66cc77d5ca1786436cdfb32942a5c36d0c7e71d",
+        "verifierImage": "sha256:7a74fdb0909bf4edc16eabfc1f3bb213302407bd6eee7789a9b85a907483a02b",
+        "sourceHash": "1801e70163bc2f94bff60fb2b70ba965c3629124329c679b279d6daf7604d972",
+        "runnerHash": "3efaa0fffb16b84ed00214d594d34c0e1da5b6c990bee1045bb51adef141ace6",
+        "testHash": "73282ea8e72fbac76d4728e387fc2a73279b5b646e8509b653e87e1e43c67e35",
+        "taskRecordHash": "b5e154c37cb65f73848f2df839ceb5431fb102bc1e766b555b948abddb075526"
+      },
+      "score": null,
+      "cumulativeStages": {
+        "passed": 0,
+        "total": 0,
+        "fraction": null
+      },
+      "currentTaskStages": {
+        "passed": 0,
+        "total": 0,
+        "fraction": null
+      },
+      "finalCases": null,
+      "finalFlakyCases": null,
+      "flakyCaseOccurrencesAcrossStages": 0,
+      "finalFailures": [],
+      "latestGradedStageCases": null,
+      "ungradedModelReceipt": null,
+      "failureCategory": null,
+      "partialSourceDiagnostic": null,
+      "timing": {
+        "setupSeconds": null,
+        "modelSeconds": 0,
+        "ungradedModelSeconds": 0,
+        "gradingSeconds": 0,
+        "wholeAttemptSeconds": null
+      },
+      "cost": {
+        "cliEstimatedUsdForGradedSteps": 0,
+        "cliEstimatedUsdIncludingUngradedSteps": 0,
+        "knownGradedSteps": 0,
+        "unknownGradedSteps": 0,
+        "knownUngradedSteps": 0,
+        "unknownUngradedSteps": 0,
+        "ungradedOrPendingSteps": 20,
+        "source": "Claude CLI estimate, not provider invoice; ungraded/unknown usage is not assumed free"
+      },
+      "tools": {
+        "calls": 0,
+        "workspaceCalls": 0,
+        "browserCalls": 0,
+        "nativeImages": 0,
+        "screenshotCalls": 0,
+        "screenshotCallsWithoutNativeImage": 0,
+        "errors": 0,
+        "logReads": 0,
+        "logReadErrors": 0,
+        "counts": {}
+      },
+      "stages": [],
+      "failure": null
+    }
+  ],
+  "pairs": [
+    {
+      "project": "react",
+      "repeat": 1,
+      "complete": true,
+      "outcome": "harness-fe-win"
+    },
+    {
+      "project": "fastify-react",
+      "repeat": 1,
+      "complete": false,
+      "outcome": "unresolved"
+    }
+  ],
+  "excludedCoverage": [
+    {
+      "project": "fastify-react",
+      "condition": "chrome-devtools-mcp",
+      "runId": "paired-release-4.5.3-1",
+      "state": "interrupted",
+      "completedSteps": 0,
+      "reason": "Not selected from this run; retained original coverage, not silently graded or replaced"
+    },
+    {
+      "project": "fastify-react",
+      "condition": "harness-fe",
+      "runId": "paired-release-4.5.3-1",
+      "state": "pending",
+      "completedSteps": 0,
+      "reason": "Not selected from this run; retained original coverage, not silently graded or replaced"
+    }
+  ],
+  "scope": {
+    "projects": 2,
+    "attempts": 4,
+    "completedAttempts": 2,
+    "completedSteps": 59,
+    "plannedSteps": 80,
+    "inference": "Correlated sequential project chains, not independent development samples or an official leaderboard submission"
+  },
+  "imageEvidence": "Native MCP image blocks returned to the model; does not establish correct visual reasoning or a causal quality benefit",
+  "toolEvidence": "Counters cover recorded broker responses; transport exceptions before recording are not independently enumerated"
+}
