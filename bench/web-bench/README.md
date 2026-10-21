@@ -1,6 +1,7 @@
 # Web-Bench paired development pilot
 
-Owner: harness-fe. Status: React pair completed; corrected fullstack pair running.
+Owner: harness-fe. Status: React pair completed; fullstack comparison paused after
+Kimi's quota failure in DevTools stage 20, with Harness-FE unstarted.
 Actual results and evaluator limitations are in [pilot observations](pilot-observations.md).
 This is the first adapter for the
 [frozen five-dataset comparison](../lab/README.md).
@@ -21,7 +22,9 @@ development instructions, plus the respective normal browser MCP catalog.
 Every step receives its current and previous requirements and the previous
 model-written source. There is no hidden-test feedback or reference-code repair
 between steps. The maximum is 40 model turns and 480 seconds per step; these are
-not a claim that tool requests equal turns. Every request is independently audited.
+not a claim that tool requests equal turns. Returned tool results are independently
+audited; the frozen broker does not separately enumerate transport exceptions that
+occur before a result is recorded.
 
 Harness-FE uses CLI/plugin 4.5.3 and runtime 4.5.2 (unchanged in that release).
 Its Vite plugin provides source attributes and runtime capture. DevTools has
@@ -54,6 +57,10 @@ Grading uses the original upstream CI retry setting (two retries of a failed
 test against the same submitted code). Every flaky result and retry is retained;
 Agent calls and their source changes are not replayed. Differences affected by
 flaky cases must be reported separately from stable functional wins.
+The verifier is fresh for each stage, but its backend database persists across
+test retries within that stage. Inspect retry zero and subsequent results when
+explaining a failure; retry errors can mask the original cause after a user or
+order has already been created.
 
 ## Commands
 
@@ -125,3 +132,8 @@ second attempt at a failed model call.
 Air deployment, the other eight Web-Bench projects, additional repeats and the
 remaining four dataset adapters have separate acceptance; this pilot does not
 claim that those evaluations already ran.
+
+The user deferred model switching after this quota failure. Resuming with another
+model requires new model acceptance and a new paired plan/run; keep the Kimi
+results and incomplete coverage separate. Do not resume a Kimi-frozen run with a
+different model or declare its missing Harness-FE condition a loss.

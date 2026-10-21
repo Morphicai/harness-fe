@@ -1,8 +1,23 @@
 # Paired pilot observations — 2026-10-22
 
-Owner: harness-fe. Status: React pair completed; corrected fullstack pair running.
+Owner: harness-fe. Status: model execution paused by the user after Kimi quota
+exhaustion; React pair completed, fullstack pair incomplete. Model switching is
+deferred until the user's later instruction.
 This document records the actual pilot, including evaluator limitations. It is not
 a ranking across the frozen five datasets.
+
+## Coverage and conclusion
+
+The frozen plan has four project attempts and 80 development stages. Two React
+chains completed; corrected fullstack DevTools has 19 graded stages and a provider
+failure during stage 20; corrected fullstack Harness-FE has not started. Thus
+**59 stages are graded and only one of two project pairs is complete**. The
+interrupted step's source, model identity, usage and tool evidence are retained.
+
+The completed React pair favors Harness-FE on the declared raw measures, but
+the one-case final difference is affected by evaluator assumptions. Fullstack
+has no paired outcome. This pilot does not establish an overall solving advantage
+or a historical-log debugging advantage for Harness-FE.
 
 ## Completed React pair
 
@@ -17,8 +32,9 @@ source; neither condition received hidden grading feedback.
 | Stages passing the current task's tests | 18/20 | 17/20 |
 | Final upstream test cases passing | 57/59 | 56/59 |
 | Flaky case occurrences across graded stages | 0 | 0 |
-| All tool calls | 595 | 560 |
+| Recorded tool responses | 595 | 560 |
 | Workspace / browser tool calls | 259 / 336 | 267 / 293 |
+| Browser tools advertised / with recorded responses | 63 / 12 | 30 / 13 |
 | Screenshot calls / native image results | 23 / 23 | 20 / 13 |
 | Explicit console/error log reads | 25 | 16 |
 | MCP error responses | 4 | 4 |
@@ -82,6 +98,30 @@ The first and last retained Harness-FE React images (`image-10-0.webp` and
 `image-594-0.webp`) were visually inspected: both contain readable rendered UI,
 including the final posted game record. This is a sample check of image integrity,
 not a claim about how the evaluated model interpreted every image.
+All 23 Harness-FE and 13 DevTools saved image files match the recorded native-image
+counts and have valid PNG, JPEG or WebP signatures; this is a file-integrity check,
+not full visual review of every image.
+
+Tool totals count the frozen broker's completed-response records. Its exception
+path can return HTTP 500 before appending a tool record; transport exceptions are
+not independently enumerated by this broker. Error counts mean recorded MCP
+`isError` responses. Do not describe these counters as a complete transport-attempt
+trace or infer model understanding from a successful return.
+
+Harness-FE's browser-call surplus is numerically the same as its evaluate-call
+surplus: `page.evaluate` runs 90 times versus 47 `evaluate_script` calls in the
+baseline. Sampled expressions inspect DOM content, layout and computed styles;
+both APIs support collecting several checks in one call. Call counts alone do
+not establish that the additional checks were necessary or effective.
+
+No Harness-FE project source lookup, session history, visitor timeline, recording
+or task-management invocations appear in the recorded React responses.
+Fifty-one advertised browser tools have no recorded use, versus seventeen in DevTools.
+This supports investigating task-specific catalogs and concise usage guidance;
+it does not justify deleting capabilities needed by other tasks. Skills were
+disabled in **both** conditions, so this is the neutral-Agent MCP comparison,
+not an acceptance of an additional Harness-FE-specific skill workflow. Any new
+guidance/catalog condition must receive a new frozen experiment.
 
 ## Evidence identity and pending scope
 
@@ -97,7 +137,39 @@ Reference controls found that Vite bypassed a backend authorization redirect on
 HTML navigation; the original fullstack setup was stopped before any model
 development step completed. It remains interrupted/pending in the original plan,
 not an Agent-solving failure. The corrected pair preserves Chrome-first order and
-the same task/test bodies. Fullstack outcomes will be added after both chains end.
+the same task/test bodies.
+
+### Corrected fullstack status at pause
+
+| Measure | Chrome DevTools MCP | Harness-FE |
+| --- | ---: | --- |
+| Graded development stages | 19/20 | Not started |
+| Cumulative stages passed among those graded | 5/19 | No score |
+| Current-task stages passed among those graded | 16/19 | No score |
+| Latest graded cases, stage 19 | 82/85 | No score |
+| Recorded tool responses, including interrupted stage 20 | 648 | None |
+| Workspace / browser responses | 370 / 278 | None |
+| Screenshot calls / native image results | 16 / 12 | None |
+| Explicit console/network/error reads | 2 | None |
+| Recorded MCP error responses | 4 | None |
+| Model seconds for graded stages | 4742.826 | Not started |
+| Model seconds for interrupted stage 20 | 478.658 | Not started |
+| Grading seconds for completed stages | 1335.055 | Not started |
+| CLI-estimated USD, including interrupted stage 20 | 12.5521775 | Not started |
+
+Stage 20 returns **HTTP 429: Kimi's five-hour usage quota is exhausted**. The model
+receipt verifies `k3`, records exit 1 and `isError=true`, and explicitly records
+`timedOut=false`; this is a provider entitlement failure, not an observed 480-second
+controller timeout or a completed functional failure. Its $0.762776 CLI estimate
+is included in the fullstack total above despite having no committed stage grade.
+All three started chains together have **$34.202144** of known CLI-estimated cost,
+excluding model acceptance/smoke calls and not substituting for provider billing.
+
+The original failed attempt has not been replayed. No new Harness-FE project call
+was launched after quota exhaustion. The user requested this summary and deferred
+model switching. Owner task checkboxes remain open for the incomplete paired run.
+The final saved source is being evaluated separately as an offline diagnostic;
+that diagnostic cannot turn the failed attempt into a completed chain or pair win.
 
 The first corrected fullstack current-task failure (DevTools stage 6) also has a
 prompt/test discrepancy: the task requests `.product_quantity`, the submitted
@@ -107,8 +179,16 @@ retained as an original failed grade; it is not fed back to either model chain.
 DevTools stage 13 additionally fails `Admin Portal visibility`: the home page
 renders management buttons for an anonymous visitor. The backend redirect/access
 checks pass. This establishes a conditional-display issue, not a demonstrated
-authorization bypass. Its later persistence or recovery will be reported from
-the final submitted source rather than assumed from the initial failure.
+authorization bypass. This visibility failure remains in the stage-19 graded source.
+
+DevTools stage 17's `Test Pay Order` first passes the completed-order and balance
+assertions, then fails the same missing `.product-quantity` selector. The two
+retries instead stop at registration: the first try already created that fixed
+username in the stage's verifier database, which persists across test retries.
+Those later registration errors must not be reported as the original payment
+failure. The insufficient-balance and insufficient-stock cases pass at this stage.
+Inspect **all** Playwright `results`, starting with retry zero; the last error can
+be a consequence of prior failed execution. No retry policy or source was changed.
 
 Generate a joined, read-only report with explicit project/run selection:
 

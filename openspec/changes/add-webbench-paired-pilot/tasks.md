@@ -18,3 +18,11 @@
 - [x] 3.2 Freeze the four-attempt, two-project plan with alternating conditions and full-chain timeouts; verify no old run/image can be reused silently.
 - [ ] 3.3 Run the real paired chains, preserving per-step model identities, source snapshots, official grades, tool calls, timing and costs.
 - [ ] 3.4 Verify safe continuation, resource cleanup and complete paired reporting; publish owner documentation with genuine results and remaining scope.
+
+Paused 2026-10-22 at the user's request after Kimi HTTP 429 quota exhaustion:
+React both 20-step chains complete; corrected fullstack DevTools has 19 graded
+stages and a retained partial stage 20; corrected Harness-FE remains unstarted.
+See [pilot observations](../../../bench/web-bench/pilot-observations.md).
+The report and controller/container cleanup are recorded, while complete paired
+acceptance remains open. Model switching waits for the user's later instruction
+and requires a new model acceptance/paired plan, preserving this failed attempt.
