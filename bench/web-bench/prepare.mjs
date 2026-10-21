@@ -78,7 +78,7 @@ export async function prepareDataset() {
     execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts', '--legacy-peer-deps', '--no-audit', '--no-fund', '--registry=https://registry.npmjs.org'],
         { cwd: deps, stdio: 'inherit', timeout: 180000 });
     cpSync(join(deps, 'package-lock.json'), lock);
-    for (const file of ['Dockerfile', 'session.mjs', 'command.mjs', 'dev.mjs', 'verify.mjs']) cpSync(join(here, file), join(context, file));
+    for (const file of ['Dockerfile', 'session.mjs', 'command.mjs', 'dev.mjs', 'backend-policy.mjs', 'verify.mjs']) cpSync(join(here, file), join(context, file));
     const base = JSON.parse(execFileSync('docker', ['image', 'inspect', JSON.parse(readFileSync(join(here, '../lab/environment.json'))).image,
         '--format', '{{json .}}'], { encoding: 'utf8' }));
     const receipt = { settings, baseImage: base.Id, dependencyLockHash: hash(readFileSync(lock)), projects,

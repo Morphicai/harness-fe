@@ -11,7 +11,7 @@ RUN ./node_modules/.bin/playwright install chromium
 
 FROM dependencies AS agent
 COPY seeds/ /opt/seeds/
-COPY session.mjs command.mjs dev.mjs /opt/webbench/
+COPY session.mjs command.mjs dev.mjs backend-policy.mjs /opt/webbench/
 RUN mkdir -p /workspace/task && chmod -R a+rwX /workspace /opt/seeds
 WORKDIR /workspace/task
 ENTRYPOINT ["node", "/opt/webbench/session.mjs"]

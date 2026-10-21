@@ -4,6 +4,11 @@ Owner: harness-fe. Status: implementation and preflight; paid project-chain resu
 are recorded only after actual execution. This is the first adapter for the
 [frozen five-dataset comparison](../lab/README.md).
 
+The [fullstack startup correction](fullstack-policy-note.md) documents why its
+pair uses a new, separately frozen environment after the original React pair.
+The current `environment.json` selects that fullstack continuation. Preserve the
+original Chrome-first order with `plan --first-condition chrome-devtools-mcp`.
+
 ## Experiment
 
 The first batch uses the already selected `react` and `fastify-react` projects at
