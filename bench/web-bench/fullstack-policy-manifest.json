@@ -1,0 +1,62 @@
+{
+  "status": "frozen-before-fullstack-model-outcomes",
+  "sourceCommit": "9a989a37ffa0167a6aac1f776200a7ce00926dea",
+  "reason": "Preserve actual backend document authorization/redirect policy on development navigation",
+  "originalParentManifest": "pilot-manifest.json (c4b559a; fullstack attempts superseded before model execution)",
+  "model": "k3",
+  "agentVersion": "2.1.301 (Claude Code)",
+  "agentImage": "sha256:a33359684e7d33e1367c5a68c66cc77d5ca1786436cdfb32942a5c36d0c7e71d",
+  "verifierImage": "sha256:7a74fdb0909bf4edc16eabfc1f3bb213302407bd6eee7789a9b85a907483a02b",
+  "sourceHash": "1801e70163bc2f94bff60fb2b70ba965c3629124329c679b279d6daf7604d972",
+  "runnerHash": "3efaa0fffb16b84ed00214d594d34c0e1da5b6c990bee1045bb51adef141ace6",
+  "attempts": [
+    {
+      "project": "fastify-react",
+      "condition": "chrome-devtools-mcp",
+      "repeat": 1,
+      "steps": 20
+    },
+    {
+      "project": "fastify-react",
+      "condition": "harness-fe",
+      "repeat": 1,
+      "steps": 20
+    }
+  ],
+  "controls": [
+    {
+      "project": "fastify-react",
+      "mode": "reference",
+      "stage": 20,
+      "passed": true,
+      "totalCases": 91,
+      "stats": {
+        "startTime": "2026-10-21T14:51:12.583Z",
+        "duration": 59343.185,
+        "expected": 91,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "accepted": true
+    },
+    {
+      "project": "fastify-react",
+      "mode": "initial",
+      "stage": 1,
+      "passed": false,
+      "totalCases": 2,
+      "stats": {
+        "startTime": "2026-10-21T14:52:13.132Z",
+        "duration": 68159.517,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 2,
+        "flaky": 0
+      },
+      "accepted": true
+    }
+  ],
+  "browserAccepted": true,
+  "actualModelToolsAccepted": true
+}
