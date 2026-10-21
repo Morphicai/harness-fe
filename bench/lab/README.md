@@ -208,3 +208,16 @@ The public 50-unit comparison has **not** run. Its selected records are frozen i
 acceptance still pending. Air's read-only SSH probe timed out during this build;
 its amd64 build, browser/Agent wiring and durable editing template are not accepted.
 No software was installed remotely and no supplier was switched.
+
+### Readiness recheck — 2026-10-22
+
+The private SSH host probe now succeeds: Intel macOS 12.7.6 has Node, Docker and
+Claude on PATH, but no `mx-env`. A direct `air-task.py health` request also succeeds
+with Dagu 2.18.2, the six existing templates and concurrency one. A separate worker
+probe returns x86_64, Node 22.23.3 and Claude Code 2.1.291, with no Docker, `mx-env`,
+Chromium, DevTools MCP or Harness CLI found on its PATH.
+
+Trellis's cached upstream status still reports an Air connection timeout, so that
+status alone does not establish that the queue is down. These are read-only
+readiness checks, not a durable benchmark submission, a model/provider acceptance
+or a deployed editing template. No remote software or provider settings changed.

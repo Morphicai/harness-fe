@@ -78,6 +78,11 @@ missing-page navigation error. These are different tool-use friction points;
 they do not all indicate application defects. Tool catalogs and full responses
 are saved, rather than inferring successful inspection from call counts.
 
+The first and last retained Harness-FE React images (`image-10-0.webp` and
+`image-594-0.webp`) were visually inspected: both contain readable rendered UI,
+including the final posted game record. This is a sample check of image integrity,
+not a claim about how the evaluated model interpreted every image.
+
 ## Evidence identity and pending scope
 
 React evidence is in ignored `jobs/paired-release-4.5.3-1`, with completed attempts
@@ -93,6 +98,17 @@ HTML navigation; the original fullstack setup was stopped before any model
 development step completed. It remains interrupted/pending in the original plan,
 not an Agent-solving failure. The corrected pair preserves Chrome-first order and
 the same task/test bodies. Fullstack outcomes will be added after both chains end.
+
+The first corrected fullstack current-task failure (DevTools stage 6) also has a
+prompt/test discrepancy: the task requests `.product_quantity`, the submitted
+detail page uses it, and the upstream test checks `.product-quantity`. This is
+retained as an original failed grade; it is not fed back to either model chain.
+
+DevTools stage 13 additionally fails `Admin Portal visibility`: the home page
+renders management buttons for an anonymous visitor. The backend redirect/access
+checks pass. This establishes a conditional-display issue, not a demonstrated
+authorization bypass. Its later persistence or recovery will be reported from
+the final submitted source rather than assumed from the initial failure.
 
 Generate a joined, read-only report with explicit project/run selection:
 
