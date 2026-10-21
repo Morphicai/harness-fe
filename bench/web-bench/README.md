@@ -1,7 +1,8 @@
 # Web-Bench paired development pilot
 
-Owner: harness-fe. Status: implementation and preflight; paid project-chain results
-are recorded only after actual execution. This is the first adapter for the
+Owner: harness-fe. Status: React pair completed; corrected fullstack pair running.
+Actual results and evaluator limitations are in [pilot observations](pilot-observations.md).
+This is the first adapter for the
 [frozen five-dataset comparison](../lab/README.md).
 
 ## Experiment
