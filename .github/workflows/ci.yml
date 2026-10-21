@@ -75,8 +75,8 @@ jobs:
             - name: Test release publishing
               run: node --test scripts/release-publish.test.mjs
 
-            - name: Test benchmark bookkeeping and frozen samples
-              run: node --test bench/lab/*.test.mjs
+            - name: Test benchmark bookkeeping, samples and backend navigation
+              run: node --test bench/lab/*.test.mjs bench/web-bench/*.test.mjs
 
     e2e:
         name: E2E (real browser)
