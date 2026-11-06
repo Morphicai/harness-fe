@@ -217,7 +217,7 @@ export const unpluginFactory: UnpluginFactory<HarnessFEOptions | undefined> = (o
             transformIndexHtml: {
                 order: 'pre' as const,
                 handler(html: string) {
-                    if (options.disabled) return html;
+                    if (options.disabled || options.inject === false) return html;
                     const config = buildInjectedConfig(
                         {
                             projectId,

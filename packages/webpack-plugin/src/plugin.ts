@@ -274,6 +274,8 @@ export class HarnessFEWebpackPlugin {
     }
 
     private injectConfigScript(html: string): string {
+        // inject:false — host boots the runtime itself; keep tagging only.
+        if (this.options.inject === false) return html;
         const config = buildInjectedConfig(
             {
                 projectId: this.projectId,

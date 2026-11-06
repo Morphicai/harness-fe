@@ -14,6 +14,15 @@ export interface HarnessFEOptions {
     /** Disable injection entirely. */
     disabled?: boolean;
     /**
+     * Inject the runtime client + config into the served HTML (default: true).
+     * Set to false to skip the HTML injection (no `window.__HARNESS_FE__`
+     * config, no runtime script tag) while keeping the JSX/Vue source
+     * tagging and every other build-time capability (buildId, MCP bridge).
+     * For hosts that boot `RuntimeClient` themselves under runtime
+     * conditions (login state, allowlists, …) and only want the tagging.
+     */
+    inject?: boolean;
+    /**
      * Parent project's id, used to build the project tree on the daemon.
      * Set this on the iframe child app's plugin config when you can declare
      * the relationship at build time. Otherwise the runtime client will
