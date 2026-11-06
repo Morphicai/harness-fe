@@ -46,8 +46,18 @@ export function createMcpHttpHandler(opts: McpHttpOptions): McpHttpHandler {
 
     function audit(req: IncomingMessage, tool: string, tokenId?: string): void {
         if (!opts.onAudit) return;
-        opts.onAudit({ tokenId, tool, ip: req.socket.remoteAddress ?? undefined });
+        // Auditing must never break the data plane (e.g. ENOSPC on the audit
+        // log) — swallow write failures with a one-time warning.
+        try {
+            opts.onAudit({ tokenId, tool, ip: req.socket.remoteAddress ?? undefined });
+        } catch (err) {
+            if (!auditWarned) {
+                auditWarned = true;
+                console.warn('[harness] audit write failed (further failures silent):', err);
+            }
+        }
     }
+    let auditWarned = false;
 
     /** One audit line per JSON-RPC message (a batch body audits each element). */
     function auditBody(req: IncomingMessage, body: unknown, tokenId?: string): void {
