@@ -1,5 +1,23 @@
 # @harness-fe/webpack
 
+## 4.6.0
+
+### Minor Changes
+
+- 4b12cd6: feat(runtime,unplugin,next): add `recording` option to fully disable rrweb recording
+
+  `ClientOptions.recording?: boolean` (default `true`). With `recording: false` the runtime client never starts the rrweb recorder — no FullSnapshot baseline, no incremental chunks — while event capture (console / network / errors / idb / …) is unaffected. For deployments that want observability and agent control without replayable DOM footage. Threaded through the plugin option (`harnessFE({ recording: false })` on Vite/webpack), the injected `window.__HARNESS_FE__` config, and `<HarnessScript recording={false}>`.
+
+- e469dd6: feat(unplugin,webpack): add `inject` option to skip HTML injection while keeping source tagging
+
+  `disabled` is all-or-nothing — it turns off the JSX/Vue source tagging along with everything else. The new `inject?: boolean` (default `true`) is the surgical middle ground: with `inject: false` the plugin skips the HTML injection (`window.__HARNESS_FE__` config + runtime script tag on Vite; the config script on the native webpack plugin) while the source tagging transform, buildId resolution, and the MCP bridge all keep running. For host apps that boot `RuntimeClient` themselves under runtime conditions (login state, allowlists) and only want build-time tagging from the plugin.
+
+### Patch Changes
+
+- Updated dependencies [4b12cd6]
+- Updated dependencies [e469dd6]
+  - @harness-fe/unplugin@4.6.0
+
 ## 4.5.3
 
 ### Patch Changes
