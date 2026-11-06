@@ -73,6 +73,12 @@ export interface HarnessScriptProps {
      */
     overlay?: boolean;
     /**
+     * rrweb session recording (default: true). Set to false to skip the
+     * recorder entirely — no replayable DOM footage — while event capture
+     * (console / network / errors / …) is unaffected.
+     */
+    recording?: boolean;
+    /**
      * Browser consent policy. When set, takes priority over the gateway
      * hello.ack consent mode.
      *   'off'     — no user prompt, control commands run freely (default)

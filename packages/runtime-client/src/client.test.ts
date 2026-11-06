@@ -115,6 +115,24 @@ describe('overlay config', () => {
     });
 });
 
+describe('recording config from window.__HARNESS_FE__', () => {
+    afterEach(() => {
+        delete (window as any).__HARNESS_FE__;
+    });
+
+    it('reads recording:false', () => {
+        (window as any).__HARNESS_FE__ = { projectId: 'x', mcpUrl: 'ws://localhost:9000/ws', recording: false };
+        const config = readInjectedConfig();
+        expect(config.recording).toBe(false);
+    });
+
+    it('leaves recording undefined (default: record) when not injected', () => {
+        (window as any).__HARNESS_FE__ = { projectId: 'x', mcpUrl: 'ws://localhost:9000/ws' };
+        const config = readInjectedConfig();
+        expect(config.recording).toBeUndefined();
+    });
+});
+
 describe('consent config from window.__HARNESS_FE__', () => {
     afterEach(() => {
         delete (window as any).__HARNESS_FE__;
