@@ -190,6 +190,23 @@ describe('gateway e2e — Governed policy (team)', () => {
         expect(audit.some((a) => a.tokenId)).toBe(true);
     });
 
+    it('audits every request on an established session, not just initialize', async () => {
+        const sid = await connect(base, agentA);
+        await toolNames(base, agentA, sid);
+        await callTool(base, agentA, sid, 'tab.list');
+        await fetch(`${base}/mcp`, { method: 'DELETE', headers: { 'mcp-session-id': sid } });
+
+        const audit = store.listAudit();
+        const tools = audit.map((a) => a.tool);
+        expect(tools).toContain('initialize');
+        expect(tools).toContain('tools/list');
+        // tools/call audits the invoked tool (params.name), not the RPC method.
+        expect(tools).toContain('tab.list');
+        expect(tools).toContain('http:DELETE');
+        // Established-session entries carry the session's token identity.
+        expect(audit.find((a) => a.tool === 'tools/list')?.tokenId).toBeTruthy();
+    });
+
     it('runtime reports over /ws and agentA can read + drive it', async () => {
         // Runtime connects with its write token.
         const ws = new WebSocket(`${base.replace('http', 'ws')}/ws?token=${encodeURIComponent(runtimeTok)}`);

@@ -27,6 +27,7 @@ declare global {
             userId?: string;
             sessionId?: string;
             overlay?: boolean;
+            recording?: boolean;
             consent?: string;
         };
         __HARNESS_FE_SEED__?: {
@@ -54,6 +55,7 @@ export function HarnessScriptClient(props: HarnessScriptProps): null {
             userId: props.userId,
             sessionId: seed?.sessionId,
             overlay: props.overlay ?? true,
+            recording: props.recording,
             consent: props.consent,
         };
 
@@ -70,6 +72,7 @@ export function HarnessScriptClient(props: HarnessScriptProps): null {
         props.buildId,
         props.userId,
         props.overlay,
+        props.recording,
         props.consent,
     ]);
     return null;

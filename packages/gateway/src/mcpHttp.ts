@@ -44,9 +44,25 @@ export function createMcpHttpHandler(opts: McpHttpOptions): McpHttpHandler {
     const caps = opts.coreClient.capabilities;
     const sessions = new Map<string, Session>();
 
-    function audit(req: IncomingMessage, body: unknown, tokenId?: string): void {
+    function audit(req: IncomingMessage, tool: string, tokenId?: string): void {
         if (!opts.onAudit) return;
-        opts.onAudit({ tokenId, tool: toolName(body), ip: req.socket.remoteAddress ?? undefined });
+        // Auditing must never break the data plane (e.g. ENOSPC on the audit
+        // log) — swallow write failures with a one-time warning.
+        try {
+            opts.onAudit({ tokenId, tool, ip: req.socket.remoteAddress ?? undefined });
+        } catch (err) {
+            if (!auditWarned) {
+                auditWarned = true;
+                console.warn('[harness] audit write failed (further failures silent):', err);
+            }
+        }
+    }
+    let auditWarned = false;
+
+    /** One audit line per JSON-RPC message (a batch body audits each element). */
+    function auditBody(req: IncomingMessage, body: unknown, tokenId?: string): void {
+        const items = Array.isArray(body) ? body : [body];
+        for (const item of items) audit(req, toolName(item), tokenId);
     }
 
     async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -55,7 +71,22 @@ export function createMcpHttpHandler(opts: McpHttpOptions): McpHttpHandler {
         // Established session — route by id (POST follow-ups, GET SSE, DELETE).
         if (typeof sid === 'string' && sessions.has(sid)) {
             const session = sessions.get(sid)!;
-            // Audit GET/DELETE here; POST bodies are audited in the init branch / below.
+            if (req.method === 'POST') {
+                // Read + audit the JSON-RPC body here; the session was already
+                // authorized at initialize, so no policy re-check.
+                let body: unknown;
+                try {
+                    body = await readJsonBody(req);
+                } catch {
+                    sendMcpError(res, 400, -32700, 'Parse error');
+                    return true;
+                }
+                auditBody(req, body, session.tokenId);
+                await session.transport.handleRequest(req, res, body);
+                return true;
+            }
+            // GET (SSE stream) / DELETE (session close): no JSON-RPC body — audit the verb.
+            audit(req, `http:${req.method}`, session.tokenId);
             await session.transport.handleRequest(req, res);
             return true;
         }
@@ -79,7 +110,7 @@ export function createMcpHttpHandler(opts: McpHttpOptions): McpHttpHandler {
                 sendMcpError(res, 401, -32001, 'unauthorized: missing or invalid token');
                 return true;
             }
-            audit(req, body, resolved.caller?.tokenId);
+            auditBody(req, body, resolved.caller?.tokenId);
 
             const server = createMcpServer(caps, resolved.principal, opts.mcp ?? {});
             const transport = new StreamableHTTPServerTransport({

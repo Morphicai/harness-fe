@@ -73,6 +73,13 @@ export interface ClientOptions {
      */
     overlay?: boolean;
     /**
+     * rrweb session recording (default: true). Set to false to skip starting
+     * the recorder entirely — no FullSnapshot, no incremental chunks — while
+     * event capture (console / network / errors / …) is unaffected. For
+     * deployments that want observability without replayable DOM footage.
+     */
+    recording?: boolean;
+    /**
      * Defer runtime start until after the host app has painted (load + idle).
      * Consumed by the auto-start entry, not by RuntimeClient itself (mirrors
      * how `overlay` is consumed there). Default false.
@@ -261,7 +268,7 @@ export class RuntimeClient {
             (name, payload) => this.sendEvent(name, payload),
             { daemonUrl, idbThrottleMs: this.opts.idbThrottleMs },
         );
-        this.recorder.start();
+        if (this.opts.recording !== false) this.recorder.start();
         this.connect();
     }
 
@@ -659,6 +666,7 @@ export function readInjectedConfig(): ClientOptions {
             userId?: string;
             sessionId?: string;
             overlay?: boolean;
+            recording?: boolean;
             consent?: string;
             rrwebCheckoutEveryNms?: number;
             deferStart?: boolean;
@@ -675,6 +683,7 @@ export function readInjectedConfig(): ClientOptions {
         displayName: cfg?.displayName,
         userId: cfg?.userId,
         overlay: cfg?.overlay ?? true,
+        recording: cfg?.recording,
         consent: cfg?.consent as ConsentMode | undefined,
         rrwebCheckoutEveryNms: cfg?.rrwebCheckoutEveryNms,
         deferStart: cfg?.deferStart,

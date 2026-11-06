@@ -22,6 +22,7 @@ export interface InjectedHarnessConfig {
     parentProjectId?: string;
     displayName?: string;
     overlay?: boolean;
+    recording?: boolean;
     consent?: HarnessFEOptions['consent'];
     rrwebCheckoutEveryNms?: number;
     deferStart?: boolean;
@@ -52,6 +53,7 @@ export function buildInjectedConfig(
         parentProjectId: options.parentProjectId,
         displayName: resolved.displayName,
         overlay: options.overlay ?? true,
+        recording: options.recording,
         consent: options.consent,
         rrwebCheckoutEveryNms: options.rrwebCheckoutEveryNms,
         deferStart: options.deferStart,

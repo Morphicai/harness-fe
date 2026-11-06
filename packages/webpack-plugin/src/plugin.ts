@@ -126,7 +126,10 @@ export class HarnessFEWebpackPlugin {
         // connection are dev-only conveniences.
         if (compiler.options?.mode === 'production') return;
 
-        this.installRuntimeEntry(compiler);
+        // inject:false means the host boots RuntimeClient itself — do not
+        // auto-add the runtime entry either (it would start a ghost client
+        // with default config alongside the host's own instance).
+        if (this.options.inject !== false) this.installRuntimeEntry(compiler);
         this.installMcpHooks(compiler);
         this.installComponentMapAggregator(compiler);
         this.installHtmlInjection(compiler);
@@ -274,6 +277,8 @@ export class HarnessFEWebpackPlugin {
     }
 
     private injectConfigScript(html: string): string {
+        // inject:false — host boots the runtime itself; keep tagging only.
+        if (this.options.inject === false) return html;
         const config = buildInjectedConfig(
             {
                 projectId: this.projectId,
