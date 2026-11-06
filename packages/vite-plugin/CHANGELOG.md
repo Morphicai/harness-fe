@@ -1,5 +1,13 @@
 # @harness-fe/vite
 
+## 4.6.0
+
+### Patch Changes
+
+- Updated dependencies [4b12cd6]
+- Updated dependencies [e469dd6]
+  - @harness-fe/unplugin@4.6.0
+
 ## 4.5.3
 
 ### Patch Changes
