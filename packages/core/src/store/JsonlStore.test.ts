@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as fc from 'fast-check';
@@ -25,6 +25,51 @@ function makePerChunkStore() {
 
 function cleanup(dir: string) {
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+}
+
+/**
+ * Mirror of JsonlStore's internal dirSize (fault-tolerant: unreadable entries
+ * count as 0) so total-size cap tests can compute exact caps.
+ */
+function dirSizeOf(dir: string): number {
+    let total = 0;
+    try {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const full = join(dir, entry.name);
+            if (entry.isDirectory()) total += dirSizeOf(full);
+            else {
+                try { total += statSync(full).size; } catch { /* skip */ }
+            }
+        }
+    } catch {
+        // unreadable directory — count what we can
+    }
+    return total;
+}
+
+/**
+ * Open a session with an explicit startedAt plus a `bulk.bin` of known size in
+ * its session dir — used by the total-size cap (maxTotalBytes) tests.
+ */
+function openSizedSession(
+    store: JsonlStore,
+    dataDir: string,
+    projectId: string,
+    startedAt: number,
+    bulkBytes: number,
+): string {
+    const tabId = `tab-${randomUUID().slice(0, 8)}`;
+    const sessionId = randomUUID();
+    store.upsertTab(tabId, { connectedAt: startedAt });
+    store.upsertSession(sessionId, {
+        tabId,
+        startedAt,
+        participants: [{ projectId, joinedAt: startedAt }],
+    });
+    if (bulkBytes > 0) {
+        writeFileSync(join(dataDir, 'sessions', sanitizeId(sessionId), 'bulk.bin'), Buffer.alloc(bulkBytes));
+    }
+    return sessionId;
 }
 
 /**
@@ -828,6 +873,102 @@ describe('JsonlStore', () => {
         expect(result.sessionsDeleted).toBe(2);
         expect(store.listSessions({ projectId: 'proj' })).toHaveLength(3);
     });
+
+    // ── Purge: total-size cap (maxTotalBytes) ────────────────────────────
+
+    it('purge evicts oldest sessions until the data dir fits maxTotalBytes', () => {
+        const now = Date.now();
+        const s1 = openSizedSession(store, dir, 'proj', now - 3000, 10_000);
+        const s2 = openSizedSession(store, dir, 'proj', now - 2000, 10_000);
+        const s3 = openSizedSession(store, dir, 'proj', now - 1000, 10_000);
+        const total = dirSizeOf(dir);
+        const d1 = dirSizeOf(join(dir, 'sessions', sanitizeId(s1)));
+        const d2 = dirSizeOf(join(dir, 'sessions', sanitizeId(s2)));
+        // Deleting s1 alone is not enough — s1+s2 must go; s3 (newest) survives.
+        const cap = total - d1 - d2 + 1;
+
+        const result = store.purge({ maxAgeDays: 365, maxSessions: 100, maxTotalBytes: cap });
+        expect(result.sessionsDeleted).toBe(2);
+        expect(store.listSessions({ limit: 1000 }).map((s) => s.id)).toEqual([s3]);
+    });
+
+    it('purge does not evict when total size is exactly at maxTotalBytes', () => {
+        const now = Date.now();
+        openSizedSession(store, dir, 'proj', now - 2000, 5_000);
+        openSizedSession(store, dir, 'proj', now - 1000, 5_000);
+        const cap = dirSizeOf(dir);
+
+        const result = store.purge({ maxAgeDays: 365, maxSessions: 100, maxTotalBytes: cap });
+        expect(result.sessionsDeleted).toBe(0);
+        expect(store.listSessions({ limit: 1000 })).toHaveLength(2);
+    });
+
+    it('purge applies maxAgeDays → maxSessions → maxTotalBytes in order, keeping the newest', () => {
+        const now = Date.now();
+        const day = 86_400_000;
+        const s1 = openSizedSession(store, dir, 'proj', now - 10 * day, 5_000); // age victim
+        const s2 = openSizedSession(store, dir, 'proj', now - 3 * day, 5_000); // count victim
+        const s3 = openSizedSession(store, dir, 'proj', now - 2 * day, 5_000); // total victim
+        const s4 = openSizedSession(store, dir, 'proj', now - 1 * day, 5_000); // survivor
+        const s5 = openSizedSession(store, dir, 'proj', now - 60_000, 5_000); // survivor
+        const total = dirSizeOf(dir);
+        const d1 = dirSizeOf(join(dir, 'sessions', sanitizeId(s1)));
+        const d2 = dirSizeOf(join(dir, 'sessions', sanitizeId(s2)));
+        const d3 = dirSizeOf(join(dir, 'sessions', sanitizeId(s3)));
+        // After age (s1) + count (s2) passes, evicting s3 brings us just under.
+        const cap = total - d1 - d2 - d3 + 1;
+
+        const result = store.purge({ maxAgeDays: 5, maxSessions: 3, maxTotalBytes: cap });
+        expect(result.sessionsDeleted).toBe(3);
+        expect(store.listSessions({ limit: 1000 }).map((s) => s.id)).toEqual([s5, s4]);
+    });
+
+    it('purge total-size eviction stops once under the cap (single huge session, no over-eviction)', () => {
+        const now = Date.now();
+        const sHuge = openSizedSession(store, dir, 'proj', now - 3000, 200_000);
+        const s2 = openSizedSession(store, dir, 'proj', now - 2000, 1_000);
+        const s3 = openSizedSession(store, dir, 'proj', now - 1000, 1_000);
+        store.upsertProject('proj', {});
+        store.writeNote('proj', 'keep', 'me');
+        const dHuge = dirSizeOf(join(dir, 'sessions', sanitizeId(sHuge)));
+        // Cap smaller than the huge session's own footprint: evicting just it is
+        // enough — smaller/newer sessions and non-session data survive.
+        const cap = dirSizeOf(dir) - dHuge;
+
+        const result = store.purge({ maxAgeDays: 365, maxSessions: 100, maxTotalBytes: cap });
+        expect(result.sessionsDeleted).toBe(1);
+        expect(store.listSessions({ limit: 1000 }).map((s) => s.id)).toEqual([s3, s2]);
+        expect(store.listNotes('proj').map((n) => n.key)).toContain('keep');
+    });
+
+    it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+        'purge skips an unreadable session during total-size eviction instead of aborting',
+        () => {
+            const now = Date.now();
+            const sBad = openSizedSession(store, dir, 'proj', now - 3000, 10_000); // oldest → popped first
+            const sMid = openSizedSession(store, dir, 'proj', now - 2000, 10_000); // evicted after the skip
+            const sNew = openSizedSession(store, dir, 'proj', now - 1000, 10_000); // survivor
+            const badSub = join(dir, 'sessions', sanitizeId(sBad), 'recording');
+            mkdirSync(badSub, { recursive: true });
+            writeFileSync(join(badSub, 'chunk.jsonl'), 'junk\n');
+            chmodSync(badSub, 0o000); // readdir/rmrf now hit EACCES
+            try {
+                const total = dirSizeOf(dir);
+                const dMid = dirSizeOf(join(dir, 'sessions', sanitizeId(sMid)));
+                const cap = total - dMid;
+
+                const result = store.purge({ maxAgeDays: 365, maxSessions: 100, maxTotalBytes: cap });
+                // sBad is popped first but cannot be evicted (rmrf hits EACCES);
+                // the run must continue and evict sMid instead of aborting.
+                expect(result.sessionsDeleted).toBe(1);
+                const ids = store.listSessions({ limit: 1000 }).map((s) => s.id);
+                expect(ids).toContain(sNew);
+                expect(ids).not.toContain(sMid);
+            } finally {
+                chmodSync(badSub, 0o755);
+            }
+        },
+    );
 
     // ── Startup recovery ──────────────────────────────────────────────────
 

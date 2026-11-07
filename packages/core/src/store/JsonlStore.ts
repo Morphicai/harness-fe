@@ -431,10 +431,22 @@ function matchesTimeRange(event: StoreEvent, since?: number, until?: number): bo
 function dirSize(dir: string): number {
     if (!existsSync(dir)) return 0;
     let total = 0;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const full = join(dir, entry.name);
-        if (entry.isDirectory()) total += dirSize(full);
-        else total += statSync(full).size;
+    try {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const full = join(dir, entry.name);
+            if (entry.isDirectory()) {
+                total += dirSize(full);
+            } else {
+                try {
+                    total += statSync(full).size;
+                } catch {
+                    // Dangling symlink / concurrently removed file — skip it.
+                }
+            }
+        }
+    } catch {
+        // Unreadable directory — count what we managed to measure instead of
+        // aborting the whole purge run (harness-fe#166 fault isolation).
     }
     return total;
 }
@@ -1476,6 +1488,11 @@ export class JsonlStore implements IStore {
 
         // Total-size cap: if data dir still exceeds maxTotalBytes after all
         // other passes, evict oldest sessions until we're under the limit.
+        // Pass order — age → count → per-session recording/timeline budgets →
+        // exports/builds → total — always keeps the newest data; the total cap
+        // is the global backstop and evicts oldest-first. Like the recording
+        // pass above, each session is isolated: an unreadable/pathological
+        // session is skipped (logged) instead of aborting the whole purge run.
         if (maxTotalBytes > 0) {
             const currentSize = dirSize(this.dataDir);
             if (currentSize > maxTotalBytes) {
@@ -1485,13 +1502,21 @@ export class JsonlStore implements IStore {
                 let runningSize = currentSize;
                 while (runningSize > maxTotalBytes && remaining.length > 0) {
                     const sess = remaining.pop()!;
-                    const dir = this.sessionDir(sess.id);
-                    const size = dirSize(dir);
-                    rmrf(dir);
-                    this.sessionIndex.delete(sess.id);
-                    runningSize -= size;
-                    bytesFreed += size;
-                    sessionsDeleted++;
+                    // Isolate each session: one unreadable / pathological
+                    // session must not abort the whole purge run (harness-fe#166).
+                    try {
+                        const dir = this.sessionDir(sess.id);
+                        const size = dirSize(dir);
+                        rmrf(dir);
+                        this.sessionIndex.delete(sess.id);
+                        runningSize -= size;
+                        bytesFreed += size;
+                        sessionsDeleted++;
+                    } catch (err) {
+                        process.stderr.write(
+                            `[harness-fe] purge: failed to evict session ${sess.id} for total-size cap: ${(err as Error).message}\n`,
+                        );
+                    }
                 }
             }
         }

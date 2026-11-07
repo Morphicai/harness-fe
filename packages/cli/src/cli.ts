@@ -105,6 +105,9 @@ Options:
   --admin-user <u> --admin-pass <p>   Bootstrap admin (governed).
   --issue-token <spec>   Issue a token, printed once (governed). Repeatable.
                          spec: name=agentA,scopes=read+control[,projects=app+other]
+  --max-storage-bytes <n>  Total data-dir size cap in bytes; oldest sessions are
+                         evicted beyond it during purge. 0 disables the cap.
+                         Overrides HARNESS_MAX_STORAGE_BYTES.
   -h, --help
   -v, --version         Installed CLI package version (does not start a gateway).
 `);
@@ -208,6 +211,12 @@ function parseArgs(argv: string[]): CliConfig {
             case '--admin-user': cfg.adminUser = next(); break;
             case '--admin-pass': cfg.adminPass = next(); break;
             case '--issue-token': cfg.issueTokens.push(parseTokenSpec(next())); break;
+            case '--max-storage-bytes': {
+                const n = Number(next());
+                if (!Number.isFinite(n) || n < 0) fail('invalid --max-storage-bytes');
+                cfg.maxStorageBytes = n;
+                break;
+            }
             default: fail(`unknown argument ${a}`);
         }
     }

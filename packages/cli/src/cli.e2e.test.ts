@@ -76,6 +76,31 @@ d('cli e2e (built dist)', () => {
         expect(result.stderr).toBe('');
     });
 
+    it('--max-storage-bytes is parsed and validated', () => {
+        const bad = spawnSync(process.execPath, [distCli, '--max-storage-bytes', 'abc'], {
+            encoding: 'utf8',
+            timeout: 5000,
+        });
+        expect(bad.status).toBe(2);
+        expect(bad.stderr).toContain('invalid --max-storage-bytes');
+
+        const negative = spawnSync(process.execPath, [distCli, '--max-storage-bytes', '-1'], {
+            encoding: 'utf8',
+            timeout: 5000,
+        });
+        expect(negative.status).toBe(2);
+        expect(negative.stderr).toContain('invalid --max-storage-bytes');
+
+        // A valid value parses — the failure below comes from the trailing
+        // unknown flag, proving ours was accepted.
+        const ok = spawnSync(process.execPath, [distCli, '--max-storage-bytes', '1048576', '--bogus'], {
+            encoding: 'utf8',
+            timeout: 5000,
+        });
+        expect(ok.status).toBe(2);
+        expect(ok.stderr).toContain('unknown argument --bogus');
+    });
+
     it('`harness serve` is headless + serves the REAL console + probe endpoint', async () => {
         killPort(SERVE_PORT);
         const dir = mkTmp();
