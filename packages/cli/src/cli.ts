@@ -145,6 +145,25 @@ function parseTokenSpec(raw: string): TokenSpec {
     return { name: f.name, scopes, projects };
 }
 
+/**
+ * Read a byte-count env var with validation. An invalid value must not
+ * silently disable the storage cap (NaN > 0 is false → fail-open): warn and
+ * fall back to the core default (1 GiB). The `--max-storage-bytes` flag stays
+ * strict (exit 2) — env is deployment config, the flag is explicit intent.
+ */
+function envMaxStorageBytes(): number | undefined {
+    const raw = process.env.HARNESS_MAX_STORAGE_BYTES;
+    if (raw == null || raw === '') return undefined;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) {
+        process.stderr.write(
+            `[harness] warning: ignoring invalid HARNESS_MAX_STORAGE_BYTES="${raw}" — using the default 1 GiB storage cap\n`,
+        );
+        return undefined;
+    }
+    return n;
+}
+
 function parseArgs(argv: string[]): CliConfig {
     let args = argv.slice(2);
     const cfg: CliConfig = {
@@ -160,9 +179,7 @@ function parseArgs(argv: string[]): CliConfig {
         adminUser: undefined,
         adminPass: undefined,
         issueTokens: [],
-        maxStorageBytes: process.env.HARNESS_MAX_STORAGE_BYTES
-            ? Number(process.env.HARNESS_MAX_STORAGE_BYTES)
-            : undefined,
+        maxStorageBytes: envMaxStorageBytes(),
         maxAgeDays: process.env.HARNESS_MAX_AGE_DAYS
             ? Number(process.env.HARNESS_MAX_AGE_DAYS)
             : undefined,

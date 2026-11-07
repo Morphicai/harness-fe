@@ -428,25 +428,36 @@ function matchesTimeRange(event: StoreEvent, since?: number, until?: number): bo
     return true;
 }
 
-function dirSize(dir: string): number {
+/**
+ * Size tally for fault-tolerant measurement: entries that could not be read
+ * are counted as 0 bytes, so callers can surface the lossy count instead of
+ * silently under-counting disk usage.
+ */
+interface DirSizeTally {
+    unreadable: number;
+}
+
+function dirSize(dir: string, tally?: DirSizeTally): number {
     if (!existsSync(dir)) return 0;
     let total = 0;
     try {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
             const full = join(dir, entry.name);
             if (entry.isDirectory()) {
-                total += dirSize(full);
+                total += dirSize(full, tally);
             } else {
                 try {
                     total += statSync(full).size;
                 } catch {
                     // Dangling symlink / concurrently removed file — skip it.
+                    if (tally) tally.unreadable++;
                 }
             }
         }
     } catch {
         // Unreadable directory — count what we managed to measure instead of
         // aborting the whole purge run (harness-fe#166 fault isolation).
+        if (tally) tally.unreadable++;
     }
     return total;
 }
@@ -458,6 +469,25 @@ function rmrf(dir: string): void {
         if (entry.isDirectory()) rmrf(full);
         else unlinkSync(full);
     }
+    rmdirSync(dir);
+}
+
+/**
+ * Delete a session directory, removing `meta.json` LAST. If deletion fails
+ * mid-way (e.g. an unreadable subdirectory), `meta.json` survives, so the
+ * session stays discoverable to `listSessions` and is retried on the next
+ * purge run — no invisible disk occupancy behind a deleted meta.json.
+ */
+function rmrfSessionDir(dir: string): void {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'meta.json') continue;
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) rmrf(full);
+        else unlinkSync(full);
+    }
+    const metaPath = join(dir, 'meta.json');
+    if (existsSync(metaPath)) unlinkSync(metaPath);
     rmdirSync(dir);
 }
 
@@ -1368,6 +1398,29 @@ export class JsonlStore implements IStore {
 
     // ── Maintenance ───────────────────────────────────────────────────────
 
+    /**
+     * Delete one session's directory with fault isolation (harness-fe#166):
+     * an unreadable/pathological session is skipped and logged so a single bad
+     * session cannot abort the whole purge run. Returns the bytes freed, or
+     * `undefined` when the session could not be evicted — `meta.json` is
+     * removed last (see rmrfSessionDir), so the session stays discoverable and
+     * is retried on a later purge run.
+     */
+    private evictSession(sess: SessionMeta, reason: string, tally?: DirSizeTally): number | undefined {
+        try {
+            const dir = this.sessionDir(sess.id);
+            const size = dirSize(dir, tally);
+            rmrfSessionDir(dir);
+            this.sessionIndex.delete(sess.id);
+            return size;
+        } catch (err) {
+            process.stderr.write(
+                `[harness-fe] purge: failed to evict session ${sess.id} (${reason}): ${(err as Error).message}\n`,
+            );
+            return undefined;
+        }
+    }
+
     purge(policy: RetentionPolicy = {}): PurgeResult {
         // Normalize aliases
         const maxSessions = policy.maxSessions ?? policy.maxSessionsPerProject ?? DEFAULT_RETENTION.maxSessions;
@@ -1400,6 +1453,9 @@ export class JsonlStore implements IStore {
         let exportsDeleted = 0;
         let bytesFreed = 0;
         let buildsDeleted = 0;
+        // Lossy-measurement tally: unreadable entries count as 0 bytes but are
+        // surfaced once at the end of the run (never silently dropped).
+        const sizeTally: DirSizeTally = { unreadable: 0 };
 
         const sessionsDir = this.sessionsDir();
         if (existsSync(sessionsDir)) {
@@ -1409,12 +1465,11 @@ export class JsonlStore implements IStore {
             for (const sess of allSessions) {
                 const age = now - sess.startedAt;
                 if (age > maxAge) {
-                    const dir = this.sessionDir(sess.id);
-                    const size = dirSize(dir);
-                    rmrf(dir);
-                    this.sessionIndex.delete(sess.id);
-                    bytesFreed += size;
-                    sessionsDeleted++;
+                    const size = this.evictSession(sess, 'age limit', sizeTally);
+                    if (size !== undefined) {
+                        bytesFreed += size;
+                        sessionsDeleted++;
+                    }
                 }
             }
 
@@ -1423,12 +1478,11 @@ export class JsonlStore implements IStore {
             if (remaining.length > maxSessions) {
                 const toDelete = remaining.slice(maxSessions);
                 for (const sess of toDelete) {
-                    const dir = this.sessionDir(sess.id);
-                    const size = dirSize(dir);
-                    rmrf(dir);
-                    this.sessionIndex.delete(sess.id);
-                    bytesFreed += size;
-                    sessionsDeleted++;
+                    const size = this.evictSession(sess, 'count limit', sizeTally);
+                    if (size !== undefined) {
+                        bytesFreed += size;
+                        sessionsDeleted++;
+                    }
                 }
             }
 
@@ -1477,7 +1531,7 @@ export class JsonlStore implements IStore {
                 const stale = allBuilds.slice(maxBuildsPerProject);
                 for (const b of stale) {
                     const dir = this.buildDir(proj.id, b.id);
-                    const size = dirSize(dir);
+                    const size = dirSize(dir, sizeTally);
                     rmrf(dir);
                     this.buildIndex.delete(b.id);
                     bytesFreed += size;
@@ -1490,11 +1544,11 @@ export class JsonlStore implements IStore {
         // other passes, evict oldest sessions until we're under the limit.
         // Pass order — age → count → per-session recording/timeline budgets →
         // exports/builds → total — always keeps the newest data; the total cap
-        // is the global backstop and evicts oldest-first. Like the recording
-        // pass above, each session is isolated: an unreadable/pathological
-        // session is skipped (logged) instead of aborting the whole purge run.
+        // is the global backstop and evicts oldest-first. Each session is
+        // isolated via evictSession: an unreadable/pathological session is
+        // skipped (logged) instead of aborting the whole purge run.
         if (maxTotalBytes > 0) {
-            const currentSize = dirSize(this.dataDir);
+            const currentSize = dirSize(this.dataDir, sizeTally);
             if (currentSize > maxTotalBytes) {
                 const remaining = this.listSessions({ limit: Number.MAX_SAFE_INTEGER });
                 // oldest last → pop from end
@@ -1502,23 +1556,22 @@ export class JsonlStore implements IStore {
                 let runningSize = currentSize;
                 while (runningSize > maxTotalBytes && remaining.length > 0) {
                     const sess = remaining.pop()!;
-                    // Isolate each session: one unreadable / pathological
-                    // session must not abort the whole purge run (harness-fe#166).
-                    try {
-                        const dir = this.sessionDir(sess.id);
-                        const size = dirSize(dir);
-                        rmrf(dir);
-                        this.sessionIndex.delete(sess.id);
+                    const size = this.evictSession(sess, 'total-size cap', sizeTally);
+                    if (size !== undefined) {
                         runningSize -= size;
                         bytesFreed += size;
                         sessionsDeleted++;
-                    } catch (err) {
-                        process.stderr.write(
-                            `[harness-fe] purge: failed to evict session ${sess.id} for total-size cap: ${(err as Error).message}\n`,
-                        );
                     }
                 }
             }
+        }
+
+        if (sizeTally.unreadable > 0) {
+            // Lossy measurement: these entries were counted as 0 bytes and may
+            // still occupy disk — leave a trace instead of failing silently.
+            process.stderr.write(
+                `[harness-fe] purge: ${sizeTally.unreadable} unreadable path(s) counted as 0 bytes while measuring disk usage\n`,
+            );
         }
 
         return { sessionsDeleted, recordingsDeleted, exportsDeleted, bytesFreed, buildsDeleted };

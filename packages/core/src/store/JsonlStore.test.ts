@@ -964,9 +964,82 @@ describe('JsonlStore', () => {
                 const ids = store.listSessions({ limit: 1000 }).map((s) => s.id);
                 expect(ids).toContain(sNew);
                 expect(ids).not.toContain(sMid);
+                // meta.json is deleted last, so the failed eviction leaves sBad
+                // discoverable (retried later) — not invisible disk occupancy.
+                expect(ids).toContain(sBad);
             } finally {
                 chmodSync(badSub, 0o755);
             }
+        },
+    );
+
+    it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+        'purge skips a pathological session in age/count passes and later passes keep running',
+        () => {
+            const now = Date.now();
+            const day = 86_400_000;
+            // sBad is the oldest (age victim) and pathological. No bulk file, so
+            // its failed eviction makes no partial progress and its measured
+            // size stays stable across passes.
+            const sBad = openSizedSession(store, dir, 'proj', now - 10 * day, 0);
+            const sOld = openSizedSession(store, dir, 'proj', now - 9 * day, 10_000); // age victim
+            const sMid = openSizedSession(store, dir, 'proj', now - 2 * day, 10_000); // count victim
+            const sNew = openSizedSession(store, dir, 'proj', now - 1 * day, 10_000); // total victim
+            const sNewest = openSizedSession(store, dir, 'proj', now - 60_000, 10_000); // survivor
+            const badSub = join(dir, 'sessions', sanitizeId(sBad), 'recording');
+            mkdirSync(badSub, { recursive: true });
+            writeFileSync(join(badSub, 'chunk.jsonl'), 'junk\n');
+            chmodSync(badSub, 0o000);
+            try {
+                const total = dirSizeOf(dir);
+                const dOld = dirSizeOf(join(dir, 'sessions', sanitizeId(sOld)));
+                const dMid = dirSizeOf(join(dir, 'sessions', sanitizeId(sMid)));
+                const dNew = dirSizeOf(join(dir, 'sessions', sanitizeId(sNew)));
+                // After age (sOld) + count (sMid) passes — both skipping sBad —
+                // the total cap must still run and evict sNew.
+                const cap = total - dOld - dMid - dNew + 1;
+
+                const result = store.purge({ maxAgeDays: 5, maxSessions: 2, maxTotalBytes: cap });
+                expect(result.sessionsDeleted).toBe(3);
+
+                const ids = store.listSessions({ limit: 1000 }).map((s) => s.id);
+                expect(ids).toContain(sBad); // skipped by every pass, still discoverable
+                expect(ids).toContain(sNewest);
+                expect(ids).not.toContain(sOld);
+                expect(ids).not.toContain(sMid);
+                expect(ids).not.toContain(sNew);
+            } finally {
+                chmodSync(badSub, 0o755);
+            }
+        },
+    );
+
+    it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+        'a failed eviction keeps the session discoverable and a later purge retries it',
+        () => {
+            const now = Date.now();
+            const day = 86_400_000;
+            const sBad = openSizedSession(store, dir, 'proj', now - 10 * day, 10_000);
+            const sKeep = openSizedSession(store, dir, 'proj', now - 60_000, 10_000);
+            const badSub = join(dir, 'sessions', sanitizeId(sBad), 'recording');
+            mkdirSync(badSub, { recursive: true });
+            writeFileSync(join(badSub, 'chunk.jsonl'), 'junk\n');
+            chmodSync(badSub, 0o000);
+            try {
+                // Round 1: the age pass cannot evict sBad (unreadable subdir) …
+                const r1 = store.purge({ maxAgeDays: 5, maxSessions: 100 });
+                expect(r1.sessionsDeleted).toBe(0);
+                // … but meta.json survives the partial deletion, so the session
+                // stays discoverable and its occupancy stays accounted for.
+                expect(store.listSessions({ limit: 1000 }).map((s) => s.id)).toContain(sBad);
+            } finally {
+                chmodSync(badSub, 0o755);
+            }
+            // Round 2: the pathological entry is readable again — the retry
+            // completes the eviction of the same session.
+            const r2 = store.purge({ maxAgeDays: 5, maxSessions: 100 });
+            expect(r2.sessionsDeleted).toBe(1);
+            expect(store.listSessions({ limit: 1000 }).map((s) => s.id)).toEqual([sKeep]);
         },
     );
 

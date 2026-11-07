@@ -101,6 +101,30 @@ d('cli e2e (built dist)', () => {
         expect(ok.stderr).toContain('unknown argument --bogus');
     });
 
+    it('invalid HARNESS_MAX_STORAGE_BYTES warns and keeps the default cap', () => {
+        // Invalid env must warn instead of silently disabling the cap
+        // (NaN > 0 is false → fail-open). The process keeps going — the exit
+        // below comes from the trailing unknown flag, not from the env value.
+        const bad = spawnSync(process.execPath, [distCli, '--bogus'], {
+            encoding: 'utf8',
+            timeout: 5000,
+            env: { ...process.env, HARNESS_MAX_STORAGE_BYTES: 'abc' },
+        });
+        expect(bad.status).toBe(2);
+        expect(bad.stderr).toContain('HARNESS_MAX_STORAGE_BYTES');
+        expect(bad.stderr).toContain('using the default 1 GiB storage cap');
+        expect(bad.stderr).toContain('unknown argument --bogus');
+
+        // A valid env value stays silent.
+        const ok = spawnSync(process.execPath, [distCli, '--bogus'], {
+            encoding: 'utf8',
+            timeout: 5000,
+            env: { ...process.env, HARNESS_MAX_STORAGE_BYTES: '1048576' },
+        });
+        expect(ok.status).toBe(2);
+        expect(ok.stderr).not.toContain('HARNESS_MAX_STORAGE_BYTES');
+    });
+
     it('`harness serve` is headless + serves the REAL console + probe endpoint', async () => {
         killPort(SERVE_PORT);
         const dir = mkTmp();
