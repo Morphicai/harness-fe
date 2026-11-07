@@ -105,6 +105,9 @@ Options:
   --admin-user <u> --admin-pass <p>   Bootstrap admin (governed).
   --issue-token <spec>   Issue a token, printed once (governed). Repeatable.
                          spec: name=agentA,scopes=read+control[,projects=app+other]
+  --max-storage-bytes <n>  Total data-dir size cap in bytes; oldest sessions are
+                         evicted beyond it during purge. 0 disables the cap.
+                         Overrides HARNESS_MAX_STORAGE_BYTES.
   -h, --help
   -v, --version         Installed CLI package version (does not start a gateway).
 `);
@@ -142,6 +145,25 @@ function parseTokenSpec(raw: string): TokenSpec {
     return { name: f.name, scopes, projects };
 }
 
+/**
+ * Read a byte-count env var with validation. An invalid value must not
+ * silently disable the storage cap (NaN > 0 is false → fail-open): warn and
+ * fall back to the core default (1 GiB). The `--max-storage-bytes` flag stays
+ * strict (exit 2) — env is deployment config, the flag is explicit intent.
+ */
+function envMaxStorageBytes(): number | undefined {
+    const raw = process.env.HARNESS_MAX_STORAGE_BYTES;
+    if (raw == null || raw === '') return undefined;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) {
+        process.stderr.write(
+            `[harness] warning: ignoring invalid HARNESS_MAX_STORAGE_BYTES="${raw}" — using the default 1 GiB storage cap\n`,
+        );
+        return undefined;
+    }
+    return n;
+}
+
 function parseArgs(argv: string[]): CliConfig {
     let args = argv.slice(2);
     const cfg: CliConfig = {
@@ -157,9 +179,7 @@ function parseArgs(argv: string[]): CliConfig {
         adminUser: undefined,
         adminPass: undefined,
         issueTokens: [],
-        maxStorageBytes: process.env.HARNESS_MAX_STORAGE_BYTES
-            ? Number(process.env.HARNESS_MAX_STORAGE_BYTES)
-            : undefined,
+        maxStorageBytes: envMaxStorageBytes(),
         maxAgeDays: process.env.HARNESS_MAX_AGE_DAYS
             ? Number(process.env.HARNESS_MAX_AGE_DAYS)
             : undefined,
@@ -208,6 +228,12 @@ function parseArgs(argv: string[]): CliConfig {
             case '--admin-user': cfg.adminUser = next(); break;
             case '--admin-pass': cfg.adminPass = next(); break;
             case '--issue-token': cfg.issueTokens.push(parseTokenSpec(next())); break;
+            case '--max-storage-bytes': {
+                const n = Number(next());
+                if (!Number.isFinite(n) || n < 0) fail('invalid --max-storage-bytes');
+                cfg.maxStorageBytes = n;
+                break;
+            }
             default: fail(`unknown argument ${a}`);
         }
     }
