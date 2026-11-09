@@ -1,5 +1,12 @@
 # @harness-fe/unplugin
 
+## 4.7.0
+
+### Patch Changes
+
+- Updated dependencies [d3fd932]
+  - @harness-fe/protocol@4.7.0
+
 ## 4.6.1
 
 ## 4.6.0
