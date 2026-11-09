@@ -23,6 +23,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
     EVENT_NAME,
     PROTOCOL_VERSION,
+    HEARTBEAT_INTERVAL_MS,
+    HEARTBEAT_REAP_MS,
     type ConsentPolicy,
     pageLoadPayloadSchema,
     navigationEntrySchema,
@@ -57,6 +59,14 @@ import {
 } from './store/index.js';
 
 /**
+ * How long a runtime-client session survives its ws dropping before it is
+ * closed. Must exceed the client's max reconnect backoff (15s) with room for
+ * the heartbeat death-detection path (2 missed pongs ≈ 2× HEARTBEAT_INTERVAL_MS).
+ * A reconnect hello after expiry reopens the session (endedAt is cleared).
+ */
+const RUNTIME_SESSION_GRACE_MS = 30_000;
+
+/**
  * The transport abstraction. The gateway adapts a real `ws.WebSocket` (or any
  * other bidirectional message channel) to this shape and hands it to
  * {@link Bridge.acceptPeer}. core only ever sends/receives JSON strings and
@@ -67,6 +77,13 @@ export interface PeerSocket {
     send(data: string): void;
     /** Close the underlying connection. */
     close(): void;
+    /**
+     * Hard-close immediately, bypassing any graceful close handshake (ws
+     * `terminate()`). Optional — callers fall back to close(). Used by the
+     * silent-peer reaper where the socket is presumed half-open and a graceful
+     * close would linger for the transport's close timeout.
+     */
+    terminate?(): void;
     /** True while the socket can still send. */
     readonly isOpen: boolean;
     /** Register the inbound-message handler. Called once per accepted peer. */
@@ -199,6 +216,25 @@ export class Bridge {
      * cancels it.
      */
     private graceTimers = new Map<string, NodeJS.Timeout>();
+    /**
+     * Runtime-client session close grace: sessionId → close job. A page
+     * load's ws drop closes its session only after this delay, so brief
+     * blips (sleep/wake, network switch, proxy restart) don't flip the
+     * session to CLOSED while the client's auto-reconnect is still backing
+     * off (up to 15s). A reconnect hello with the same sessionId cancels it;
+     * a hello after expiry reopens the session instead (see handleFrame).
+     */
+    private sessionGraceTimers = new Map<string, { timer: NodeJS.Timeout; tabId: string; projectId: string }>();
+    /** Heartbeat reaper sweep timer. unref'd — never holds the process open. */
+    private heartbeatSweepTimer?: NodeJS.Timeout;
+    /**
+     * Connections that have proven heartbeat support by sending ≥1 ping.
+     * The reaper only touches these: pre-heartbeat clients never ping, and
+     * killing them on silence would reconnect-loop every quiet old client.
+     */
+    private heartbeatCapable = new Set<string>();
+    /** Set by stop() — close handlers flush instead of arming new timers. */
+    private stopping = false;
     /** Pending build end info: projectId → { buildId, closedAt }. */
     private pendingEndBuild = new Map<string, { buildId: string; closedAt: number }>();
     /**
@@ -264,16 +300,102 @@ export class Bridge {
             timer.unref();
             this.autoPurgeTimer = timer;
         }
+        this.startHeartbeatSweep();
+        this.stopping = false;
+    }
+
+    /**
+     * Close a runtime-client session/tab unless a live peer already owns them.
+     * Shared by three paths: the deferred close timer, a close during stop(),
+     * and stop()'s flush of pending timers. The liveness re-check lives here
+     * because timer identity (the sessionId captured at arm time) is not
+     * liveness — by fire time a reconnect hello or a reload (new session on
+     * the same tabId) may already own the session/tab, and a stale deferred
+     * close must not flip them back to CLOSED/disconnected.
+     */
+    private finalizeSessionClose(
+        sessionId: string,
+        tabId: string,
+        projectId: string,
+        opts: { force?: boolean } = {},
+    ): void {
+        const live = opts.force
+            ? []
+            : this.router.listPeers().filter((p) => p.role === 'runtime-client');
+        if (!live.some((p) => p.sessionId === sessionId)) {
+            this.store?.closeSession(sessionId);
+            this.notifyDashboard({
+                kind: 'session.closed',
+                sessionId,
+                projectId,
+            });
+        }
+        if (!live.some((p) => p.tabId === tabId)) {
+            this.store?.closeTab(tabId);
+        }
+    }
+
+    /**
+     * Reap peers that have been silent past HEARTBEAT_REAP_MS. Any inbound
+     * frame refreshes `lastActive` (see acceptPeer), so live-but-quiet pages
+     * stay alive via their `ping` cadence; half-open sockets — where the TCP
+     * connection is dead but no close event ever fired on either side — are
+     * the case this sweep exists for. Only heartbeat-capable peers (those that
+     * have sent ≥1 ping) are reaped: pre-heartbeat clients never ping, and a
+     * silent kill would reconnect-loop every quiet old client. Closing the
+     * socket funnels into the regular onClose path (session grace, build
+     * grace, dashboard notify).
+     */
+    private startHeartbeatSweep(): void {
+        if (this.heartbeatSweepTimer) return;
+        const timer = setInterval(() => {
+            const now = Date.now();
+            for (const peer of this.router.listPeers()) {
+                if (peer.role !== 'runtime-client' && peer.role !== 'node-runtime') continue;
+                if (!this.heartbeatCapable.has(peer.connectionId)) continue;
+                if (now - peer.lastActive <= HEARTBEAT_REAP_MS) continue;
+                const sock = this.sockets.get(peer.connectionId);
+                if (!sock) continue;
+                process.stderr.write(
+                    `[harness-fe] reaping silent peer: role=${peer.role} project=${peer.projectId}` +
+                    ` silentMs=${now - peer.lastActive}\n`,
+                );
+                try {
+                    // Hard close: the socket is presumed half-open, and a
+                    // graceful close() would linger for the transport's close
+                    // timeout before onClose ever runs.
+                    if (sock.terminate) sock.terminate();
+                    else sock.close();
+                } catch {
+                    /* swallow */
+                }
+            }
+        }, Math.max(1_000, Math.floor(HEARTBEAT_REAP_MS / 3)));
+        timer.unref?.();
+        this.heartbeatSweepTimer = timer;
     }
 
     /** Stop lifecycle: clear timers and close all peer sockets. Safe to call repeatedly. */
     async stop(): Promise<void> {
+        this.stopping = true;
         if (this.autoPurgeTimer) {
             clearInterval(this.autoPurgeTimer);
             this.autoPurgeTimer = undefined;
         }
+        if (this.heartbeatSweepTimer) {
+            clearInterval(this.heartbeatSweepTimer);
+            this.heartbeatSweepTimer = undefined;
+        }
         for (const timer of this.graceTimers.values()) clearTimeout(timer);
         this.graceTimers.clear();
+        for (const [sessionId, job] of this.sessionGraceTimers) {
+            clearTimeout(job.timer);
+            // Flush pending closes now — stop() must not strand sessions
+            // without endedAt (they'd read LIVE until some future start()'s
+            // orphan sweep). Force: the peers leave with this process.
+            this.finalizeSessionClose(sessionId, job.tabId, job.projectId, { force: true });
+        }
+        this.sessionGraceTimers.clear();
         for (const timer of this.dashboardDebounceTimers.values()) clearTimeout(timer);
         this.dashboardDebounceTimers.clear();
         for (const sock of this.sockets.values()) {
@@ -825,25 +947,44 @@ export class Bridge {
             }
             const frame = frameSchema.safeParse(parsed);
             if (!frame.success) return;
+            // Any valid inbound frame proves the connection is alive — this is
+            // what the heartbeat reaper compares `lastActive` against.
+            this.router.touch(connectionId);
             this.handleFrame(connectionId, socket, frame.data);
         });
 
         socket.onClose(() => {
             this.sockets.delete(connectionId);
             this.warnedNoSession.delete(connectionId);
+            this.heartbeatCapable.delete(connectionId);
             this.dashboardSubscribers.delete(socket);
             const storeId = this.connToStoreId.get(connectionId);
             if (storeId && this.store) {
                 const peer = this.router.getByConnectionId(connectionId);
                 if (peer?.role === 'runtime-client' && peer.tabId) {
-                    this.store.closeSession(storeId);
-                    this.store.closeTab(peer.tabId);
+                    // Defer the close behind a grace window: the client's
+                    // auto-reconnect (exponential backoff, ≤15s) usually wins,
+                    // and a reconnect hello reopens the session either way.
+                    // Closing immediately on every ws blip made sessions flap
+                    // CLOSED while the page was still live.
+                    const sessionId = storeId;
+                    const tabId = peer.tabId;
+                    const projectId = peer.projectId;
                     this.connToStoreId.delete(connectionId);
-                    this.notifyDashboard({
-                        kind: 'session.closed',
-                        sessionId: storeId,
-                        projectId: peer.projectId,
-                    });
+                    const prev = this.sessionGraceTimers.get(sessionId);
+                    if (prev) clearTimeout(prev.timer);
+                    if (this.stopping) {
+                        // Teardown — flush now, unconditionally (the peer is
+                        // going away with this process).
+                        this.finalizeSessionClose(sessionId, tabId, projectId, { force: true });
+                    } else {
+                        const timer = setTimeout(() => {
+                            this.sessionGraceTimers.delete(sessionId);
+                            this.finalizeSessionClose(sessionId, tabId, projectId);
+                        }, RUNTIME_SESSION_GRACE_MS);
+                        timer.unref?.();
+                        this.sessionGraceTimers.set(sessionId, { timer, tabId, projectId });
+                    }
                 } else if (peer?.role === 'vite-plugin' || peer?.role === 'webpack-plugin') {
                     const projectId = peer.projectId;
                     if (projectId) {
@@ -972,6 +1113,13 @@ export class Bridge {
                         }
                     } else if (frame.role === 'runtime-client' && frame.tabId) {
                         const sessionId = frame.sessionId ?? randomUUID();
+                        // Reconnect inside the close-grace window: cancel the
+                        // pending close so the session never flips CLOSED.
+                        const pendingClose = this.sessionGraceTimers.get(sessionId);
+                        if (pendingClose) {
+                            clearTimeout(pendingClose.timer);
+                            this.sessionGraceTimers.delete(sessionId);
+                        }
                         this.store.upsertTab(frame.tabId, {
                             connectedAt: Date.now(),
                             userAgent: frame.page?.userAgent,
@@ -990,6 +1138,13 @@ export class Bridge {
                             participants,
                             createdBy: principal.id,
                         });
+                        // Reconnect after a close already happened (grace expired,
+                        // gateway restart, …): clear endedAt/disconnectedAt so the
+                        // session reads LIVE again. Both reopen* calls are
+                        // idempotent no-ops on an already-live session, and
+                        // startedAt survives via write-once upsert semantics.
+                        this.store.reopenSession(sessionId);
+                        this.store.reopenTab(frame.tabId);
                         this.connToStoreId.set(connectionId, sessionId);
                         this.notifyDashboard({
                             kind: sessionExisted ? 'session.update' : 'session.new',
@@ -1025,6 +1180,7 @@ export class Bridge {
                     tabId: session.tabId,
                     serverVersion: PROTOCOL_VERSION,
                     consent: this.consentPolicy,
+                    heartbeatMs: HEARTBEAT_INTERVAL_MS,
                 };
                 socket.send(JSON.stringify(ack));
                 process.stderr.write(
@@ -1032,6 +1188,19 @@ export class Bridge {
                     `${frame.tabId ? ` tab=${frame.tabId.slice(0, 8)}` : ''}` +
                     `${frame.sessionId ? ` load=${frame.sessionId.slice(0, 8)}` : ''}\n`,
                 );
+                break;
+            }
+            case 'ping': {
+                // Heartbeat liveness probe — echo and refresh lastActive.
+                // A ping also proves heartbeat capability, which is what makes
+                // this connection eligible for silent-peer reaping.
+                this.heartbeatCapable.add(connectionId);
+                this.router.touch(connectionId);
+                try {
+                    socket.send(JSON.stringify({ type: 'pong', id: frame.id, ts: Date.now() }));
+                } catch {
+                    /* swallow */
+                }
                 break;
             }
             case 'response': {

@@ -141,6 +141,12 @@ export const helloAckFrameSchema = z.object({
     error: z.string().optional(),
     /** Browser-consent policy for control commands (4.0 · P2). Absent ⇒ `off`. */
     consent: consentPolicySchema.optional(),
+    /**
+     * Heartbeat cadence (ms) the server expects from long-lived peers.
+     * Absent ⇒ the server predates heartbeat support and never answers `ping`;
+     * clients MUST NOT treat missing `pong`s as connection death in that case.
+     */
+    heartbeatMs: z.number().optional(),
 });
 export type HelloAckFrame = z.infer<typeof helloAckFrameSchema>;
 
@@ -331,6 +337,29 @@ export const dashboardUpdateFrameSchema = z.object({
 });
 export type DashboardUpdateFrame = z.infer<typeof dashboardUpdateFrameSchema>;
 
+// ─── Heartbeat (client → server → client) ───────────────────────────────────
+
+/**
+ * Liveness probe sent by long-lived peers (runtime-client / node-runtime) at
+ * `hello.ack.heartbeatMs` cadence. Any inbound frame counts as liveness, so
+ * `ping` only flows when nothing else is being sent. See PROTOCOL heartbeat
+ * constants in index.ts.
+ */
+export const pingFrameSchema = z.object({
+    type: z.literal('ping'),
+    id: z.string(),
+    ts: z.number().optional(),
+});
+export type PingFrame = z.infer<typeof pingFrameSchema>;
+
+/** Echo of a `ping`, same `id`. Daemons MUST answer every `ping`. */
+export const pongFrameSchema = z.object({
+    type: z.literal('pong'),
+    id: z.string(),
+    ts: z.number().optional(),
+});
+export type PongFrame = z.infer<typeof pongFrameSchema>;
+
 export const frameSchema = z.discriminatedUnion('type', [
     helloFrameSchema,
     helloAckFrameSchema,
@@ -342,6 +371,8 @@ export const frameSchema = z.discriminatedUnion('type', [
     queryFrameSchema,
     queryResponseFrameSchema,
     dashboardUpdateFrameSchema,
+    pingFrameSchema,
+    pongFrameSchema,
 ]);
 export type Frame = z.infer<typeof frameSchema>;
 

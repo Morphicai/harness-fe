@@ -396,6 +396,12 @@ export interface IStore {
      */
     closeTab(tabId: string, disconnectedAt?: number): void;
 
+    /**
+     * Clear `disconnectedAt` — the tab reconnected (ws reconnect within the
+     * grace window, or a late reconnect after close). Idempotent.
+     */
+    reopenTab(tabId: string): void;
+
     // ── Session lifecycle (pageload) ───────────────────────────────────────
 
     /**
@@ -413,6 +419,13 @@ export interface IStore {
      * (Replaces closeLatestLoad() from v0.3.x)
      */
     closeSession(sessionId: string, endedAt?: number): void;
+
+    /**
+     * Clear `endedAt` — the page load's ws peer came back (reconnect). Keeps
+     * `startedAt` untouched (write-once). Idempotent on sessions that were
+     * never closed.
+     */
+    reopenSession(sessionId: string): void;
 
     /** Get session metadata. */
     getSession(sessionId: string): SessionMeta | undefined;

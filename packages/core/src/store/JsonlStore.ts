@@ -740,6 +740,14 @@ export class JsonlStore implements IStore {
         writeJson(metaPath, meta);
     }
 
+    reopenTab(tabId: string): void {
+        const metaPath = join(this.tabDir(tabId), 'meta.json');
+        const meta = readJson<TabMeta>(metaPath);
+        if (!meta || meta.disconnectedAt === undefined) return;
+        delete meta.disconnectedAt;
+        writeJson(metaPath, meta);
+    }
+
     // ── Session lifecycle (pageload) ──────────────────────────────────────
 
     upsertSession(
@@ -761,6 +769,10 @@ export class JsonlStore implements IStore {
             id: sessionId,
             // Write-once: first principal to open the session owns it.
             createdBy: existing?.createdBy ?? meta.createdBy,
+            // Write-once: the first page load's timestamp survives ws reconnect
+            // re-upserts. Without this a reconnect hello stamped a fresh
+            // startedAt while a stale endedAt lingered (startedAt > endedAt).
+            startedAt: existing?.startedAt ?? meta.startedAt,
         };
         // Reset participants — we'll rebuild via dedup loop below
         merged.participants = [];
@@ -796,6 +808,18 @@ export class JsonlStore implements IStore {
         const cached = this.sessionIndex.get(sessionId);
         if (cached) {
             cached.endedAt = meta.endedAt;
+        }
+    }
+
+    reopenSession(sessionId: string): void {
+        const metaPath = join(this.sessionDir(sessionId), 'meta.json');
+        const meta = readJson<SessionMeta>(metaPath);
+        if (!meta || meta.endedAt === undefined) return;
+        delete meta.endedAt;
+        writeJson(metaPath, meta);
+        const cached = this.sessionIndex.get(sessionId);
+        if (cached) {
+            delete cached.endedAt;
         }
     }
 

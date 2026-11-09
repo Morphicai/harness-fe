@@ -66,6 +66,11 @@ export class SessionRouter {
         return this.peers.get(connectionId);
     }
 
+    /** Snapshot of all connected peers (heartbeat sweep iterates this). */
+    listPeers(): PeerSession[] {
+        return [...this.peers.values()];
+    }
+
     findVitePlugin(projectId?: string): PeerSession | undefined {
         const candidates = [...this.peers.values()].filter(
             (p) => p.role === 'vite-plugin' || p.role === 'webpack-plugin',

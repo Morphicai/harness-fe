@@ -228,6 +228,16 @@ export class RuntimeClient {
     // property assignment).
     private readonly recorder: RrwebRecorder;
     private reconnectAttempts = 0;
+    /**
+     * Heartbeat (application-level ping/pong). Only active when the daemon's
+     * hello.ack advertises `heartbeatMs` — older daemons never echo `pong`,
+     * and death-by-missing-pong against one would reconnect-loop forever.
+     * Two consecutive unanswered pings ⇒ half-open socket ⇒ force-close so the
+     * regular reconnect path takes over.
+     */
+    private heartbeatTimer?: ReturnType<typeof setInterval>;
+    private awaitingPong = false;
+    private missedPongs = 0;
     private closed = false;
     private static readonly MAX_OUTBOX_FRAMES = 500;
     private static readonly MAX_OUTBOX_BYTES = 8 * 1024 * 1024;
@@ -350,6 +360,7 @@ export class RuntimeClient {
 
     stop(): void {
         this.closed = true;
+        this.stopHeartbeat();
         this.recorder.stop();
         this.ws?.close();
     }
@@ -401,12 +412,47 @@ export class RuntimeClient {
     }
 
     private onClose(): void {
+        // This connection is gone — heartbeat state is per-connection.
+        this.stopHeartbeat();
         if (this.closed) return;
         const delay = Math.min(15_000, 500 * 2 ** Math.min(this.reconnectAttempts, 5));
         this.reconnectAttempts++;
         setTimeout(() => {
             if (!this.closed) this.connect();
         }, delay);
+    }
+
+    private startHeartbeat(intervalMs: number): void {
+        this.stopHeartbeat();
+        this.heartbeatTimer = setInterval(() => {
+            if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+            if (this.awaitingPong) {
+                this.missedPongs++;
+                if (this.missedPongs >= 2) {
+                    // Half-open socket: OPEN but the daemon hasn't answered two
+                    // pings. Force-close; onClose schedules the reconnect.
+                    this.awaitingPong = false;
+                    this.missedPongs = 0;
+                    try {
+                        this.ws.close();
+                    } catch {
+                        /* swallow */
+                    }
+                }
+                return;
+            }
+            this.awaitingPong = true;
+            this.send({ type: 'ping', id: crypto.randomUUID(), ts: Date.now() });
+        }, intervalMs);
+    }
+
+    private stopHeartbeat(): void {
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+            this.heartbeatTimer = undefined;
+        }
+        this.awaitingPong = false;
+        this.missedPongs = 0;
     }
 
     private onMessage(ev: MessageEvent): void {
@@ -422,6 +468,12 @@ export class RuntimeClient {
         if (frame.type === 'command') this.handleCommand(frame);
         else if (frame.type === 'hello.ack') this.onHelloAck(frame);
         else if (frame.type === 'query.response') this.onQueryResponse(frame);
+        else if (frame.type === 'pong') {
+            // Any pong proves the daemon is alive; don't match ids strictly —
+            // a pong to a pre-reconnect ping still resets the miss counter.
+            this.awaitingPong = false;
+            this.missedPongs = 0;
+        }
     }
 
     private onQueryResponse(frame: QueryResponseFrame): void {
@@ -453,6 +505,13 @@ export class RuntimeClient {
         // sources (4.0 · P2 + runtime opt-in). hello.ack is one input, not final.
         this.daemonConsentMode = frame.consent?.mode;
         this.consentMode = this.resolveConsentMode();
+        // (Re)start heartbeat per connection. Absent heartbeatMs ⇒ daemon
+        // predates heartbeat support; fall back to close-event-only recovery.
+        if (frame.heartbeatMs && frame.heartbeatMs > 0) {
+            this.startHeartbeat(frame.heartbeatMs);
+        } else {
+            this.stopHeartbeat();
+        }
         // Force a fresh rrweb FullSnapshot on RECONNECT acks — after daemon
         // restart, network blips, or page-recovery from sleep — so each new
         // connection has its own baseline even if the start() baseline was
