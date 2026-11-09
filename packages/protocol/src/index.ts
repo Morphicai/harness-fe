@@ -20,6 +20,17 @@ export const DEFAULT_WS_PORT = 47729;
 /** Default WebSocket URL — what every layer falls back to when no override is configured. */
 export const DEFAULT_WS_URL = `ws://${DEFAULT_HOST}:${DEFAULT_WS_PORT}`;
 
+/**
+ * Application-level heartbeat interval (ms) for long-lived ws peers.
+ * Clients send `ping` frames at this cadence; the daemon echoes `pong` and
+ * reaps peers silent for `HEARTBEAT_REAP_MS`. Advertised in `hello.ack.heartbeatMs`
+ * so older daemons (absent field) disable death-by-missing-pong on new clients.
+ */
+export const HEARTBEAT_INTERVAL_MS = 25_000;
+
+/** A peer silent for this long (any inbound frame counts as liveness) is reaped. */
+export const HEARTBEAT_REAP_MS = 90_000;
+
 /** Hosts that don't require token auth — local loopback only. */
 export function isLoopbackHost(host: string): boolean {
     const h = host.toLowerCase();

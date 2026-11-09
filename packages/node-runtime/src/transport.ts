@@ -31,6 +31,10 @@ export class WsTransport implements Transport {
     private reconnectAttempts = 0;
     private reconnectTimer?: ReturnType<typeof setTimeout>;
     private closed = false;
+    /** Heartbeat — only armed when hello.ack advertises `heartbeatMs`. */
+    private heartbeatTimer?: ReturnType<typeof setInterval>;
+    private awaitingPong = false;
+    private missedPongs = 0;
 
     constructor(private readonly opts: RegisterOptions) {}
 
@@ -55,7 +59,28 @@ export class WsTransport implements Transport {
             socket.send(JSON.stringify(this.hello));
         });
 
+        socket.on('message', (raw: unknown) => {
+            // Heartbeat bookkeeping; other inbound frames are not consumed here.
+            let parsed: unknown;
+            try {
+                parsed = JSON.parse(String(raw));
+            } catch {
+                return;
+            }
+            const type = (parsed as { type?: unknown })?.type;
+            if (type === 'pong') {
+                this.awaitingPong = false;
+                this.missedPongs = 0;
+            } else if (type === 'hello.ack') {
+                const heartbeatMs = (parsed as { heartbeatMs?: unknown }).heartbeatMs;
+                if (typeof heartbeatMs === 'number' && heartbeatMs > 0) {
+                    this._startHeartbeat(heartbeatMs);
+                }
+            }
+        });
+
         socket.on('close', () => {
+            this._stopHeartbeat();
             this.ws = undefined;
             if (!this.closed) this._scheduleReconnect();
         });
@@ -64,6 +89,45 @@ export class WsTransport implements Transport {
             this.ws = undefined;
             // close event will follow
         });
+    }
+
+    private _startHeartbeat(intervalMs: number): void {
+        this._stopHeartbeat();
+        this.heartbeatTimer = setInterval(() => {
+            if (!this.ws || this.ws.readyState !== 1 /* OPEN */) return;
+            if (this.awaitingPong) {
+                this.missedPongs++;
+                if (this.missedPongs >= 2) {
+                    // Half-open socket — destroy it now; the close handler
+                    // schedules the reconnect. ws.close() would wait out the
+                    // 30s close timeout first, silently dropping events.
+                    this.awaitingPong = false;
+                    this.missedPongs = 0;
+                    try {
+                        if (typeof this.ws.terminate === 'function') this.ws.terminate();
+                        else this.ws.close();
+                    } catch {
+                        /* swallow */
+                    }
+                }
+                return;
+            }
+            this.awaitingPong = true;
+            try {
+                this.ws.send(JSON.stringify({ type: 'ping', id: randomUUID(), ts: Date.now() }));
+            } catch {
+                /* swallow */
+            }
+        }, intervalMs);
+    }
+
+    private _stopHeartbeat(): void {
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+            this.heartbeatTimer = undefined;
+        }
+        this.awaitingPong = false;
+        this.missedPongs = 0;
     }
 
     private _scheduleReconnect(): void {
@@ -90,6 +154,7 @@ export class WsTransport implements Transport {
 
     close(): void {
         this.closed = true;
+        this._stopHeartbeat();
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = undefined;

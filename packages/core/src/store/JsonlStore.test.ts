@@ -1818,3 +1818,64 @@ describe('Property 7: Tab metadata schema completeness', () => {
         );
     });
 });
+
+describe('session reopen + startedAt write-once', () => {
+    it('reopenSession clears endedAt and is idempotent', () => {
+        const { store, dir } = makeStore();
+        try {
+            const { sessionId } = openSession(store, 'proj');
+            store.closeSession(sessionId);
+            expect(store.getSession(sessionId)?.endedAt).toBeTypeOf('number');
+            store.reopenSession(sessionId);
+            expect(store.getSession(sessionId)?.endedAt).toBeUndefined();
+            store.reopenSession(sessionId); // no-op on a live session
+            expect(store.getSession(sessionId)?.endedAt).toBeUndefined();
+        } finally {
+            cleanup(dir);
+        }
+    });
+
+    it('reopenTab clears disconnectedAt', () => {
+        const { store, dir } = makeStore();
+        try {
+            const { tabId } = openSession(store, 'proj');
+            store.closeTab(tabId);
+            expect(store.getTab(tabId)?.disconnectedAt).toBeTypeOf('number');
+            store.reopenTab(tabId);
+            expect(store.getTab(tabId)?.disconnectedAt).toBeUndefined();
+        } finally {
+            cleanup(dir);
+        }
+    });
+
+    it('upsertSession keeps startedAt write-once (reconnect re-upserts preserve it)', () => {
+        const { store, dir } = makeStore();
+        try {
+            const { sessionId, tabId } = openSession(store, 'proj');
+            const startedAt = store.getSession(sessionId)!.startedAt;
+            store.upsertSession(sessionId, {
+                tabId,
+                startedAt: startedAt + 999_999,
+                participants: [{ projectId: 'proj', joinedAt: startedAt + 999_999 }],
+            });
+            expect(store.getSession(sessionId)!.startedAt).toBe(startedAt);
+        } finally {
+            cleanup(dir);
+        }
+    });
+
+    it('close→reopen→close keeps endedAt > startedAt (no inversion)', () => {
+        const { store, dir } = makeStore();
+        try {
+            const { sessionId } = openSession(store, 'proj');
+            const startedAt = store.getSession(sessionId)!.startedAt;
+            store.closeSession(sessionId, startedAt + 1_000);
+            store.reopenSession(sessionId);
+            store.closeSession(sessionId, startedAt + 5_000);
+            const meta = store.getSession(sessionId)!;
+            expect(meta.endedAt).toBeGreaterThan(meta.startedAt);
+        } finally {
+            cleanup(dir);
+        }
+    });
+});

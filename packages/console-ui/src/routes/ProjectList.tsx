@@ -15,9 +15,15 @@ export function ProjectList() {
         useCallback(
             (frame) => {
                 // Any of these affect the list view (session counts, ordering).
+                // session.update matters for the reconnect-reopen case: the
+                // session flips back to LIVE (endedAt cleared) without a
+                // session.new/session.closed frame, and the list must refetch
+                // or it keeps showing it gone. Bridge-side debounce keeps the
+                // update rate low.
                 if (
                     frame.kind === 'session.new' ||
                     frame.kind === 'session.closed' ||
+                    frame.kind === 'session.update' ||
                     frame.kind === 'project.update'
                 ) {
                     refetch();

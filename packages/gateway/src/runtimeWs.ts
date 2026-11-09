@@ -32,6 +32,15 @@ class WsPeerSocket implements PeerSocket {
             /* swallow */
         }
     }
+    terminate(): void {
+        try {
+            // Hard destroy — ws.close() on a half-open socket waits out the
+            // 30s close timeout before 'close' fires. terminate() fires it now.
+            this.ws.terminate();
+        } catch {
+            /* swallow */
+        }
+    }
     get isOpen(): boolean {
         return this.ws.readyState === WebSocket.OPEN;
     }
