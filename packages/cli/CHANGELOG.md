@@ -1,5 +1,15 @@
 # @harness-fe/cli
 
+## 4.7.0
+
+### Patch Changes
+
+- Updated dependencies [d3fd932]
+  - @harness-fe/protocol@4.7.0
+  - @harness-fe/core@4.7.0
+  - @harness-fe/gateway@4.7.0
+  - @harness-fe/console-ui@4.7.0
+
 ## 4.6.1
 
 ### Patch Changes
