@@ -1,0 +1,9 @@
+ARG LAB_BASE
+FROM ${LAB_BASE}
+RUN rm -rf /opt/harness
+COPY harness /opt/harness
+COPY runtime.js receipt.json /opt/lab/
+COPY lab/container.mjs /opt/lab/
+WORKDIR /workspace/task
+ENTRYPOINT ["node", "/opt/lab/container.mjs"]
+CMD ["doctor"]

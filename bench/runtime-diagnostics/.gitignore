@@ -1,0 +1,4 @@
+jobs/
+cache/
+__pycache__/
+*.log

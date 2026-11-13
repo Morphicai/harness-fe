@@ -8,10 +8,19 @@ and the technical plan this code implements is in
 [`../docs/design/harness-bench-tech-design.md`](../docs/design/harness-bench-tech-design.md).
 Read those first — this README only covers how to run what's here.
 
+## Public dataset comparison
+
+The [portable lab](lab/README.md) freezes five datasets and manages paired runs.
+The first [Web-Bench development pilot](web-bench/README.md) uses React and
+fastify-react, each as a complete 20-task chain, with Kimi k3 and the released
+Harness-FE 4.5.3. Its official-test verifier is isolated from the Agent.
+The earlier [WebArena UI pilot](webarena-verified/README.md) and
+[runtime diagnostics](runtime-diagnostics/README.md) retain separate results.
+
 ## ⚠️ Money gate — read before running anything without `HARNESS_BENCH_STUB=1`
 
 Any invocation that doesn't set `HARNESS_BENCH_STUB=1` calls the real
-`claude -p` CLI, which spends real Anthropic API usage on whatever account is
+`claude -p` CLI, which spends real model-provider usage on whatever account is
 configured. **Do not run a real (non-stub) eval without first confirming
 budget and account with the project owner** — this is a hard rule from the
 project's CLAUDE.md financial guardrail, not a suggestion. Every command

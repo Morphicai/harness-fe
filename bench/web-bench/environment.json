@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "upstream": "https://github.com/bytedance/web-bench.git",
+  "revision": "7b31ca2b786eef120dd49ce63dd03d0c0006046d",
+  "projects": ["fastify-react"],
+  "agentImage": "harness-fe-webbench-agent:4.5.3-fullstack-policy-1",
+  "verifierImage": "harness-fe-webbench-verifier:4.5.3-fullstack-policy-1",
+  "model": "k3",
+  "harnessVersion": "4.5.3",
+  "runtimeVersion": "4.5.2",
+  "stepTimeoutMs": 480000,
+  "maxTurns": 40,
+  "attemptTimeoutMs": 36000000,
+  "viewport": { "width": 1280, "height": 720 },
+  "network": "none",
+  "maxConcurrency": 1
+}

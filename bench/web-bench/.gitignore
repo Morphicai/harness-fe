@@ -1,0 +1,4 @@
+vendor/
+.cache/
+jobs/
+node_modules/

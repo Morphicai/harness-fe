@@ -26,6 +26,10 @@
 
 ## design
 
+- [公开 Agent 工具测评选型](research/agent-tool-benchmark-shortlist-2026-10-21.md)
+- [可迁移测评环境](../bench/lab/README.md)
+- [Web-Bench 成对开发测评](../bench/web-bench/README.md)
+
 - [design/harness-bench-analysis.md](./design/harness-bench-analysis.md)
 - [design/harness-bench-industry-landscape.md](./design/harness-bench-industry-landscape.md)
 - [design/harness-bench-tech-design.md](./design/harness-bench-tech-design.md)
